@@ -110,8 +110,8 @@ Source: "icon.ico"; DestDir: "{app}\Word"; Flags: ignoreversion
 Source: "icon.ico"; DestDir: "{app}\PowerPoint"; Flags: ignoreversion
 
 ; ===== Shared MathJax runtime =====
-Source: "..\release\InstallerAssets\MathJax-3.2.2\*"; \
-  DestDir: "{app}\MathJax-3.2.2"; Flags: ignoreversion recursesubdirs
+Source: "..\release\InstallerAssets\MathJax\*"; \
+  DestDir: "{app}\MathJax"; Flags: ignoreversion recursesubdirs
 
 ; ===== Editor assets =====
 Source: "..\release\InstallerAssets\EditorSharedAssets\*"; \

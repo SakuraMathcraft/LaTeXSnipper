@@ -1,8 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using LaTeXSnipper.OfficePlugin.Abstractions;
 
 namespace LaTeXSnipper.OfficePlugin.WordAddIn;
@@ -18,8 +14,7 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         dynamic control = contentControl;
         if (metadata.NumberingMode != currentMetadata.NumberingMode ||
-            metadata.NumberingMode != NumberingMode.None ||
-            metadata.DisplayMode != FormulaDisplayMode.Inline)
+            metadata.DisplayMode != currentMetadata.DisplayMode)
         {
             ReplaceParagraphWithFormula(control, ooxml, metadata);
             return;
@@ -62,7 +57,8 @@ public sealed partial class DynamicWordApplicationAdapter
 
         ReplaceOmmlRangeWithParsedFormula(equations.Item(1).Range, equationContentOoxml);
         ShowContentControlChrome(control);
-        if (metadata.DisplayMode == FormulaDisplayMode.Display)
+        if (metadata.DisplayMode == FormulaDisplayMode.Display &&
+            metadata.NumberingMode == NumberingMode.None)
         {
             TryCom(() => control.Range.ParagraphFormat.Alignment = WdAlignParagraphCenter);
         }

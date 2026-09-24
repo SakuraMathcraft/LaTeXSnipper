@@ -56,25 +56,7 @@ def build_smart_preview_html(items: list, formula_renderer: FormulaRenderer) -> 
             for content, label, content_type in items
         )
 
-        mathjax_config = f"""
-<script>
-window.MathJax = {{
-  tex: {{
-    inlineMath: [['$','$'], ['\\(','\\)']],
-    displayMath: [['$$','$$'], ['\\[','\\]']],
-    processEscapes: true
-  }},
-  svg: {{
-    fontCache: 'global',
-    scale: 1
-  }},
-  options: {{
-    enableMenu: false,
-    processHtmlClass: 'formula-content'
-  }}
-}};
-</script>
-{mathjax_loader_script()}"""
+        mathjax_config = mathjax_loader_script(options={"processHtmlClass": "formula-content"})
 
         return f"""<!DOCTYPE html>
 <html>

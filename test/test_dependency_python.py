@@ -3,15 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def test_dependency_python_cleans_quoted_paths() -> None:
+def test_dependency_python_cleans_quoted_paths(tmp_path: Path) -> None:
     from runtime.dependency_python import clean_path_value, normalize_deps_base_dir
 
-    assert clean_path_value('"C:\\Example Project\\broken\\python\\python.exe') == (
-        "C:\\Example Project\\broken\\python\\python.exe"
-    )
-    assert clean_path_value(
-        "'C:\\Developer Envs\\mathcraft\\Scripts\\python.exe'"
-    ) == ("C:\\Developer Envs\\mathcraft\\Scripts\\python.exe")
-    assert normalize_deps_base_dir("C:\\Example Project\\deps\\python") == Path(
-        "C:\\Example Project\\deps\\python"
-    )
+    python_path = str(tmp_path / "tools" / "deps" / "python311" / "python.exe")
+    assert clean_path_value('"' + python_path) == python_path
+    assert clean_path_value("'" + python_path + "'") == python_path
+    deps_path = tmp_path / "deps" / "python"
+    assert normalize_deps_base_dir(str(deps_path)) == deps_path

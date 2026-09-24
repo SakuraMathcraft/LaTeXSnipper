@@ -1,5 +1,7 @@
 # MathCraft OCR Literature and Public Data Inventory
 
+All commands below run from the repository root. Benchmark data defaults to the sibling `../MathCraftBenchData` directory; use `-DataRoot` (PowerShell) or `--data-root` where supported to override it, and adjust explicit input/output paths accordingly. CDM requires its dependencies in the selected Python environment and Ghostscript/ImageMagick on `PATH`.
+
 Reviewed: 2026-08-25
 
 This inventory records the paper evidence that is already reproducible, the

@@ -10,7 +10,7 @@ public sealed class WordLatexParseCandidate
         int end,
         string originalText,
         string latex,
-        FormulaDisplayMode displayMode)
+        FormulaDisplayMode displayMode, double? fontSizePoints = null)
     {
         if (start < 0 || end <= start)
         {
@@ -22,7 +22,10 @@ public sealed class WordLatexParseCandidate
         OriginalText = originalText ?? throw new ArgumentNullException(nameof(originalText));
         Latex = latex ?? throw new ArgumentNullException(nameof(latex));
         DisplayMode = displayMode;
+        FontSizePoints = fontSizePoints;
     }
+
+    public double? FontSizePoints { get; }
 
     public int Start { get; }
 

@@ -13,7 +13,6 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
     private const int MsoTrue = -1;
     private const float DefaultLeftPoints = 72f;
     private const float DefaultTopPoints = 96f;
-    private const float FormulaSizeTolerancePoints = 0.1f;
     private const string OleFormulaProgId = "LaTeXSnipper.Formula";
 
     private readonly dynamic _application;
@@ -24,6 +23,19 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
     public DynamicPowerPointApplicationAdapter(object application)
     {
         _application = application ?? throw new ArgumentNullException(nameof(application));
+    }
+
+    public double GetCurrentFontSizePoints()
+    {
+        try
+        {
+            double points = Convert.ToDouble(_application.ActiveWindow.Selection.TextRange.Font.Size);
+            return FormulaFontSize.IsValid(points) ? points : 0;
+        }
+        catch (Exception error) when (error is COMException || error is Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
+        {
+            return 0;
+        }
     }
 
     public Task ActivateForEditingAsync(CancellationToken cancellationToken)
@@ -261,13 +273,13 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
             presentation));
     }
 
-    public Task<IReadOnlyList<PowerPointFormulaEntry>> LoadSelectedFormulaEntriesAsync(CancellationToken cancellationToken)
+    public Task<IReadOnlyList<PowerPointFormulaEntry>> LoadFormulaEntriesAsync(bool all, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var entries = new List<PowerPointFormulaEntry>();
         dynamic presentation = _application.ActivePresentation;
         string documentId = PowerPointDocumentIdentityStore.GetOrCreate(presentation);
-        IReadOnlyList<object> shapes = GetSelectedFormulaShapes();
+        IReadOnlyList<object> shapes = all ? GetAllFormulaShapes(cancellationToken) : GetSelectedFormulaShapes();
         EnsureUniqueShapeIdentities(shapes);
         foreach (object item in shapes)
         {
@@ -307,43 +319,22 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         return false;
     }
 
-    public Task<int> ResetCustomFormulaSizesAsync(CancellationToken cancellationToken)
+    private IReadOnlyList<object> GetAllFormulaShapes(CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        int resetCount = 0;
-        dynamic presentation = _application.ActivePresentation;
-        int slideCount = Convert.ToInt32(presentation.Slides.Count);
-        for (int slideIndex = 1; slideIndex <= slideCount; slideIndex++)
+        var formulas = new List<object>();
+        dynamic slides = _application.ActivePresentation.Slides;
+        for (int slideIndex = 1; slideIndex <= Convert.ToInt32(slides.Count); slideIndex++)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            dynamic shapes = presentation.Slides.Item(slideIndex).Shapes;
-            int shapeCount = Convert.ToInt32(shapes.Count);
-            for (int shapeIndex = 1; shapeIndex <= shapeCount; shapeIndex++)
+            dynamic shapes = slides.Item(slideIndex).Shapes;
+            for (int shapeIndex = 1; shapeIndex <= Convert.ToInt32(shapes.Count); shapeIndex++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 dynamic shape = shapes.Item(shapeIndex);
-                if (string.IsNullOrWhiteSpace(ReadTag(shape, PowerPointFormulaMetadataStore.EquationIdTag)))
-                {
-                    continue;
-                }
-
-                float naturalWidth = ReadRequiredFloatTag(shape, PowerPointFormulaMetadataStore.NaturalWidthPointsTag);
-                float naturalHeight = ReadRequiredFloatTag(shape, PowerPointFormulaMetadataStore.NaturalHeightPointsTag);
-                float currentWidth = Convert.ToSingle(shape.Width, System.Globalization.CultureInfo.InvariantCulture);
-                float currentHeight = Convert.ToSingle(shape.Height, System.Globalization.CultureInfo.InvariantCulture);
-                if (Math.Abs(currentWidth - naturalWidth) <= FormulaSizeTolerancePoints
-                    && Math.Abs(currentHeight - naturalHeight) <= FormulaSizeTolerancePoints)
-                {
-                    continue;
-                }
-
-                shape.Width = naturalWidth;
-                shape.Height = naturalHeight;
-                resetCount++;
+                if (!string.IsNullOrWhiteSpace(ReadTag(shape, PowerPointFormulaMetadataStore.EquationIdTag)))
+                    formulas.Add(shape);
             }
         }
-
-        return Task.FromResult(resetCount);
+        return formulas;
     }
 
     public Task DeleteFormulaByIdAsync(string equationId, CancellationToken cancellationToken)
@@ -506,7 +497,7 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
             metadata.NumberText,
             metadata.RenderEngine,
             metadata.SchemaVersion,
-            metadata.FontScale);
+            metadata.Typography);
     }
 
     private static PowerPointFormulaEntry CreateEntry(dynamic shape, int slideIndex, string documentId)

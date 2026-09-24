@@ -1,5 +1,7 @@
 # Reproduce MathWriting Test
 
+All commands below run from the repository root. Benchmark data defaults to the sibling `../MathCraftBenchData` directory; use `-DataRoot` (PowerShell) or `--data-root` where supported to override it, and adjust explicit input/output paths accordingly. CDM requires its dependencies in the selected Python environment and Ghostscript/ImageMagick on `PATH`.
+
 MathWriting is used as an independent handwritten formula benchmark. The
 protocol is fixed to the public test split, human samples only, offline raster
 images, and the dataset-provided normalized LaTeX labels as ground truth.

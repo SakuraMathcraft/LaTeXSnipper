@@ -1,5 +1,7 @@
 # Reproducing UniMER-Test Results
 
+All commands below run from the repository root. Benchmark data defaults to the sibling `../MathCraftBenchData` directory; use `-DataRoot` (PowerShell) or `--data-root` where supported to override it, and adjust explicit input/output paths accordingly. CDM requires its dependencies in the selected Python environment and Ghostscript/ImageMagick on `PATH`.
+
 This document records the MathCraft OCR UniMER-Test experiment used for the
 paper tables. Large datasets and run outputs are kept outside the repository.
 

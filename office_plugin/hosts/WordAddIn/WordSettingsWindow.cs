@@ -133,8 +133,9 @@ internal sealed class WordSettingsWindow : Form
             ["formulaColor"] = settings.FormulaColor,
             ["defaultFormulaColor"] = WordFormulaColorDefaults.Current,
             ["useSystemFormulaColor"] = settings.UseSystemFormulaColor,
-            ["formulaFontStyle"] = settings.FormulaFontStyle.ToString(),
-            ["formulaFontScale"] = settings.FormulaFontScale,
+            ["formulaMathStyle"] = settings.FormulaMathStyle.ToString(),
+            ["formulaFontSizePoints"] = settings.FormulaFontSizePoints,
+            ["followHostFontSize"] = settings.FollowHostFontSize,
         });
         string script =
             "(function(payload){" +
@@ -186,11 +187,11 @@ internal sealed class WordSettingsWindow : Form
         string numberSeparator = ReadString(message, "numberSeparator", "-");
         string formulaColor = ReadString(message, "formulaColor", WordFormulaColorDefaults.Current);
         bool useSystemFormulaColor = ReadBoolean(message, "useSystemFormulaColor");
-        string fontStyleRaw = ReadString(message, "formulaFontStyle", FormulaFontStyle.TeX.ToString());
-        FormulaFontStyle formulaFontStyle = Enum.TryParse(fontStyleRaw, out FormulaFontStyle parsedFontStyle)
+        string fontStyleRaw = ReadString(message, "formulaMathStyle", FormulaMathStyle.Automatic.ToString());
+        FormulaMathStyle formulaMathStyle = Enum.TryParse(fontStyleRaw, out FormulaMathStyle parsedFontStyle)
             ? parsedFontStyle
-            : FormulaFontStyle.TeX;
-        double formulaFontScale = ReadDouble(message, "formulaFontScale", 1);
+            : FormulaMathStyle.Automatic;
+        double formulaFontSizePoints = ReadDouble(message, "formulaFontSizePoints", 12);
         var settings = new WordPluginSettings(
             placement == "Left" ? WordNumberPlacement.Left : WordNumberPlacement.Right,
             insertionBackend,
@@ -202,8 +203,8 @@ internal sealed class WordSettingsWindow : Form
             numberSeparator,
             formulaColor,
             useSystemFormulaColor,
-            formulaFontStyle,
-            formulaFontScale);
+            formulaMathStyle,
+            formulaFontSizePoints, ReadBoolean(message, "followHostFontSize"));
         settings.Save();
         _settingsSaved();
         _ = SendSettingsAsync();

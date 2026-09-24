@@ -175,7 +175,6 @@ public sealed partial class WordPluginController
         }
 
         string latex = MathLiveLatexStyleNormalizer.NormalizeLatex(preprocessed.Latex.Trim());
-        latex = ApplyDefaultSourceFormatting(latex, settings.FormulaFontStyle, settings.FormulaColor);
         return new FormulaMetadata(
             new FormulaIdentity(_wordAdapter.GetCurrentDocumentId(), Guid.NewGuid().ToString("N")),
             latex,
@@ -184,6 +183,6 @@ public sealed partial class WordPluginController
             numberText,
             RenderEngineKind.Omml,
             FormulaMetadata.CurrentSchemaVersion,
-            settings.FormulaFontScale);
+            settings.TypographyDefaults.ResolveForNewFormula(candidate.FontSizePoints).Typography);
     }
 }

@@ -99,7 +99,7 @@ double ExtractJsonNumber(const std::wstring& json, const std::wstring& propertyN
 
     wchar_t* end = nullptr;
     double value = wcstod(text.c_str(), &end);
-    return end == text.c_str() ? 0 : value;
+    return end == text.c_str() || *end != L'\0' || !std::isfinite(value) ? 0 : value;
 }
 
 int DecodeBase64Char(wchar_t ch)
@@ -210,13 +210,35 @@ void ApplyPayloadSize(const std::wstring& payloadJson, FormulaPresentation* pres
 
 }
 
+static bool HasSupportedTypography(const std::wstring& payloadJson)
+{
+    const std::wstring symbol = ExtractJsonString(payloadJson, L"symbolFontId");
+    const std::wstring style = ExtractJsonString(payloadJson, L"defaultMathStyle");
+    const std::wstring styles[] = {L"Automatic", L"Upright", L"Bold", L"Italic", L"BoldItalic",
+        L"SansSerif", L"SansSerifBold", L"SansSerifItalic", L"SansSerifBoldItalic", L"Monospace",
+        L"Calligraphic", L"Script", L"Fraktur", L"BoldFraktur", L"Blackboard"};
+    bool supportedStyle = false;
+    for (const auto& candidate : styles) supportedStyle = supportedStyle || style == candidate;
+    const std::wstring color = ExtractJsonString(payloadJson, L"color");
+    if (color.size() != 7 || color[0] != L'#') return false;
+    for (size_t index = 1; index < color.size(); ++index)
+        if (!((color[index] >= L'0' && color[index] <= L'9') || (color[index] >= L'A' && color[index] <= L'F')))
+            return false;
+    return ExtractJsonString(payloadJson, L"typographyVersion") == L"1"
+        && (symbol == L"mathjax-tex" || symbol == L"mathjax-stix2") && supportedStyle
+        && payloadJson.find(L"\"numberFontFamily\"") != std::wstring::npos
+        && !ExtractJsonString(payloadJson, L"cjkFontFamily").empty()
+        && ExtractJsonNumber(payloadJson, L"fontSizePoints") >= 1
+        && ExtractJsonNumber(payloadJson, L"fontSizePoints") <= 1638;
+}
+
 static bool HasRequiredFormulaPayloadFields(const std::wstring& payloadJson)
 {
     std::wstring presentationPayload = ExtractJsonString(payloadJson, L"presentationPayloadBase64");
     return !ExtractJsonString(payloadJson, L"latex").empty()
         && !ExtractJsonString(payloadJson, L"displayMode").empty()
         && !ExtractJsonString(payloadJson, L"numberingMode").empty()
-        && !ExtractJsonString(payloadJson, L"fontScale").empty()
+        && HasSupportedTypography(payloadJson)
         && !ExtractJsonString(payloadJson, L"renderEngine").empty()
         && !ExtractJsonString(payloadJson, L"rendererVersion").empty()
         && ExtractJsonNumber(payloadJson, L"widthPoints") > 0
@@ -233,7 +255,7 @@ bool IsSupportedFormulaPayload(const std::wstring& payloadJson)
         return false;
     }
 
-    return ExtractJsonString(payloadJson, L"schemaVersion") == L"2"
+    return ExtractJsonString(payloadJson, L"schemaVersion") == L"3"
         && payloadJson.find(L"\"documentId\"") == std::wstring::npos
         && payloadJson.find(L"\"equationId\"") == std::wstring::npos;
 }

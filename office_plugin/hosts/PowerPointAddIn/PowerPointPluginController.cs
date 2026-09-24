@@ -11,7 +11,6 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 public sealed partial class PowerPointPluginController : IDisposable
 {
     internal const string DefaultLatex = "e^{i\\pi}+1=0";
-    private const double InitialFormulaScale = 2.5;
     private const double ImageHorizontalPaddingPoints = 1.5;
     private const double ImageVerticalPaddingPoints = 0.5;
 
@@ -155,7 +154,7 @@ public sealed partial class PowerPointPluginController : IDisposable
         PowerPointFormulaEditTarget? target = accepted.UpdateMode
             ? GetEditorTarget(accepted)
             : null;
-        FormulaMetadata metadata = CreateMetadata(accepted.Latex, previous);
+        FormulaMetadata metadata = CreateMetadata(accepted.Latex, previous).WithTypography(accepted.Typography);
         if (previous != null && IsSameRenderedFormula(previous, metadata))
         {
             CompleteEditorSession(accepted.SessionGeneration, target);
@@ -385,13 +384,6 @@ public sealed partial class PowerPointPluginController : IDisposable
             ? DefaultLatex
             : MathLiveLatexStyleNormalizer.NormalizeLatex(latex.Trim());
         PowerPointPluginSettings settings = PowerPointPluginSettings.Load();
-        if (previous == null)
-        {
-            normalizedLatex = ApplyDefaultSourceFormatting(
-                normalizedLatex,
-                settings.FormulaFontStyle,
-                settings.FormulaColor);
-        }
         return new FormulaMetadata(
             previous?.Identity ?? new FormulaIdentity(_powerPointAdapter.GetCurrentDocumentId(), Guid.NewGuid().ToString("N")),
             normalizedLatex,
@@ -400,7 +392,7 @@ public sealed partial class PowerPointPluginController : IDisposable
             string.Empty,
             previous?.RenderEngine ?? RenderEngineKind.Image,
             schemaVersion: FormulaMetadata.CurrentSchemaVersion,
-            previous?.FontScale ?? settings.FormulaFontScale);
+            previous?.Typography ?? settings.TypographyDefaults.ResolveForNewFormula(_powerPointAdapter.GetCurrentFontSizePoints()).Typography);
     }
 
     private FormulaMetadata CreateEditorDraft()
@@ -414,15 +406,12 @@ public sealed partial class PowerPointPluginController : IDisposable
             string.Empty,
             RenderEngineKind.Image,
             schemaVersion: FormulaMetadata.CurrentSchemaVersion,
-            settings.FormulaFontScale);
+            settings.TypographyDefaults.ResolveForNewFormula(_powerPointAdapter.GetCurrentFontSizePoints()).Typography);
     }
 
     private async Task<OlePresentationResult> RenderOlePresentationAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
     {
-        var request = new RenderRequest(metadata.Latex, metadata.DisplayMode, RenderEngineKind.MathJaxSvg)
-        {
-            FontScale = InitialFormulaScale * metadata.FontScale
-        };
+        var request = new RenderRequest(metadata.Latex, metadata.DisplayMode, RenderEngineKind.MathJaxSvg, metadata.Typography);
         RenderResult intermediate = await _mathJaxRenderer.RenderAsync(request, cancellationToken);
         return await _olePresentationPipeline.RenderAsync(
             new OlePresentationRequest(intermediate, OlePresentationKind.EnhancedMetafile),
@@ -431,10 +420,7 @@ public sealed partial class PowerPointPluginController : IDisposable
 
     private async Task<PowerPointRenderedImage> RenderImageAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
     {
-        var request = new RenderRequest(metadata.Latex, FormulaDisplayMode.Display, RenderEngineKind.MathJaxSvg)
-        {
-            FontScale = InitialFormulaScale * metadata.FontScale
-        };
+        var request = new RenderRequest(metadata.Latex, FormulaDisplayMode.Display, RenderEngineKind.MathJaxSvg, metadata.Typography);
         RenderResult svg = await _mathJaxRenderer.RenderAsync(request, cancellationToken);
         byte[] png = SvgPngRasterizer.Rasterize(
             svg,
@@ -447,20 +433,6 @@ public sealed partial class PowerPointPluginController : IDisposable
             svg.HeightPoints + ImageVerticalPaddingPoints * 2);
     }
 
-    private static string ApplyDefaultSourceFormatting(string latex, FormulaFontStyle fontStyle, string fontColor)
-    {
-        string formatted = MathLiveLatexStyleNormalizer.HasFontStyleFormatting(latex)
-            ? latex
-            : MathLiveLatexStyleNormalizer.ApplyRenderFontStyle(latex, fontStyle);
-        if (MathLiveLatexStyleNormalizer.HasColorFormatting(formatted)
-            || string.Equals(fontColor, "#000000", StringComparison.OrdinalIgnoreCase))
-        {
-            return formatted;
-        }
-
-        return "\\color{" + fontColor + "}{" + formatted + "}";
-    }
-
     private static FormulaMetadata WithRenderEngine(FormulaMetadata metadata, RenderEngineKind renderEngine)
     {
         return new FormulaMetadata(
@@ -471,14 +443,14 @@ public sealed partial class PowerPointPluginController : IDisposable
             metadata.NumberText,
             renderEngine,
             metadata.SchemaVersion,
-            metadata.FontScale);
+            metadata.Typography);
     }
 
     private static bool IsSameRenderedFormula(FormulaMetadata left, FormulaMetadata right)
     {
         return string.Equals(left.Latex.Trim(), right.Latex.Trim(), StringComparison.Ordinal)
             && left.DisplayMode == right.DisplayMode
-            && Math.Abs(left.FontScale - right.FontScale) <= 0.001;
+            && left.Typography.Equals(right.Typography);
     }
 
     private PowerPointFormulaEditTarget GetEditorTarget(FormulaEditorAcceptedEventArgs accepted)

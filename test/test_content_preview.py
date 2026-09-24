@@ -34,13 +34,11 @@ def test_mixed_content_escapes_text_and_preserves_formulas():
 def test_mixed_content_mathjax_loader_falls_back_to_backup_cdn():
     html = build_mixed_content_html("$x$")
 
-    assert "var localScript = 'tex-mml-chtml.js';" in html
-    assert "script.src = localScript;" in html
-    assert MATHJAX_CDN_URL in html
-    assert MATHJAX_CDN_URL_BACKUP in html
-    assert "cdnScript.onerror" in html
-    assert "backupScript.src = cdnUrls[1];" in html
-    assert "document.body || document.head || document.documentElement" in html
+    assert "LaTeXSnipperMathJax.load" in html
+    assert MATHJAX_CDN_URL.rsplit("/", 1)[0] in html
+    assert MATHJAX_CDN_URL_BACKUP.rsplit("/", 1)[0] in html
+    assert '"output": "chtml"' in html
+    assert '"scale": 1.2' in html
 
 
 def test_smart_preview_uses_shared_mathjax_fallback_loader():
@@ -49,10 +47,9 @@ def test_smart_preview_uses_shared_mathjax_fallback_loader():
         lambda content: f'<div class="formula-content">$${content}$$</div>',
     )
 
-    assert MATHJAX_CDN_URL in html
-    assert MATHJAX_CDN_URL_BACKUP in html
-    assert "backupScript.src = cdnUrls[1];" in html
-    assert "appendScript(script);" in html
+    assert MATHJAX_CDN_URL.rsplit("/", 1)[0] in html
+    assert MATHJAX_CDN_URL_BACKUP.rsplit("/", 1)[0] in html
+    assert "LaTeXSnipperMathJax.load" in html
     assert "color-scheme:" in html
     assert "::-webkit-scrollbar-thumb" in html
 

@@ -1,19 +1,16 @@
 using System;
-using System.Collections.Concurrent;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using LaTeXSnipper.OfficePlugin.Abstractions;
 
 namespace LaTeXSnipper.OfficePlugin.Rendering;
 
-public sealed class MathJaxSvgRenderer : IFormulaRenderer, IDisposable
+public sealed partial class MathJaxSvgRenderer : IFormulaRenderer, IDisposable
 {
     public const string SvgMimeType = "image/svg+xml";
 
     private readonly IMathJaxJavaScriptRuntime _runtime;
     private readonly MathJaxAssetResolver _assetResolver;
-    private readonly ConcurrentDictionary<MathJaxRenderCacheKey, RenderResult> _cache = new ConcurrentDictionary<MathJaxRenderCacheKey, RenderResult>();
     private readonly SemaphoreSlim _initializeLock = new SemaphoreSlim(1, 1);
     private bool _initialized;
     private bool _disposed;
@@ -48,47 +45,7 @@ public sealed class MathJaxSvgRenderer : IFormulaRenderer, IDisposable
         using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
         CancellationToken token = linked.Token;
 
-        await EnsureInitializedAsync(token).ConfigureAwait(false);
-
-        var key = new MathJaxRenderCacheKey(request, "3.2.2");
-        if (_cache.TryGetValue(key, out RenderResult? cached))
-        {
-            return cached;
-        }
-
-        string script = MathJaxRenderScriptBuilder.BuildRenderScript(request);
-        string responseJson = await _runtime.EvaluateAsync(script, token).ConfigureAwait(false);
-        MathJaxSvgRenderResponse response = MathJaxSvgRenderResponse.Parse(responseJson);
-        var result = new RenderResult(
-            RenderEngineKind.MathJaxSvg,
-            SvgMimeType,
-            Encoding.UTF8.GetBytes(response.Svg),
-            response.WidthPoints,
-            response.HeightPoints,
-            response.BaselinePoints,
-            response.RendererVersion,
-            response.Warnings);
-
-        return _cache.GetOrAdd(new MathJaxRenderCacheKey(request, result.RendererVersion), result);
-    }
-
-    public async Task<string> ConvertToMathMlAsync(
-        string latex,
-        FormulaDisplayMode displayMode,
-        CancellationToken cancellationToken)
-    {
-        ThrowIfDisposed();
-        if (string.IsNullOrWhiteSpace(latex))
-        {
-            throw new ArgumentException("LaTeX 内容不能为空。", nameof(latex));
-        }
-
-        using var timeout = new CancellationTokenSource(OfficeCommandTimeouts.Render);
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
-        await EnsureInitializedAsync(linked.Token).ConfigureAwait(false);
-        string script = MathJaxRenderScriptBuilder.BuildMathMlScript(latex, displayMode);
-        string responseJson = await _runtime.EvaluateAsync(script, linked.Token).ConfigureAwait(false);
-        return MathJaxMathMlResponse.Parse(responseJson).MathMl;
+        return await RenderTypographyAsync(request.Latex, request.DisplayMode, request.Typography, token).ConfigureAwait(false);
     }
 
     private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
@@ -107,11 +64,9 @@ public sealed class MathJaxSvgRenderer : IFormulaRenderer, IDisposable
                 return;
             }
 
-            string bundle = _assetResolver.ResolveTexSvgBundle();
+            string bundle = _assetResolver.ResolveStartupScript();
             await _runtime.InitializeAsync(
                 bundle,
-                MathJaxRenderScriptBuilder.BuildConfigurationScript(),
-                MathJaxRenderScriptBuilder.BuildBootstrapScript(),
                 cancellationToken).ConfigureAwait(false);
             _initialized = true;
         }
@@ -136,6 +91,7 @@ public sealed class MathJaxSvgRenderer : IFormulaRenderer, IDisposable
 
         _disposed = true;
         _initializeLock.Dispose();
+        _typographyLock.Dispose();
         if (_runtime is IDisposable disposableRuntime)
         {
             disposableRuntime.Dispose();

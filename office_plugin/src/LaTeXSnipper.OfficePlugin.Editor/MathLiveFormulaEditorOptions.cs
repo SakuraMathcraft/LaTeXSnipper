@@ -1,6 +1,7 @@
 #if NET48
 using System.Collections.Generic;
 using System.Drawing;
+using LaTeXSnipper.OfficePlugin.Abstractions;
 
 namespace LaTeXSnipper.OfficePlugin.Editor;
 
@@ -12,8 +13,12 @@ public sealed class MathLiveFormulaEditorOptions
         string webViewUserDataFolderName,
         IEnumerable<string> devAssetRelativePaths,
         IEnumerable<string> sharedDevAssetRelativePaths,
-        IEnumerable<string> registryPaths)
+        IEnumerable<string> registryPaths,
+        IFormulaRenderer previewRenderer,
+        IReadOnlyList<string> symbolFonts)
     {
+        PreviewRenderer = previewRenderer ?? throw new System.ArgumentNullException(nameof(previewRenderer));
+        SymbolFonts = symbolFonts ?? throw new System.ArgumentNullException(nameof(symbolFonts));
         EditorHostName = editorHostName;
         SharedEditorHostName = sharedEditorHostName;
         WebViewUserDataFolderName = webViewUserDataFolderName;
@@ -21,6 +26,10 @@ public sealed class MathLiveFormulaEditorOptions
         SharedDevAssetRelativePaths = new List<string>(sharedDevAssetRelativePaths);
         RegistryPaths = new List<string>(registryPaths);
     }
+
+    public IFormulaRenderer PreviewRenderer { get; }
+
+    public IReadOnlyList<string> SymbolFonts { get; }
 
     public string EditorHostName { get; }
 

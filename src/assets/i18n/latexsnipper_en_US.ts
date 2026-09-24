@@ -194,12 +194,12 @@
       <translation>GitHub rate limit: remaining={remaining}, resets around {reset}</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/smart_preview.py" line="198" />
+      <location filename="../../../src/preview/smart_preview.py" line="180" />
       <source>HTML 构建失败</source>
       <translation>HTML build failed</translation>
     </message>
     <message>
-      <location filename="../../../src/exporting/pandoc_exporter.py" line="47" />
+      <location filename="../../../src/exporting/pandoc_exporter.py" line="51" />
       <source>HTML 独立页(.html)</source>
       <translation>Standalone HTML page (.html)</translation>
     </message>
@@ -544,19 +544,9 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>The PDF preview file does not exist.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/formula_export_menu.py" line="170" />
-      <source>Pandoc 不可用: {error}</source>
-      <translation>Pandoc is unavailable: {error}</translation>
-    </message>
-    <message>
       <location filename="../../../src/bootstrap/deps_layer_specs.py" line="62" />
       <source>Pandoc 文档导出</source>
       <translation>Pandoc document export</translation>
-    </message>
-    <message>
-      <location filename="../../../src/ui/formula_export_menu.py" line="174" />
-      <source>Pandoc 转换失败: {error}</source>
-      <translation>Pandoc conversion failed: {error}</translation>
     </message>
     <message>
       <location filename="../../../src/preview/document/pdf_poppler.py" line="541" />
@@ -1205,7 +1195,7 @@ Restart and open Dependency Management now?
       <translation>Select All</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/smart_preview.py" line="221" />
+      <location filename="../../../src/preview/smart_preview.py" line="203" />
       <location filename="../../../src/ui/favorites_window.py" line="398" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="100" />
       <source>公式</source>
@@ -1232,7 +1222,7 @@ Restart and open Dependency Management now?
       <translation>Formula Favorites</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/math_preview.py" line="411" />
+      <location filename="../../../src/preview/math_preview.py" line="356" />
       <source>公式渲染出错</source>
       <translation>Formula rendering error</translation>
     </message>
@@ -1312,12 +1302,12 @@ Restart and open Dependency Management now?
     </message>
     <message>
       <location filename="../../../src/ui/editor_actions_controller.py" line="75" />
-      <location filename="../../../src/ui/formula_export_menu.py" line="244" />
+      <location filename="../../../src/ui/formula_export_menu.py" line="234" />
       <source>内容为空</source>
       <translation>Content is empty</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/smart_preview.py" line="250" />
+      <location filename="../../../src/preview/smart_preview.py" line="232" />
       <source>内容块渲染失败: {error}</source>
       <translation>Content block rendering failed: {error}</translation>
     </message>
@@ -1693,8 +1683,8 @@ Restart and open Dependency Management now?
     <message>
       <location filename="../../../src/editor/workbench_window.py" line="358" />
       <location filename="../../../src/ui/editor_actions_controller.py" line="50" />
-      <location filename="../../../src/ui/formula_export_menu.py" line="156" />
-      <location filename="../../../src/ui/formula_export_menu.py" line="188" />
+      <location filename="../../../src/ui/formula_export_menu.py" line="164" />
+      <location filename="../../../src/ui/formula_export_menu.py" line="178" />
       <location filename="../../../src/ui/history_controller.py" line="202" />
       <location filename="../../../src/update/update_dialog.py" line="543" />
       <source>复制失败</source>
@@ -1957,7 +1947,7 @@ Restart and open Dependency Management now?
       <translation>Export {format}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/formula_export_menu.py" line="208" />
+      <location filename="../../../src/ui/formula_export_menu.py" line="198" />
       <source>导出为 {format}</source>
       <translation>Export as {format}</translation>
     </message>
@@ -2192,7 +2182,7 @@ Launch the installer now?</translation>
     </message>
     <message>
       <location filename="../../../src/ui/editor_actions_controller.py" line="103" />
-      <location filename="../../../src/ui/formula_export_menu.py" line="213" />
+      <location filename="../../../src/ui/formula_export_menu.py" line="203" />
       <source>已取消导出</source>
       <translation>Export canceled</translation>
     </message>
@@ -2244,8 +2234,8 @@ Launch the installer now?</translation>
       <translation>MathJSON copied</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/formula_export_menu.py" line="180" />
-      <location filename="../../../src/ui/formula_export_menu.py" line="186" />
+      <location filename="../../../src/ui/formula_export_menu.py" line="170" />
+      <location filename="../../../src/ui/formula_export_menu.py" line="176" />
       <source>已复制 {format} 格式</source>
       <translation>Copied in {format} format</translation>
     </message>
@@ -3166,7 +3156,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>File</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/smart_preview.py" line="222" />
+      <location filename="../../../src/preview/smart_preview.py" line="204" />
       <location filename="../../../src/ui/favorites_window.py" line="399" />
       <source>文字</source>
       <translation>Text</translation>
@@ -3192,7 +3182,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Solve equation</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/math_preview.py" line="383" />
+      <location filename="../../../src/preview/math_preview.py" line="330" />
       <source>无公式</source>
       <translation>No formula</translation>
     </message>
@@ -3561,7 +3551,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Unknown</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/formula_export_menu.py" line="204" />
+      <location filename="../../../src/ui/formula_export_menu.py" line="194" />
       <source>未知的 Pandoc 格式: {format}</source>
       <translation>Unknown Pandoc format: {format}</translation>
     </message>
@@ -3917,7 +3907,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Exporting </translation>
     </message>
     <message>
-      <location filename="../../../src/ui/formula_export_menu.py" line="231" />
+      <location filename="../../../src/ui/formula_export_menu.py" line="221" />
       <source>正在导出 {format}...</source>
       <translation>Exporting {format}...</translation>
     </message>
@@ -4098,14 +4088,14 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Dark</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/smart_preview.py" line="223" />
+      <location filename="../../../src/preview/smart_preview.py" line="205" />
       <location filename="../../../src/ui/favorites_window.py" line="400" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="101" />
       <source>混合</source>
       <translation>Mixed</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/smart_preview.py" line="302" />
+      <location filename="../../../src/preview/smart_preview.py" line="284" />
       <source>混合内容渲染失败: {error}</source>
       <translation>Mixed-content rendering failed: {error}</translation>
     </message>
@@ -4424,7 +4414,7 @@ The uninstall progress window will open after confirmation.</translation>
       <translation>Text only</translation>
     </message>
     <message>
-      <location filename="../../../src/exporting/pandoc_exporter.py" line="53" />
+      <location filename="../../../src/exporting/pandoc_exporter.py" line="57" />
       <source>纯文本 (.txt)</source>
       <translation>Plain text (.txt)</translation>
     </message>
@@ -5003,7 +4993,7 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Choose another {format} combination and retry</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/math_preview.py" line="413" />
+      <location filename="../../../src/preview/math_preview.py" line="358" />
       <source>请检查 MathJax 资源是否正确打包</source>
       <translation>Check that MathJax resources are packaged correctly</translation>
     </message>
@@ -5521,12 +5511,12 @@ Continue?</translation>
     <message>
       <location filename="../../../src/preview/document/window.py" line="1725" />
       <location filename="../../../src/preview/smart_preview.py" line="25" />
-      <location filename="../../../src/preview/smart_preview.py" line="199" />
+      <location filename="../../../src/preview/smart_preview.py" line="181" />
       <source>错误:</source>
       <translation>Error:</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/math_preview.py" line="412" />
+      <location filename="../../../src/preview/math_preview.py" line="357" />
       <source>错误信息:</source>
       <translation>Error details:</translation>
     </message>

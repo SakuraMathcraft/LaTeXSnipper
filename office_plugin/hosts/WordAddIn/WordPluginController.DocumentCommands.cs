@@ -58,7 +58,7 @@ public sealed partial class WordPluginController
 
     private async Task ConvertSelectedAsync(FormulaInsertionBackend target, CancellationToken cancellationToken)
     {
-        IReadOnlyList<WordFormulaEntry> formulas = (await _wordAdapter.LoadSelectedFormulaEntriesAsync(cancellationToken))
+        IReadOnlyList<WordFormulaEntry> formulas = (await _wordAdapter.LoadFormulaEntriesAsync(false, cancellationToken))
             .OrderByDescending(item => item.Start)
             .ToArray();
         int targetCount = formulas.Count(entry => !entry.IsNativeWordFormula || target == FormulaInsertionBackend.Ole);
@@ -179,14 +179,8 @@ public sealed partial class WordPluginController
 
     private async Task FormatAsync(bool all, CancellationToken cancellationToken)
     {
-        if (all)
-        {
-            await ResetAllNaturalSizesAsync(cancellationToken);
-            return;
-        }
-
         WordPluginSettings settings = _settingsLoader();
-        IReadOnlyList<WordFormulaEntry> formulas = (await _wordAdapter.LoadSelectedFormulaEntriesAsync(cancellationToken))
+        IReadOnlyList<WordFormulaEntry> formulas = (await _wordAdapter.LoadFormulaEntriesAsync(all, cancellationToken))
             .OrderByDescending(item => item.Start)
             .ToArray();
         if (!formulas.Any(entry => !entry.IsNativeWordFormula))
@@ -278,7 +272,7 @@ public sealed partial class WordPluginController
                             prepared.EquationContentOoxml!,
                             formatted,
                             prepared.Display,
-                            cancellationToken);
+                            cancellationToken, preserveUserScale: false);
                     }
 
                     formattedCount++;
@@ -297,30 +291,6 @@ public sealed partial class WordPluginController
         _statusSink.Post(WordStatusKind.Success, BuildChangedStatus("FormattedStatus", "FormattedWithSkippedStatus", formattedCount, skippedCount));
     }
 
-    private async Task ResetAllNaturalSizesAsync(CancellationToken cancellationToken)
-    {
-        WordFormattingResetResult result;
-        using (_wordAdapter.BeginUndoRecord())
-        {
-            result = await _wordAdapter.ResetCustomFormulaSizesAsync(cancellationToken);
-        }
-
-        if (result.FormulaCount == 0)
-        {
-            _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("NoFormattingTargetsStatus"));
-            return;
-        }
-
-        if (result.ResetCount == 0)
-        {
-            _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("NoFormattingNeededAllStatus"));
-            return;
-        }
-
-        _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("FormattedStatus")
-            .Replace("{count}", result.ResetCount.ToString(System.Globalization.CultureInfo.InvariantCulture)));
-    }
-
     private async Task InsertBoundaryAsync(WordNumberingBoundary boundary, CancellationToken cancellationToken)
     {
         using (_wordAdapter.BeginUndoRecord())
@@ -334,10 +304,7 @@ public sealed partial class WordPluginController
 
     private static FormulaMetadata WithDefaultStyle(FormulaMetadata metadata, WordPluginSettings settings)
     {
-        string latex = MathLiveLatexStyleNormalizer.ApplyFormattingFontStyle(
-            MathLiveLatexStyleNormalizer.RemoveColorFormatting(metadata.Latex),
-            settings.FormulaFontStyle);
-        latex = ApplyFormulaColor(latex, settings.FormulaColor);
+        string latex = metadata.Latex;
         return new FormulaMetadata(
             metadata.Identity,
             latex,
@@ -346,18 +313,12 @@ public sealed partial class WordPluginController
             metadata.NumberText,
             metadata.RenderEngine,
             metadata.SchemaVersion,
-            settings.FormulaFontScale);
+            settings.Typography);
     }
 
     private bool NeedsFormatting(FormulaMetadata metadata, WordPluginSettings settings)
     {
-        string colorlessLatex = MathLiveLatexStyleNormalizer.RemoveColorFormatting(metadata.Latex);
-        string formattedLatex = MathLiveLatexStyleNormalizer.ApplyFormattingFontStyle(
-            colorlessLatex,
-            settings.FormulaFontStyle);
-        formattedLatex = ApplyFormulaColor(formattedLatex, settings.FormulaColor);
-        return !string.Equals(MathLiveLatexStyleNormalizer.NormalizeLatex(metadata.Latex), formattedLatex, StringComparison.Ordinal)
-            || Math.Abs(metadata.FontScale - settings.FormulaFontScale) > 0.001
+        return !metadata.Typography.Equals(settings.Typography)
             || _wordAdapter.HasCustomFormulaScale(metadata);
     }
 
@@ -371,18 +332,7 @@ public sealed partial class WordPluginController
             string.Empty,
             RenderEngineKind.MathJaxSvg,
             schemaVersion: FormulaMetadata.CurrentSchemaVersion,
-            _settingsLoader().FormulaFontScale);
-    }
-
-    private static string ApplyFormulaColor(string latex, string fontColor)
-    {
-        if (MathLiveLatexStyleNormalizer.HasColorFormatting(latex)
-            || string.Equals(fontColor, "#000000", StringComparison.OrdinalIgnoreCase))
-        {
-            return latex;
-        }
-
-        return "\\color{" + fontColor + "}{" + latex + "}";
+            _settingsLoader().Typography);
     }
 
     private void PostBatchProgress(string key, int processed, int total)

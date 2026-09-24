@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\LaTeXSnipper.OfficePlugin.Abstractions\LaTeXSnipper.OfficePlugin.Abstractions.csproj" />
+    <EmbeddedResource Include="MathJaxTypographyAdapter.js" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
@@ -15,12 +16,7 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3967.48" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Content Include="..\..\..\src\assets\MathJax-3.2.2\**\*">
-      <Link>MathJax-3.2.2\%(RecursiveDir)%(Filename)%(Extension)</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
+  <Import Project="..\..\..\tools\mathjax\office.props" />
 
   <PropertyGroup>
     <TargetFrameworks>net48;net9.0</TargetFrameworks>

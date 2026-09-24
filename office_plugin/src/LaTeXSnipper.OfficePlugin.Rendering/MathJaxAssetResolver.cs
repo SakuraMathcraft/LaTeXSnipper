@@ -6,8 +6,8 @@ namespace LaTeXSnipper.OfficePlugin.Rendering;
 
 public sealed class MathJaxAssetResolver
 {
-    private const string MathJaxRootName = "MathJax-3.2.2";
-    private const string MathJaxBundleRelativePath = "es5\\tex-mml-svg.js";
+    private const string MathJaxRootName = "MathJax";
+    private const string MathJaxBundleRelativePath = "startup.js";
 
     private readonly string? _explicitRoot;
 
@@ -16,7 +16,7 @@ public sealed class MathJaxAssetResolver
         _explicitRoot = explicitRoot;
     }
 
-    public string ResolveTexSvgBundle()
+    public string ResolveStartupScript()
     {
         string root = ResolveRoot();
         string bundle = Path.Combine(root, MathJaxBundleRelativePath);
@@ -28,17 +28,58 @@ public sealed class MathJaxAssetResolver
         return bundle;
     }
 
+    public string Version
+    {
+        get
+        {
+            string json = File.ReadAllText(Path.Combine(ResolveRoot(), "resources.json"));
+#if NET48
+            var data = new System.Web.Script.Serialization.JavaScriptSerializer().Deserialize<System.Collections.Generic.Dictionary<string, object>>(json);
+            return (string)data["version"];
+#else
+            using var document = System.Text.Json.JsonDocument.Parse(json);
+            return document.RootElement.GetProperty("version").GetString()!;
+#endif
+        }
+    }
+
+    /// <summary>Uses the packaged renderer configuration as the single symbol-font catalog.</summary>
+    public System.Collections.Generic.IReadOnlyList<string> SymbolFonts
+    {
+        get
+        {
+            string config = File.ReadAllText(Path.Combine(ResolveRoot(), "config.js"));
+            int start = config.IndexOf('{');
+            int end = config.LastIndexOf('}');
+            if (start < 0 || end <= start) throw new FormatException("Invalid MathJax font configuration.");
+            string json = config.Substring(start, end - start + 1);
+            var fonts = new System.Collections.Generic.List<string>();
+#if NET48
+            var data = new System.Web.Script.Serialization.JavaScriptSerializer()
+                .Deserialize<System.Collections.Generic.Dictionary<string, object>>(json);
+            foreach (object font in (System.Collections.IEnumerable)data["fonts"])
+                fonts.Add((string)font);
+#else
+            using var document = System.Text.Json.JsonDocument.Parse(json);
+            foreach (var font in document.RootElement.GetProperty("fonts").EnumerateArray())
+                fonts.Add(font.GetString()!);
+#endif
+            if (fonts.Count == 0) throw new FormatException("MathJax font catalog is empty.");
+            return fonts.AsReadOnly();
+        }
+    }
+
     public string ResolveRoot()
     {
         foreach (string candidate in GetCandidateRoots())
         {
-            if (Directory.Exists(candidate))
+            if (File.Exists(Path.Combine(candidate, MathJaxBundleRelativePath)))
             {
                 return candidate;
             }
         }
 
-        throw new DirectoryNotFoundException("MathJax 3.2.2 assets were not found.");
+        throw new DirectoryNotFoundException("MathJax assets were not found.");
     }
 
     private string[] GetCandidateRoots()

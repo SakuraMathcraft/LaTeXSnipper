@@ -1,5 +1,7 @@
 # Reproducing OpenStax Mixed-Page Results
 
+All commands below run from the repository root. Benchmark data defaults to the sibling `../MathCraftBenchData` directory; use `-DataRoot` (PowerShell) or `--data-root` where supported to override it, and adjust explicit input/output paths accordingly. CDM requires its dependencies in the selected Python environment and Ghostscript/ImageMagick on `PATH`.
+
 OpenStax pages are used as a public mixed mathematical document benchmark for
 page-level OCR behavior, layout reconstruction, runtime, and qualitative
 evidence. They do not provide formula-level ground truth labels.

@@ -1,5 +1,7 @@
 # MathCraft OCR Benchmark
 
+All commands below run from the repository root. Benchmark data defaults to the sibling `../MathCraftBenchData` directory; use `-DataRoot` (PowerShell) or `--data-root` where supported to override it, and adjust explicit input/output paths accordingly. CDM requires its dependencies in the selected Python environment and Ghostscript/ImageMagick on `PATH`.
+
 This benchmark suite runs MathCraft OCR only. It does not install, import, or execute third-party OCR models.
 
 ## Scope

@@ -1,4 +1,4 @@
-"""Shared formula export menu and clipboard helpers."""
+"""Shared formula export menu, clipboard, and Pandoc file saving."""
 
 from __future__ import annotations
 
@@ -145,6 +145,14 @@ def export_formula_to_clipboard(
     parent=None,
     status_callback: StatusCallback | None = None,
 ) -> tuple[bool, str]:
+    from exporting.pandoc_exporter import PANDOC_FORMAT_MAP
+
+    if format_type in PANDOC_FORMAT_MAP:
+        return _handle_pandoc_file_export(
+            format_type, latex, tr(PANDOC_FORMAT_MAP[format_type].label),
+            parent=parent, status_callback=status_callback,
+        )
+
     result, format_name = build_formula_export(
         format_type,
         latex,
@@ -156,24 +164,6 @@ def export_formula_to_clipboard(
         return False, tr("复制失败")
 
     format_name = tr(format_name)
-
-    if result.startswith("[BINARY:"):
-        return _handle_pandoc_file_export(
-            format_type,
-            latex,
-            format_name,
-            parent=parent,
-            status_callback=status_callback,
-        )
-
-    if result.startswith("[Pandoc 不可用]"):
-        return False, tr("Pandoc 不可用: {error}").format(
-            error=result.partition("]")[2].strip()
-        )
-    if result.startswith("[Pandoc 转换失败]"):
-        return False, tr("Pandoc 转换失败: {error}").format(
-            error=result.partition("]")[2].strip()
-        )
 
     try:
         QApplication.clipboard().setText(result)
