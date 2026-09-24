@@ -32,6 +32,8 @@ def show_runtime_log_window(parent=None):
     except Exception:
         pass
 
+    return _RUNTIME_LOG_DIALOG
+
 
 def refresh_runtime_log_dialog_theme(force: bool = True) -> None:
     try:

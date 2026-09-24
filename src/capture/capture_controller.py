@@ -13,6 +13,9 @@ from ui.notifications import show_user_notice
 
 class CaptureControllerMixin:
     def start_capture(self, preserve_pinned_result: bool = False):
+        tour = getattr(self, "onboarding", None)
+        if tour is not None and tour.active:
+            return
         if self._capture_start_pending or self.overlay is not None:
             try:
                 if self.overlay is not None:
