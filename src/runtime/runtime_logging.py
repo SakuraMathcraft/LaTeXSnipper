@@ -252,10 +252,6 @@ def init_app_logging() -> Path:
         _PRINT_BRIDGE_INSTALLED = True
 
     APP_LOG_FILE = active_log_path
-    if not getattr(root, "_latexsnipper_session_logged", False):
-        logging.info("LaTeXSnipper 启动 pid=%s", os.getpid())
-        setattr(root, "_latexsnipper_session_logged", True)
-
     _APP_LOGGING_INITIALIZED = True
     return active_log_path
 
@@ -270,7 +266,7 @@ def start_runtime_log_session() -> None:
     handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s"))
     logging.getLogger().addHandler(handler)
     _RUNTIME_SESSION_HANDLER = handler
-    logging.info("LaTeXSnipper 会话开始 pid=%s", os.getpid())
+    logging.info("LaTeXSnipper 启动 pid=%s", os.getpid())
 
 
 def runtime_log_path() -> Path:

@@ -71,6 +71,8 @@ logging.shutdown()
     assert text.count("ready") == 1
     session = (tmp_path / "runtime-session.log").read_text(encoding="utf-8")
     assert "previous-session" not in session
+    assert session.count("LaTeXSnipper 启动 pid=") == 1
+    assert text.count("LaTeXSnipper 启动 pid=") == 1
     assert session.count("ready") == 1
     assert session.count("logging-record") == 1
     assert "stderr-record" in session
