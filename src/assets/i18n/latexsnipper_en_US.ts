@@ -284,7 +284,7 @@
       <translation>LaTeXSnipper - Capture shortcut: {hotkey} | {display}</translation>
     </message>
     <message>
-      <location filename="../../../src/application/bootstrap.py" line="75" />
+      <location filename="../../../src/application/bootstrap.py" line="76" />
       <source>LaTeXSnipper 已在运行。</source>
       <translation>LaTeXSnipper is already running.</translation>
     </message>
@@ -1353,8 +1353,8 @@ Restart and open Dependency Management now?
       <translation>Your preview will appear here after you write</translation>
     </message>
     <message>
-      <location filename="../../../src/application/bootstrap.py" line="103" />
-      <location filename="../../../src/application/bootstrap.py" line="191" />
+      <location filename="../../../src/application/bootstrap.py" line="105" />
+      <location filename="../../../src/application/bootstrap.py" line="193" />
       <source>准备运行环境...</source>
       <translation>Preparing runtime environment...</translation>
     </message>
@@ -3673,7 +3673,7 @@ Select Download to initialize it before entering the main app.</translation>
     <message>
       <location filename="../../../src/application/app_runner.py" line="75" />
       <location filename="../../../src/application/app_runner.py" line="58" />
-      <location filename="../../../src/application/bootstrap.py" line="165" />
+      <location filename="../../../src/application/bootstrap.py" line="167" />
       <source>检查依赖...</source>
       <translation>Checking dependencies...</translation>
     </message>

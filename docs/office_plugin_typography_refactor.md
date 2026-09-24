@@ -428,7 +428,7 @@ LaTeX 源码区域：CodeMirror 与诊断
 - 共享编辑器入口为 `office_plugin/src/LaTeXSnipper.OfficePlugin.Editor/EditorAssets`，构建源码与浏览器测试位于 `tools/office-editor`；两宿主页面位于各自的 `EditorAssets`。CodeMirror bundle 由构建生成，不手工编辑产物。
 - 当前验证记录：22 项 Node、17 项 Edge 页面交互、net48 / net9.0 各 37 项排版契约测试通过；真实 WebView2 渲染通过 61 组 SVG / EMF 与 122 个 PNG 输出检查；托管解决方案零警告、零错误。继续修改按实际范围复验；操作说明见 `tools/office-editor/README.md`。
 - **不要重新启动临时 COM 注册清理 / 修改来阻塞开发。** 用户已确认 Office OLE 激活、重编辑及双向转换留待最终安装包，由用户安装实测；未通过的检查仍标为待验收。
-- 工具链：Node 通过 `PATH` 查找；项目 Python 使用相对仓库根目录的 `tools/deps/python311/python.exe`；Visual Studio 工具链通过安装发现或显式配置定位。实际可用性在需要时检查。
+- 工具链：Node 通过 `PATH` 查找；Python 使用开发者自行选择的环境；Visual Studio 工具链通过安装发现或显式配置定位。实际可用性在需要时检查。
 
 ### 11.11 第 6A 步实施记录（2026-09-20）
 
@@ -502,7 +502,7 @@ LaTeX 源码区域：CodeMirror 与诊断
 - 对新配置契约执行连续覆盖升级，确认用户默认值与预设保留；验证安装清理不触及用户配置目录。
 - 发行包只包含最终选定的一代 MathJax；检查新增包只包含必要编辑器与字体资源，记录体积及冷启动 / 连续预览耗时。沿用已验证的裁剪运行资源，不重新引入完整组合包。
 
-验证使用现有 .NET / 原生测试和真实 Office E2E 入口。Python 辅助脚本一律通过 `.\tools\deps\python311\python.exe` 运行。第一阶段已执行的验证见运行时维护说明；本节中的字体重构验收仍待第二阶段完成。
+验证使用现有 .NET / 原生测试和真实 Office E2E 入口。Python 辅助脚本使用开发者自行选择的环境运行。第一阶段已执行的验证见运行时维护说明；本节中的字体重构验收仍待第二阶段完成。
 
 
 ## 13. 客户端与插件统一升级、保留导出职责

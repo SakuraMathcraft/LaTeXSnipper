@@ -21,8 +21,8 @@
 从 npm 获取清单指定的四个精确版本包（`mathjax`、`@mathjax/mathjax-tex-font`、`@mathjax/mathjax-stix2-font`、`@mathjax/mathjax-mhchem-font-extension`，均为 4.1.3），将 `.tgz` 放入临时目录，然后执行：
 
 ```powershell
-& .\tools\deps\python311\python.exe -X utf8 .\tools\mathjax\prepare.py --archives <压缩包目录>
-& .\tools\deps\python311\python.exe -X utf8 .\tools\mathjax\prepare.py --verify
+python -X utf8 .\tools\mathjax\prepare.py --archives <压缩包目录>
+python -X utf8 .\tools\mathjax\prepare.py --verify
 ```
 
 升级时修改清单及完整性校验值，再重建生成文件。验证会拒绝清单漂移、被修改的上游文件和多余资源；有意移除的旧资源须同步删除，不保留版本回退目录。Git 属性保留上游文件和生成清单的字节，避免 Windows 换行转换破坏校验。
@@ -40,8 +40,8 @@
 复验入口：
 
 ```powershell
-& .\tools\deps\python311\python.exe -X utf8 -m pytest test/test_mathjax_runtime.py test/test_formula_export_matrix.py test/test_formula_omml_export.py test/test_content_preview.py test/test_handwriting_preview.py test/test_pandoc_export_formats.py -q
-& .\tools\deps\python311\python.exe -X utf8 tools/mathjax/smoke_qt.py --cdn
+python -X utf8 -m pytest test/test_mathjax_runtime.py test/test_formula_export_matrix.py test/test_formula_omml_export.py test/test_content_preview.py test/test_handwriting_preview.py test/test_pandoc_export_formats.py -q
+python -X utf8 tools/mathjax/smoke_qt.py --cdn
 dotnet run --project office_plugin/tests/LaTeXSnipper.OfficePlugin.Rendering.Smoke
 dotnet run --project office_plugin/tests/LaTeXSnipper.OfficePlugin.Rendering.Smoke -- --typography
 dotnet test office_plugin/tests/LaTeXSnipper.OfficePlugin.MetadataSafety.Tests
@@ -56,5 +56,5 @@ dotnet test office_plugin/tests/LaTeXSnipper.OfficePlugin.MetadataSafety.Tests
 ## tools 目录的用途
 
 - `tools/mathjax` 是长期维护工具：固定资源清单、可复现的生成脚本和被测试直接引用的回归入口；不属于应用运行环境，也不是一次性试验目录。此前直接复制整套 MathJax 3 资源，不需要此处的裁剪与校验工具。
-- `tools/deps/python311` 是项目约定的 Windows Python；`python311-linux-x86_64` 是现有跨平台打包脚本使用的 Python 环境，均与本次 MathJax 升级的资源构建无关。
+- Python 维护命令使用开发者自行选择的环境；发布包运行时由 GitHub Actions 准备。
 - 本次验证曾在 `tools/deps/nuget` 下载 .NET 构建包，属于可重建缓存，不是新增运行依赖；收尾时已删除。后续正常 `dotnet restore` 使用开发者原有 NuGet 配置和缓存。

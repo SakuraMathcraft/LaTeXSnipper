@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 from localization.manager import install_application_translators, translate as tr
 from preview.math_preview import configure_math_preview_runtime
 from runtime.app_paths import resource_path
+from runtime.runtime_logging import start_runtime_log_session
 from runtime.native_runtime import configure_native_runtime_environment
 from application.python_runtime_resolver import (
     APP_DIR,
@@ -84,6 +85,7 @@ def _show_already_running_message(app: QApplication) -> None:
 def _ensure_single_instance(app: QApplication) -> None:
     if ensure_single_instance():
         atexit.register(release_single_instance_lock)
+        start_runtime_log_session()
         return
     _show_already_running_message(app)
     raise SystemExit(0)
