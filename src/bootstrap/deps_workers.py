@@ -10,6 +10,7 @@ from PyQt6.QtCore import QThread, pyqtSignal
 
 from backend.mathcraft.runtime_policy import onnxruntime_cpu_spec, onnxruntime_gpu_spec
 from localization.manager import translate as tr
+from bootstrap.download_control import DownloadControl
 from bootstrap.deps_context import flags
 from bootstrap.deps_layer_specs import (
     LAYER_MAP,
@@ -49,6 +50,7 @@ class InstallWorker(QThread):
     progress_updated = pyqtSignal(int)
     status_updated = pyqtSignal(str)
     busy_state_changed = pyqtSignal(bool)
+    pausable_changed = pyqtSignal(bool)
     done = pyqtSignal(bool)
 
     def __init__(self, pyexe, pkgs, stop_event, pause_event, state_lock, state, state_path, chosen_layers, log_q,
@@ -61,13 +63,23 @@ class InstallWorker(QThread):
         self.pkgs = pkgs
         self.stop_event = stop_event
         self.pause_event = pause_event
+        self.download_control = DownloadControl(pause_event)
         self.state_lock = state_lock
         self.state = state
         self.state_path = state_path
         self.chosen_layers = chosen_layers
         self.log_q = log_q
 
+    def set_process(self, proc):
+        self.proc = proc
+        self.download_control.set_process(proc)
+
+    def set_paused(self, paused):
+        self.download_control.set_paused(paused)
+
     def _emit_done_safe(self, ok: bool):
+        self.set_paused(False)
+        self.pausable_changed.emit(False)
         if not self._done_emitted:
             self._done_emitted = True
             try:
@@ -82,6 +94,7 @@ class InstallWorker(QThread):
     def stop(self):
         """Stop an install from the UI."""
         self.stop_event.set()
+        self.set_paused(False)
         if hasattr(self, "proc") and self.proc and self.proc.poll() is None:
             _terminate_process(self.proc)
             self.proc = None
@@ -177,6 +190,7 @@ class InstallWorker(QThread):
             total = len(pending)
 
             if pending:
+                self.pausable_changed.emit(True)
                 self.log_updated.emit(f"[INFO] 需要安装 {len(pending)} 个包（跳过 {len(skipped)} 个已安装）")
 
                 done_count = 0
@@ -211,7 +225,7 @@ class InstallWorker(QThread):
                             use_mirror=self.mirror,
                             flags=flags,
                             pause_event=self.pause_event,
-                            proc_setter=lambda p: setattr(self, "proc", p),
+                            proc_setter=self.set_process,
                         )
                     except Exception as e:
                         ok = False
@@ -245,7 +259,8 @@ class InstallWorker(QThread):
                     return
 
                 base_progress = pip_progress_max if pending else 20
-                self.log_updated.emit("[INFO] Pandoc: 检查 pandoc 二进制文件...")
+                self.pausable_changed.emit(True)
+                self.status_updated.emit(tr("正在准备 Pandoc..."))
 
                 def _pandoc_progress(pct: int):
 
@@ -257,8 +272,11 @@ class InstallWorker(QThread):
                     self.log_updated.emit,
                     progress_fn=_pandoc_progress,
                     stop_event=self.stop_event,
+                    pause_event=self.pause_event,
                 )
 
+            self.set_paused(False)
+            self.pausable_changed.emit(False)
             runtime_ort_ok = True
             runtime_ort_err = ""
             if want_gpu_runtime:
@@ -269,7 +287,7 @@ class InstallWorker(QThread):
                     self.pause_event,
                     self.log_q,
                     use_mirror=self.mirror,
-                    proc_setter=lambda p: setattr(self, "proc", p),
+                    proc_setter=self.set_process,
                 )
                 if not runtime_ort_ok:
                     self.log_updated.emit(f"[WARN] onnxruntime-gpu 运行时验证失败: {runtime_ort_err[:400]}")

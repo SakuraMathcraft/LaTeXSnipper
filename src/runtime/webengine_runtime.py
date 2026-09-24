@@ -25,13 +25,9 @@ def configure_default_webengine_profile() -> None:
         print(f"[WARN] QWebEngine 配置失败: {e}")
 
 
-def _webengine_diag_enabled() -> bool:
-    return str(os.environ.get("LATEXSNIPPER_WEBENGINE_DIAG", "0")).strip() in ("1", "true", "yes", "on")
-
-
 def log_webengine_diagnostics(stage: str, err: Exception | None = None, app_dir: Path | None = None) -> None:
     """Output diagnostics for packaged WebEngine failures."""
-    if err is None and not _webengine_diag_enabled():
+    if err is None and not logging.getLogger("webengine").isEnabledFor(logging.DEBUG):
         return
     try:
         logger = logging.getLogger("webengine")

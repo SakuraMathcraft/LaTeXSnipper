@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import subprocess
@@ -310,7 +311,7 @@ def _save_install_base_dir(p: Path) -> None:
             cfg = json.loads(c.read_text("utf-8") or "{}")
         cfg["install_base_dir"] = str(p)
         c.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(f"[DEBUG] 依赖目录配置已保存: {p}")
+        logging.getLogger(__name__).debug(f"依赖目录配置已保存: {p}")
     except Exception as e:
         print(f"[WARN] 保存配置失败: {e}")
 
@@ -329,7 +330,7 @@ def resolve_install_base_dir() -> Path:
     if not p and _is_packaged_mode() and os.name != "nt":
         p = _default_packaged_user_deps_dir()
         p.mkdir(parents=True, exist_ok=True)
-        print(f"[DEBUG] Linux/macOS 打包依赖目录: {p}")
+        logging.getLogger(__name__).debug(f"Linux/macOS 打包依赖目录: {p}")
         _save_install_base_dir(p)
 
     if not p and os.name == "nt":
@@ -339,12 +340,12 @@ def resolve_install_base_dir() -> Path:
                 bundled.mkdir(parents=True, exist_ok=True)
             except Exception:
                 pass
-            print(f"[DEBUG] 首次启动使用内置依赖目录: {bundled}")
+            logging.getLogger(__name__).debug(f"首次启动使用内置依赖目录: {bundled}")
             _save_install_base_dir(bundled)
             p = bundled
 
     if not p:
-        print("[DEBUG] 首次启动选择依赖安装目录")
+        logging.getLogger(__name__).debug("首次启动选择依赖安装目录")
         try:
             p = _select_install_base_dir()
         except RuntimeError:
@@ -356,11 +357,11 @@ def resolve_install_base_dir() -> Path:
     py_exe = _find_install_base_python(p)
 
     if py_exe is not None and py_exe.exists():
-        print(f"[DEBUG] 已复用目录内 Python: {py_exe}")
+        logging.getLogger(__name__).debug(f"已复用目录内 Python: {py_exe}")
         _save_install_base_dir(p)
         return p
 
-    print(f"[DEBUG] 选定目录未检测到可复用 Python: {p / DEPENDENCY_PYTHON_DIRNAME}")
+    logging.getLogger(__name__).debug(f"选定目录未检测到可复用 Python: {p / DEPENDENCY_PYTHON_DIRNAME}")
     _save_install_base_dir(p)
     return p
 
@@ -543,7 +544,7 @@ def _append_private_site_packages(pyexe: str | None):
                         sys.path.append(pstr)
         except Exception:
             pass
-    print(f"[DEBUG] 已挂载依赖运行时路径: {base}")
+    logging.getLogger(__name__).debug(f"已挂载依赖运行时路径: {base}")
 
 
 def _allowed_roots_for(pyexe: str | None, base_dir: Path) -> list[str]:
@@ -617,6 +618,7 @@ def _relaunch_with(pyexe: str):
         sys.exit(5)
     env = os.environ.copy()
     env["LATEXSNIPPER_BOOTSTRAPPED"] = "1"
+    env["LATEXSNIPPER_RESTART"] = "1"
     env["PYTHONNOUSERSITE"] = "1" if os.name == "nt" else "0"
     env.pop("PYTHONHOME", None)
     env.pop("PYTHONPATH", None)
@@ -625,14 +627,14 @@ def _relaunch_with(pyexe: str):
         env.setdefault("QT_QPA_PLATFORM", "windows")
     elif sys.platform.startswith("linux"):
         env.setdefault("QT_QPA_PLATFORM", "xcb")
-    argv = [pyexe, os.path.abspath(__file__), *sys.argv[1:]]
-    print(f"[DEBUG] 使用私有解释器重启: {pyexe}")
+    argv = [pyexe, str(Path(__file__).resolve().parents[1] / "main.py"), *sys.argv[1:]]
+    logging.getLogger(__name__).debug(f"使用私有解释器重启: {pyexe}")
     try:
         proc = subprocess.Popen(argv, env=env, **_win_subprocess_kwargs())
     except Exception as e:
         print(f"[ERR] 启动子进程失败: {e}")
         sys.exit(6)
-    print(f"[DEBUG] 私有解释器子进程已启动: pid={getattr(proc, 'pid', None)}")
+    logging.getLogger(__name__).debug(f"私有解释器子进程已启动: pid={getattr(proc, 'pid', None)}")
     sys.exit(0)
 
 
@@ -715,7 +717,7 @@ def _find_full_python(base_dir: Path) -> str | None:
                 return str(candidate)
         except Exception:
             pass
-        print(f"[DEBUG] 忽略不支持依赖运行时的 Python: {candidate}")
+        logging.getLogger(__name__).debug(f"忽略不支持依赖运行时的 Python: {candidate}")
     if getattr(sys, "frozen", False):
         return None
 
@@ -734,16 +736,16 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
             py_norm = os.path.normcase(os.path.abspath(py))
             bundled_norm = os.path.normcase(os.path.abspath(str(base_dir)))
             if py_norm.startswith(bundled_norm):
-                print(f"[DEBUG] 使用依赖目录 Python: {py}")
+                logging.getLogger(__name__).debug(f"使用依赖目录 Python: {py}")
             else:
-                print(f"[DEBUG] 使用外部私有 Python: {py}")
+                logging.getLogger(__name__).debug(f"使用外部私有 Python: {py}")
             return py
-        print("[DEBUG] 依赖目录未检测到可用 Python，使用内置运行时启动依赖管理")
+        logging.getLogger(__name__).debug("依赖目录未检测到可用 Python，使用内置运行时启动依赖管理")
         return sys.executable
 
     py = _find_full_python(base_dir)
     if py:
-        print(f"[DEBUG] 使用依赖目录 Python: {py}")
+        logging.getLogger(__name__).debug(f"使用依赖目录 Python: {py}")
         return py
 
     system_python = find_system_python3()

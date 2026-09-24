@@ -70,8 +70,8 @@ jobs:
       - name: Prepare bundled Python seed
         shell: pwsh
         run: |
-          $installer = Join-Path $PWD "python-3.11.0-amd64.exe"
-          $target = Join-Path $PWD "python311"
+          $installer = Join-Path $env:RUNNER_TEMP "python-3.11.0-amd64.exe"
+          $target = Join-Path $env:RUNNER_TEMP "latexsnipper-python-seed"
           Invoke-WebRequest `
             -Uri "https://www.python.org/ftp/python/3.11.0/python-3.11.0-amd64.exe" `
             -OutFile $installer
@@ -93,6 +93,7 @@ jobs:
               "PrependPath=0",
               "Shortcuts=0"
             ) `
+            -WindowStyle Hidden `
             -Wait `
             -PassThru
           if ($process.ExitCode -ne 0) {
@@ -102,11 +103,13 @@ jobs:
             throw "Bundled Python seed was not created: $target"
           }
           Remove-Item -LiteralPath $installer -Force
-          & (Join-Path $target "python.exe") -m pip install --upgrade pip wheel
+          & (Join-Path $target "python.exe") -m pip install --upgrade pip wheel setuptools packaging
+          if ($LASTEXITCODE -ne 0) { throw "Bundled Python tooling installation failed." }
+          "LATEXSNIPPER_BUNDLED_PYTHON=$target" >> $env:GITHUB_ENV
 
       - name: Build unsigned installer
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File scripts\build_github_release_installer.ps1 -PythonPath python
+        run: ./scripts/build_github_release_installer.ps1 -BundledPythonPath $env:LATEXSNIPPER_BUNDLED_PYTHON
 
       - name: Upload unsigned installer artifact
         id: upload-unsigned

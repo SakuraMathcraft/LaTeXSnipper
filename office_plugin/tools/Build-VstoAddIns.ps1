@@ -47,7 +47,6 @@ function Find-VstoBuildEnvironment {
         }
 
         foreach ($candidate in @(
-            "D:\Microsoft Visual Studio\2022\Community",
             "${env:ProgramFiles}\Microsoft Visual Studio\2022\Community",
             "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\Community"
         )) {

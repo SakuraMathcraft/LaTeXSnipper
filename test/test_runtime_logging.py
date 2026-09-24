@@ -39,9 +39,13 @@ import runtime.runtime_logging as runtime_logging
 target = Path(sys.argv[1])
 runtime_logging.app_log_dir = lambda: target
 runtime_logging.app_state_dir = lambda: target / "state"
+runtime_logging.runtime_log_path().write_text("previous-session", encoding="utf-8")
 runtime_logging.init_app_logging()
 print("[DEBUG] debug-only")
 print("[INFO] ready")
+logging.info("logging-record")
+sys.stderr.write("stderr-record\\n")
+assert "ready" in runtime_logging.runtime_log_path().read_text(encoding="utf-8")
 logging.shutdown()
 """
     env = os.environ.copy()
@@ -62,6 +66,11 @@ logging.shutdown()
     assert "debug-only" not in text
     assert "[INFO] [INFO] ready" not in text
     assert text.count("ready") == 1
+    session = (tmp_path / "runtime-session.log").read_text(encoding="utf-8")
+    assert "previous-session" not in session
+    assert session.count("ready") == 1
+    assert session.count("logging-record") == 1
+    assert "stderr-record" in session
 
 
 def test_plain_log_rotation_is_bounded(tmp_path: Path) -> None:

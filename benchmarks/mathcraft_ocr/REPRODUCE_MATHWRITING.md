@@ -8,7 +8,7 @@ Large parquet files, exported images, full JSONL results, render outputs, and
 official CDM outputs stay under:
 
 ```text
-E:\MathCraftBenchData
+./benchmark-data
 ```
 
 ## Inputs
@@ -16,7 +16,7 @@ E:\MathCraftBenchData
 Expected local parquet:
 
 ```text
-E:\MathCraftBenchData\raw\mathwriting\test-00000-of-00001-694f317d8b634199.parquet
+./benchmark-data\raw\mathwriting\test-00000-of-00001-694f317d8b634199.parquet
 ```
 
 The manifest generator validates:
@@ -29,14 +29,14 @@ data_type = human
 Generated fixed-test assets:
 
 ```text
-E:\MathCraftBenchData\manifests\mathwriting_test.jsonl
-E:\MathCraftBenchData\raw\mathwriting\test_images
+./benchmark-data\manifests\mathwriting_test.jsonl
+./benchmark-data\raw\mathwriting\test_images
 ```
 
 ## Run MathCraft GPU
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File E:\LaTexSnipper\benchmarks\mathcraft_ocr\run_mathwriting_test.ps1
+powershell -ExecutionPolicy Bypass -File .\benchmarks\mathcraft_ocr\run_mathwriting_test.ps1 -DataRoot ./benchmark-data
 ```
 
 Defaults:
@@ -52,20 +52,20 @@ Progress:   Write-Progress plus per-shard ETA
 Formal output after a full run:
 
 ```text
-E:\MathCraftBenchData\runs\mathwriting_test_gpu\mathwriting_test_gpu_full.jsonl
-E:\MathCraftBenchData\runs\mathwriting_test_gpu\mathwriting_test_gpu_subset_metrics.csv
-E:\MathCraftBenchData\runs\mathwriting_test_gpu\mathwriting_test_gpu_report.md
-E:\MathCraftBenchData\runs\mathwriting_test_gpu\cdm_input\mathwriting_test_full_cdm.json
+./benchmark-data\runs\mathwriting_test_gpu\mathwriting_test_gpu_full.jsonl
+./benchmark-data\runs\mathwriting_test_gpu\mathwriting_test_gpu_subset_metrics.csv
+./benchmark-data\runs\mathwriting_test_gpu\mathwriting_test_gpu_report.md
+./benchmark-data\runs\mathwriting_test_gpu\cdm_input\mathwriting_test_full_cdm.json
 ```
 
 ## Render Success
 
 ```powershell
-E:\LaTexSnipper\tools\deps\python311\python.exe `
-  E:\LaTexSnipper\benchmarks\mathcraft_ocr\reports\render_formula_success.py `
-  --results E:\MathCraftBenchData\runs\mathwriting_test_gpu\mathwriting_test_gpu_full.jsonl `
-  --manifest E:\MathCraftBenchData\manifests\mathwriting_test.jsonl `
-  --output-dir E:\MathCraftBenchData\runs\mathwriting_test_gpu\render_success
+python `
+  .\benchmarks\mathcraft_ocr\reports\render_formula_success.py `
+  --results ./benchmark-data\runs\mathwriting_test_gpu\mathwriting_test_gpu_full.jsonl `
+  --manifest ./benchmark-data\manifests\mathwriting_test.jsonl `
+  --output-dir ./benchmark-data\runs\mathwriting_test_gpu\render_success
 ```
 
 ## Official CDM
@@ -73,13 +73,13 @@ E:\LaTexSnipper\tools\deps\python311\python.exe `
 The MathCraft run creates official CDM input automatically. Then run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File E:\LaTexSnipper\benchmarks\mathcraft_ocr\run_mathwriting_official_cdm.ps1
+powershell -ExecutionPolicy Bypass -File .\benchmarks\mathcraft_ocr\run_mathwriting_official_cdm.ps1 -DataRoot ./benchmark-data
 ```
 
 For a bounded CDM validation:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File E:\LaTexSnipper\benchmarks\mathcraft_ocr\run_mathwriting_official_cdm.ps1 `
+powershell -ExecutionPolicy Bypass -File .\benchmarks\mathcraft_ocr\run_mathwriting_official_cdm.ps1 -DataRoot ./benchmark-data `
   -Limit 100 `
   -ShardSize 20 `
   -Pools 8

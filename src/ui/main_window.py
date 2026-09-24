@@ -45,6 +45,7 @@ class MainWindow(
 ):
     """Main application window based on QMainWindow."""
 
+    modelStatusChanged = pyqtSignal()
     _model_warmup_result_signal = pyqtSignal()
     _preview_latex_render_request = pyqtSignal(str, str)
 
@@ -80,6 +81,8 @@ class MainWindow(
         if getattr(self, "_post_show_tasks_started", False):
             return
         self._post_show_tasks_started = True
+
+        QTimer.singleShot(0, self.onboarding.start_automatically)
 
         seq = getattr(self, "_pending_hotkey_seq", None)
         if seq:

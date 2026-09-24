@@ -7,14 +7,13 @@
     ],
     "extraPaths": [
         ".",
-        "src",
-        "tools/deps/python311/Lib/site-packages"
+        "src"
     ],
     "exclude": [
         "**/__pycache__",
         "build",
-        "python311",
-        "tools/deps/python311"
+        "dist",
+        ".venv"
     ],
     "reportUnusedImport": "warning",
     "reportUnusedVariable": "warning",
@@ -29,8 +28,7 @@
         {
             "root": "src",
             "extraPaths": [
-                ".",
-                "tools/deps/python311/Lib/site-packages"
+                "."
             ]
         }
     ]

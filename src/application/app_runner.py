@@ -7,7 +7,7 @@ import sys
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication
 
-from application.dependency_controller import ensure_deps
+from application.dependency_controller import dependencies_ready, ensure_deps
 from localization.manager import translate as tr
 from ui.runtime_log_controller import apply_runtime_log_window_preference
 from ui.startup_splash import (
@@ -39,7 +39,7 @@ def _create_window(main_window_cls, splash):
     win.show()
     win.start_post_show_tasks()
     QTimer.singleShot(
-        0, lambda: apply_runtime_log_window_preference(force=False, tee=True)
+        0, lambda: apply_runtime_log_window_preference(force=False)
     )
     finish_startup_splash(splash, win)
     print("[INFO] 应用界面已就绪")
@@ -74,7 +74,7 @@ def _run_development(app, main_window_cls) -> int:
     )
     deps_check_message = startup_status_message(tr("检查依赖..."))
     update_startup_splash(splash, deps_check_message)
-    deps_ready_cached = os.environ.get("LATEXSNIPPER_DEPS_OK") == "1"
+    deps_ready_cached = dependencies_ready()
     needs_interactive_deps_ui = bool(
         open_dependency_management or (not deps_ready_cached)
     )

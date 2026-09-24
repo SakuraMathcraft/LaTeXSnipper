@@ -1,4 +1,5 @@
 from localization.manager import translate as tr
+import logging
 import html
 import os
 import subprocess
@@ -15,10 +16,9 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMessageBox,
-    QProgressBar,
     QVBoxLayout,
 )
-from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition, PushButton
+from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition, PushButton, ProgressBar, IndeterminateProgressBar
 
 from update.dialog_helpers import (
     _clear_global,
@@ -45,7 +45,6 @@ from update.installer_launch import (
 )
 from update.release_types import (
     CONNECT_TIMEOUT,
-    DEBUG_LOG,
     READ_TIMEOUT,
     ReleaseInfo,
     __version__,
@@ -97,9 +96,22 @@ def check_update_dialog(parent=None):
     lay.addWidget(lbl_current)
     lbl_status = QLabel(tr("正在联网获取最新版本信息，请保持与 GitHub 的连接畅通..."))
     lay.addWidget(lbl_status)
-    bar = QProgressBar()
-    bar.setRange(0, 0)
+    bar = ProgressBar(dlg)
+    busy_bar = IndeterminateProgressBar(dlg)
     lay.addWidget(bar)
+    lay.addWidget(busy_bar)
+
+    def set_progress_range(minimum, maximum):
+        busy = minimum == maximum == 0
+        bar.setVisible(not busy)
+        busy_bar.setVisible(busy)
+        if busy:
+            busy_bar.start()
+        else:
+            busy_bar.stop()
+            bar.setRange(minimum, maximum)
+
+    set_progress_range(0, 0)
 
     txt = RemoteImageBrowser()
     txt.setOpenExternalLinks(True)
@@ -168,7 +180,7 @@ def check_update_dialog(parent=None):
         if state["aborted"] or state["done"] or (not dlg.isVisible()):
             return
         state["done"] = True
-        bar.setRange(0, 1)
+        set_progress_range(0, 1)
         lbl_status.setText(tr("获取超时，可重新检查。"))
         txt.start_new_html(
             "<pre>"
@@ -201,13 +213,13 @@ a{{color:{theme["accent"]};}}
         txt.start_new_markdown(changelog, css)
 
     def on_result(info, err, diag):
-        if DEBUG_LOG and diag:
-            print(f"[DEBUG] 更新检查诊断: {diag}")
+        if diag:
+            logging.getLogger(__name__).debug("更新检查诊断: %s", diag)
         if state["aborted"] or state["done"] or (not dlg.isVisible()):
             return
         state["done"] = True
         watchdog.stop()
-        bar.setRange(0, 1)
+        set_progress_range(0, 1)
         dlg.unsetCursor()
         if err:
             message = _brief_error_message(err)
@@ -409,7 +421,7 @@ a{{color:{theme["accent"]};}}
     def _on_download_progress(cur: int, total: int, path: object):
         if state["aborted"] or (not dlg.isVisible()):
             return
-        bar.setRange(0, max(total, 1))
+        set_progress_range(0, total if total > 0 else 0)
         bar.setValue(max(0, min(cur, max(total, 1))))
         name = Path(str(path or "")).name or tr("更新包")
         if total > 0:
@@ -432,7 +444,7 @@ a{{color:{theme["accent"]};}}
             btn_copy.setEnabled(bool(state.get("info")))
             btn_retry.setEnabled(True)
             dlg.unsetCursor()
-            bar.setRange(0, 1)
+            set_progress_range(0, 1)
             lbl_status.setText(tr("下载已暂停，可稍后继续下载。"))
             InfoBar.info(
                 title=tr("下载已暂停"),
@@ -449,7 +461,7 @@ a{{color:{theme["accent"]};}}
             btn_copy.setEnabled(bool(state.get("info")))
             btn_retry.setEnabled(True)
             dlg.unsetCursor()
-            bar.setRange(0, 1)
+            set_progress_range(0, 1)
             lbl_status.setText(tr("下载失败：{message}").format(message=message))
             InfoBar.error(
                 title=tr("下载失败"),
@@ -459,7 +471,7 @@ a{{color:{theme["accent"]};}}
                 position=InfoBarPosition.TOP,
             )
             return
-        bar.setRange(0, 1)
+        set_progress_range(0, 1)
         bar.setValue(1)
         _maybe_launch_installer(str(path or ""))
         _refresh_download_button()
@@ -489,7 +501,7 @@ a{{color:{theme["accent"]};}}
         txt.start_new_html(
             f"<p style='color:#777;'>{html.escape(tr('正在获取...'))}</p>"
         )
-        bar.setRange(0, 0)
+        set_progress_range(0, 0)
         btn_open.setEnabled(False)
         btn_copy.setEnabled(False)
         btn_retry.setEnabled(False)
@@ -569,7 +581,7 @@ a{{color:{theme["accent"]};}}
         btn_copy.setEnabled(False)
         btn_retry.setEnabled(False)
         dlg.setCursor(Qt.CursorShape.BusyCursor)
-        bar.setRange(0, 100)
+        set_progress_range(0, 100)
         bar.setValue(0)
         lbl_status.setText(tr("正在下载更新包..."))
         state["downloading"] = True

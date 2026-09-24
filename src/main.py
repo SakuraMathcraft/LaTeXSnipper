@@ -29,7 +29,7 @@ from ui.main_window import MainWindow  # noqa: E402
 def main() -> int:
     try:
         bootstrap_application()
-        apply_runtime_log_window_preference(force=False, tee=True)
+        apply_runtime_log_window_preference(force=False)
         return run_application(MainWindow)
     except Exception:
         logging.exception("LaTeXSnipper 启动失败")

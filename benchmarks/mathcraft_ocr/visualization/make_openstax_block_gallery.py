@@ -312,12 +312,14 @@ def is_formula_block(block: dict[str, Any]) -> bool:
 
 def load_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     candidates = [
-        Path("C:/Windows/Fonts/arial.ttf"),
-        Path("C:/Windows/Fonts/calibri.ttf"),
+        "arial.ttf",
+        "calibri.ttf",
     ]
-    for path in candidates:
-        if path.exists():
-            return ImageFont.truetype(str(path), size=size)
+    for font in candidates:
+        try:
+            return ImageFont.truetype(font, size=size)
+        except OSError:
+            continue
     return ImageFont.load_default()
 
 

@@ -5,11 +5,7 @@
 #define MyAppPublisher "MathCraft"
 #define MyAppURL "https://github.com/SakuraMathcraft/LaTeXSnipper"
 #define MyAppExeName "LaTeXSnipper.exe"
-#if GetEnv("LATEXSNIPPER_REPO_ROOT") != ""
-#define MyRepoRoot GetEnv("LATEXSNIPPER_REPO_ROOT")
-#else
-#define MyRepoRoot "E:\LaTexSnipper"
-#endif
+#define MyRepoRoot AddBackslash(SourcePath) + ".."
 #define MyBuildDir MyRepoRoot + "\dist\LaTeXSnipper"
 #define MyOutputDir MyRepoRoot + "\dist\installer"
 #define MyLicenseFile MyRepoRoot + "\LICENSE"

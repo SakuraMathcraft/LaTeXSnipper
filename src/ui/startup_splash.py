@@ -12,6 +12,7 @@ from localization.manager import translate as tr
 from runtime.app_paths import resource_path
 
 _STARTUP_SPLASH = None
+_FORCE_ENTERED = False
 
 
 class StartupDialog(QWidget):
@@ -207,7 +208,8 @@ def hide_startup_splash_for_modal():
 
 
 def mark_startup_force_entered():
-    os.environ["LATEXSNIPPER_FORCE_ENTERED"] = "1"
+    global _FORCE_ENTERED
+    _FORCE_ENTERED = True
     app = QApplication.instance()
     if app is not None:
         return take_startup_splash(app, tr("正在跳过依赖安装并进入主程序..."))
@@ -215,7 +217,7 @@ def mark_startup_force_entered():
 
 
 def startup_force_enter_pending() -> bool:
-    return os.environ.get("LATEXSNIPPER_FORCE_ENTERED") == "1"
+    return _FORCE_ENTERED
 
 
 def startup_status_message(default: str) -> str:
@@ -227,6 +229,8 @@ def startup_status_message(default: str) -> str:
 
 
 def startup_deps_resume_message() -> str:
-    if os.environ.pop("LATEXSNIPPER_FORCE_ENTERED", "0") == "1":
+    global _FORCE_ENTERED
+    if _FORCE_ENTERED:
+        _FORCE_ENTERED = False
         return tr("正在跳过依赖安装并进入主程序...")
     return tr("加载界面组件...")

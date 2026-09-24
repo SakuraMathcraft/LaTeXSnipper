@@ -504,21 +504,14 @@ def ensure_deps(
         existing_pyexe = _find_existing_python(Path(deps_dir))
         pyexe = existing_pyexe or _dependency_venv_python(py_root)
         if existing_pyexe and existing_pyexe.exists():
-            print(f"[DEBUG] 使用依赖目录 Python: {pyexe}")
             use_bundled_python = False
         else:
-            print(f"[DEBUG] 依赖目录尚未初始化 Python: {pyexe}")
             use_bundled_python = True
     else:
         py_root = Path(deps_dir) / DEPENDENCY_PYTHON_DIRNAME
         existing_pyexe = _find_existing_python(Path(deps_dir))
         pyexe = existing_pyexe or _dependency_venv_python(py_root)
         deps_dir_resolved = str(Path(deps_dir).resolve())
-
-        is_packaged = hasattr(sys, "_MEIPASS") or "_internal" in str(
-            Path(__file__).parent
-        )
-        mode_str = "打包模式" if is_packaged else "开发模式"
 
         def _path_is_under(child: str | None, parent: str) -> bool:
             if not child:
@@ -533,30 +526,20 @@ def ensure_deps(
         current_site_in_deps = _path_is_under(current_site, deps_dir_resolved)
 
         if current_site_in_deps:
-            print(
-                f"[DEBUG] {mode_str}：当前 Python 环境与依赖目录一致: {current_pyexe}"
-            )
             pyexe = current_pyexe
             use_bundled_python = False
         else:
             if existing_pyexe and existing_pyexe.exists():
                 use_bundled_python = False
                 pyexe = existing_pyexe
-                print(f"[DEBUG] {mode_str}：使用依赖目录 Python: {pyexe}")
             else:
                 use_bundled_python = True
-                print(f"[DEBUG] {mode_str}：依赖目录尚未初始化 Python: {pyexe}")
-
-        if use_bundled_python and not _is_usable_python(pyexe):
-            print("[DEBUG] 目标依赖目录未检测到可复用 Python")
 
     pip_ready_event.clear()
     try:
-        if from_settings and always_show_ui:
-            print("[DEBUG] 等待依赖管理确认后初始化 pip")
-        elif use_bundled_python and not _is_usable_python(pyexe):
-            print("[DEBUG] 依赖目录 Python 尚未初始化，跳过 pip 预检查")
-        else:
+        if not (from_settings and always_show_ui) and (
+            not use_bundled_python or _is_usable_python(pyexe)
+        ):
             _ensure_pip(pyexe)
         state_path = Path(deps_dir) / STATE_FILE
         if not state_path.exists():
@@ -857,6 +840,7 @@ def ensure_deps(
                 state_lock = threading.Lock()
 
                 dlg = InstallProgressDialog()
+                dlg.confirm_cancel = True
                 info = dlg.info_label
                 logw = dlg.log_view
                 btn_cancel = dlg.cancel_button
@@ -901,13 +885,15 @@ def ensure_deps(
                 def _set_progress(val: int):
                     if _is_alive(progress):
                         try:
-                            progress.setValue(int(val))
+                            progress.setValue(min(95, int(val)))
                         except RuntimeError:
                             pass
 
                 def _render_info_text():
                     text = net_speed_state.get("base_text", "") or ""
-                    if net_speed_state.get("busy", False):
+                    if paused:
+                        text = tr("已暂停，点击“继续下载”恢复。")
+                    elif net_speed_state.get("busy", False):
                         pip_speed = (
                             net_speed_state.get("pip_speed_text") or ""
                         ).strip()
@@ -978,15 +964,21 @@ def ensure_deps(
                     net_speed_state["pip_progress_text"] = ""
                     _render_info_text()
 
+                from qfluentwidgets import FluentIcon
+
+                btn_pause.setEnabled(False)
+
                 def toggle_pause():
                     nonlocal paused
+                    try:
+                        worker.set_paused(not paused)
+                    except psutil.Error as exc:
+                        _append_log(f"[WARN] 无法暂停任务: {exc}")
+                        return
                     paused = not paused
-                    if paused:
-                        pause_event.clear()
-                        btn_pause.setText(tr("继续下载"))
-                    else:
-                        pause_event.set()
-                        btn_pause.setText(tr("暂停下载"))
+                    btn_pause.setText(tr("继续下载") if paused else tr("暂停下载"))
+                    btn_pause.setIcon(FluentIcon.PLAY if paused else FluentIcon.PAUSE)
+                    _render_info_text()
 
                 btn_pause.clicked.connect(toggle_pause)
                 pause_event.set()
@@ -1009,29 +1001,22 @@ def ensure_deps(
                     init_worker_holder["obj"] = init_worker
 
                 def request_cancel():
-                    ui_closed["value"] = True
-                    stop_event.set()
-                    for t in timer_holder.values():
-                        if t is not None:
-                            try:
-                                t.stop()
-                            except Exception:
-                                pass
-                    try:
-                        if init_worker is not None and init_worker.isRunning():
-                            init_worker.stop()
-                        if worker.isRunning():
-                            worker.stop()
-                    except Exception:
-                        pass
-                    if _is_alive(dlg):
-                        try:
-                            dlg.reject()
-                        except RuntimeError:
-                            pass
+                    dlg.close()
 
                 btn_cancel.clicked.connect(request_cancel)
 
+                def set_pause_available(available):
+                    nonlocal paused
+                    if ui_closed["value"] or not _is_alive(btn_pause):
+                        return
+                    if not available:
+                        paused = False
+                        btn_pause.setText(tr("暂停下载"))
+                        btn_pause.setIcon(FluentIcon.PAUSE)
+                        _render_info_text()
+                    btn_pause.setEnabled(available)
+
+                worker.pausable_changed.connect(set_pause_available)
                 worker.log_updated.connect(_append_log)
                 worker.progress_updated.connect(_set_progress)
                 worker.status_updated.connect(_set_info_text)
@@ -1041,13 +1026,18 @@ def ensure_deps(
                     init_worker.progress_updated.connect(_set_progress)
                     init_worker.status_updated.connect(_set_info_text)
 
-                def _finalize_done_ui():
+                def _finalize_done_ui(message):
+                    nonlocal paused
+                    paused = False
                     if completion_state["final_ui_applied"]:
                         return
                     completion_state["final_ui_applied"] = True
+                    if _is_alive(dlg):
+                        dlg.confirm_cancel = False
                     _set_network_speed_busy(False)
+                    _set_info_text(message)
                     if _is_alive(progress):
-                        _set_progress(progress.maximum())
+                        progress.setValue(progress.maximum())
                     if _is_alive(btn_cancel):
                         btn_cancel.setText(tr("完成"))
                     if _is_alive(btn_pause):
@@ -1090,9 +1080,12 @@ def ensure_deps(
                         if _is_alive(dlg):
                             title, message = _install_failure_dialog_copy()
                             show_info_bar(dlg, title, message, "error", 6000)
-                        _finalize_done_ui()
+                        _finalize_done_ui(tr("安装失败，请查看日志。"))
                         return
 
+                    nonlocal paused
+                    paused = False
+                    btn_pause.setEnabled(False)
                     _append_log("\n[INFO] 正在验证所选依赖...")
                     _set_info_text(tr("依赖下载完成，正在验证..."))
 
@@ -1132,7 +1125,10 @@ def ensure_deps(
                                 tr("所选依赖已安装并验证通过。"),
                                 "success",
                             )
-                        _finalize_done_ui()
+                        _finalize_done_ui(
+                            tr("部分依赖验证失败，请查看日志。") if fail_layers
+                            else tr("所选依赖已安装并验证通过。")
+                        )
 
                     verify_worker.done.connect(on_verify_done)
                     verify_worker.start()
@@ -1160,7 +1156,7 @@ def ensure_deps(
                             "error",
                             7000,
                         )
-                        _finalize_done_ui()
+                        _finalize_done_ui(tr("初始化失败"))
                         return
                     _apply_runtime_context(Path(pyexe))
                     _append_log("[INFO] Python 依赖环境初始化完成，开始安装依赖包。")
@@ -1207,7 +1203,20 @@ def ensure_deps(
                 speed_timer.start()
 
                 def on_close_event(event):
+                    if not dlg.confirm_exit():
+                        event.ignore()
+                        return
                     ui_closed["value"] = True
+                    stop_event.set()
+                    for signal, slot in (
+                        (worker.pausable_changed, set_pause_available),
+                        (worker.status_updated, _set_info_text),
+                        (worker.busy_state_changed, _set_network_speed_busy),
+                    ):
+                        try:
+                            signal.disconnect(slot)
+                        except (TypeError, RuntimeError):
+                            pass
                     try:
                         for t in timer_holder.values():
                             if t is not None:
