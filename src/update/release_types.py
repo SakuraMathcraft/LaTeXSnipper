@@ -1,4 +1,3 @@
-import os
 import re
 from dataclasses import dataclass
 
@@ -13,12 +12,7 @@ __version__ = APP_VERSION
 
 CONNECT_TIMEOUT = 6
 READ_TIMEOUT = 8
-DEBUG_LOG = os.environ.get("LATEXSNIPPER_UPDATE_DEBUG", "").strip().lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
-}
+
 
 
 @dataclass

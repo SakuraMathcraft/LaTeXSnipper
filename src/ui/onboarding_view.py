@@ -120,6 +120,21 @@ class TourSurface(QWidget):
         self.reposition()
         self.next.setFocus()
 
+    def show_exit(self):
+        self.title.setText(tr("退出快速入门？"))
+        self.description.setText(tr("需要重看时，点击主窗口“快速入门”。"))
+        self.hero.hide()
+        self.detail.hide()
+        self.ring.hide()
+        self.actions_widget.hide()
+        self.back.show()
+        self.back.setText(tr("继续引导"))
+        self.skip.hide()
+        self.next.setText(tr("退出引导"))
+        self.targets = []
+        self.reposition()
+        self.back.setFocus()
+
     def apply_theme(self):
         dark = isDarkTheme()
         background = "#25282e" if dark else "#ffffff"

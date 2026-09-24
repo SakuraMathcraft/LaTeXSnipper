@@ -95,6 +95,12 @@ def test_automatic_exit_disables_future_tours(host, action):
         QTest.keyClick(tour.surface, Qt.Key.Key_Escape)
     else:
         getattr(tour.surface, action).click()
+    assert tour.active
+    assert host.cfg.get(AUTO_SHOW_KEY, True) is True
+    tour.surface.back.click()
+    assert tour.index == 1
+    tour.request_exit()
+    tour.surface.next.click()
     assert not tour.active
     assert host.cfg.get(AUTO_SHOW_KEY) is False
 

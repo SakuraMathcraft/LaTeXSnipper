@@ -427,10 +427,6 @@ class ModelRuntimeControllerMixin:
         except Exception:
             pass
         try:
-            os.environ.pop("LATEXSNIPPER_SHARED_TORCH_SITE", None)
-        except Exception:
-            pass
-        try:
             new_state = (env_pyexe,)
             old_state = getattr(self, "_mathcraft_env_state", None)
             self._mathcraft_env_state = new_state

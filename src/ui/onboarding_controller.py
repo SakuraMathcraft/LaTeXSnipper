@@ -29,11 +29,12 @@ class OnboardingController(QObject):
         self.steps = tour_steps()
         self.index = 0
         self.active = False
+        self.confirming_exit = False
         self.automatic = False
         self.auxiliary = None
         self.surface.nextRequested.connect(self.advance)
         self.surface.backRequested.connect(self.back)
-        self.surface.exitRequested.connect(self.finish)
+        self.surface.exitRequested.connect(self.request_exit)
         self.surface.actionRequested.connect(self.action)
         window.installEventFilter(self)
         self.central_widget.installEventFilter(self)
@@ -57,6 +58,7 @@ class OnboardingController(QObject):
                 self.surface.next.setFocus()
             return
         self.active = True
+        self.confirming_exit = False
         self.automatic = automatic
         self.index = 0
         self.render()
@@ -94,6 +96,7 @@ class OnboardingController(QObject):
             return
         self.surface.ring.setVisible(
             self.active
+            and not self.confirming_exit
             and self.index == 3
             and bool(self.window._model_warmup_in_progress)
         )
@@ -101,15 +104,25 @@ class OnboardingController(QObject):
             self.surface.reposition()
 
     def advance(self):
-        if self.index == len(self.steps) - 1:
+        if self.confirming_exit or self.index == len(self.steps) - 1:
             self.finish()
         else:
             self.index += 1
             self.render()
 
     def back(self):
-        self.index = max(0, self.index - 1)
+        if self.confirming_exit:
+            self.confirming_exit = False
+        else:
+            self.index = max(0, self.index - 1)
         self.render()
+
+    def request_exit(self):
+        if self.confirming_exit:
+            self.back()
+            return
+        self.confirming_exit = True
+        self.surface.show_exit()
 
     def finish(self):
         if self.automatic:

@@ -43,3 +43,6 @@ user_manual/*
 !user_manual/*.typ
 !user_manual/*.md
 !user_manual/*.png
+
+# Local editor settings
+.vscode/

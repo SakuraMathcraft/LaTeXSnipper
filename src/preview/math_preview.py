@@ -16,9 +16,6 @@ MATHJAX_CDN_URL_BACKUP = (
     "https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js"
 )
 
-_MATHJAX_LOGGED_KEYS: set[str] = set()
-
-
 def configure_math_preview_runtime(app_dir: Path | str | None) -> None:
     global APP_DIR
     APP_DIR = Path(app_dir) if app_dir else None
@@ -338,18 +335,9 @@ def get_mathjax_base_url() -> QUrl:
     try:
         mode = _current_render_mode()
         if mode == "mathjax_cdn":
-            if "cdn" not in _MATHJAX_LOGGED_KEYS:
-                print("[DEBUG] 使用 CDN MathJax")
-                _MATHJAX_LOGGED_KEYS.add("cdn")
             return QUrl(MATHJAX_CDN_URL.rsplit("/", 1)[0] + "/")
 
-        if mode.startswith("latex_"):
-            mode_key = f"latex:{mode}"
-            if mode_key not in _MATHJAX_LOGGED_KEYS:
-                print(f"[DEBUG] LaTeX 渲染模式仍使用本地 MathJax base: {mode}")
-                _MATHJAX_LOGGED_KEYS.add(mode_key)
-
-        actual_app_dir, source_desc = _mathjax_base_dir()
+        actual_app_dir, _ = _mathjax_base_dir()
         es5_dir = actual_app_dir / "assets" / "MathJax-3.2.2" / "es5"
         tex_chtml = es5_dir / "tex-mml-chtml.js"
         if not tex_chtml.exists():
@@ -359,16 +347,6 @@ def get_mathjax_base_url() -> QUrl:
         url_str = url.toString()
         if not url_str.startswith("file:///"):
             print(f"[ERR] URL 格式异常，应以 file:/// 开头: {url_str}")
-        else:
-            local_key = f"local:{source_desc}:{url_str}"
-            if local_key not in _MATHJAX_LOGGED_KEYS:
-                label = (
-                    "使用本地资源"
-                    if source_desc == "本地资源"
-                    else f"使用本地资源({source_desc})"
-                )
-                print(f"[DEBUG] MathJax {label}: {url_str}")
-                _MATHJAX_LOGGED_KEYS.add(local_key)
 
         return url
     except Exception as exc:
