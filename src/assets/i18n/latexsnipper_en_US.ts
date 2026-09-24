@@ -163,7 +163,7 @@
       <translation>The GitHub API returned an empty release list, but this does not mean the project has no releases.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/github_release_client.py" line="172" />
+      <location filename="../../../src/update/github_release_client.py" line="170" />
       <location filename="../../../src/update/release_types.py" line="82" />
       <source>GitHub API 请求受限，请稍后重试或设置 GITHUB_TOKEN。</source>
       <translation>GitHub API requests are restricted. Try again later or set GITHUB_TOKEN.</translation>
@@ -174,22 +174,22 @@
       <translation>GitHub API returned HTTP {code}. Try again later.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/github_release_client.py" line="180" />
+      <location filename="../../../src/update/github_release_client.py" line="178" />
       <source>GitHub Releases 响应格式异常。</source>
       <translation>The GitHub Releases response format is invalid.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/github_release_client.py" line="195" />
+      <location filename="../../../src/update/github_release_client.py" line="193" />
       <source>GitHub 暂时没有返回发布列表，请稍后重试或打开发布页查看。</source>
       <translation>GitHub temporarily returned no releases. Try again later or open the releases page.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/github_release_client.py" line="153" />
+      <location filename="../../../src/update/github_release_client.py" line="151" />
       <source>GitHub 限频: 剩余=0 重置≈{reset}</source>
       <translation>GitHub rate limit: remaining=0, resets around {reset}</translation>
     </message>
     <message>
-      <location filename="../../../src/update/github_release_client.py" line="167" />
+      <location filename="../../../src/update/github_release_client.py" line="165" />
       <source>GitHub 限频: 剩余={remaining} 重置≈{reset}</source>
       <translation>GitHub rate limit: remaining={remaining}, resets around {reset}</translation>
     </message>
@@ -1564,7 +1564,7 @@ Restart and open Dependency Management now?
       <translation>Failed to enable: {message}</translation>
     </message>
     <message>
-      <location filename="../../../src/update/github_release_client.py" line="179" />
+      <location filename="../../../src/update/github_release_client.py" line="177" />
       <source>响应格式不是 release 列表</source>
       <translation>The response is not a release list</translation>
     </message>
@@ -3398,7 +3398,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Update downloaded</translation>
     </message>
     <message>
-      <location filename="../../../src/update/github_release_client.py" line="162" />
+      <location filename="../../../src/update/github_release_client.py" line="160" />
       <source>更新缓存失效，请重新检查。</source>
       <translation>The update cache is stale. Check again.</translation>
     </message>
@@ -3556,7 +3556,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Not generated</translation>
     </message>
     <message>
-      <location filename="../../../src/update/github_release_client.py" line="127" />
+      <location filename="../../../src/update/github_release_client.py" line="125" />
       <source>未知</source>
       <translation>Unknown</translation>
     </message>
@@ -4466,7 +4466,7 @@ The uninstall progress window will open after confirmation.</translation>
       <translation>Continue tour</translation>
     </message>
     <message>
-      <location filename="../../../src/update/github_release_client.py" line="161" />
+      <location filename="../../../src/update/github_release_client.py" line="159" />
       <source>缓存已过期，请重新检查</source>
       <translation>The cache has expired. Check again.</translation>
     </message>
