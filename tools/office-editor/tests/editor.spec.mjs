@@ -66,6 +66,7 @@ test('source history includes visual edits; unfocused notifications cannot repla
   await expect.poll(() => source(page).innerText()).toContain('2');
   await page.locator('#mathfieldHost math-field').press('Control+z');
   expect(await submitted(page)).toBe('x+1');
+  await page.locator('#mathfieldHost math-field').click();
   await page.locator('#mathfieldHost math-field').press('Control+y');
   expect(await submitted(page)).toBe('x+12');
   await source(page).fill('newest');
@@ -177,6 +178,7 @@ for (const host of ['word', 'powerpoint']) {
 
   test(`${host}: visual selection survives search and matrix dimensions use the same insertion path`, async ({page}) => {
     const errors = await open(page, 'x+1', host);
+    await visual(page).click();
     await visual(page).press('Control+a');
     await searchTile(page, 'Fraction');
     await tile(page, '分数').click();
@@ -420,5 +422,103 @@ test('typography panel and preview remain usable in small light and dark windows
     await expect(page.locator('#typographyPanel')).toBeHidden();
     await expect(page.locator('#acceptButton')).toBeInViewport();
   }
+  expect(errors).toEqual([]);
+});
+
+
+for (const host of ['word', 'powerpoint']) {
+  test(`${host}: preview roundtrip preserves visual selection unless source changes`, async ({page}) => {
+    const errors = await open(page, 'a+b', host);
+    await visual(page).click();
+    await visual(page).press('Control+a');
+    await page.locator('#previewToggle').click();
+    await expect(source(page)).toBeFocused();
+    await page.locator('#previewToggle').click();
+    await expect(visual(page)).toBeFocused();
+    await searchTile(page, 'Fraction');
+    await tile(page, '分数').click();
+    await expect(source(page)).toHaveText('\\frac{a+b}{\\placeholder{}}');
+    await page.locator('#previewToggle').click();
+    await source(page).fill('newer');
+    await page.locator('#previewToggle').click();
+    await expect(source(page)).toBeFocused();
+    expect(await submitted(page)).toBe('newer');
+    expect(errors).toEqual([]);
+  });
+}
+
+test('toolbar IME blocks submission and mode changes until committed', async ({page}) => {
+  const errors = await open(page);
+  const size = page.locator('#fontSizePoints');
+  await size.focus();
+  await size.dispatchEvent('compositionstart');
+  await size.fill('小四');
+  await page.locator('#undoButton').click();
+  await tile(page, 'α').click();
+  await expect(source(page)).toHaveText('x+1');
+  await page.locator('#acceptButton').click();
+  expect(await page.evaluate(() => window.posted.some(m => m.type === 'accept'))).toBe(false);
+  await page.locator('#previewToggle').click();
+  await expect(page.locator('#finalPreview')).toBeHidden();
+  await size.dispatchEvent('compositionend');
+  expect(await submitted(page)).toBe('x+1');
+  expect(await page.evaluate(() => window.posted.findLast(m => m.type === 'accept').typography.fontSizePoints)).toBe(12);
+  expect(errors).toEqual([]);
+});
+
+test('Escape then Tab leaves either editor and font panel closes on keyboard departure', async ({page}) => {
+  const errors = await open(page);
+  await visual(page).click();
+  await visual(page).press('Escape');
+  await page.keyboard.press('Tab');
+  await expect(page.locator('#sourceResizeHandle')).toBeFocused();
+  await source(page).click();
+  await source(page).press('Escape');
+  await page.keyboard.press('Tab');
+  await expect(source(page)).not.toBeFocused();
+  await page.locator('#typographyToggle').click();
+  await page.locator('#defaultMathStyle').focus();
+  await page.keyboard.press('Tab');
+  await expect(page.locator('#typographyPanel')).toBeHidden();
+  expect(await submitted(page)).toBe('x+1');
+  expect(errors).toEqual([]);
+});
+
+test('short windows retain both panes; wheel modes stay isolated', async ({page}) => {
+  const errors = await open(page);
+  await page.setViewportSize({width: 640, height: 400});
+  const resize = page.locator('#sourceResizeHandle');
+  await resize.press('End');
+  const formula = await page.locator('.formula-stage').boundingBox();
+  const sourceBox = await page.locator('#latexSource').boundingBox();
+  expect(formula.height).toBeGreaterThan(20);
+  expect(sourceBox.height).toBeGreaterThan(20);
+  await expect(page.locator('#acceptButton')).toBeInViewport();
+  await page.locator('[data-group="structures"]').click();
+  const grid = page.locator('#symbolGrid');
+  for (const deltaMode of [0, 1, 2]) {
+    await grid.evaluate((el, deltaMode) => { el.scrollLeft = 0; el.dispatchEvent(new WheelEvent('wheel', {deltaY: 10, deltaMode, cancelable: true})); }, deltaMode);
+    expect(await grid.evaluate(el => el.scrollLeft)).toBeGreaterThan(0);
+  }
+  const native = await grid.evaluate(el => ['horizontal', 'zoom'].map(mode => {
+    const event = new WheelEvent('wheel', {deltaX: mode === 'horizontal' ? 100 : 0, deltaY: 10,
+      ctrlKey: mode === 'zoom', cancelable: true}); el.dispatchEvent(event); return !event.defaultPrevented;
+  }));
+  expect(native).toEqual([true, true]);
+  await page.screenshot({path: join(tmpdir(), 'latexsnipper-6c-compact.png')});
+  expect(errors).toEqual([]);
+});
+
+
+test('keyboard entry into MathLive works while a late focus cannot steal a toolbar field', async ({page}) => {
+  const errors = await open(page);
+  await page.locator('#libraryToggle').focus();
+  await page.keyboard.press('Tab');
+  await expect(visual(page)).toBeFocused();
+  await page.locator('#fontSizePoints').click();
+  await page.evaluate(() => HTMLElement.prototype.focus.call(document.querySelector('math-field')));
+  await expect(page.locator('#fontSizePoints')).toBeFocused();
+  await page.locator('#fontSizePoints').fill('18');
+  expect(await submitted(page)).toBe('x+1');
   expect(errors).toEqual([]);
 });

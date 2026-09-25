@@ -31,3 +31,5 @@ npm run test:browser
 参考：[CodeMirror API](https://codemirror.net/docs/ref/)、[MathLive 输入事件与静默更新](https://mathlive.io/mathfield/guides/interacting/)。
 
 6B 回归覆盖字体 / 字号 / 颜色、预览和提交快照一致、失效响应、取消、新会话、渲染错误、提交失败恢复及面板小窗口布局。浏览器测试使用模拟桥接；真实渲染需另外执行 `office_plugin/tests/LaTeXSnipper.OfficePlugin.Rendering.Smoke` 的 `--typography` 检查。
+
+6C：MathLive 与源码均可用 Escape 后再按 Tab 离开编辑器；预览往返在源码未改动时恢复原编辑目标与选区。字号组合输入纳入编辑保护，字体面板在焦点移出后关闭。新增回归覆盖延迟焦点、新会话、预览选区、字号 IME、键盘进出、滚轮单位与 640×400 短窗口；真实输入法与物理触控板仍待宿主验收。

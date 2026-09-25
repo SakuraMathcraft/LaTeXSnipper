@@ -67,17 +67,17 @@ function setSubmitting(value) {
 }
 
 function maximumSourcePaneHeight() {
-  return Math.max(
-    SOURCE_PANE_MIN_HEIGHT,
-    workspace.clientHeight - sourceResizeHandle.offsetHeight - FORMULA_PANE_MIN_HEIGHT,
-  );
+  const available = Math.max(0, workspace.clientHeight - sourceResizeHandle.offsetHeight);
+  return available - Math.min(FORMULA_PANE_MIN_HEIGHT, Math.floor(available * 2 / 3));
 }
 
 function setSourcePaneHeight(height) {
   const maximum = maximumSourcePaneHeight();
-  sourcePaneHeight = Math.min(maximum, Math.max(SOURCE_PANE_MIN_HEIGHT, Math.round(height)));
+  const minimum = Math.min(SOURCE_PANE_MIN_HEIGHT, maximum);
+  sourcePaneHeight = Math.min(maximum, Math.max(minimum, Math.round(height)));
   workspace.style.setProperty("--source-pane-height", `${sourcePaneHeight}px`);
   sourceResizeHandle.setAttribute("aria-valuemax", String(maximum));
+  sourceResizeHandle.setAttribute("aria-valuemin", String(minimum));
   sourceResizeHandle.setAttribute("aria-valuenow", String(sourcePaneHeight));
 }
 
@@ -197,7 +197,7 @@ function scheduleCaretVisibility() {
 }
 
 function accept() {
-  if (submitting || sourceEditor.composing || sourceSync.visualComposing) {
+  if (submitting || sourceEditor.composing || sourceSync.visualComposing || typographyPanel.composing) {
     return;
   }
   sourceSync.visualInput();
@@ -228,6 +228,8 @@ function configureText() {
   setStatus(strings().ready);
   document.getElementById('undoButton').textContent = locale.startsWith('zh') ? '撤销' : 'Undo';
   document.getElementById('redoButton').textContent = locale.startsWith('zh') ? '重做' : 'Redo';
+  mathfield.setAttribute('aria-label', locale.startsWith('zh') ? '可视化公式编辑器' : 'Visual formula editor');
+  mathfield.setAttribute('aria-description', locale.startsWith('zh') ? '按 Escape 后再按 Tab 离开编辑器。' : 'Press Escape then Tab to leave the editor.');
   symbolPanel.configure(locale);
 }
 
@@ -242,6 +244,7 @@ function applyInit(payload) {
   configureText();
   setLatex(payload?.latex || "");
   insertion.reset();
+  sourceEditor.focus();
   scheduleCaretVisibility();
 }
 
@@ -258,10 +261,11 @@ async function bootstrap() {
     commands: COMMANDS,
     completeTemplate: (entry, range) => insertion.insert(entry, {range}),
     onChange: (_value, change) => { sourceSync?.sourceChanged(change); preview?.update(); },
-    onComposition: active => { sourceSync?.composition(active); preview?.setComposing(active || sourceSync.visualComposing); }
+    onComposition: active => { sourceSync?.composition(active); updatePreviewComposition(); }
   });
   sourceSync = new SourceSync({source: sourceEditor, mathfield, readVisual: mathfieldLatex, onMode: setSourceMode});
-  insertion = new TemplateInsertion({source: sourceEditor, sync: sourceSync, mathfield, sourceHost: latexSource, onInsert: scheduleCaretVisibility});
+  insertion = new TemplateInsertion({source: sourceEditor, sync: sourceSync, mathfield, sourceHost: latexSource,
+    onInsert: scheduleCaretVisibility, isComposing: () => Boolean(typographyPanel?.composing)});
   symbolPanel = new SymbolPanel(insertion);
   const image = document.getElementById('previewImage');
   const previewStatus = document.getElementById('previewStatus');
@@ -287,9 +291,10 @@ async function bootstrap() {
     }
   });
   typographyPanel = new TypographyPanel({onChange: () => preview.update(),
+    onComposition: updatePreviewComposition,
     blocked: () => insertion.blocked,
     onMode: active => {
-      sourceSync.visualInput(); insertion.reset(); sourceEditor.focus(); preview.setActive(active);
+      sourceSync.visualInput(); insertion.setPreview(active); preview.setActive(active);
     }});
   const shortcuts = new Map(CATALOG.filter(entry => entry.shortcut).map(entry => [entry.shortcut, entry]));
   configureMathfield(mathfield, {onAccept: accept, insert: entry => insertion.insert(entry), shortcuts,
@@ -302,8 +307,8 @@ async function bootstrap() {
   }
   mathfield.addEventListener("beforeinput", event => sourceSync.beforeVisualInput(event));
   mathfield.addEventListener("input", () => { sourceSync.visualInput(); scheduleCaretVisibility(); });
-  mathfield.addEventListener("compositionstart", () => { sourceSync.visualComposition(true); preview.setComposing(true); });
-  mathfield.addEventListener("compositionend", () => { sourceSync.visualComposition(false); preview.setComposing(sourceEditor.composing); });
+  mathfield.addEventListener("compositionstart", () => { sourceSync.visualComposition(true); updatePreviewComposition(); });
+  mathfield.addEventListener("compositionend", () => { sourceSync.visualComposition(false); updatePreviewComposition(); });
   mathfield.addEventListener("keydown", event => {
     if (!submitting && (event.ctrlKey || event.metaKey) && !event.altKey && !event.isComposing
         && (event.key.toLowerCase() === "z" || event.key.toLowerCase() === "y")) {
@@ -315,6 +320,7 @@ async function bootstrap() {
   window.addEventListener("pagehide", () => preview.stop());
   acceptButton.addEventListener("click", accept);
   window.addEventListener("keydown", (event) => {
+    if (event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
     if (event.key === "Escape" && !event.isComposing) {
       event.preventDefault();
       hideVirtualKeyboard();
@@ -333,6 +339,10 @@ async function bootstrap() {
     pendingInit = null;
     window.__latexSnipperPendingInit = null;
   }
+}
+
+function updatePreviewComposition() {
+  preview?.setComposing(Boolean(sourceEditor?.composing || sourceSync?.visualComposing || typographyPanel?.composing));
 }
 
 window.LaTeXSnipperEditor = {

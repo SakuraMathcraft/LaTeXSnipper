@@ -75,7 +75,7 @@ can explicitly override the model root.
 | Screenshot CLI capture files | System temp files with `latexsnipper_cap_` / `latexsnipper_bg_` prefixes | Deleted immediately after use |
 | MathCraft worker input image | System temp PNG | Deleted after each request |
 | Automation API jobs | Memory only | Images released after execution; completed results expire by TTL/retention cap and all state is released on exit |
-| Settings environment terminal scripts | System temp launcher files/directories | Short-lived helper launchers; currently best-effort OS temp cleanup |
+| Settings environment terminal launchers and session state | System temp directory: `LaTeXSnipper/environment-terminal/` | Launchers are overwritten and retained; session records are cleared on normal POSIX exit or when detected as stale. Remaining files persist until external temp cleanup. |
 
 ## Directory Creation Summary
 

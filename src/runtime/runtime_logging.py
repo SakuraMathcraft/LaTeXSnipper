@@ -223,11 +223,6 @@ def init_app_logging() -> Path:
         sh.setFormatter(fmt)
         root.addHandler(sh)
 
-    hook_runtime_log_streams(tee=not getattr(sys, "frozen", False))
-    _RUNTIME_SESSION_HANDLER = logging.StreamHandler(_RUNTIME_LOG_FH_OUT)
-    _RUNTIME_SESSION_HANDLER.setFormatter(fmt)
-    root.addHandler(_RUNTIME_SESSION_HANDLER)
-
     global _ORIGINAL_PRINT, _PRINT_BRIDGE_INSTALLED
     if (not _PRINT_BRIDGE_INSTALLED) and (file_handler is not None):
         _ORIGINAL_PRINT = builtins.print
@@ -257,12 +252,21 @@ def init_app_logging() -> Path:
         _PRINT_BRIDGE_INSTALLED = True
 
     APP_LOG_FILE = active_log_path
-    if not getattr(root, "_latexsnipper_session_logged", False):
-        logging.info("LaTeXSnipper 启动 pid=%s", os.getpid())
-        setattr(root, "_latexsnipper_session_logged", True)
-
     _APP_LOGGING_INITIALIZED = True
     return active_log_path
+
+
+def start_runtime_log_session() -> None:
+    """Start session capture only after acquiring the application instance lock."""
+    global _RUNTIME_SESSION_HANDLER
+    if _RUNTIME_SESSION_HANDLER is not None:
+        return
+    hook_runtime_log_streams(tee=not getattr(sys, "frozen", False))
+    handler = logging.StreamHandler(_RUNTIME_LOG_FH_OUT)
+    handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s"))
+    logging.getLogger().addHandler(handler)
+    _RUNTIME_SESSION_HANDLER = handler
+    logging.info("LaTeXSnipper 启动 pid=%s", os.getpid())
 
 
 def runtime_log_path() -> Path:
