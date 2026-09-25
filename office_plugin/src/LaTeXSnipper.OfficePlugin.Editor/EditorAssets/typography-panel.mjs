@@ -1,7 +1,8 @@
 // Catalogs and size limits come from the native typography contract.
 export class TypographyPanel {
-  constructor({onChange, onMode, blocked}) {
-    Object.assign(this, {onChange, onMode, blocked});
+  constructor({onChange, onMode, onComposition, blocked}) {
+    Object.assign(this, {onChange, onMode, onComposition, blocked});
+    this.composing = false;
     this.panel = document.getElementById('typographyPanel');
     this.toggle = document.getElementById('typographyToggle');
     this.preview = document.getElementById('previewToggle');
@@ -18,17 +19,27 @@ export class TypographyPanel {
         event.preventDefault(); event.stopPropagation(); this.close(); this.toggle.focus();
       }
     });
+    this.panel.addEventListener('focusout', () => queueMicrotask(() => {
+      if (!this.panel.contains(document.activeElement) && document.activeElement !== this.toggle) this.close();
+    }));
+    document.addEventListener('pointerdown', event => {
+      if (!this.panel.contains(event.target) && !this.toggle.contains(event.target)) this.close();
+    });
     this.preview.addEventListener('click', () => {
       if (this.blocked()) return;
       this.close(); this.active = !this.active; this.renderMode(); this.onMode(this.active);
     });
-    for (const input of Object.values(this.fields)) input.addEventListener('input', () => this.onChange());
+    for (const input of Object.values(this.fields)) {
+      input.addEventListener('input', () => this.onChange());
+      input.addEventListener('compositionstart', () => { this.composing = true; this.onComposition(); });
+      input.addEventListener('compositionend', () => { this.composing = false; this.onComposition(); });
+    }
   }
   close() { this.panel.hidden = true; this.toggle.setAttribute('aria-expanded', 'false'); }
   configure(payload) {
     this.catalog = payload.catalog; this.initial = payload.typography;
     this.zh = String(payload.locale).startsWith('zh'); this.reference = payload.referencePreview;
-    this.active = false; this.close();
+    this.active = false; this.composing = false; this.close();
     const labels = this.zh ? ['符号字体', '数字字体', '汉字字体', '默认字形', '字号', '颜色']
       : ['Symbols', 'Numbers', 'CJK', 'Math style', 'Size', 'Color'];
     Object.entries(this.fields).forEach(([key, input], index) => {

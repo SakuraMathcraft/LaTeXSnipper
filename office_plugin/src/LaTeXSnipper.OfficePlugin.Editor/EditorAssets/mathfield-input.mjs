@@ -28,6 +28,8 @@ function addRow(mathfield) {
 }
 
 export function configureMathfield(mathfield, {onAccept, insert, shortcuts, performEdit}) {
+  let releaseTab = false;
+  mathfield.addEventListener('focusout', () => { releaseTab = false; });
   mathfield.mathModeSpace = VISIBLE_MATH_SPACE;
   document.addEventListener("menu-select", (event) => {
     const command = MATRIX_MENU_COMMANDS[event.detail?.id];
@@ -40,6 +42,14 @@ export function configureMathfield(mathfield, {onAccept, insert, shortcuts, perf
     mathfield.focus();
   });
   mathfield.addEventListener("keydown", (event) => {
+    if (event.isComposing || event.keyCode === 229) return;
+    const leaveEditor = releaseTab && event.key === 'Tab';
+    releaseTab = event.key === 'Escape';
+    if (leaveEditor) {
+      // Like CodeMirror: Escape then Tab leaves the editor without inserting content.
+      event.stopImmediatePropagation();
+      return;
+    }
     if (event.key === 'Tab' && !event.altKey && !event.ctrlKey && !event.metaKey
         && !event.isComposing && !mathfield.readOnly && mathfield.mode !== 'latex') {
       event.preventDefault();
