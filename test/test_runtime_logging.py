@@ -39,9 +39,16 @@ import runtime.runtime_logging as runtime_logging
 target = Path(sys.argv[1])
 runtime_logging.app_log_dir = lambda: target
 runtime_logging.app_state_dir = lambda: target / "state"
+runtime_logging.runtime_log_path().write_text("previous-session", encoding="utf-8")
 runtime_logging.init_app_logging()
+assert runtime_logging.runtime_log_path().read_text(encoding="utf-8") == "previous-session"
+runtime_logging.start_runtime_log_session()
+runtime_logging.start_runtime_log_session()
 print("[DEBUG] debug-only")
 print("[INFO] ready")
+logging.info("logging-record")
+sys.stderr.write("stderr-record\\n")
+assert "ready" in runtime_logging.runtime_log_path().read_text(encoding="utf-8")
 logging.shutdown()
 """
     env = os.environ.copy()
@@ -62,6 +69,13 @@ logging.shutdown()
     assert "debug-only" not in text
     assert "[INFO] [INFO] ready" not in text
     assert text.count("ready") == 1
+    session = (tmp_path / "runtime-session.log").read_text(encoding="utf-8")
+    assert "previous-session" not in session
+    assert session.count("LaTeXSnipper 启动 pid=") == 1
+    assert text.count("LaTeXSnipper 启动 pid=") == 1
+    assert session.count("ready") == 1
+    assert session.count("logging-record") == 1
+    assert "stderr-record" in session
 
 
 def test_plain_log_rotation_is_bounded(tmp_path: Path) -> None:
@@ -100,3 +114,20 @@ def test_only_expired_pid_fallback_logs_are_removed(tmp_path: Path) -> None:
     assert not old_backup.exists()
     assert recent_log.exists()
     assert unrelated.exists()
+
+
+def test_session_capture_requires_instance_lock(monkeypatch):
+    import pytest
+    from application import bootstrap
+
+    events = []
+    monkeypatch.setattr(bootstrap.atexit, "register", lambda callback: None)
+    monkeypatch.setattr(bootstrap, "start_runtime_log_session", lambda: events.append("session"))
+    monkeypatch.setattr(bootstrap, "_show_already_running_message", lambda app: None)
+    monkeypatch.setattr(bootstrap, "ensure_single_instance", lambda: False)
+    with pytest.raises(SystemExit):
+        bootstrap._ensure_single_instance(None)
+    assert events == []
+    monkeypatch.setattr(bootstrap, "ensure_single_instance", lambda: True)
+    bootstrap._ensure_single_instance(None)
+    assert events == ["session"]

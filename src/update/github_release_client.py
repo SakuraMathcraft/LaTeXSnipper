@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 from datetime import datetime, timezone
@@ -11,7 +12,6 @@ from update.release_assets import _release_info_from_payload
 from update.release_cache import _load_cached_info, _save_cached_info
 from update.release_types import (
     CONNECT_TIMEOUT,
-    DEBUG_LOG,
     READ_TIMEOUT,
     ReleaseInfo,
     __version__,
@@ -107,11 +107,9 @@ def _configure_tls_verify():
         # Set envs for child requests/urllib callers in this process.
         os.environ["REQUESTS_CA_BUNDLE"] = ca_path
         os.environ["SSL_CERT_FILE"] = ca_path
-        if DEBUG_LOG:
-            print(f"[DEBUG] 更新检查 TLS CA bundle: {ca_path}")
+        logging.getLogger(__name__).debug("更新检查 TLS CA bundle: %s", ca_path)
     else:
-        if DEBUG_LOG:
-            print("[WARN] 未找到 TLS CA bundle，更新检查可能因 HTTPS 验证失败")
+        logging.getLogger(__name__).warning("未找到 TLS CA bundle，更新检查可能因 HTTPS 验证失败")
 
 
 def _attach_auth_headers(h: dict):

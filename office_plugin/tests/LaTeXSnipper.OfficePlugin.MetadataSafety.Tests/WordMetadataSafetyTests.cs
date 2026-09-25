@@ -9,11 +9,11 @@ namespace LaTeXSnipper.OfficePlugin.MetadataSafety.Tests;
 public sealed class WordMetadataSafetyTests
 {
     [TestMethod]
-    public void Schema2RoundTripPreservesMetadataAndNaturalSize()
+    public void Schema3RoundTripPreservesMetadataAndNaturalSize()
     {
         var document = new FakeWordDocument();
         string documentId = WordDocumentIdentityStore.GetOrCreate(document);
-        FormulaMetadata expected = CreateMetadata(documentId, "word-schema2", @"\boldsymbol{x+y}");
+        FormulaMetadata expected = CreateMetadata(documentId, "word-schema3", @"\boldsymbol{x+y}");
 
         string tag = WordFormulaMetadataStore.Save(document, expected, 42.5, 18.25);
         FormulaMetadata actual = WordFormulaMetadataStore.Load(document, tag);
@@ -67,12 +67,10 @@ public sealed class WordMetadataSafetyTests
             "LS.E.unknown.badrevision",
             "{\"schemaVersion\":99,\"documentId\":\"doc\",\"equationId\":\"unknown\"," +
             "\"latex\":\"x\",\"displayMode\":\"Inline\",\"numberingMode\":\"None\"," +
-            "\"numberText\":\"\",\"renderEngine\":\"Omml\",\"fontScale\":1}");
+            "\"numberText\":\"\",\"renderEngine\":\"Omml\"}");
         document.Variables.Add(
-            "LS.E.payload-equation.mismatch001",
-            "{\"schemaVersion\":2,\"documentId\":\"doc\",\"equationId\":\"payload-equation\"," +
-            "\"latex\":\"x\",\"displayMode\":\"Inline\",\"numberingMode\":\"None\"," +
-            "\"numberText\":\"\",\"renderEngine\":\"Omml\",\"fontScale\":1}");
+            "LS.E.tag-equation.mismatch001",
+            WordFormulaMetadataStore.Serialize(CreateMetadata("doc", "payload-equation", "x")));
 
         Assert.ThrowsExactly<InvalidOperationException>(
             () => WordFormulaMetadataStore.Load(document, "latexsnipper-eq-missing|revision01"));
@@ -108,6 +106,6 @@ public sealed class WordMetadataSafetyTests
             string.Empty,
             RenderEngineKind.Omml,
             schemaVersion,
-            1.25);
+            new FormulaTypography("mathjax-stix2", "Times New Roman", "宋体", FormulaMathStyle.BoldItalic, 15.5, "#123ABC"));
     }
 }

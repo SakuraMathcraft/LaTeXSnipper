@@ -7,11 +7,12 @@ namespace LaTeXSnipper.OfficePlugin.Abstractions;
 /// </summary>
 public sealed class RenderRequest
 {
-    public RenderRequest(string latex, FormulaDisplayMode displayMode, RenderEngineKind engine)
+    public RenderRequest(string latex, FormulaDisplayMode displayMode, RenderEngineKind engine, FormulaTypography typography)
     {
         Latex = latex ?? string.Empty;
         DisplayMode = displayMode;
         Engine = engine;
+        Typography = typography ?? throw new ArgumentNullException(nameof(typography));
     }
 
     public string Latex { get; }
@@ -20,11 +21,7 @@ public sealed class RenderRequest
 
     public RenderEngineKind Engine { get; }
 
-    public int TargetDpi { get; set; } = 192;
-
-    public string Theme { get; set; } = "light";
-
-    public double FontScale { get; set; } = 1;
+    public FormulaTypography Typography { get; }
 
     public TimeSpan Timeout { get; set; } = OfficeCommandTimeouts.Render;
 }

@@ -98,16 +98,24 @@ public sealed partial class DynamicWordApplicationAdapter
         }
     }
 
-    public Task<IReadOnlyList<WordFormulaEntry>> LoadSelectedFormulaEntriesAsync(CancellationToken cancellationToken)
+    public Task<IReadOnlyList<WordFormulaEntry>> LoadFormulaEntriesAsync(bool all, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        IReadOnlyList<WordFormulaEntry> entries = CollectSelectedFormulas()
+        var formulas = new List<SelectedWordFormula>();
+        if (all)
+        {
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            AddSelectedFormulasFromRange(formulas, seen, CurrentDocument.Content);
+            AddSelectedOleInlineShapes(formulas, seen, CurrentDocument.Content);
+        }
+        else formulas.AddRange(CollectSelectedFormulas());
+        IReadOnlyList<WordFormulaEntry> entries = formulas
             .Select(EnsureUniqueFormulaIdentity)
             .Select(item => new WordFormulaEntry(GetFormulaStart(item), item.Metadata))
-            .Concat(CollectSelectedNativeWordFormulaEntries())
+            .Concat(all ? Array.Empty<WordFormulaEntry>() : CollectSelectedNativeWordFormulaEntries())
             .OrderByDescending(item => item.Start)
             .ToArray();
-        if (entries.Count == 0)
+        if (!all && entries.Count == 0)
         {
             throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
         }
@@ -153,19 +161,6 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         FormulaMetadata metadata = WithNewIdentity(selected.Metadata, documentId);
-        double fontSizePoints = 0;
-        if (!selected.IsOleInlineShape &&
-            WordFormulaMetadataStore.TryLoadOmmlNaturalFontSize(
-                CurrentDocument,
-                equationId,
-                out fontSizePoints))
-        {
-            WordFormulaMetadataStore.SaveOmmlNaturalFontSize(
-                CurrentDocument,
-                metadata.Identity.EquationId,
-                fontSizePoints);
-        }
-
         SaveFormulaMetadata(selected.ContentControl, metadata);
         return new SelectedWordFormula(selected.ContentControl, metadata, selected.IsOleInlineShape);
     }
@@ -208,7 +203,7 @@ public sealed partial class DynamicWordApplicationAdapter
         string equationContentOoxml,
         FormulaMetadata metadata,
         bool display,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, bool preserveUserScale = true)
     {
         ValidateManagedEquationInput(ooxml, metadata);
         ValidateManagedEquationInput(equationOoxml, metadata);
@@ -221,7 +216,12 @@ public sealed partial class DynamicWordApplicationAdapter
             {
                 dynamic inlineShape = ole;
                 int insertionPoint = GetRangeStart(inlineShape.Range);
-                double oleFontSizePoints = ReadOleEquivalentFontSize(inlineShape);
+                double oleFontSizePoints = metadata.Typography.FontSizePoints;
+                double width = 0, height = 0;
+                if (preserveUserScale && WordFormulaMetadataStore.TryLoadOleNaturalSize(CurrentDocument,
+                    Convert.ToString(inlineShape.AlternativeText) ?? string.Empty, out width, out height))
+                    oleFontSizePoints *= Math.Max(0.05, Math.Min(Convert.ToDouble(inlineShape.Width) / width,
+                        Convert.ToDouble(inlineShape.Height) / height));
                 dynamic insertionRange;
                 string replacementOoxml;
                 if (metadata.NumberingMode == NumberingMode.None)
@@ -269,22 +269,18 @@ public sealed partial class DynamicWordApplicationAdapter
                 }
 
                 NormalizeManagedInlineEquationBaseline(metadata, insertedControl);
-                WordFormulaMetadataStore.SaveOmmlNaturalFontSize(
-                    CurrentDocument,
-                    metadata.Identity.EquationId,
-                    oleFontSizePoints);
                 SaveFormulaMetadata(metadata);
                 MoveSelectionAfterInsertedFormula(metadata, display);
                 return;
             }
 
             object control = FindFormulaControlById(equationId);
-            double fontSizePoints = ReadManagedEquationFontSize(control);
             FormulaMetadata currentMetadata = LoadFormulaMetadata((dynamic)control, equationId, RenderEngineKind.Omml);
+            double scale = preserveUserScale
+                ? ReadManagedEquationFontSize(control) / currentMetadata.Typography.FontSizePoints : 1;
             ReplaceFormulaContent(control, ooxml, equationContentOoxml, metadata, currentMetadata);
-            ApplyManagedEquationFontSizeById(
-                metadata.Identity.EquationId,
-                ScaleFontSize(fontSizePoints, metadata.FontScale));
+            ApplyManagedEquationFontSizeById(metadata.Identity.EquationId,
+                metadata.Typography.FontSizePoints * (scale > 0 ? scale : 1));
             ApplyManagedEquationStyleById(metadata);
             NormalizeManagedInlineEquationBaseline(metadata, FindFormulaControlById(metadata.Identity.EquationId));
             SaveFormulaMetadata(metadata);
@@ -330,36 +326,6 @@ public sealed partial class DynamicWordApplicationAdapter
                 display,
                 cancellationToken).ConfigureAwait(true);
         }
-    }
-
-    private double ReadOleEquivalentFontSize(dynamic inlineShape)
-    {
-        double fontSize = ReadPointSize(inlineShape.Range.Font.Size);
-        if (fontSize <= 0)
-        {
-            fontSize = GetCurrentFontSizePoints();
-        }
-
-        try
-        {
-            double currentHeight = Convert.ToDouble(inlineShape.Height, System.Globalization.CultureInfo.InvariantCulture);
-            string tag = Convert.ToString(inlineShape.AlternativeText) ?? string.Empty;
-            if (WordFormulaMetadataStore.TryLoadOleNaturalSize(
-                    CurrentDocument,
-                    tag,
-                    out double naturalWidth,
-                    out double naturalHeight) &&
-                naturalHeight > 0 &&
-                currentHeight > 0)
-            {
-                fontSize *= Math.Max(0.05, currentHeight / naturalHeight);
-            }
-        }
-        catch
-        {
-        }
-
-        return Math.Max(1, fontSize);
     }
 
     private dynamic RemoveOmmlConversionSource(dynamic control, FormulaMetadata metadata)
@@ -435,7 +401,8 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         if (metadata.RenderEngine != RenderEngineKind.MathJaxSvg)
         {
-            return false;
+            double actual = ReadManagedEquationFontSize(FindFormulaControlById(metadata.Identity.EquationId));
+            return Math.Abs(actual - metadata.Typography.FontSizePoints) > 0.1;
         }
 
         object? shape = TryFindOleInlineShapeById(metadata.Identity.EquationId);

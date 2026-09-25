@@ -8,6 +8,7 @@ from pathlib import Path
 
 from PyQt6.QtCore import QThread, QTimer, Qt
 from PyQt6.QtWidgets import QApplication, QDialog, QInputDialog, QProgressDialog
+from qfluentwidgets import ProgressBar
 
 from recognition.external_pdf_worker import ExternalModelPdfWorker
 from ui.notifications import show_user_notice
@@ -204,7 +205,11 @@ class PdfRecognitionControllerMixin:
             if doc_mode == "parse"
             else tr("正在识别 PDF...")
         )
+        self._pdf_progress_text = progress_text
         self.pdf_progress = QProgressDialog(progress_text, tr("取消"), 0, pages, self)
+        progress_bar = ProgressBar(self.pdf_progress)
+        progress_bar.setRange(0, pages)
+        self.pdf_progress.setBar(progress_bar)
 
         self.pdf_progress.setWindowModality(Qt.WindowModality.NonModal)
         self.pdf_progress.setMinimumDuration(0)
@@ -284,6 +289,11 @@ class PdfRecognitionControllerMixin:
         if self.pdf_progress:
             try:
                 self.pdf_progress.setMaximum(total)
+                if total > 0:
+                    percent = max(0, min(100, int(current * 100 / total)))
+                    self.pdf_progress.setLabelText(
+                        f"{self._pdf_progress_text}  {percent}% ({current}/{total})"
+                    )
                 self.pdf_progress.setValue(current)
             except Exception:
                 pass

@@ -1,10 +1,12 @@
 param(
-    [string]$RepoRoot = "E:\LaTexSnipper",
-    [string]$DataRoot = "E:\MathCraftBenchData",
-    [string]$CdmDir = "E:\MathCraftBenchData\sources\UniMERNet_official\cdm",
-    [string]$Python = "D:\Python312\python.exe",
-    [string]$InputPath = "E:\MathCraftBenchData\runs\unimer_test_gpu\cdm_input\unimer_test_full_cdm.json",
-    [string]$OutputDir = "E:\MathCraftBenchData\runs\cdm_official_unimer_full",
+    [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path,
+    [Parameter(Mandatory = $true)]
+    [string]$DataRoot,
+    [string]$CdmDir = (Join-Path $DataRoot "sources\UniMERNet_official\cdm"),
+    [string]$Python = "python",
+    [string]$PathPrepend = "",
+    [string]$InputPath = (Join-Path $DataRoot "runs\unimer_test_gpu\cdm_input\unimer_test_full_cdm.json"),
+    [string]$OutputDir = (Join-Path $DataRoot "runs\cdm_official_unimer_full"),
     [int]$ShardSize = 100,
     [int]$Pools = 8,
     [int]$StartOffset = 0,
@@ -21,7 +23,7 @@ if ($Pools -gt 8) {
 }
 
 $runner = Join-Path $RepoRoot "benchmarks\mathcraft_ocr\reports\run_official_cdm.py"
-$pathPrepend = "E:\MathCraftBenchData\tools\unix_shims;E:\MathCraftBenchData\tools\Ghostscript\gs10.07.1\bin;C:\Program Files\ImageMagick-7.1.2-Q16"
+$Python = (Get-Command $Python -CommandType Application -ErrorAction Stop).Source
 
 foreach ($path in @($runner, $CdmDir, $Python, $InputPath)) {
     if (-not (Test-Path -LiteralPath $path)) {
@@ -35,7 +37,6 @@ $argsList = @(
     "--output-dir", $OutputDir,
     "--cdm-dir", $CdmDir,
     "--python", $Python,
-    "--path-prepend", $pathPrepend,
     "--shard-size", $ShardSize,
     "--pools", $Pools,
     "--start-offset", $StartOffset,
@@ -43,8 +44,14 @@ $argsList = @(
     "--max-shards", $MaxShards
 )
 
+if ($PathPrepend) {
+    $argsList += @("--path-prepend", $PathPrepend)
+}
+
 if ($Force) {
     $argsList += "--force"
 }
 
 & $Python @argsList
+
+exit $LASTEXITCODE

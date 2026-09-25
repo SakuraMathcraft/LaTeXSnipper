@@ -1,18 +1,13 @@
 # Office 插件公式链路与元数据边界
 
-本文记录当前 Office 插件的公式源码、渲染、编号、引用、转换、格式化和元数据存储边界。当前实现的核心原则是：**完整 LaTeX 源码是字体、颜色和公式内容的唯一可信来源**。
+本文记录 schema 3 的 Office 插件公式链路。公式内容与显式局部样式来自 `Latex`，公式默认样式与绝对字号来自不可变的 `Typography` 快照。
 
-## 当前源码边界
+## 当前源码与样式边界
 
-新建公式打开 MathLive 编辑器时，编辑器不会把设置中的默认字体和颜色立即套到预览上。用户第一次输入时看到的是原始 MathLive 预览；只有新插入公式或执行“格式化所选”时，插件才会把设置转换为 LaTeX 源码包装，例如 `\color{...}{...}`、`\mathbb{...}`、`\boldsymbol{...}`。加载已有公式和更新已有公式都读取并保存同一份完整源码，不额外套用设置中的默认字体或颜色。
-
-当前边界：
-
-- 加载、更新、格式化、转换都只信任完整 LaTeX 源码，侧边栏和编辑器显示同一份源码。
-- 用户手写的字体和颜色宏由加载链路按原样保留。
-- 设置中的默认字体/颜色只影响“新插入”和“格式化所选”，不会在编辑器打开时改写用户内容。
-
-第一次打开新建编辑器时，默认字体和颜色不会立刻可见；提交新公式后，默认格式才写入公式源码并随元数据保存。
+- 新建和格式化从当前设置产生样式快照；普通编辑、重编号及转换保留公式已有快照。
+- 局部字体与颜色命令优先于默认样式。默认样式在 MathJax 解析后、布局前应用。
+- Word OLE、PPT OLE / PNG 使用同一 SVG 轮廓；OMML 复用带样式 MathML，再映射 Word 属性，最终排版由 Word 管理。
+- MathLive 目前仍是编辑参考。三类字体的完整设置面板、最终效果预览与预设功能按重构方案后续阶段实施。
 
 ## 统一元数据模型
 
@@ -28,9 +23,9 @@
 | `NumberText` | 手动编号文本 |
 | `RenderEngine` | `Omml`、`MathJaxSvg` 或 `Image` |
 | `SchemaVersion` | 元数据结构版本 |
-| `FontScale` | 插件设置中的缩放倍率 |
+| `Typography` | 符号字体、数字字体、汉字字体、数学样式、绝对 pt 字号、颜色与样式版本 |
 
-元数据只保存完整 `Latex`，字体和颜色以 LaTeX 宏存在于源码中，不保存独立的字体或颜色字段。
+`Typography` 保存完整快照；文档重绘不依赖本机预设。只读取 schema 3，损坏或不支持的版本在入口拒绝，不迁移或删除原对象。
 
 ## Word 元数据存储
 
@@ -62,13 +57,7 @@ OLE 公式还会在同一份 JSON 中保存自然宽高：
 
 这些字段用于判断用户是否手动拉伸公式，并支持格式化时恢复自然尺寸。
 
-OMML 的自然字号单独存储在：
-
-```text
-LaTeXSnipper.OmmlNaturalFontSize.{equationId}
-```
-
-用于恢复 Word 原生公式的自然字号。
+OMML 的自然字号直接取 `Typography.FontSizePoints`，不另建文档变量。
 
 ## PowerPoint 元数据存储
 
@@ -81,7 +70,6 @@ PowerPoint 公式以 shape 为单位保存元数据。短字段写入 shape tags
 | `LaTeXSnipperDisplayMode` | 显示模式 |
 | `LaTeXSnipperSchemaVersion` | schema |
 | `LaTeXSnipperRenderEngine` | 渲染类型 |
-| `LaTeXSnipperFontScale` | 缩放倍率 |
 | `LaTeXSnipperNaturalWidthPoints` | 自然宽度 |
 | `LaTeXSnipperNaturalHeightPoints` | 自然高度 |
 | `LaTeXSnipperImagePath` | PNG 插入时的临时图片路径 |
@@ -94,7 +82,7 @@ PowerPoint 公式以 shape 为单位保存元数据。短字段写入 shape tags
 | `LaTeXSnipperLatexChunks` | 分块数量 |
 | `LaTeXSnipperLatex0000` 起 | 十六进制源码分块 |
 
-每块长度为 200 个十六进制字符，并校验字节数、分块数量和十六进制解析结果。这样可以安全保存较长 LaTeX 源码，不依赖单个 tag 容量。
+每块长度为 200 个十六进制字符，并校验字节数、分块数量和十六进制解析结果。样式 JSON 使用同一编码与分块实现，前缀为 `LaTeXSnipperTypography`，保存 `Bytes`、`Chunks` 和 `0000` 起的分块。这样同时保留长源码、中文字体名称和字体名称的大小写。
 
 ## 设置项影响边界
 
@@ -103,9 +91,9 @@ PowerPoint 公式以 shape 为单位保存元数据。短字段写入 shape tags
 | 设置项 | 影响链路 | 不影响链路 |
 | --- | --- | --- |
 | 插入后端：OLE / Word OMML | 新插入公式、公式解析、更新公式、转换目标渲染引擎 | 加载所选、删除所选、引用字段 |
-| 公式默认颜色 | 新插入公式、公式解析、格式化所选 | 加载所选、更新公式、打开编辑器预览、格式化全文、重编号、引用 |
-| 公式默认字体 | 新插入公式、公式解析、格式化所选 | 加载所选、更新公式、打开编辑器预览、格式化全文、重编号、引用 |
-| 公式缩放 | 新插入公式、公式解析、格式化所选、自然尺寸记录 | 加载所选、重编号、引用 |
+| 公式默认颜色 | 新插入公式、公式解析、格式化所选 / 全文 | 加载所选、普通更新、重编号、引用 |
+| 公式默认字体 | 新插入公式、公式解析、格式化所选 / 全文 | 加载所选、普通更新、重编号、引用 |
+| 绝对字号与跟随文字字号 | 新建和解析时解析有效文字字号；格式化使用设置的固定字号 | 加载、普通更新、重编号与转换不重新跟随光标 |
 | 编号位置：左 / 右 | 新插入编号公式、给已有公式添加编号、更新编号公式时重建布局 | 已存在编号公式不会仅因保存设置或执行重编号自动左右移动 |
 | 编号外框 | 新插入自动编号、给已有公式添加编号、重编号、手动编号显示 | 引用字段自身不独立生成外框，只引用目标编号书签 |
 | 包含章编号 | 新插入自动编号、给已有公式添加编号、重编号 | 手动编号文本 |
@@ -121,9 +109,9 @@ PowerPoint 公式以 shape 为单位保存元数据。短字段写入 shape tags
 | 设置项 | 影响链路 | 不影响链路 |
 | --- | --- | --- |
 | 插入后端：OLE / PNG | 新插入公式、转换目标渲染引擎 | 加载所选、删除所选 |
-| 公式默认颜色 | 新插入公式、格式化所选 | 加载所选、更新公式、打开编辑器预览、格式化全文 |
-| 公式默认字体 | 新插入公式、格式化所选 | 加载所选、更新公式、打开编辑器预览、格式化全文 |
-| 公式缩放 | 新插入公式、格式化所选、自然尺寸记录 | 加载所选 |
+| 公式默认颜色 | 新插入公式、格式化所选 / 全文 | 加载所选、普通更新、转换 |
+| 公式默认字体 | 新插入公式、格式化所选 / 全文 | 加载所选、普通更新、转换 |
+| 绝对字号与跟随文字字号 | 新建时解析有效文字选区，否则使用配置的后备字号 | 普通更新与转换保留快照 |
 
 PowerPoint 没有 Word 编号、引用、章/节分隔符链路。
 
@@ -134,7 +122,7 @@ PowerPoint 没有 Word 编号、引用、章/节分隔符链路。
 1. Ribbon 调用 `InsertInlineAsync`。
 2. 打开 MathLive 编辑器，初始源码为空，显示模式为 `Inline`，不把默认字体/颜色写入编辑器草稿。
 3. 用户提交后，`CreateMetadataFromOptions` 读取当前设置。
-4. 对新公式调用 `ApplyDefaultSourceFormatting`，把默认字体/颜色写入 LaTeX 源码。
+4. 解析新建字号上下文并生成完整 `Typography` 快照。
 5. 按设置的插入后端生成 OMML 或 OLE。
 6. 插入完成后保存元数据并移动光标到公式外。
 
@@ -237,7 +225,7 @@ REF LaTeXSnipperEq_{equationId} \h
 
 - 编辑器打开完整 `Latex`。
 - 侧边栏临时显示同一份完整 `Latex`。
-- 不读取独立字体/颜色元数据。
+- 同时恢复完整 `Typography` 快照，普通更新沿用该快照。
 - 按原样保留字体或颜色宏。
 
 ## Word 删除所选
@@ -267,7 +255,7 @@ REF LaTeXSnipperEq_{equationId} \h
 1. 加载选中的托管 OMML 公式条目。
 2. 从 content control `Tag` 和 `Document.Variables` 读取完整 LaTeX 源码。
 3. 切换 `RenderEngine` 为 `MathJaxSvg`。
-4. MathJax 3.2.2 生成 SVG。
+4. MathJax 4.1.3 生成 SVG。
 5. SVG 转 EMF presentation。
 6. 用 OLE 对象替换原公式，并保存同一份完整 LaTeX 元数据。
 
@@ -277,16 +265,16 @@ REF LaTeXSnipperEq_{equationId} \h
 2. 读取 Word 原生 OMML OOXML。
 3. 使用 `OmmlToMathMlConverter` 把 OMML 转为 MathML。
 4. 创建新的 `FormulaMetadata`，把 MathML 字符串存入 `Latex` 字段，并把 `RenderEngine` 设为 `MathJaxSvg`。
-5. MathJax 3.2.2 按 MathML 输入渲染 SVG。
+5. MathJax 4.1.3 按 MathML 输入渲染 SVG。
 6. SVG 转 EMF presentation。
 7. 删除原 Word 原生公式，在原位置插入 LaTeXSnipper OLE 对象。
 
-这条链路的源码字段保存的是 MathML，不是 LaTeX。它的目的只是把 Word 原生公式转换为可由插件持久化、加载和继续转换的 OLE 公式。由于格式化链路按 LaTeX 宏重写源码，不能对这类 MathML 源码执行“格式化所选”，否则会把 MathML 当 LaTeX 包装并导致乱码。当前格式化命令不会处理 Word 原生 OMML；已经转成 OLE 后的 MathML 源码公式也应视为转换来源保真对象，而不是 LaTeX 格式化对象。
+这条链路把 MathML 保存为公式源码，并写入新的样式快照。转换完成后按托管公式处理；共享渲染器识别 MathML 输入，格式化同样应用样式快照。
 
 ### OLE 转 OMML
 
 1. 读取 OLE 元数据中的完整 LaTeX。
-2. MathJax 3.2.2 转 MathML。
+2. MathJax 4.1.3 转 MathML。
 3. `MathMlToOmmlConverter` 转 OMML。
 4. 用 Word content control 替换 OLE 对象。
 5. 恢复公式 ID、编号状态、字号和元数据。
@@ -297,7 +285,7 @@ REF LaTeXSnipperEq_{equationId} \h
 
 ## Word 公式解析链路
 
-“解析所选”和“解析全文”把带明确 LaTeX 定界符的普通文本转换为现有 LaTeXSnipper 托管公式。解析结果不使用新的元数据格式，后续可继续加载、编辑、转换、格式化、编号和引用。
+“解析所选”和“解析全文”把带明确 LaTeX 定界符的普通文本转换为现有 LaTeXSnipper 托管公式。解析结果使用统一的 schema 3，后续可继续加载、编辑、转换、格式化、编号和引用。
 
 ### 扫描范围与定界符
 
@@ -317,7 +305,7 @@ REF LaTeXSnipperEq_{equationId} \h
 解析开始时只读取一次当前设置和状态窗格编号选项，整批公式使用同一快照：
 
 1. 插入后端决定生成 Word OMML 还是 OLE。
-2. 默认字体和颜色写入完整 LaTeX 源码，缩放倍率写入既有 `FontScale` 字段。
+2. 默认字体、颜色和绝对字号写入 `Typography`；跟随字号时按候选公式所在文字范围解析。
 3. 行内公式始终无编号。
 4. 行间公式存在唯一、顶层、非注释且非转义的 `\tag{...}` 时，预处理先移除该命令，并把非空 tag 文本写入既有手动编号字段。这一优先级高于状态窗格编号选项，MathJax 不负责排版编号。
 5. 不含有效 `\tag` 的行间公式遵循状态窗格当前的自动编号或自定义编号选项；解析本身不执行全文重编号。
@@ -332,62 +320,42 @@ REF LaTeXSnipperEq_{equationId} \h
 
 ## Word 格式化链路
 
-### 格式化所选
+“格式化所选”和“格式化全文”共用同一流程，区别仅在收集范围：
 
-格式化所选会按当前设置重写选中公式的 LaTeX 源码：
+1. 获取公式及其完整元数据，比较当前默认样式与快照，并检查用户缩放。
+2. 用当前默认样式生成新快照，保留源码、身份、编号和渲染类型。
+3. OLE 经共享 SVG / EMF 重绘；OMML 经带样式 MathML 和 Word 属性映射重绘。
+4. 主动格式化恢复自然尺寸。普通编辑保留用户缩放；缩放不写回样式字号。
 
-1. 移除已有颜色包装。
-2. 移除顶层字体包装。
-3. 按当前设置重新包裹字体宏。
-4. 按当前设置重新添加颜色宏。
-5. 更新 `FontScale`。
-6. 按公式当前渲染引擎重新渲染并替换。
-
-多行环境和 `\displaylines` 按顶层段落或对齐段落包装。
-
-多选格式化所选同样只使用稳定快照，不跨批持有 live COM object。涉及对象替换的 Word/PowerPoint 公式按倒序分批处理；每批更新一次状态窗格进度，避免 UI 更新本身成为瓶颈。Word 每批使用短 undo record。
-
-行内基线修正只扫描当前段落内的 content control 和 inline shape。
-
-### 格式化全文
-
-格式化全文只恢复被用户手动改过尺寸的公式：
-
-- OMML 恢复自然字号。
-- OLE / PowerPoint shape 恢复自然宽高。
-
-它不会批量改写所有 LaTeX 源码，避免误改用户手写字体、颜色或复杂宏。
+对象替换按文档位置倒序、每 5 个一批处理；每批使用短 Word undo record 并更新进度。行内基线修正只扫描当前段落。未带插件元数据的原生 Word 公式仍通过独立的原生公式转换入口处理。
 
 ## PowerPoint 插入、加载、删除、转换、格式化
 
 PowerPoint 没有 Word 编号和引用链路，公式对象是 shape：
 
-- 插入公式：打开编辑器，提交新公式时把默认设置写入完整 LaTeX 源码，再按设置插入 PNG 或 OLE；更新已有公式时保留编辑器提交的完整源码。
-- 从侧边栏插入：读取侧边栏当前 LaTeX，作为新公式插入时应用默认源码格式。
-- 加载所选：只读取选中 shape 的完整 LaTeX 元数据。
-- 删除所选：删除选中的托管公式 shape；PNG 公式会清理插件临时图片文件。
-- OLE/PNG 转换：读取完整 LaTeX，切换 render engine，删除原 shape 后在原 slide、原位置按原 scale 插入。
-- 格式化所选：按当前设置重写 LaTeX 源码并恢复 scale。
-- 格式化全文：仅恢复所有托管公式 shape 的自然宽高。
+- 新建保存源码与样式快照，按设置插入 PNG 或 OLE；普通更新使用已有快照。
+- 加载从 shape 元数据恢复完整信息；删除同时清理对应 PNG 临时文件。
+- OLE / PNG 转换保留源码、样式和原位置 / 用户缩放。
+- 所选 / 全文格式化共用样式流程；全文遍历演示文稿各页的托管公式，恢复新的自然尺寸。
 
-PowerPoint 编辑器固定白底黑字，因为 PowerPoint 编辑画布背景板固定为白色。Word 编辑器按系统深色模式适配。
+PowerPoint 编辑器固定白底黑字，Word 编辑器按系统深色模式适配。编辑参考与最终预览的进一步分工见字体重构方案。
 
 ## 链路复杂度核对
 
 | 链路 | 当前复杂度 | 说明 |
 | --- | --- | --- |
-| Word 新插入 OLE | 中 | LaTeX 源码应用默认格式，MathJax SVG 渲染，SVG 转 EMF，插入 OLE 并写元数据 |
-| Word 新插入 OMML | 中 | LaTeX 源码应用默认格式，MathJax 转 MathML，MathML 转 OMML，插入 content control 并写元数据 |
+| Word 新插入 OLE | 中 | 源码与样式快照，MathJax SVG 渲染，SVG 转 EMF，插入 OLE 并写元数据 |
+| Word 新插入 OMML | 中 | 源码与样式快照，MathJax 转 MathML，MathML 转 OMML，插入 content control 并写元数据 |
 | 托管 OMML 转 OLE | 中 | 读取托管 LaTeX 元数据，改渲染引擎，重渲染为 OLE |
-| Word 原生 OMML 转 OLE | 高 | 提取 Word 原生 OMML，转 MathML，把 MathML 作为源码保存，再生成 OLE；不参与 LaTeX 格式化 |
+| Word 原生 OMML 转 OLE | 高 | 提取 Word 原生 OMML，转 MathML，把 MathML 作为源码保存，再生成 OLE；之后同样支持样式快照格式化 |
 | OLE 转 OMML | 高 | 读取 LaTeX 或 MathML 源码，MathJax 输出 MathML，再由 Word OMML 转换器生成 content control |
 | Word 编号公式 | 高 | 公式对象、tab stop、SEQ 字段、编号范围书签和文档变量必须一起维护 |
 | Word 重编号 | 中 | 一次扫描公式、章/节边界和字段；异常公式跳过，引用字段只更新 LaTeXSnipper REF |
 | Word 引用 | 中 | 占位符、目标公式选择、书签和 REF 字段组合；稳定入口是公式或公式所在段落 |
 | 批量转换所选 | 高 | 稳定快照、倒序分批、每批短 undo；主要耗时仍是 MathJax 渲染和 Office COM 替换 |
 | Word 公式解析 | 高 | 安全范围扫描、tag 预处理、MathJax/OMML 或 OLE 渲染、倒序分批替换及失败续跑 |
-| 格式化所选 | 中 | 仅适合 LaTeX 源码公式；会重写顶层字体和颜色宏并重新渲染；多选时分批处理 |
-| 格式化全文 | 低 | 只恢复自然字号或自然尺寸，不批量改写源码 |
+| 格式化所选 | 中 | 应用样式快照并重绘；多选时分批处理 |
+| 格式化全文 | 中 | 复用所选格式化流程，范围为全部托管公式 |
 | PowerPoint OLE/PNG | 中 | shape 元数据、自然尺寸、渲染引擎切换和位置缩放维护；多选转换和格式化按批处理 |
 
 ## 当前性能策略
@@ -397,31 +365,15 @@ PowerPoint 编辑器固定白底黑字，因为 PowerPoint 编辑画布背景板
 - 添加编号/插入编号公式：编号状态计算优先按当前位置前的对象构建时间线，减少不必要的元数据读取。
 - 格式化所选行内基线：只扫描当前段落对象，避免大文档中选一个公式也遍历全文。
 - 批量转换和批量格式化所选：只收集稳定快照；不跨批持有 live COM object；按 5 个公式一批处理；转换和涉及替换的格式化按倒序执行；每批更新一次状态窗格；Word 每批使用短 undo record 和短屏幕刷新暂停区间。
-- 公式解析：先收集仅包含位置、原文、LaTeX 和显示模式的稳定候选；按文档位置倒序、每 5 个一批准备和替换；不跨批持有 live COM object；失败项保留原文并允许下次续跑。
+- 公式解析：先收集包含位置、原文、LaTeX、显示模式和文字字号的稳定候选；按文档位置倒序、每 5 个一批准备和替换；不跨批持有 live COM object；失败项保留原文并允许下次续跑。
 
-## OLE payload
+## OLE payload 与字体输出
 
-OLE 对象创建前，插件把 `FormulaMetadata` 和 `OlePresentationResult` 序列化到 pending payload。payload 包含：
+pending payload 的 schema 为 3，包含源码、显示 / 编号 / 渲染类型、完整样式字段、运行时版本，以及 presentation 自然宽高、基线、MIME 与 base64 数据。`FormulaTypographyFields` 统一定义样式字段；OLE 使用平铺字段，Word JSON 使用 `typography` 对象，PPT 使用编码后的样式 JSON。
 
-- 完整 LaTeX。
-- display / numbering / render engine。
-- fontScale。
-- MathJax renderer version。
-- presentation 宽高、基线、MIME 和 base64 payload。
+原生 handler 校验 schema 与样式版本、字体方案、数学样式、字号范围和呈现数据，原样保存 payload。身份仍由宿主对象与文档元数据管理，不写入 OLE payload。
 
-payload 不包含独立的字体或颜色字段。OLE 控件读取后得到的是完整 LaTeX 源码。
-
-## 字体方框修正边界
-
-MathJax 3.2.2 的 SVG 对部分数学字母会输出 `<text data-variant="...">`，例如 `\mathbb` 的小写字母和数字。插入 Office 时插件会把 SVG 转为 EMF/PNG，因此这些 `<text>` 节点不能落到普通系统 UI 字体。
-
-当前 SVG 文本绘制规则：
-
-- 带 `data-variant` 的数学文本优先使用 `Cambria Math` 和 `Segoe UI Symbol`。
-- 普通文本仍使用中文/UI 字体顺序。
-- 路径字形仍按 MathJax SVG path/use 直接绘制。
-
-这解决了浏览器预览正常但插入后数学字符变方框的问题。
+MathJax 4.1.3 在排版前取得字形度量与轮廓。最终 SVG 不包含依赖字体的文本回退，EMF / PNG 复用同一几何。TeX 缺字统一尝试 STIX2 同样式数学字形补充；数字和中文系统字体返回实际解析与回退诊断。
 
 ## Undo 与外部传递
 

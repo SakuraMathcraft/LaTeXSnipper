@@ -106,7 +106,7 @@ Pandoc does not follow the active dependency root. It is deployed once under the
 app-managed tools directory and remains available after the user switches Python
 dependency roots.
 
-Linux/macOS release packages do not bundle build-machine environments from `tools/deps/`.
+Linux/macOS release packages do not bundle build-machine virtual environments.
 
 ## When does Dependency Management initialize pip?
 
@@ -173,7 +173,7 @@ Wayland restricts application-level screen capture. LaTeXSnipper uses Qt capture
 
 Pandoc is only needed for the optional desktop export formats: Word `.docx`, ODT `.odt`, PowerPoint `.pptx`, EPUB `.epub`, PDF `.pdf`, standalone HTML `.html`, Typst `.typ`, and plain text `.txt`. PDF export also requires a LaTeX PDF engine such as XeLaTeX, LuaLaTeX, or pdfLaTeX. Core recognition, editing, preview, handwriting, and built-in LaTeX/Markdown/MathML/HTML/SVG exports work without Pandoc.
 
-Dependency Management manages the optional `PANDOC` layer. Manually downloaded or generated Pandoc binaries should not live under `src/`; local developer/build tools belong under `tools/deps/` or the app-managed dependency directory.
+Dependency Management manages the optional `PANDOC` layer. Manually downloaded or generated Pandoc binaries should not live under `src/`; developer tools may be installed in a location of your choice; app-managed tools use the application data directory.
 
 ## How does PDF recognition work?
 
@@ -208,4 +208,4 @@ Issues without logs are usually not actionable.
 
 ## Which Python environment should contributors use?
 
-Use `tools/deps/python311` for local development, checks, packaging helpers, and IDE integration. The repository-root `python311/` is the Windows template runtime and must not be polluted with development packages or used for ruff, pyright, pytest, or builds.
+Use a supported Python environment of your choice (venv, Conda, uv, or another manager). Activate it for development and checks, and select the same interpreter in your IDE. No repository-specific environment path is required. Client installers are built by `.github/workflows/release.yml`; Windows runtime preparation happens in the runner temporary directory, independently of developer environments.

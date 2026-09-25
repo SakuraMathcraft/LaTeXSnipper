@@ -66,6 +66,9 @@ class StatusControllerMixin:
     def set_model_status(self, msg: str):
         self.model_status = msg
         self.refresh_status_label()
+        signal = getattr(self, "modelStatusChanged", None)
+        if signal is not None:
+            signal.emit()
 
     def set_action_status(self, msg: str, auto_clear_ms: int = 2500, parent=None):
         self.show_action_status(

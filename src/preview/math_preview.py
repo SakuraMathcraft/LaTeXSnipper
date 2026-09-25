@@ -9,15 +9,12 @@ from localization.manager import translate as tr
 from PyQt6.QtCore import QUrl
 from PyQt6.QtWidgets import QApplication
 
+from rendering.mathjax_runtime import cdn_roots, loader_script
+
 APP_DIR: Path | None = None
 
-MATHJAX_CDN_URL = "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"
-MATHJAX_CDN_URL_BACKUP = (
-    "https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js"
-)
-
-_MATHJAX_LOGGED_KEYS: set[str] = set()
-
+MATHJAX_CDN_URL = cdn_roots()[0] + "/startup.js"
+MATHJAX_CDN_URL_BACKUP = cdn_roots()[1] + "/startup.js"
 
 def configure_math_preview_runtime(app_dir: Path | str | None) -> None:
     global APP_DIR
@@ -163,43 +160,8 @@ html {{
 """
 
 
-def mathjax_loader_script(*, log_local_fallback: bool = False) -> str:
-    should_log = "true" if log_local_fallback else "false"
-    return f"""<script>
-(function() {{
-  var shouldLogLocalFallback = {should_log};
-  var localScript = 'tex-mml-chtml.js';
-  var cdnUrls = ['{MATHJAX_CDN_URL}', '{MATHJAX_CDN_URL_BACKUP}'];
-  function appendScript(node) {{
-    var target = document.body || document.head || document.documentElement;
-    if (target) {{
-      target.appendChild(node);
-    }}
-  }}
-  var script = document.createElement('script');
-  script.type = 'text/javascript';
-  script.async = true;
-  script.onerror = function() {{
-    if (shouldLogLocalFallback) {{
-      console.warn('[MathJax] local MathJax failed, trying CDN...');
-    }}
-    var cdnScript = document.createElement('script');
-    cdnScript.src = cdnUrls[0];
-    cdnScript.type = 'text/javascript';
-    cdnScript.async = true;
-    cdnScript.onerror = function() {{
-      var backupScript = document.createElement('script');
-      backupScript.src = cdnUrls[1];
-      backupScript.type = 'text/javascript';
-      backupScript.async = true;
-      appendScript(backupScript);
-    }};
-    appendScript(cdnScript);
-  }};
-  script.src = localScript;
-  appendScript(script);
-}})();
-</script>"""
+def mathjax_loader_script(*, scale: float = 1, options: dict | None = None) -> str:
+    return loader_script(scale=scale, options=options)
 
 
 MATHJAX_HTML_TEMPLATE = r"""
@@ -274,25 +236,7 @@ body.viewport-centered .math-container {
   border-radius: 4px;
 }
 </style>
-<script>
-  window.MathJax = {
-    tex: {
-      inlineMath: [['$', '$'], ['\\(', '\\)']],
-      displayMath: [['$$', '$$'], ['\\[', '\\]']],
-      processEscapes: true
-    },
-    svg: {
-      fontCache: 'global',
-      scale: 1.15
-    },
-    options: {
-      enableMenu: false,
-      skipHtmlTags: [],
-      ignoreHtmlClass: [],
-      processHtmlClass: []
-    }
-  };
-</script>
+
 </head>
 <body class="__BODY_CLASS__">
 __FORMULAS__
@@ -338,37 +282,18 @@ def get_mathjax_base_url() -> QUrl:
     try:
         mode = _current_render_mode()
         if mode == "mathjax_cdn":
-            if "cdn" not in _MATHJAX_LOGGED_KEYS:
-                print("[DEBUG] 使用 CDN MathJax")
-                _MATHJAX_LOGGED_KEYS.add("cdn")
             return QUrl(MATHJAX_CDN_URL.rsplit("/", 1)[0] + "/")
 
-        if mode.startswith("latex_"):
-            mode_key = f"latex:{mode}"
-            if mode_key not in _MATHJAX_LOGGED_KEYS:
-                print(f"[DEBUG] LaTeX 渲染模式仍使用本地 MathJax base: {mode}")
-                _MATHJAX_LOGGED_KEYS.add(mode_key)
-
-        actual_app_dir, source_desc = _mathjax_base_dir()
-        es5_dir = actual_app_dir / "assets" / "MathJax-3.2.2" / "es5"
-        tex_chtml = es5_dir / "tex-mml-chtml.js"
+        actual_app_dir, _ = _mathjax_base_dir()
+        runtime_dir = actual_app_dir / "assets" / "MathJax"
+        tex_chtml = runtime_dir / "startup.js"
         if not tex_chtml.exists():
             print(f"[WARN] MathJax 文件缺失: {tex_chtml}")
 
-        url = QUrl.fromLocalFile(str(es5_dir) + "/")
+        url = QUrl.fromLocalFile(str(runtime_dir) + "/")
         url_str = url.toString()
         if not url_str.startswith("file:///"):
             print(f"[ERR] URL 格式异常，应以 file:/// 开头: {url_str}")
-        else:
-            local_key = f"local:{source_desc}:{url_str}"
-            if local_key not in _MATHJAX_LOGGED_KEYS:
-                label = (
-                    "使用本地资源"
-                    if source_desc == "本地资源"
-                    else f"使用本地资源({source_desc})"
-                )
-                print(f"[DEBUG] MathJax {label}: {url_str}")
-                _MATHJAX_LOGGED_KEYS.add(local_key)
 
         return url
     except Exception as exc:
@@ -405,12 +330,10 @@ def build_math_html(
                 f'{tr("无公式")}</div>'
             )
 
-        mode = _current_render_mode()
-        log_local_fallback = mode in ("auto", "mathjax_local")
         html = MATHJAX_HTML_TEMPLATE.replace("__FORMULAS__", formula_html)
         replacements = {
             "__MATHJAX_LOADER_SCRIPT__": mathjax_loader_script(
-                log_local_fallback=log_local_fallback
+                scale=1.15
             ),
             "__BODY_CLASS__": "viewport-centered" if center_viewport else "",
             "__SCROLLBAR_CSS__": preview_scrollbar_css(tokens),

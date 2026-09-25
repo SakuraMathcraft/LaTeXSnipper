@@ -10,7 +10,8 @@ public sealed class OlePresentationResult
         byte[] payload,
         double widthPoints,
         double heightPoints,
-        double baselinePoints)
+        double baselinePoints,
+        string rendererVersion = "")
     {
         PresentationKind = presentationKind;
         MimeType = mimeType ?? throw new ArgumentNullException(nameof(mimeType));
@@ -18,9 +19,12 @@ public sealed class OlePresentationResult
         WidthPoints = widthPoints;
         HeightPoints = heightPoints;
         BaselinePoints = baselinePoints;
+        RendererVersion = rendererVersion;
     }
 
     public OlePresentationKind PresentationKind { get; }
+
+    public string RendererVersion { get; }
 
     public string MimeType { get; }
 

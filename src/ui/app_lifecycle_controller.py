@@ -121,7 +121,7 @@ class AppLifecycleMixin:
         """Apply the runtime-log window preference."""
         try:
             os.environ["LATEXSNIPPER_SHOW_RUNTIME_LOG"] = "1" if enabled else "0"
-            apply_runtime_log_window_preference(force=False, tee=True)
+            apply_runtime_log_window_preference(force=False)
         except Exception as e:
             print(f"[WARN] 应用运行日志窗口设置失败: {e}")
 

@@ -32,6 +32,7 @@ from recognition.jobs import RecognitionJobCoordinator
 from ui.favorites_window import FavoritesWindow
 from ui.automation_api_controller import AutomationApiController
 from ui.theme_controller import normalize_theme_mode
+from ui.onboarding_controller import OnboardingController
 from ui.window_helpers import (
     select_existing_directory_with_icon as _select_existing_directory_with_icon,
 )
@@ -170,7 +171,14 @@ class MainWindowSetupMixin:
         self.capture_button = PushButton(FluentIcon.SEARCH, tr("截图识别"))
         self.capture_button.setFixedHeight(40)
         self.capture_button.clicked.connect(self.start_capture)
-        left_layout.addWidget(self.capture_button)
+        capture_row = QHBoxLayout()
+        capture_row.addWidget(self.capture_button, 1)
+        self.onboarding_button = PushButton(FluentIcon.HELP, tr("快速入门"))
+        self.onboarding_button.setFixedHeight(40)
+        self.onboarding_button.setToolTip(tr("查看快速入门"))
+        self.onboarding_button.clicked.connect(lambda: self.onboarding.start())
+        capture_row.addWidget(self.onboarding_button)
+        left_layout.addLayout(capture_row)
 
         history_header = QHBoxLayout()
         history_header.setContentsMargins(0, 0, 0, 0)
@@ -429,5 +437,6 @@ class MainWindowSetupMixin:
         self.setMinimumSize(required_width, DEFAULT_MAIN_WINDOW_SIZE[1])
         self.resize(required_width, DEFAULT_MAIN_WINDOW_SIZE[1])
 
+        self.onboarding = OnboardingController(self)
         self.install_platform_lifecycle_hooks()
         QApplication.instance().aboutToQuit.connect(self._graceful_shutdown)

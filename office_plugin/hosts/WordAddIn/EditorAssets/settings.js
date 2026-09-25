@@ -21,12 +21,12 @@ const TEXT = {
     colorLabel: "字体颜色",
     resetToBlack: "恢复黑色",
     resetToWhite: "恢复白色",
-    fontStyleLabel: "默认字体",
-    fontScaleLabel: "公式大小",
-    fontTeX: "TeX 原生字体",
+    fontStyleLabel: "默认数学样式",
+    fontSizeLabel: "公式字号（pt）",
+    followHostSize: "新建时跟随文字字号（无有效选区时使用上述字号）",
+    fontTeX: "自动数学样式",
     fontRomanUpright: "罗马正体",
     fontBold: "粗体符号",
-    fontBoldUpright: "粗体字母",
     fontBoldItalic: "粗斜体",
     fontItalic: "斜体",
     fontSansSerif: "无衬线",
@@ -70,19 +70,19 @@ const TEXT = {
     colorLabel: "Font color",
     resetToBlack: "Reset to black",
     resetToWhite: "Reset to white",
-    fontStyleLabel: "Default font",
-    fontScaleLabel: "Formula size",
-    fontTeX: "Native TeX",
+    fontStyleLabel: "Default math style",
+    fontSizeLabel: "Formula size (pt)",
+    followHostSize: "Follow text size for new formulas (use the size above when unavailable)",
+    fontTeX: "Automatic",
     fontRomanUpright: "Roman Upright",
     fontBold: "Bold Symbol",
-    fontBoldUpright: "Bold Upright",
     fontBoldItalic: "Bold Italic",
     fontItalic: "Italic",
     fontSansSerif: "Sans Serif",
     fontSansSerifBold: "Sans Serif Bold",
     fontSansSerifItalic: "Sans Serif Italic",
     fontSansSerifBoldItalic: "Sans Serif Bold Italic",
-    fontTypewriter: "Typewriter",
+    fontTypewriter: "Monospace",
     fontCalligraphic: "Calligraphic",
     fontScript: "Script",
     fontFraktur: "Fraktur",
@@ -99,17 +99,16 @@ const TEXT = {
   },
 };
 const FONT_STYLE_VALUES = Object.freeze([
-  "TeX",
-  "RomanUpright",
+  "Automatic",
+  "Upright",
   "Bold",
-  "BoldUpright",
   "BoldItalic",
   "Italic",
   "SansSerif",
   "SansSerifBold",
   "SansSerifItalic",
   "SansSerifBoldItalic",
-  "Typewriter",
+  "Monospace",
   "Calligraphic",
   "Script",
   "Fraktur",
@@ -129,8 +128,11 @@ let numberSeparator = "-";
 let formulaColor = "#000000";
 let defaultFormulaColor = "#000000";
 let useSystemFormulaColor = true;
-let formulaFontStyle = "TeX";
-let formulaFontScale = 1;
+let formulaMathStyle = "Automatic";
+let formulaFontSizePoints = 12;
+let followHostFontSize = false;
+const followHostFontSizeInput = document.getElementById("followHostFontSize");
+followHostFontSizeInput.addEventListener("change", () => { followHostFontSize = followHostFontSizeInput.checked; save(); });
 
 const numberingPanel = document.getElementById("numberingPanel");
 const buttons = Array.from(document.querySelectorAll("[data-placement]"));
@@ -143,9 +145,9 @@ const hideSectionBoundaryInput = document.getElementById("hideSectionBoundary");
 const numberSeparatorInput = document.getElementById("numberSeparator");
 const formulaColorInput = document.getElementById("formulaColor");
 const resetFormulaColorButton = document.getElementById("resetFormulaColor");
-const formulaFontStyleSelect = document.getElementById("formulaFontStyle");
-const formulaFontScaleInput = document.getElementById("formulaFontScale");
-const formulaFontScaleValue = document.getElementById("formulaFontScaleValue");
+const formulaMathStyleSelect = document.getElementById("formulaMathStyle");
+const formulaFontSizePointsInput = document.getElementById("formulaFontSizePoints");
+const formulaFontSizePointsValue = document.getElementById("formulaFontSizePointsValue");
 
 function strings() {
   return locale.startsWith("zh") ? TEXT.zh : TEXT.en;
@@ -191,9 +193,10 @@ function renderNumberOptions() {
   resetFormulaColorButton.textContent = defaultFormulaColor === "#FFFFFF"
     ? strings().resetToWhite
     : strings().resetToBlack;
-  formulaFontStyleSelect.value = formulaFontStyle;
-  formulaFontScaleInput.value = String(scaleToPercent(formulaFontScale));
-  formulaFontScaleValue.textContent = `+${scaleToPercent(formulaFontScale)}%`;
+  formulaMathStyleSelect.value = formulaMathStyle;
+  followHostFontSizeInput.checked = followHostFontSize;
+  formulaFontSizePointsInput.value = String(formulaFontSizePoints);
+  formulaFontSizePointsValue.textContent = "pt";
 }
 
 function save() {
@@ -209,27 +212,10 @@ function save() {
     numberSeparator,
     formulaColor,
     useSystemFormulaColor,
-    formulaFontStyle,
-    formulaFontScale,
+    formulaMathStyle,
+    formulaFontSizePoints,
+    followHostFontSize,
   });
-}
-
-function clampScale(scale) {
-  const value = Number(scale);
-  if (!Number.isFinite(value)) {
-    return 1;
-  }
-  return Math.min(1.5, Math.max(1, value));
-}
-
-function scaleToPercent(scale) {
-  return Math.round((clampScale(scale) - 1) * 200);
-}
-
-function percentToScale(percent) {
-  const value = Number(percent);
-  const safePercent = Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0;
-  return 1 + safePercent / 200;
 }
 
 function init(payload) {
@@ -252,10 +238,11 @@ function init(payload) {
   formulaColor = useSystemFormulaColor
     ? defaultFormulaColor
     : String(payload?.formulaColor || defaultFormulaColor).toUpperCase();
-  formulaFontStyle = FONT_STYLE_VALUES.includes(payload?.formulaFontStyle)
-    ? payload.formulaFontStyle
-    : "TeX";
-  formulaFontScale = clampScale(payload?.formulaFontScale);
+  formulaMathStyle = FONT_STYLE_VALUES.includes(payload?.formulaMathStyle)
+    ? payload.formulaMathStyle
+    : "Automatic";
+  formulaFontSizePoints = Number(payload?.formulaFontSizePoints ?? 12);
+  followHostFontSize = Boolean(payload?.followHostFontSize);
   applyText();
   applyPlatform();
   renderPlacement();
@@ -300,13 +287,10 @@ resetFormulaColorButton.addEventListener("click", () => {
   formulaColorInput.value = formulaColor;
   save();
 });
-formulaFontStyleSelect.addEventListener("change", () => { formulaFontStyle = formulaFontStyleSelect.value; save(); });
-formulaFontScaleInput.addEventListener("input", () => {
-  formulaFontScale = percentToScale(formulaFontScaleInput.value);
-  formulaFontScaleValue.textContent = `+${scaleToPercent(formulaFontScale)}%`;
-});
-formulaFontScaleInput.addEventListener("change", () => {
-  formulaFontScale = percentToScale(formulaFontScaleInput.value);
+formulaMathStyleSelect.addEventListener("change", () => { formulaMathStyle = formulaMathStyleSelect.value; save(); });
+formulaFontSizePointsInput.addEventListener("change", () => {
+  if (!formulaFontSizePointsInput.reportValidity()) return;
+  formulaFontSizePoints = Number(formulaFontSizePointsInput.value);
   save();
 });
 
@@ -327,7 +311,8 @@ if (window.__latexSnipperSettingsInit) {
     numberSeparator,
     formulaColor,
     useSystemFormulaColor,
-    formulaFontStyle,
-    formulaFontScale,
+    formulaMathStyle,
+    formulaFontSizePoints,
+    followHostFontSize,
   });
 }

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/LaTeXSnipper.OfficePlugin.Rendering/LaTeXSnipper.OfficePlugin.Rendering.csproj" />
+    <ProjectReference Include="../../hosts/WordAddIn/LaTeXSnipper.OfficePlugin.WordAddIn.csproj" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.Xml.Linq" />
+  </ItemGroup>
+</Project>

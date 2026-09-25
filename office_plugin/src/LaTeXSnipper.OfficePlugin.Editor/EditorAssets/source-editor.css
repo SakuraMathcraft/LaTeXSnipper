@@ -1,0 +1,40 @@
+#latexSource {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--text);
+  background: var(--source-bg);
+  --source-command: #175ea8;
+  --source-environment: #7955a1;
+  --source-number: #087657;
+  --source-operator: #a52b49;
+  --source-bracket: #945b00;
+  --source-text: #895b25;
+  --source-comment: #61835b;
+}
+#latexSource .cm-editor.cm-focused { outline: none; }
+#latexSource .cm-activeLine, #latexSource .cm-activeLineGutter { background: #5d85bd12; }
+#latexSource .cm-cursor { border-left-color: var(--text); }
+#latexSource .cm-selectionBackground, #latexSource .cm-focused .cm-selectionBackground { background: #8db9ef55; }
+#latexSource .cm-panels, #latexSource .cm-tooltip { color: var(--text); background: var(--panel); border-color: var(--line); }
+#latexSource .cm-search input, #latexSource .cm-search button {
+  color: var(--text); background: var(--source-bg); border: 1px solid var(--line);
+  font: 12px/1.5 "Segoe UI", "Microsoft YaHei", sans-serif; padding: 1px 5px;
+}
+#latexSource .cm-matchingBracket { background: #65b8a540; outline: 1px solid #469f90; }
+#latexSource .cm-template-hole { display: inline-block; width: 5px; height: 12px; border: 1px solid var(--accent); vertical-align: text-bottom; }
+#latexSource .cm-template-field { background: var(--accent-soft); }
+.source-mode-note { min-height: 22px; padding: 3px 8px; color: var(--muted); font-size: 12px; background: var(--panel); }
+.source-mode-note:empty { visibility: hidden; }
+.mathfield-host { position: relative; }
+@media (prefers-color-scheme: dark) {
+  #latexSource {
+    --source-command: #82c5ff;
+    --source-environment: #cba8f0;
+    --source-number: #b0d6a3;
+    --source-operator: #ee879c;
+    --source-bracket: #ead37b;
+    --source-text: #dfa67a;
+    --source-comment: #8da780;
+  }
+}

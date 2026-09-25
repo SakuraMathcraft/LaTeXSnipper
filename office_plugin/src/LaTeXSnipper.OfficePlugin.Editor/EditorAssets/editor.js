@@ -1,36 +1,38 @@
 import { MathfieldElement } from "./vendor/mathlive.min.mjs";
+import { SourceEditor } from "./source-editor.bundle.js";
+import { SourceSync } from "./source-sync.mjs";
 
-if (!window.LaTeXSnipperEditorSymbols) {
-  throw new Error("LaTeXSnipper editor symbol library was not loaded.");
-}
+import {STRINGS, CATALOG, COMMANDS} from './template-catalog.mjs';
+import {mountEditor} from './editor-layout.mjs';
+import {SymbolPanel} from './symbol-panel.mjs';
+import {TemplateInsertion} from './template-insertion.mjs';
+import {configureMathfield} from './mathfield-input.mjs';
 
-if (!window.LaTeXSnipperMathfieldInput) {
-  throw new Error("LaTeXSnipper MathLive input configuration was not loaded.");
-}
+import {DraftPreview} from './draft-preview.mjs';
+import {TypographyPanel} from './typography-panel.mjs';
 
-if (!window.LaTeXSnipperMatrixTemplates) {
-  throw new Error("LaTeXSnipper matrix templates were not loaded.");
-}
-
-const { STRINGS, GROUPS } = window.LaTeXSnipperEditorSymbols;
+mountEditor();
+let session = null;
+let display = true;
+let typographyPanel = null;
+let preview = null;
 let mathfield = null;
 let locale = "zh";
 let mode = "insert";
 let submitting = false;
 let pendingInit = null;
-let libraryState = loadLibraryState();
-let sourceIsMathMl = false;
-let sourceSyncHandle = 0;
-let sourceSyncUsesIdleCallback = false;
-let sourceAuthoritative = true;
+let symbolPanel = null;
+let insertion = null;
+let sourceEditor = null;
+let sourceSync = null;
 let caretVisibilityFrame = 0;
-let sourcePaneHeight = 118;
+let sourcePaneHeight = 150;
 let sourceResizePointerId = null;
 let sourceResizeStartY = 0;
-let sourceResizeStartHeight = 118;
+let sourceResizeStartHeight = 150;
 
-const SOURCE_PANE_MIN_HEIGHT = 118;
-const FORMULA_PANE_MIN_HEIGHT = 160;
+const SOURCE_PANE_MIN_HEIGHT = 96;
+const FORMULA_PANE_MIN_HEIGHT = 80;
 const SOURCE_PANE_KEYBOARD_STEP = 16;
 
 const workspace = document.querySelector(".workspace");
@@ -40,34 +42,9 @@ const sourceResizeHandle = document.getElementById("sourceResizeHandle");
 const statusText = document.getElementById("statusText");
 const cancelButton = document.getElementById("cancelButton");
 const acceptButton = document.getElementById("acceptButton");
-const tabs = document.getElementById("libraryTabs");
-const titleText = document.getElementById("libraryTitleText");
-const grid = document.getElementById("symbolGrid");
-const searchInput = document.getElementById("symbolSearch");
-const globalSearch = document.getElementById("globalSearch");
 
 function strings() {
   return locale.startsWith("zh") ? STRINGS.zh : STRINGS.en;
-}
-
-function displayLabel(item) {
-  if (isSectionItem(item)) {
-    return locale.startsWith("zh") ? item.section : item.sectionEn;
-  }
-
-  if (locale.startsWith("zh")) {
-    return item[0];
-  }
-
-  return item[2] || item[0];
-}
-
-function isSectionItem(item) {
-  return Boolean(item?.section);
-}
-
-function groupTitle(group) {
-  return strings().tabs[group.id] || group.id;
 }
 
 function send(message) {
@@ -82,20 +59,25 @@ function setSubmitting(value) {
   submitting = Boolean(value);
   acceptButton.disabled = submitting;
   cancelButton.disabled = submitting;
+  sourceSync?.setLocked(submitting);
+  typographyPanel?.setLocked(submitting);
+  preview?.setLocked(submitting);
+  document.getElementById('undoButton').disabled = submitting;
+  document.getElementById('redoButton').disabled = submitting;
 }
 
 function maximumSourcePaneHeight() {
-  return Math.max(
-    SOURCE_PANE_MIN_HEIGHT,
-    workspace.clientHeight - sourceResizeHandle.offsetHeight - FORMULA_PANE_MIN_HEIGHT,
-  );
+  const available = Math.max(0, workspace.clientHeight - sourceResizeHandle.offsetHeight);
+  return available - Math.min(FORMULA_PANE_MIN_HEIGHT, Math.floor(available * 2 / 3));
 }
 
 function setSourcePaneHeight(height) {
   const maximum = maximumSourcePaneHeight();
-  sourcePaneHeight = Math.min(maximum, Math.max(SOURCE_PANE_MIN_HEIGHT, Math.round(height)));
+  const minimum = Math.min(SOURCE_PANE_MIN_HEIGHT, maximum);
+  sourcePaneHeight = Math.min(maximum, Math.max(minimum, Math.round(height)));
   workspace.style.setProperty("--source-pane-height", `${sourcePaneHeight}px`);
   sourceResizeHandle.setAttribute("aria-valuemax", String(maximum));
+  sourceResizeHandle.setAttribute("aria-valuemin", String(minimum));
   sourceResizeHandle.setAttribute("aria-valuenow", String(sourcePaneHeight));
 }
 
@@ -112,7 +94,7 @@ function finishSourcePaneResize(event) {
 }
 
 function initializeSourcePaneResize() {
-  setSourcePaneHeight(SOURCE_PANE_MIN_HEIGHT);
+  setSourcePaneHeight(sourcePaneHeight);
   sourceResizeHandle.addEventListener("pointerdown", event => {
     if (event.button !== 0 || sourceResizePointerId !== null) {
       return;
@@ -161,92 +143,28 @@ function initializeSourcePaneResize() {
 }
 
 function currentLatex() {
-  return latexSource.value.trim();
+  return sourceEditor?.value || "";
 }
 
 function mathfieldLatex() {
-  const latex = mathfield?.getValue("latex-expanded")?.trim() || "";
-  return window.LaTeXSnipperMathfieldInput.normalizeLatex(latex).trim();
-}
-
-function syncSourceNow() {
-  sourceSyncHandle = 0;
-  sourceSyncUsesIdleCallback = false;
-  if (sourceIsMathMl) {
-    return;
-  }
-
-  latexSource.value = mathfieldLatex();
-  sourceAuthoritative = true;
-}
-
-function scheduleSourceSync() {
-  if (sourceSyncHandle) {
-    if (sourceSyncUsesIdleCallback) {
-      window.cancelIdleCallback(sourceSyncHandle);
-    } else {
-      window.clearTimeout(sourceSyncHandle);
-    }
-  }
-
-  sourceSyncUsesIdleCallback = typeof window.requestIdleCallback === "function";
-  sourceSyncHandle = sourceSyncUsesIdleCallback
-    ? window.requestIdleCallback(syncSourceNow, { timeout: 800 })
-    : window.setTimeout(syncSourceNow, 180);
-}
-
-function cancelSourceSync() {
-  if (!sourceSyncHandle) {
-    return;
-  }
-
-  if (sourceSyncUsesIdleCallback) {
-    window.cancelIdleCallback(sourceSyncHandle);
-  } else {
-    window.clearTimeout(sourceSyncHandle);
-  }
-  sourceSyncHandle = 0;
-  sourceSyncUsesIdleCallback = false;
+  return mathfield?.getValue("latex") || "";
 }
 
 function setLatex(latex) {
-  cancelSourceSync();
-  const rawSource = latex || "";
-  sourceIsMathMl = isMathMlSource(rawSource.trim());
-  const source = sourceIsMathMl
-    ? rawSource
-    : window.LaTeXSnipperMathfieldInput.normalizeLatex(rawSource);
-  if (sourceIsMathMl) {
-    latexSource.value = source;
-    sourceAuthoritative = true;
-    mathfield.setValue("", { silenceNotifications: true });
-    return;
-  }
-
-  latexSource.value = source;
-  sourceAuthoritative = true;
-  mathfield.setValue(source, { silenceNotifications: true });
+  sourceSync.load(String(latex || ""));
 }
 
-function isMathMlSource(source) {
-  return /^<math(\s|>|:)/i.test(source);
-}
-
-function insertLatex(latex) {
-  if (latex.startsWith("matrix:")) {
-    insertMatrix(latex.slice("matrix:".length));
-    return;
-  }
-
-  window.LaTeXSnipperMathfieldInput.insertTemplate(mathfield, latex);
-  scheduleSourceSync();
-  scheduleCaretVisibility();
-}
-
-function insertMatrix(env, rows = 2, cols = 2) {
-  window.LaTeXSnipperMatrixTemplates.insert(mathfield, env, rows, cols);
-  scheduleSourceSync();
-  scheduleCaretVisibility();
+function setSourceMode(reason) {
+  const messages = locale.startsWith("zh") ? {
+    sourceOnly: "请在源码区编辑此公式；上方仅供参考。",
+    mathml: "当前为 MathML 源码，请在源码区编辑。",
+    updating: "正在更新参考预览…", composing: ""
+  } : {
+    sourceOnly: "Edit this formula in the source pane; the view above is a reference.",
+    mathml: "MathML source: edit in the source pane.",
+    updating: "Updating reference view…", composing: ""
+  };
+  document.getElementById("sourceModeNote").textContent = messages[reason] || "";
 }
 
 function scheduleCaretVisibility() {
@@ -278,216 +196,25 @@ function scheduleCaretVisibility() {
   });
 }
 
-let _currentGroup = null;
-
-function loadLibraryState() {
-  try {
-    return { groupId: "greek", search: "", globalSearch: "", scrollTop: 0, ...JSON.parse(localStorage.getItem("latexSnipperEditorLibraryState") || "{}") };
-  } catch {
-    return { groupId: "greek", search: "", globalSearch: "", scrollTop: 0 };
-  }
-}
-
-function saveLibraryState() {
-  try {
-    localStorage.setItem("latexSnipperEditorLibraryState", JSON.stringify(libraryState));
-  } catch {
-    // localStorage can be unavailable in constrained WebView profiles.
-  }
-}
-
-function restoreGridScroll() {
-  const scrollTop = Number(libraryState.scrollTop) || 0;
-  requestAnimationFrame(() => { grid.scrollTop = scrollTop; });
-}
-
-function selectGroup(group, options = {}) {
-  _currentGroup = group;
-  libraryState.groupId = group.id;
-  if (!options.preserveSearch) {
-    libraryState.search = "";
-  }
-  if (!options.preserveGlobalSearch) {
-    libraryState.globalSearch = "";
-  }
-  globalSearch.value = libraryState.globalSearch || "";
-  searchInput.value = libraryState.search || "";
-  for (const button of tabs.querySelectorAll("button")) {
-    button.classList.toggle("active", button.dataset.group === group.id);
-  }
-
-  titleText.textContent = groupTitle(group);
-  renderGrid(group, searchInput.value);
-  if (options.preserveScroll) {
-    restoreGridScroll();
-  } else {
-    libraryState.scrollTop = 0;
-  }
-  saveLibraryState();
-}
-
-function renderGrid(group, query) {
-  grid.className = group.structures ? "symbol-grid structures" : "symbol-grid";
-  grid.replaceChildren();
-  const q = query.trim().toLowerCase();
-  for (const item of group.items) {
-    if (isSectionItem(item)) {
-      if (!q) {
-        const label = document.createElement("div");
-        label.className = "symbol-section-label";
-        label.textContent = displayLabel(item);
-        grid.appendChild(label);
-      }
-      continue;
-    }
-
-    if (q && !matchItem(item, q)) continue;
-
-    if (group.structures && String(item[1]).startsWith("matrix:")) {
-      grid.appendChild(createMatrixControl(displayLabel(item), item[1].slice("matrix:".length)));
-      continue;
-    }
-
-    grid.appendChild(createSymbolButton(item));
-  }
-}
-
-function createSymbolButton(item) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.textContent = displayLabel(item);
-  button.title = item[2] ? `${item[2]}\n${item[1]}` : item[1];
-  button.addEventListener("pointerdown", event => event.preventDefault());
-  button.addEventListener("click", () => insertLatex(item[1]));
-  return button;
-}
-
-function matchItem(item, query) {
-  if (isSectionItem(item)) return false;
-  const label = displayLabel(item).toLowerCase();
-  const latex = item[1].toLowerCase();
-  return label.includes(query) || latex.includes(query);
-}
-
-searchInput.addEventListener("input", () => {
-  libraryState.search = searchInput.value;
-  libraryState.scrollTop = 0;
-  saveLibraryState();
-  if (_currentGroup) renderGrid(_currentGroup, searchInput.value);
-});
-
-function renderGlobalResults(query) {
-  const q = query.trim().toLowerCase();
-  if (!q) { selectGroup(_currentGroup || GROUPS[0], { preserveSearch: true, preserveScroll: true }); return; }
-  grid.className = "symbol-grid structures";
-  grid.replaceChildren();
-  for (const group of GROUPS) {
-    const hits = group.items.filter(item => !isSectionItem(item) && matchItem(item, q));
-    if (!hits.length) continue;
-    const label = document.createElement("div");
-    label.className = "global-group-label";
-    label.textContent = groupTitle(group);
-    grid.appendChild(label);
-    for (const item of hits) {
-      if (group.structures && String(item[1]).startsWith("matrix:")) {
-        grid.appendChild(createMatrixControl(displayLabel(item), item[1].slice("matrix:".length)));
-        continue;
-      }
-      grid.appendChild(createSymbolButton(item));
-    }
-  }
-}
-
-globalSearch.addEventListener("input", () => {
-  libraryState.globalSearch = globalSearch.value;
-  libraryState.scrollTop = 0;
-  saveLibraryState();
-  renderGlobalResults(globalSearch.value);
-});
-
-grid.addEventListener("scroll", () => {
-  libraryState.scrollTop = grid.scrollTop;
-  saveLibraryState();
-});
-
-function createMatrixControl(label, env) {
-  const isCases = env === "cases";
-  const isSquare = ["identity", "diagonal"].includes(env);
-  const row = document.createElement("div");
-  row.className = `matrix-row${isCases ? " cases" : ""}${isSquare ? " square" : ""}`;
-
-  const rowSelect = document.createElement("select");
-  rowSelect.title = strings().rows;
-  for (let i = 1; i <= 10; i++) {
-    rowSelect.appendChild(new Option(String(i), String(i), i === 2, i === 2));
-  }
-  row.appendChild(rowSelect);
-
-  let colSelect = null;
-  if (!isCases && !isSquare) {
-    colSelect = document.createElement("select");
-    colSelect.title = strings().columns;
-    for (let i = 1; i <= 10; i++) {
-      colSelect.appendChild(new Option(String(i), String(i), i === 2, i === 2));
-    }
-    row.appendChild(colSelect);
-  }
-
-  const button = document.createElement("button");
-  button.type = "button";
-  button.textContent = label;
-  button.title = `\\begin{${env}}...\\end{${env}}`;
-  button.addEventListener("click", () => {
-    insertMatrix(env, Number(rowSelect.value), colSelect ? Number(colSelect.value) : 2);
-  });
-  row.appendChild(button);
-  return row;
-}
-
-function buildLibrary() {
-  tabs.replaceChildren();
-  for (const group of GROUPS) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "tab";
-    button.dataset.group = group.id;
-    button.textContent = groupTitle(group);
-    button.title = groupTitle(group);
-    button.addEventListener("click", () => selectGroup(group));
-    tabs.appendChild(button);
-  }
-
-  const group = GROUPS.find(candidate => candidate.id === libraryState.groupId) || GROUPS[0];
-  _currentGroup = group;
-  for (const button of tabs.querySelectorAll("button")) {
-    button.classList.toggle("active", button.dataset.group === group.id);
-  }
-  titleText.textContent = groupTitle(group);
-  searchInput.value = libraryState.search || "";
-  globalSearch.value = libraryState.globalSearch || "";
-  if (globalSearch.value) {
-    renderGlobalResults(globalSearch.value);
-    restoreGridScroll();
-  } else {
-    selectGroup(group, { preserveSearch: true, preserveGlobalSearch: true, preserveScroll: true });
-  }
-}
-
 function accept() {
-  if (submitting) {
+  if (submitting || sourceEditor.composing || sourceSync.visualComposing || typographyPanel.composing) {
     return;
   }
-
-  if (!sourceAuthoritative) {
-    syncSourceNow();
-  }
+  sourceSync.visualInput();
   const latex = currentLatex();
-  if (!latex) {
+  if (!latex.trim()) {
     setStatus(strings().latexRequired);
     return;
   }
 
-  send({ type: "accept", latex, display: true });
+  const typography = typographyPanel.snapshot();
+  if (!typography) {
+    document.getElementById('fontSizePoints').reportValidity();
+    setStatus(locale.startsWith('zh') ? '请检查字体和字号设置。' : 'Check typography settings.');
+    return;
+  }
+  setSubmitting(true);
+  send({ type: "accept", session, revision: preview.revision, latex, display, typography });
 }
 
 function hideVirtualKeyboard() {
@@ -499,48 +226,102 @@ function configureText() {
   cancelButton.textContent = strings().cancel;
   acceptButton.textContent = mode === "update" ? strings().acceptUpdate : strings().acceptInsert;
   setStatus(strings().ready);
-  buildLibrary();
+  document.getElementById('undoButton').textContent = locale.startsWith('zh') ? '撤销' : 'Undo';
+  document.getElementById('redoButton').textContent = locale.startsWith('zh') ? '重做' : 'Redo';
+  mathfield.setAttribute('aria-label', locale.startsWith('zh') ? '可视化公式编辑器' : 'Visual formula editor');
+  mathfield.setAttribute('aria-description', locale.startsWith('zh') ? '按 Escape 后再按 Tab 离开编辑器。' : 'Press Escape then Tab to leave the editor.');
+  symbolPanel.configure(locale);
 }
 
 function applyInit(payload) {
   locale = String(payload?.locale || "zh").toLowerCase();
   mode = payload?.mode === "update" ? "update" : "insert";
+  session = payload.session;
+  display = payload.display !== false;
+  preview.configure(session);
+  typographyPanel.configure(payload);
   setSubmitting(false);
   configureText();
   setLatex(payload?.latex || "");
+  insertion.reset();
+  sourceEditor.focus();
   scheduleCaretVisibility();
 }
 
 async function bootstrap() {
   initializeSourcePaneResize();
   MathfieldElement.fontsDirectory = new URL("./vendor/fonts", import.meta.url).href;
+  MathfieldElement.soundsDirectory = null;
   mathfield = new MathfieldElement();
   mathfield.smartFence = true;
-  mathfield.mathVirtualKeyboardPolicy = "onfocus";
-  window.LaTeXSnipperMathfieldInput.configure(mathfield, accept);
+  mathfield.mathVirtualKeyboardPolicy = "manual";
   mathfield.onScrollIntoView = scheduleCaretVisibility;
   host.appendChild(mathfield);
-  mathfield.addEventListener("input", () => {
-    sourceIsMathMl = false;
-    sourceAuthoritative = false;
-    scheduleSourceSync();
-    scheduleCaretVisibility();
+  sourceEditor = new SourceEditor(latexSource, {
+    commands: COMMANDS,
+    completeTemplate: (entry, range) => insertion.insert(entry, {range}),
+    onChange: (_value, change) => { sourceSync?.sourceChanged(change); preview?.update(); },
+    onComposition: active => { sourceSync?.composition(active); updatePreviewComposition(); }
   });
-  latexSource.addEventListener("input", () => {
-    const rawSource = latexSource.value || "";
-    sourceIsMathMl = isMathMlSource(rawSource.trim());
-    sourceAuthoritative = true;
-    if (!sourceIsMathMl) {
-      const source = window.LaTeXSnipperMathfieldInput.normalizeLatex(rawSource);
-      latexSource.value = source;
-      mathfield.setValue(source, { silenceNotifications: true });
-      scheduleCaretVisibility();
+  sourceSync = new SourceSync({source: sourceEditor, mathfield, readVisual: mathfieldLatex, onMode: setSourceMode});
+  insertion = new TemplateInsertion({source: sourceEditor, sync: sourceSync, mathfield, sourceHost: latexSource,
+    onInsert: scheduleCaretVisibility, isComposing: () => Boolean(typographyPanel?.composing)});
+  symbolPanel = new SymbolPanel(insertion);
+  const image = document.getElementById('previewImage');
+  const previewStatus = document.getElementById('previewStatus');
+  preview = new DraftPreview({send,
+    snapshot: () => {
+      const typography = typographyPanel.snapshot();
+      if (!typography || !currentLatex().trim()) {
+        previewStatus.textContent = locale.startsWith('zh') ? '请输入公式及有效字号。' : 'Enter a formula and valid size.';
+        return null;
+      }
+      return {latex: currentLatex(), display, typography};
+    },
+    changed: () => {
+      image.hidden = true; image.removeAttribute('src');
+      previewStatus.textContent = locale.startsWith('zh') ? '正在更新预览…' : 'Updating preview…';
+    },
+    result: response => {
+      previewStatus.textContent = response.error || (response.warnings || []).join(' ');
+      if (response.error) return;
+      image.style.width = `${response.widthPoints}pt`;
+      image.style.height = `${response.heightPoints}pt`;
+      image.src = response.image; image.hidden = false;
     }
   });
-  cancelButton.addEventListener("click", () => send({ type: "cancel" }));
+  typographyPanel = new TypographyPanel({onChange: () => preview.update(),
+    onComposition: updatePreviewComposition,
+    blocked: () => insertion.blocked,
+    onMode: active => {
+      sourceSync.visualInput(); insertion.setPreview(active); preview.setActive(active);
+    }});
+  const shortcuts = new Map(CATALOG.filter(entry => entry.shortcut).map(entry => [entry.shortcut, entry]));
+  configureMathfield(mathfield, {onAccept: accept, insert: entry => insertion.insert(entry), shortcuts,
+    performEdit: action => sourceSync.performVisual(action)});
+  for (const [id, redo] of [['undoButton', false], ['redoButton', true]]) {
+    document.getElementById(id).addEventListener('click', () => {
+      if (insertion.blocked) return;
+      sourceSync.history(redo); insertion.restoreFocus();
+    });
+  }
+  mathfield.addEventListener("beforeinput", event => sourceSync.beforeVisualInput(event));
+  mathfield.addEventListener("input", () => { sourceSync.visualInput(); scheduleCaretVisibility(); });
+  mathfield.addEventListener("compositionstart", () => { sourceSync.visualComposition(true); updatePreviewComposition(); });
+  mathfield.addEventListener("compositionend", () => { sourceSync.visualComposition(false); updatePreviewComposition(); });
+  mathfield.addEventListener("keydown", event => {
+    if (!submitting && (event.ctrlKey || event.metaKey) && !event.altKey && !event.isComposing
+        && (event.key.toLowerCase() === "z" || event.key.toLowerCase() === "y")) {
+      event.preventDefault(); event.stopImmediatePropagation();
+      sourceSync.history(event.shiftKey || event.key.toLowerCase() === "y");
+    }
+  }, true);
+  cancelButton.addEventListener("click", () => { preview.stop(); send({ type: "cancel", session }); });
+  window.addEventListener("pagehide", () => preview.stop());
   acceptButton.addEventListener("click", accept);
   window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
+    if (event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
+    if (event.key === "Escape" && !event.isComposing) {
       event.preventDefault();
       hideVirtualKeyboard();
       return;
@@ -552,6 +333,7 @@ async function bootstrap() {
     }
   });
   configureText();
+  sourceSync.load("");
   if (pendingInit || window.__latexSnipperPendingInit) {
     applyInit(pendingInit || window.__latexSnipperPendingInit);
     pendingInit = null;
@@ -559,16 +341,21 @@ async function bootstrap() {
   }
 }
 
+function updatePreviewComposition() {
+  preview?.setComposing(Boolean(sourceEditor?.composing || sourceSync?.visualComposing || typographyPanel?.composing));
+}
+
 window.LaTeXSnipperEditor = {
   init(payload) {
     pendingInit = payload;
-    if (mathfield) {
+    if (insertion) {
       applyInit(payload);
       pendingInit = null;
     }
   },
   setStatus,
   setSubmitting,
+  previewResult: response => preview?.receive(response),
 };
 
 bootstrap().catch((error) => setStatus(String(error)));

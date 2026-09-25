@@ -110,7 +110,7 @@ public sealed partial class DynamicWordApplicationAdapter
             metadata.NumberText,
             renderEngine,
             metadata.SchemaVersion,
-            metadata.FontScale);
+            metadata.Typography);
     }
 
     private static FormulaMetadata WithNewIdentity(FormulaMetadata metadata, string documentId)
@@ -123,7 +123,7 @@ public sealed partial class DynamicWordApplicationAdapter
             metadata.NumberText,
             metadata.RenderEngine,
             metadata.SchemaVersion,
-            metadata.FontScale);
+            metadata.Typography);
     }
 
     private static string ReadControlTag(dynamic control)

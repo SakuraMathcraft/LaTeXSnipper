@@ -23,17 +23,12 @@ public sealed partial class DynamicWordApplicationAdapter
             ValidateInsertionTarget(selection.Range);
             dynamic range = ResolveManagedEquationInsertionRange(selection, display);
             int insertionPoint = GetRangeStart(range);
-            double fontSizePoints = ReadPointSize(range.Font.Size);
             range.InsertXML(ooxml);
             object equationControl = FindInsertedFormulaControl(insertionPoint, metadata.Identity.EquationId);
 
-            double naturalFontSize = ScaleFontSize(fontSizePoints, metadata.FontScale);
+            double naturalFontSize = metadata.Typography.FontSizePoints;
             ApplyManagedEquationFontSize(equationControl, naturalFontSize);
             ShowContentControlChrome((dynamic)equationControl);
-            WordFormulaMetadataStore.SaveOmmlNaturalFontSize(
-                CurrentDocument,
-                metadata.Identity.EquationId,
-                naturalFontSize);
             ApplyManagedEquationStyle(equationControl, metadata);
             if (metadata.DisplayMode == FormulaDisplayMode.Inline)
             {
@@ -694,14 +689,7 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         dynamic control = contentControl;
         double fontSize = ReadPointSize(control.Range.Font.Size);
-        return fontSize > 0 ? fontSize : GetCurrentFontSizePoints();
-    }
-
-    private static double ScaleFontSize(double fontSizePoints, double fontScale)
-    {
-        double baseSize = fontSizePoints > 0 ? fontSizePoints : WordOleBaseFontPoints;
-        double scale = fontScale > 0 ? fontScale : 1;
-        return baseSize * scale;
+        return fontSize;
     }
 
     private void ApplyManagedEquationFontSizeById(string equationId, double fontSizePoints)
@@ -896,7 +884,7 @@ public sealed partial class DynamicWordApplicationAdapter
         try
         {
             double points = Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture);
-            return points > 0 && points < 200 ? points : 0;
+            return FormulaFontSize.IsValid(points) ? points : 0;
         }
         catch (FormatException)
         {

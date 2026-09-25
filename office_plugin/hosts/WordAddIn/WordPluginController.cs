@@ -13,9 +13,6 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public sealed partial class WordPluginController : IDisposable
 {
-    private const double OleBaseFontPoints = 10.5;
-    private const double MinimumOleFontScale = 0.5;
-    private const double MaximumOleFontScale = 5;
 
     private readonly FormulaEditorSession _editorSession;
     private readonly AutomationApiClient _automationClient;
@@ -205,6 +202,8 @@ public sealed partial class WordPluginController : IDisposable
         FormulaMetadata metadata = accepted.UpdateMode
             ? CreateMetadataFromDraft(identity, accepted.Latex, previous)
             : CreateMetadataFromOptions(identity, accepted.Latex, previous, _pendingEditorInsertOptions ?? new WordFormulaOptions(accepted.Display, NumberingMode.None, string.Empty));
+
+        metadata = metadata.WithTypography(accepted.Typography);
 
         if (accepted.UpdateMode)
         {
@@ -449,8 +448,8 @@ public sealed partial class WordPluginController : IDisposable
         {
             _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("OmmlInsertingStatus"));
         }
-        string mathMl = await _mathJaxRenderer.ConvertToMathMlAsync(renderedLatex, metadata.DisplayMode, cancellationToken);
-        string omml = _ommlConverter.Convert(mathMl);
+        string mathMl = await _mathJaxRenderer.ConvertTypographyToMathMlAsync(renderedLatex, metadata.DisplayMode, metadata.Typography, cancellationToken);
+        string omml = OmmlTypographyMapper.Apply(_ommlConverter.Convert(mathMl), metadata.Typography);
         string ooxml = WordOmmlDocumentBuilder.BuildFlatOpcDocument(omml, metadata, IsDisplay(metadata), settings.NumberPlacement);
         string? equationOoxml = includeEquationOoxml ? WordOmmlDocumentBuilder.BuildFlatOpcInlineEquationDocument(omml, metadata) : null;
         string? equationContentOoxml = includeEquationOoxml ? WordOmmlDocumentBuilder.BuildFlatOpcEquationContentDocument(omml) : null;
@@ -547,21 +546,11 @@ public sealed partial class WordPluginController : IDisposable
         string renderedLatex,
         CancellationToken cancellationToken)
     {
-        var request = new RenderRequest(renderedLatex, metadata.DisplayMode, RenderEngineKind.MathJaxSvg)
-        {
-            FontScale = GetOleFontScale() * metadata.FontScale
-        };
+        var request = new RenderRequest(renderedLatex, metadata.DisplayMode, RenderEngineKind.MathJaxSvg, metadata.Typography);
         RenderResult intermediate = await _mathJaxRenderer.RenderAsync(request, cancellationToken);
         return await _olePresentationPipeline.RenderAsync(
             new OlePresentationRequest(intermediate, OlePresentationKind.EnhancedMetafile),
             cancellationToken);
-    }
-
-    private double GetOleFontScale()
-    {
-        double fontSize = _wordAdapter.GetCurrentFontSizePoints();
-        double scale = fontSize / OleBaseFontPoints;
-        return Math.Max(MinimumOleFontScale, Math.Min(MaximumOleFontScale, scale));
     }
 
     private async Task OpenEditorForInsertAsync(WordFormulaOptions options, CancellationToken cancellationToken)
@@ -714,7 +703,7 @@ public sealed partial class WordPluginController : IDisposable
                 previous.NumberText,
                 previous.RenderEngine,
                 previous.SchemaVersion,
-                previous.FontScale);
+                previous.Typography);
         }
 
         WordFormulaOptions options = _optionsProvider.GetFormulaOptions();
@@ -747,13 +736,6 @@ public sealed partial class WordPluginController : IDisposable
             ? FormulaDisplayMode.Display
             : FormulaDisplayMode.Inline;
         WordPluginSettings settings = _settingsLoader();
-        if (previous == null)
-        {
-            normalizedLatex = ApplyDefaultSourceFormatting(
-                normalizedLatex,
-                settings.FormulaFontStyle,
-                settings.FormulaColor);
-        }
         FormulaMetadata metadata = new FormulaMetadata(
             identity ?? new FormulaIdentity(_wordAdapter.GetCurrentDocumentId(), Guid.NewGuid().ToString("N")),
             normalizedLatex,
@@ -762,9 +744,12 @@ public sealed partial class WordPluginController : IDisposable
             numberText,
             RenderEngineKind.Omml,
             schemaVersion: FormulaMetadata.CurrentSchemaVersion,
-            previous?.FontScale ?? settings.FormulaFontScale);
+            previous?.Typography ?? ResolveNewTypography(settings));
         return metadata;
     }
+
+    private FormulaTypography ResolveNewTypography(WordPluginSettings settings) =>
+        settings.TypographyDefaults.ResolveForNewFormula(_wordAdapter.GetCurrentFontSizePoints()).Typography;
 
     private FormulaMetadata CreateEditorDraftFromOptions(WordFormulaOptions options)
     {
@@ -779,9 +764,9 @@ public sealed partial class WordPluginController : IDisposable
             displayMode,
             numberingMode,
             options.ManualNumber.Trim(),
-            RenderEngineKind.Omml,
+            settings.InsertionBackend == FormulaInsertionBackend.Ole ? RenderEngineKind.MathJaxSvg : RenderEngineKind.Omml,
             schemaVersion: FormulaMetadata.CurrentSchemaVersion,
-            settings.FormulaFontScale);
+            ResolveNewTypography(settings));
     }
 
     private static string CreateDefaultLatex()
@@ -796,20 +781,6 @@ public sealed partial class WordPluginController : IDisposable
             : MathLiveLatexStyleNormalizer.NormalizeLatex(latex.Trim());
     }
 
-    internal static string ApplyDefaultSourceFormatting(string latex, FormulaFontStyle fontStyle, string fontColor)
-    {
-        string formatted = MathLiveLatexStyleNormalizer.HasFontStyleFormatting(latex)
-            ? latex
-            : MathLiveLatexStyleNormalizer.ApplyRenderFontStyle(latex, fontStyle);
-        if (MathLiveLatexStyleNormalizer.HasColorFormatting(formatted)
-            || string.Equals(fontColor, "#000000", StringComparison.OrdinalIgnoreCase))
-        {
-            return formatted;
-        }
-
-        return "\\color{" + fontColor + "}{" + formatted + "}";
-    }
-
     private static bool IsDisplay(FormulaMetadata metadata)
     {
         return metadata.DisplayMode == FormulaDisplayMode.Display;
@@ -821,7 +792,7 @@ public sealed partial class WordPluginController : IDisposable
             && left.DisplayMode == right.DisplayMode
             && left.NumberingMode == right.NumberingMode
             && string.Equals(left.NumberText.Trim(), right.NumberText.Trim(), StringComparison.Ordinal)
-            && Math.Abs(left.FontScale - right.FontScale) <= 0.001;
+            && left.Typography.Equals(right.Typography);
     }
 
     private static FormulaMetadata WithNumbering(FormulaMetadata metadata, NumberingMode numberingMode, string numberText)
@@ -834,7 +805,7 @@ public sealed partial class WordPluginController : IDisposable
             numberText,
             metadata.RenderEngine,
             metadata.SchemaVersion,
-            metadata.FontScale);
+            metadata.Typography);
     }
 
     private static FormulaMetadata WithRenderEngine(FormulaMetadata metadata, RenderEngineKind renderEngine)
@@ -847,7 +818,7 @@ public sealed partial class WordPluginController : IDisposable
             metadata.NumberText,
             renderEngine,
             metadata.SchemaVersion,
-            metadata.FontScale);
+            metadata.Typography);
     }
 
     private static FormulaInsertionBackend GetBackend(RenderEngineKind renderEngine)

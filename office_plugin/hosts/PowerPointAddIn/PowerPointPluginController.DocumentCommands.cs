@@ -35,7 +35,7 @@ public sealed partial class PowerPointPluginController
     private async Task ConvertSelectedAsync(RenderEngineKind target, CancellationToken cancellationToken)
     {
         IReadOnlyList<PowerPointFormulaEntry> entries =
-            await _powerPointAdapter.LoadSelectedFormulaEntriesAsync(cancellationToken);
+            await _powerPointAdapter.LoadFormulaEntriesAsync(false, cancellationToken);
         int converted = 0;
         int skipped = 0;
         for (int batchStart = 0; batchStart < entries.Count; batchStart += BatchFormulaOperationSize)
@@ -76,16 +76,9 @@ public sealed partial class PowerPointPluginController
 
     private async Task FormatAsync(bool all, CancellationToken cancellationToken)
     {
-        if (all)
-        {
-            int resetCount = await _powerPointAdapter.ResetCustomFormulaSizesAsync(cancellationToken);
-            PostChangedCount(resetCount, "FormattedStatus", "NoFormattingNeededStatus");
-            return;
-        }
-
         PowerPointPluginSettings settings = PowerPointPluginSettings.Load();
         IReadOnlyList<PowerPointFormulaEntry> entries =
-            await _powerPointAdapter.LoadSelectedFormulaEntriesAsync(cancellationToken);
+            await _powerPointAdapter.LoadFormulaEntriesAsync(all, cancellationToken);
         int formatted = 0;
         int skipped = 0;
         for (int batchStart = 0; batchStart < entries.Count; batchStart += BatchFormulaOperationSize)
@@ -108,10 +101,7 @@ public sealed partial class PowerPointPluginController
                     continue;
                 }
 
-                string latex = MathLiveLatexStyleNormalizer.ApplyFormattingFontStyle(
-                    MathLiveLatexStyleNormalizer.RemoveColorFormatting(entry.Metadata.Latex),
-                    settings.FormulaFontStyle);
-                latex = ApplyFormulaColor(latex, settings.FormulaColor);
+                string latex = entry.Metadata.Latex;
                 FormulaMetadata metadata = new FormulaMetadata(
                     entry.Metadata.Identity,
                     latex,
@@ -120,7 +110,7 @@ public sealed partial class PowerPointPluginController
                     entry.Metadata.NumberText,
                     entry.Metadata.RenderEngine,
                     entry.Metadata.SchemaVersion,
-                    settings.FormulaFontScale);
+                    settings.Typography);
                 if (await ReplaceEntryAsync(entry, metadata, scale: 1, cancellationToken))
                 {
                     formatted++;
@@ -181,11 +171,6 @@ public sealed partial class PowerPointPluginController
         return true;
     }
 
-    private void PostChangedCount(int count, string changedKey, string unchangedKey)
-    {
-        PostChangedCount(count, skipped: 0, changedKey, skippedKey: changedKey, unchangedKey);
-    }
-
     private void PostChangedCount(int count, int skipped, string changedKey, string skippedKey, string unchangedKey)
     {
         if (count == 0)
@@ -217,24 +202,8 @@ public sealed partial class PowerPointPluginController
 
     private static bool NeedsFormatting(PowerPointFormulaEntry entry, PowerPointPluginSettings settings)
     {
-        string colorlessLatex = MathLiveLatexStyleNormalizer.RemoveColorFormatting(entry.Metadata.Latex);
-        string formattedLatex = MathLiveLatexStyleNormalizer.ApplyFormattingFontStyle(
-            colorlessLatex,
-            settings.FormulaFontStyle);
-        formattedLatex = ApplyFormulaColor(formattedLatex, settings.FormulaColor);
-        return !string.Equals(MathLiveLatexStyleNormalizer.NormalizeLatex(entry.Metadata.Latex), formattedLatex, StringComparison.Ordinal)
-            || Math.Abs(entry.Metadata.FontScale - settings.FormulaFontScale) > 0.001
+        return !entry.Metadata.Typography.Equals(settings.Typography)
             || Math.Abs(entry.Scale - 1) > 0.01;
     }
 
-    private static string ApplyFormulaColor(string latex, string fontColor)
-    {
-        if (MathLiveLatexStyleNormalizer.HasColorFormatting(latex)
-            || string.Equals(fontColor, "#000000", StringComparison.OrdinalIgnoreCase))
-        {
-            return latex;
-        }
-
-        return "\\color{" + fontColor + "}{" + latex + "}";
-    }
 }

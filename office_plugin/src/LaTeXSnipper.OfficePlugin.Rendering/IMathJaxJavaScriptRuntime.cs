@@ -7,8 +7,6 @@ public interface IMathJaxJavaScriptRuntime
 {
     Task InitializeAsync(
         string mathJaxBundlePath,
-        string configurationScript,
-        string bootstrapScript,
         CancellationToken cancellationToken);
 
     Task<string> EvaluateAsync(string script, CancellationToken cancellationToken);

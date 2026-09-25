@@ -24,3 +24,6 @@ packaging/debian/DEBIAN/* text eol=lf
 # Preserve upstream-distributed vendor runtime contents verbatim.
 src/assets/mathlive/vendor/mathlive.min.mjs -whitespace
 src/assets/mathlive/vendor/mathlive.LICENSE.txt -whitespace
+src/assets/MathJax/** -text -whitespace
+tools/mathjax/liteDOM.js -text -whitespace
+tools/mathjax/office.props -text

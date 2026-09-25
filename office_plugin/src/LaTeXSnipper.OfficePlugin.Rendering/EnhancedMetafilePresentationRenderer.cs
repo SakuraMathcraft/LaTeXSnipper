@@ -31,7 +31,8 @@ public sealed class EnhancedMetafilePresentationRenderer : IOlePresentationRende
             payload,
             request.IntermediateRender.WidthPoints + HorizontalPaddingPoints * 2,
             request.IntermediateRender.HeightPoints + VerticalPaddingPoints * 2,
-            request.IntermediateRender.BaselinePoints + VerticalPaddingPoints);
+            request.IntermediateRender.BaselinePoints + VerticalPaddingPoints,
+            request.IntermediateRender.RendererVersion);
         return Task.FromResult(result);
 #else
         throw new PlatformNotSupportedException("Enhanced Metafile rendering is only available in the Windows .NET Framework Office host.");

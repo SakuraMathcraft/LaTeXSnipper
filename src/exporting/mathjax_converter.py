@@ -3,60 +3,14 @@
 from __future__ import annotations
 
 import json
+import time
+import uuid
 from typing import Any
 
-from PyQt6.QtCore import QEventLoop, QThread, QTimer
+from PyQt6.QtCore import QEventLoop, QThread, QTimer, QUrl
 from PyQt6.QtWidgets import QApplication
 
-from preview.math_preview import get_mathjax_base_url
-
-
-_CONVERTER_HTML = r"""
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<script>
-window.MathJax = {
-  loader: {
-    load: [
-      '[tex]/action', '[tex]/amscd', '[tex]/bbox', '[tex]/boldsymbol',
-      '[tex]/braket', '[tex]/bussproofs',
-      '[tex]/cancel', '[tex]/cases', '[tex]/centernot', '[tex]/color',
-      '[tex]/colortbl', '[tex]/configmacros', '[tex]/empheq', '[tex]/enclose',
-      '[tex]/extpfeil', '[tex]/gensymb', '[tex]/html', '[tex]/mathtools',
-      '[tex]/mhchem', '[tex]/physics', '[tex]/setoptions', '[tex]/tagformat',
-      '[tex]/textcomp', '[tex]/textmacros', '[tex]/unicode', '[tex]/upgreek',
-      '[tex]/verb'
-    ]
-  },
-  tex: {
-    packages: {
-      '[+]': [
-        'action', 'amscd', 'bbox', 'boldsymbol',
-        'braket', 'bussproofs',
-        'cancel', 'cases', 'centernot', 'color',
-        'colortbl', 'configmacros', 'empheq', 'enclose',
-        'extpfeil', 'gensymb', 'html', 'mathtools',
-        'mhchem', 'physics', 'setoptions', 'tagformat',
-        'textcomp', 'textmacros', 'unicode', 'upgreek',
-        'verb'
-      ]
-    }
-  },
-  svg: {
-    fontCache: 'none'
-  },
-  startup: {
-    typeset: false
-  }
-};
-</script>
-<script src="tex-mml-svg.js"></script>
-</head>
-<body></body>
-</html>
-"""
+from rendering.mathjax_runtime import ASSET_ROOT, loader_script
 
 
 class MathJaxConversionError(RuntimeError):
@@ -77,59 +31,59 @@ class _MathJaxConverter:
         self._page = self._view.page()
         self._ready = False
 
-    def convert(self, latex: str) -> dict[str, str]:
+    def convert(self, latex: str, outputs: tuple[str, ...]) -> dict[str, str]:
         self._ensure_ready()
-        source = json.dumps(str(latex or ""))
-        script = f"""
-(() => {{
-  try {{
-    const source = {source};
-    const options = {{ display: true, end: 20 }};
-    const mathml = MathJax.tex2mml(source, options);
-    const adaptor = MathJax.startup.adaptor;
-    const container = MathJax.tex2svg(source, {{ display: true }});
-    const svg = adaptor.outerHTML(adaptor.firstChild(container));
-    return JSON.stringify({{ mathml, svg }});
-  }} catch (error) {{
-    return JSON.stringify({{ error: String(error && (error.stack || error.message) || error) }});
-  }}
-}})()
-"""
-        raw = self._run_javascript(script)
-        if not isinstance(raw, str) or not raw:
-            raise MathJaxConversionError("MathJax returned an empty conversion result")
-        result = json.loads(raw)
-        error = str(result.get("error") or "").strip()
-        if error:
-            raise MathJaxConversionError(error)
-        mathml = str(result.get("mathml") or "").strip()
-        svg = str(result.get("svg") or "").strip()
-        if not mathml.startswith("<math") or not svg.startswith("<svg"):
-            raise MathJaxConversionError("MathJax returned an invalid conversion result")
-        return {"mathml": mathml, "svg": svg}
+        payload = json.dumps({"latex": latex, "outputs": outputs})
+        request_id = json.dumps(uuid.uuid4().hex)
+        self._run_javascript(
+            f"LaTeXSnipperMathJax.start({request_id}, () => LaTeXSnipperMathJax.convert({payload}))"
+        )
+        try:
+            deadline = time.monotonic() + 30
+            while time.monotonic() < deadline:
+                raw = self._run_javascript(f"LaTeXSnipperMathJax.take({request_id})")
+                if raw:
+                    result = json.loads(raw)
+                    if result.get("error"):
+                        raise MathJaxConversionError(result["error"])
+                    for output in outputs:
+                        prefix = "<math" if output == "mathml" else "<svg"
+                        if not str(result.get(output, "")).startswith(prefix):
+                            raise MathJaxConversionError(f"Invalid MathJax {output} result")
+                    return {output: result[output] for output in outputs}
+                self._pause()
+            raise MathJaxConversionError("MathJax conversion timed out")
+        finally:
+            self._page.runJavaScript(f"LaTeXSnipperMathJax.cancel({request_id})")
+
+    @staticmethod
+    def _pause() -> None:
+        loop = QEventLoop()
+        QTimer.singleShot(25, loop.quit)
+        loop.exec()
 
     def _ensure_ready(self) -> None:
         if self._ready:
             return
         loaded = self._wait_for_signal(
-            lambda done: self._page.loadFinished.connect(done),
-            lambda: self._page.setHtml(_CONVERTER_HTML, get_mathjax_base_url()),
+            self._page.loadFinished,
+            lambda: self._page.setHtml(
+                "<!doctype html><html><head>"
+                + loader_script(output="svg", typeset=False, fallback=False)
+                + "</head><body></body></html>", QUrl.fromLocalFile(str(ASSET_ROOT) + "/")),
             timeout_ms=15_000,
         )
         if not loaded:
             raise MathJaxConversionError("Failed to load the local MathJax export runtime")
 
-        for _ in range(150):
-            ready = self._run_javascript(
-                "Boolean(window.MathJax && MathJax.startup && "
-                "MathJax.startup.document && MathJax.tex2mml && MathJax.tex2svg)"
-            )
-            if ready is True:
+        for _ in range(600):
+            error = self._run_javascript("window.LaTeXSnipperMathJax && LaTeXSnipperMathJax.error")
+            if error:
+                raise MathJaxConversionError(str(error))
+            if self._run_javascript("Boolean(window.LaTeXSnipperMathJax && LaTeXSnipperMathJax.ready)"):
                 self._ready = True
                 return
-            loop = QEventLoop()
-            QTimer.singleShot(50, loop.quit)
-            loop.exec()
+            self._pause()
         raise MathJaxConversionError("Local MathJax export runtime timed out")
 
     def _run_javascript(self, script: str) -> Any:
@@ -153,7 +107,7 @@ class _MathJaxConverter:
         return result[0]
 
     @staticmethod
-    def _wait_for_signal(connect, start, *, timeout_ms: int) -> bool:
+    def _wait_for_signal(signal, start, *, timeout_ms: int) -> bool:
         result: list[bool] = []
         loop = QEventLoop()
         timer = QTimer()
@@ -164,29 +118,32 @@ class _MathJaxConverter:
             result.append(bool(ok))
             loop.quit()
 
-        connect(completed)
-        start()
-        timer.start(timeout_ms)
-        loop.exec()
-        if timer.isActive():
+        signal.connect(completed)
+        try:
+            timer.start(timeout_ms)
+            start()
+            loop.exec()
+        finally:
             timer.stop()
+            signal.disconnect(completed)
         return bool(result and result[0])
 
 
 _converter: _MathJaxConverter | None = None
-_last_latex = ""
+_last_key: tuple[str, tuple[str, ...]] | None = None
 _last_result: dict[str, str] | None = None
 
 
-def convert_latex_with_mathjax(latex: str) -> dict[str, str]:
+def convert_latex_with_mathjax(latex: str, *, outputs: tuple[str, ...] = ("mathml", "svg")) -> dict[str, str]:
     """Return MathML and standalone SVG generated by the bundled MathJax."""
-    global _converter, _last_latex, _last_result
+    global _converter, _last_key, _last_result
     source = str(latex or "")
-    if source == _last_latex and _last_result is not None:
+    key = (source, outputs)
+    if key == _last_key and _last_result is not None:
         return dict(_last_result)
     if _converter is None:
         _converter = _MathJaxConverter()
-    result = _converter.convert(source)
-    _last_latex = source
+    result = _converter.convert(source, outputs)
+    _last_key = key
     _last_result = dict(result)
     return result

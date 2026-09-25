@@ -8,7 +8,6 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 internal static class WordFormulaMetadataStore
 {
     public const string EquationTagPrefix = "latexsnipper-eq-";
-    private const string OmmlNaturalFontSizeVariablePrefix = "LaTeXSnipper.OmmlNaturalFontSize.";
     private const string MetadataSeparator = "|";
     private const string MetadataVariablePrefix = "LS.E.";
     private const int MaxWordTagLength = 64;
@@ -96,36 +95,6 @@ internal static class WordFormulaMetadataStore
         }
     }
 
-    public static void SaveOmmlNaturalFontSize(dynamic document, string equationId, double fontSizePoints)
-    {
-        if (fontSizePoints <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(fontSizePoints), "OMML natural font size must be positive.");
-        }
-
-        SaveVariable(
-            document,
-            OmmlNaturalFontSizeVariablePrefix + equationId,
-            fontSizePoints.ToString(System.Globalization.CultureInfo.InvariantCulture));
-    }
-
-    public static bool TryLoadOmmlNaturalFontSize(dynamic document, string equationId, out double fontSizePoints)
-    {
-        fontSizePoints = 0;
-        try
-        {
-            dynamic variable = document.Variables.Item(OmmlNaturalFontSizeVariablePrefix + equationId);
-            fontSizePoints = Convert.ToDouble(
-                variable.Value,
-                System.Globalization.CultureInfo.InvariantCulture);
-            return fontSizePoints > 0;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
     public static string Serialize(
         FormulaMetadata metadata,
         double naturalWidthPoints = 0,
@@ -142,7 +111,7 @@ internal static class WordFormulaMetadataStore
             ["numberingMode"] = metadata.NumberingMode.ToString(),
             ["numberText"] = metadata.NumberText,
             ["renderEngine"] = metadata.RenderEngine.ToString(),
-            ["fontScale"] = metadata.FontScale,
+            ["typography"] = FormulaTypographyFields.Write(metadata.Typography),
         };
         if (naturalWidthPoints > 0 && naturalHeightPoints > 0)
         {
@@ -188,6 +157,16 @@ internal static class WordFormulaMetadataStore
 
     private static FormulaMetadata Deserialize(string json)
     {
+        try { return DeserializeCore(json); }
+        catch (Exception error) when (error is ArgumentException || error is FormatException
+            || error is InvalidCastException || error is KeyNotFoundException || error is NullReferenceException)
+        {
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"), error);
+        }
+    }
+
+    private static FormulaMetadata DeserializeCore(string json)
+    {
         if (string.IsNullOrWhiteSpace(json))
         {
             throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
@@ -215,7 +194,7 @@ internal static class WordFormulaMetadataStore
             ReadString(dto, "numberText"),
             ReadEnum<RenderEngineKind>(dto, "renderEngine"),
             FormulaMetadata.CurrentSchemaVersion,
-            ReadRequiredDouble(dto, "fontScale"));
+            FormulaTypographyFields.Read((Dictionary<string, object>)dto["typography"]));
     }
 
     private static string ReadRequiredNonEmptyString(Dictionary<string, object> dto, string key)
@@ -256,17 +235,6 @@ internal static class WordFormulaMetadataStore
             && double.TryParse(Convert.ToString(value), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double parsed)
             ? parsed
             : 0;
-    }
-
-    private static double ReadRequiredDouble(Dictionary<string, object> dto, string key)
-    {
-        double value = ReadDouble(dto, key);
-        if (value <= 0)
-        {
-            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
-        }
-
-        return value;
     }
 
     private static TEnum ReadEnum<TEnum>(Dictionary<string, object> dto, string key)

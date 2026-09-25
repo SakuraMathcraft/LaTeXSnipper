@@ -9,30 +9,36 @@ public sealed class PowerPointPluginSettings
     private const string RegistryPath = @"Software\LaTeXSnipper\OfficePlugin";
     private const string InsertionBackendValue = "PowerPointInsertionBackend";
     private const string FormulaColorValue = "PowerPointFormulaColor";
-    private const string FormulaFontStyleValue = "PowerPointFormulaFontStyle";
-    private const string FormulaFontScaleValue = "PowerPointFormulaFontScale";
-    private const double MinimumFormulaFontScale = 1.0;
-    private const double MaximumFormulaFontScale = 1.5;
+    private const string FormulaMathStyleValue = "PowerPointFormulaMathStyle";
+    private const string FormulaFontSizePointsValue = "PowerPointFormulaFontSizePoints";
 
     public PowerPointPluginSettings(
         FormulaInsertionBackend insertionBackend,
         string formulaColor = "#000000",
-        FormulaFontStyle formulaFontStyle = FormulaFontStyle.TeX,
-        double formulaFontScale = 1)
+        FormulaMathStyle formulaMathStyle = FormulaMathStyle.Automatic,
+        double formulaFontSizePoints = 12, bool followHostFontSize = false)
     {
         InsertionBackend = insertionBackend;
+        FollowHostFontSize = followHostFontSize;
         FormulaColor = string.IsNullOrWhiteSpace(formulaColor) ? "#000000" : formulaColor;
-        FormulaFontStyle = formulaFontStyle;
-        FormulaFontScale = ClampFormulaFontScale(formulaFontScale);
+        FormulaTypography defaults = FormulaTypography.Default;
+        Typography = new FormulaTypography(defaults.SymbolFontId, defaults.NumberFontFamily, defaults.CjkFontFamily,
+            formulaMathStyle, formulaFontSizePoints, FormulaColor);
     }
 
     public FormulaInsertionBackend InsertionBackend { get; }
 
     public string FormulaColor { get; }
 
-    public FormulaFontStyle FormulaFontStyle { get; }
+    public FormulaMathStyle FormulaMathStyle => Typography.DefaultMathStyle;
 
-    public double FormulaFontScale { get; }
+    public double FormulaFontSizePoints => Typography.FontSizePoints;
+
+    public bool FollowHostFontSize { get; }
+
+    public FormulaTypographyDefaults TypographyDefaults => new FormulaTypographyDefaults(Typography, FollowHostFontSize);
+
+    public FormulaTypography Typography { get; }
 
     public static PowerPointPluginSettings Load()
     {
@@ -42,24 +48,26 @@ public sealed class PowerPointPluginSettings
             ? FormulaInsertionBackend.PowerPointPng
             : FormulaInsertionBackend.Ole;
         string color = key?.GetValue(FormulaColorValue) as string ?? "#000000";
-        string styleText = key?.GetValue(FormulaFontStyleValue) as string ?? FormulaFontStyle.TeX.ToString();
-        FormulaFontStyle style = Enum.TryParse(styleText, out FormulaFontStyle parsedStyle)
+        string styleText = key?.GetValue(FormulaMathStyleValue) as string ?? FormulaMathStyle.Automatic.ToString();
+        FormulaMathStyle style = Enum.TryParse(styleText, out FormulaMathStyle parsedStyle)
             ? parsedStyle
-            : FormulaFontStyle.TeX;
-        double scale = ReadDouble(key, FormulaFontScaleValue, defaultValue: 1);
-        return new PowerPointPluginSettings(backend, color, style, scale);
+            : FormulaMathStyle.Automatic;
+        double scale = ReadDouble(key, FormulaFontSizePointsValue, defaultValue: 12);
+        return new PowerPointPluginSettings(backend, color, style, scale,
+            Convert.ToInt32(key?.GetValue("PowerPointFollowHostFontSize") ?? 0) != 0);
     }
 
     public void Save()
     {
         using RegistryKey key = Registry.CurrentUser.CreateSubKey(RegistryPath)
             ?? throw new InvalidOperationException("无法打开 LaTeXSnipper Office 插件设置。");
+        key.SetValue("PowerPointFollowHostFontSize", FollowHostFontSize ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(InsertionBackendValue, InsertionBackend.ToString(), RegistryValueKind.String);
         key.SetValue(FormulaColorValue, FormulaColor, RegistryValueKind.String);
-        key.SetValue(FormulaFontStyleValue, FormulaFontStyle.ToString(), RegistryValueKind.String);
+        key.SetValue(FormulaMathStyleValue, FormulaMathStyle.ToString(), RegistryValueKind.String);
         key.SetValue(
-            FormulaFontScaleValue,
-            FormulaFontScale.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            FormulaFontSizePointsValue,
+            FormulaFontSizePoints.ToString(System.Globalization.CultureInfo.InvariantCulture),
             RegistryValueKind.String);
     }
 
@@ -76,13 +84,4 @@ public sealed class PowerPointPluginSettings
             : defaultValue;
     }
 
-    private static double ClampFormulaFontScale(double value)
-    {
-        if (double.IsNaN(value) || double.IsInfinity(value))
-        {
-            return MinimumFormulaFontScale;
-        }
-
-        return Math.Max(MinimumFormulaFontScale, Math.Min(MaximumFormulaFontScale, value));
-    }
 }

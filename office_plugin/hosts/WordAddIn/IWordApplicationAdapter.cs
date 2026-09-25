@@ -56,7 +56,7 @@ public interface IWordApplicationAdapter
 
     Task UpdateOleFormulaObjectAsync(WordFormulaEditTarget target, FormulaMetadata metadata, OlePresentationResult presentation, bool display, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<WordFormulaEntry>> LoadSelectedFormulaEntriesAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<WordFormulaEntry>> LoadFormulaEntriesAsync(bool all, CancellationToken cancellationToken);
 
     bool ContainsFormula(string equationId);
 
@@ -69,7 +69,7 @@ public interface IWordApplicationAdapter
         string equationContentOoxml,
         FormulaMetadata metadata,
         bool display,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken, bool preserveUserScale = true);
 
     Task UpdateFormulaAsync(
         WordFormulaEditTarget target,
@@ -79,10 +79,6 @@ public interface IWordApplicationAdapter
         FormulaMetadata metadata,
         bool display,
         CancellationToken cancellationToken);
-
-    Task ResetManagedEquationFormattingAsync(FormulaMetadata metadata, CancellationToken cancellationToken);
-
-    Task<WordFormattingResetResult> ResetCustomFormulaSizesAsync(CancellationToken cancellationToken);
 
     bool HasCustomFormulaScale(FormulaMetadata metadata);
 

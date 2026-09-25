@@ -26,31 +26,13 @@ def _mixed_content_body(content: str) -> str:
 def build_mixed_content_html(content: str) -> str:
     tokens = preview_theme_tokens()
     body_content = _mixed_content_body(content)
-    loader_script = mathjax_loader_script()
+    loader_script = mathjax_loader_script(scale=1.2)
 
     return f'''<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
-<script>
-  window.MathJax = {{
-tex: {{
-  inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
-  displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
-  processEscapes: true
-}},
-svg: {{
-  fontCache: 'global',
-        scale: 1.2
-}},
-options: {{
-  enableMenu: false,
-  skipHtmlTags: [],
-  ignoreHtmlClass: [],
-  processHtmlClass: []
-  }}
-}};
-</script>
+
 <style>
 {preview_scrollbar_css(tokens)}
 html, body {{

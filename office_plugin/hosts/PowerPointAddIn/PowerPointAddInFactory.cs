@@ -15,11 +15,12 @@ public static class PowerPointAddInFactory
         IPowerPointFormulaOptionsProvider? optionsProvider = null)
     {
         statusSink ??= NullPowerPointStatusSink.Instance;
-        var editor = new MathLiveFormulaEditor(CreateEditorOptions());
+        var oleIntermediateRenderer = new MathJaxSvgRenderer(new WebView2MathJaxJavaScriptRuntime("PowerPointAddIn"));
+        var editor = new MathLiveFormulaEditor(CreateEditorOptions(oleIntermediateRenderer));
         var editorSession = new FormulaEditorSession(editor);
         var automationClient = new AutomationApiClient(new AutomationApiOptions());
         var adapter = new DynamicPowerPointApplicationAdapter(powerPointApplication);
-        var oleIntermediateRenderer = new MathJaxSvgRenderer(new WebView2MathJaxJavaScriptRuntime("PowerPointAddIn"));
+
         var olePresentationPipeline = new OlePresentationPipeline(new IOlePresentationRenderer[] { new EnhancedMetafilePresentationRenderer() });
         var controller = new PowerPointPluginController(
             editorSession,
@@ -39,7 +40,7 @@ public static class PowerPointAddInFactory
         return controller;
     }
 
-    private static MathLiveFormulaEditorOptions CreateEditorOptions()
+    private static MathLiveFormulaEditorOptions CreateEditorOptions(IFormulaRenderer renderer)
     {
         return new MathLiveFormulaEditorOptions(
             "latexsnipper-powerpoint.officeplugin.local",
@@ -53,7 +54,7 @@ public static class PowerPointAddInFactory
                 @"Software\Microsoft\Office\16.0\PowerPoint\Addins\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn",
                 @"Software\Microsoft\Office\ClickToRun\REGISTRY\MACHINE\Software\Microsoft\Office\PowerPoint\Addins\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn",
                 @"Software\Microsoft\Office\ClickToRun\REGISTRY\MACHINE\Software\Microsoft\Office\16.0\PowerPoint\Addins\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn",
-            })
+            }, renderer, new MathJaxAssetResolver().SymbolFonts)
         {
             Icon = PowerPointPluginIcon.Load(),
             ForceDisplayMode = true

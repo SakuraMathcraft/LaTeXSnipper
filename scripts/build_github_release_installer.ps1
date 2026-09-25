@@ -1,9 +1,8 @@
 param(
-    [switch]$Sign,
-    [string]$CertificateThumbprint = "",
-    [string]$TimestampUrl = "http://timestamp.digicert.com",
-    [string]$InnoCompiler = "",
-    [string]$PythonPath = ""
+    [Parameter(Mandatory = $true)]
+    [string]$BundledPythonPath,
+    [string]$PythonPath = "python",
+    [string]$InnoCompiler = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -32,101 +31,6 @@ function Find-Tool {
     }
 
     throw "Could not find $ToolName."
-}
-
-function Find-WindowsSdkTool {
-    param([string]$ToolName)
-
-    $roots = @()
-    if ($env:ProgramFiles) {
-        $roots += (Join-Path $env:ProgramFiles "Windows Kits\10\bin")
-    }
-    $programFilesX86 = ${env:ProgramFiles(x86)}
-    if ($programFilesX86) {
-        $roots += (Join-Path $programFilesX86 "Windows Kits\10\bin")
-    }
-
-    foreach ($root in $roots) {
-        if (-not (Test-Path $root)) {
-            continue
-        }
-        $candidate = Get-ChildItem -Path $root -Directory -ErrorAction SilentlyContinue |
-            Sort-Object Name -Descending |
-            ForEach-Object { Join-Path $_.FullName "x64\$ToolName" } |
-            Where-Object { Test-Path $_ } |
-            Select-Object -First 1
-        if ($candidate) {
-            return $candidate
-        }
-    }
-
-    $command = Get-Command $ToolName -ErrorAction SilentlyContinue
-    if ($command) {
-        return $command.Source
-    }
-
-    throw "Could not find $ToolName. Install the Windows SDK or put it on PATH."
-}
-
-function Resolve-BuildPython {
-    param(
-        [string]$Root,
-        [string]$RequestedPython
-    )
-
-    $candidates = @()
-    if (-not [string]::IsNullOrWhiteSpace($RequestedPython)) {
-        $candidates += $RequestedPython
-    }
-
-    $candidates += (Join-Path $Root "tools\deps\python311\python.exe")
-
-    foreach ($candidate in $candidates) {
-        if ([string]::IsNullOrWhiteSpace($candidate)) {
-            continue
-        }
-        if (Test-Path $candidate) {
-            return (Resolve-Path $candidate).Path
-        }
-        $command = Get-Command $candidate -ErrorAction SilentlyContinue
-        if ($command) {
-            return $command.Source
-        }
-    }
-
-    $pythonCommand = Get-Command "python" -ErrorAction SilentlyContinue
-    if ($pythonCommand) {
-        return $pythonCommand.Source
-    }
-
-    throw "Could not find build Python. Pass -PythonPath or install Python on PATH."
-}
-
-function Invoke-CodeSign {
-    param(
-        [string]$Signtool,
-        [string]$Path,
-        [string]$Thumbprint,
-        [string]$TimestampUrl
-    )
-
-    if (-not (Test-Path $Path)) {
-        throw "Cannot sign missing file: $Path"
-    }
-
-    $args = @("sign", "/fd", "SHA256", "/td", "SHA256", "/tr", $TimestampUrl)
-    if ([string]::IsNullOrWhiteSpace($Thumbprint)) {
-        $args += "/a"
-    }
-    else {
-        $args += @("/sha1", $Thumbprint)
-    }
-    $args += $Path
-
-    & $Signtool @args
-    if ($LASTEXITCODE -ne 0) {
-        throw "signtool failed with exit code $LASTEXITCODE for $Path"
-    }
 }
 
 function Write-Sha256File {
@@ -184,13 +88,7 @@ if "HTTPSHandler" not in handlers:
 }
 
 function Normalize-BundledPythonSeed {
-    param([string]$Root)
-
-    $seedRoot = Join-Path $Root "python311"
-    if (-not (Test-Path $seedRoot)) {
-        Write-Host "Bundled Python seed not found, skip normalization: $seedRoot"
-        return
-    }
+    param([string]$SeedRoot)
 
     $pythonExe = Join-Path $seedRoot "python.exe"
     if (-not (Test-Path $pythonExe)) {
@@ -377,37 +275,14 @@ function Remove-PythonCache {
         Remove-Item -Force
 }
 
-function Stage-BundledPythonSeed {
-    param([string]$Root)
-
-    $source = Join-Path $Root "python311"
-    if (-not (Test-Path -LiteralPath $source)) {
-        throw "Bundled Python template not found: $source"
-    }
-
-    $stagingBase = Join-Path $Root "build\github-release"
-    New-Item -ItemType Directory -Path $stagingBase -Force | Out-Null
-    $stagingBase = (Resolve-Path -LiteralPath $stagingBase).Path
-    $stagedRoot = Join-Path $stagingBase "bundled-deps"
-    if (Test-Path -LiteralPath $stagedRoot) {
-        $resolvedStagedRoot = (Resolve-Path -LiteralPath $stagedRoot).Path
-        $expectedPrefix = $stagingBase.TrimEnd('\') + '\'
-        if (-not $resolvedStagedRoot.StartsWith($expectedPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-            throw "Refusing to replace bundled dependency stage outside build directory: $resolvedStagedRoot"
-        }
-        Remove-Item -LiteralPath $stagedRoot -Recurse -Force
-    }
-    New-Item -ItemType Directory -Path $stagedRoot -Force | Out-Null
-    Copy-Item -LiteralPath $source -Destination (Join-Path $stagedRoot "python311") -Recurse -Force
-
-    Write-Host "Bundled Python template staged: $stagedRoot"
-    return $stagedRoot
-}
-
 $root = Resolve-RepoRoot
-$python = Resolve-BuildPython -Root $root -RequestedPython $PythonPath
-$bundledDepsRoot = Stage-BundledPythonSeed -Root $root
-Normalize-BundledPythonSeed -Root $bundledDepsRoot
+$python = (Get-Command $PythonPath -CommandType Application -ErrorAction Stop).Source
+$bundledPython = (Resolve-Path -LiteralPath $BundledPythonPath).Path
+$runnerTemp = (Resolve-Path -LiteralPath $env:RUNNER_TEMP).Path.TrimEnd('\') + '\'
+if (-not $bundledPython.StartsWith($runnerTemp, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Bundled Python must be prepared inside RUNNER_TEMP: $bundledPython"
+}
+Normalize-BundledPythonSeed -SeedRoot $bundledPython
 
 $isccCandidates = @()
 if ($InnoCompiler) {
@@ -419,7 +294,6 @@ if (${env:ProgramFiles(x86)}) {
 if ($env:ProgramFiles) {
     $isccCandidates += (Join-Path $env:ProgramFiles "Inno Setup 6\ISCC.exe")
 }
-$isccCandidates += "D:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 $iscc = Find-Tool -ToolName "ISCC.exe" -Candidates $isccCandidates
 
 $buildName = "LaTeXSnipper"
@@ -438,10 +312,10 @@ if (-not (Test-Path $iss)) {
 }
 
 $oldBuildName = $env:LATEXSNIPPER_BUILD_NAME
-$oldBundledDepsDir = $env:LATEXSNIPPER_BUNDLED_DEPS_DIR
+$oldBundledPython = $env:LATEXSNIPPER_BUNDLED_PYTHON
 try {
     $env:LATEXSNIPPER_BUILD_NAME = $buildName
-    $env:LATEXSNIPPER_BUNDLED_DEPS_DIR = $bundledDepsRoot
+    $env:LATEXSNIPPER_BUNDLED_PYTHON = $bundledPython
 
     foreach ($path in @($distAppDir, $pyinstallerWorkDir)) {
         if (Test-Path -LiteralPath $path) {
@@ -476,7 +350,7 @@ try {
 }
 finally {
     $env:LATEXSNIPPER_BUILD_NAME = $oldBuildName
-    $env:LATEXSNIPPER_BUNDLED_DEPS_DIR = $oldBundledDepsDir
+    $env:LATEXSNIPPER_BUNDLED_PYTHON = $oldBundledPython
 }
 
 $appExe = Join-Path $distAppDir "$buildName.exe"
@@ -484,26 +358,13 @@ if (-not (Test-Path $appExe)) {
     throw "PyInstaller output exe not found: $appExe"
 }
 
-$signtool = ""
-if ($Sign) {
-    $signtool = Find-WindowsSdkTool -ToolName "signtool.exe"
-    Invoke-CodeSign -Signtool $signtool -Path $appExe -Thumbprint $CertificateThumbprint -TimestampUrl $TimestampUrl
+if (Test-Path $installerOutputDir) {
+    Get-ChildItem -LiteralPath $installerOutputDir -Filter "LaTeXSnipperSetup-*.exe" -File |
+        Remove-Item -Force
 }
-
-$oldRepoRoot = $env:LATEXSNIPPER_REPO_ROOT
-try {
-    $env:LATEXSNIPPER_REPO_ROOT = $root
-    if (Test-Path $installerOutputDir) {
-        Get-ChildItem -LiteralPath $installerOutputDir -Filter "LaTeXSnipperSetup-*.exe" -File |
-            Remove-Item -Force
-    }
-    & $iscc $iss
-    if ($LASTEXITCODE -ne 0) {
-        throw "Inno Setup failed with exit code $LASTEXITCODE"
-    }
-}
-finally {
-    $env:LATEXSNIPPER_REPO_ROOT = $oldRepoRoot
+& $iscc $iss
+if ($LASTEXITCODE -ne 0) {
+    throw "Inno Setup failed with exit code $LASTEXITCODE"
 }
 
 $installer = Get-ChildItem -LiteralPath $installerOutputDir -Filter "LaTeXSnipperSetup-*.exe" -File |
@@ -513,10 +374,6 @@ if (-not $installer -or -not (Test-Path -LiteralPath $installer.FullName)) {
     throw "Installer output not found in: $installerOutputDir"
 }
 
-if ($Sign) {
-    Invoke-CodeSign -Signtool $signtool -Path $installer.FullName -Thumbprint $CertificateThumbprint -TimestampUrl $TimestampUrl
-}
-
 $hash = Write-Sha256File -Path $installer.FullName
 
 Write-Host ""
@@ -524,9 +381,4 @@ Write-Host "GitHub release installer created:"
 Write-Host "  $($installer.FullName)"
 Write-Host "SHA256:"
 Write-Host "  $hash"
-if ($Sign) {
-    Write-Host "Signing: completed"
-}
-else {
-    Write-Host "Signing: skipped. Submit the installer to SignPath, or rerun with -Sign when a trusted code-signing certificate is available."
-}
+Write-Host "Signing is handled by the release workflow through SignPath."

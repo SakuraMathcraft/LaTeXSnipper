@@ -141,7 +141,7 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
     public double GetCurrentFontSizePoints()
     {
         double fontSize = ReadPointSize(_wordApplication.Selection.Font.Size);
-        return fontSize > 0 ? fontSize : WordOleBaseFontPoints;
+        return fontSize;
     }
 
     public Task ActivateForEditingAsync(CancellationToken cancellationToken)
