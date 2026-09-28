@@ -107,6 +107,14 @@ export class SourceSync {
     action(); this.visualInput();
     return true;
   }
+  adoptVisual() {
+    if (this.locked || this.composing || this.visualComposing) return false;
+    const color = outerColor(this.source.value)?.color;
+    const visual = formatVisualLatex(this.readVisual());
+    this.source.replace(color ? inheritFormulaColor(visual, color) : visual, 'visual');
+    this.refresh();
+    return this.visualEnabled;
+  }
   history(redo) {
     if (this.locked || this.composing || this.visualComposing) return;
     this.stopPending(); this.ticket = null;

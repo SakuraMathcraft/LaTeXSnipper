@@ -17,10 +17,24 @@
 #latexSource .cm-cursor { border-left-color: var(--text); }
 #latexSource .cm-selectionBackground, #latexSource .cm-focused .cm-selectionBackground { background: #8db9ef55; }
 #latexSource .cm-panels, #latexSource .cm-tooltip { color: var(--text); background: var(--panel); border-color: var(--line); }
-#latexSource .cm-search input, #latexSource .cm-search button {
-  color: var(--text); background: var(--source-bg); border: 1px solid var(--line);
-  font: 12px/1.5 "Segoe UI", "Microsoft YaHei", sans-serif; padding: 1px 5px;
+#latexSource .cm-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 38px 8px 8px;
+  font: 12px/1.5 "Segoe UI", "Microsoft YaHei", sans-serif;
 }
+#latexSource .cm-search br { flex-basis: 100%; height: 0; }
+#latexSource .cm-search label { display: inline-flex; align-items: center; gap: 4px; margin: 0; font: inherit; white-space: nowrap; }
+#latexSource .cm-search input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+#latexSource .cm-search input:not([type="checkbox"]), #latexSource .cm-search button {
+  color: var(--text); background: var(--source-bg); border: 1px solid var(--line);
+  font: inherit; min-height: 32px; padding: 5px 8px;
+}
+#latexSource .cm-search input:not([type="checkbox"]) { width: min(240px, 100%); min-width: 120px; }
+#latexSource .cm-search button { white-space: nowrap; }
+#latexSource .cm-search button[name="close"] { position: absolute; top: 8px; right: 6px; width: 28px; min-height: 28px; padding: 0; }
 #latexSource .cm-matchingBracket { background: #65b8a540; outline: 1px solid #469f90; }
 #latexSource .cm-template-hole { display: inline-block; width: 5px; height: 12px; border: 1px solid var(--accent); vertical-align: text-bottom; }
 #latexSource .cm-template-field { background: var(--accent-soft); }

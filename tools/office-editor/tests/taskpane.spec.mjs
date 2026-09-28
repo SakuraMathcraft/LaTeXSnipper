@@ -22,6 +22,33 @@ async function routeHostAssets(page, host) {
 }
 
 for (const host of ['word', 'powerpoint']) {
+  test(`${host} task pane keeps a colored cases formula visually editable`, async ({page}) => {
+    const latex = String.raw`\textcolor{#ff0000}{\mu(n)=\begin{cases}1,&n=1\\
+(-1)^k,&n=p_1\cdots p_k\\
+0,&p^2\mid n\end{cases}}`;
+    await routeHostAssets(page, host);
+    await page.goto(`https://latexsnipper-${host}.officeplugin.local/taskpane.html`);
+    const field = page.locator('#previewHost math-field');
+    await expect(page.locator('#latexSource .cm-content')).toHaveText('e^{i\\pi}+1=0');
+    await page.evaluate(() => window.LaTeXSnipperTaskPane.apply({type: 'state', latex: '\\begin{cases}'}));
+    await page.evaluate(latex => window.LaTeXSnipperTaskPane.apply({type: 'state', latex, locale: 'zh'}), latex);
+    await expect(page.locator('#latexSource .cm-line')).toHaveCount(3);
+    await expect.poll(() => field.evaluate(element => element.readOnly)).toBe(false);
+    await expect(page.locator('#sourceModeNote')).toBeHidden();
+    await expect.poll(() => field.evaluate(element => getComputedStyle(element).color)).toBe('rgb(255, 0, 0)');
+  });
+
+  test(`${host} task pane can explicitly adopt a normalized visual formula`, async ({page}) => {
+    await routeHostAssets(page, host);
+    await page.goto(`https://latexsnipper-${host}.officeplugin.local/taskpane.html`);
+    await page.evaluate(() => window.LaTeXSnipperTaskPane.apply({type: 'state',
+      latex: 'x\\displaylines{y=z}', locale: 'zh'}));
+    await expect(page.locator('#sourceModeNote')).toContainText('改写');
+    await page.locator('#sourceModeNote button').click();
+    await expect(page.locator('#sourceModeNote')).toBeHidden();
+    await expect.poll(() => page.locator('#previewHost math-field').evaluate(field => field.readOnly)).toBe(false);
+  });
+
   test(`${host} task pane shows the default formula without a host draft`, async ({page}) => {
     await routeHostAssets(page, host);
     await page.goto(`https://latexsnipper-${host}.officeplugin.local/taskpane.html`);

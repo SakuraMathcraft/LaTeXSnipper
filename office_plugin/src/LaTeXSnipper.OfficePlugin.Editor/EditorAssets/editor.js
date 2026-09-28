@@ -1,6 +1,6 @@
 import { MathfieldElement } from "./vendor/mathlive.min.mjs";
 import { SourceEditor } from "./source-editor.bundle.js";
-import { SourceSync, formatVisualLatex } from "./source-sync.mjs";
+import { SourceSync } from "./source-sync.mjs";
 
 import {STRINGS, CATALOG, COMMANDS} from './template-catalog.mjs';
 import {mountEditor} from './editor-layout.mjs';
@@ -300,6 +300,7 @@ function focusInitialEditor() {
 
 function configureText() {
   document.documentElement.lang = locale.startsWith("zh") ? "zh-CN" : "en";
+  sourceEditor?.setLocale(locale);
   cancelButton.textContent = strings().cancel;
   acceptButton.textContent = mode === "update" ? strings().acceptUpdate : strings().acceptInsert;
   setStatus(strings().ready);
@@ -346,9 +347,7 @@ async function bootstrap() {
     recreateMathfield, onMode: setSourceMode});
   document.getElementById('adoptVisualButton').addEventListener('click', () => {
     if (insertion.blocked) return;
-    sourceEditor.replace(formatVisualLatex(mathfieldLatex()), 'visual');
-    sourceSync.refresh();
-    if (sourceSync.visualEnabled) insertion.focusVisual();
+    if (sourceSync.adoptVisual()) insertion.focusVisual();
   });
   insertion = new TemplateInsertion({source: sourceEditor, sync: sourceSync, mathfield, sourceHost: latexSource,
     onInsert: scheduleCaretVisibility, isComposing: () => Boolean(typographyPanel?.composing)});
@@ -371,8 +370,13 @@ async function bootstrap() {
     result: response => {
       previewStatus.textContent = response.error || (response.warnings || []).join(' ');
       if (response.error) return;
-      image.style.width = `${response.widthPoints}pt`;
-      image.style.height = `${response.heightPoints}pt`;
+      const fontSizePoints = typographyPanel.snapshot()?.fontSizePoints || 12;
+      const screenScale = Math.max(1, Math.min(3, 24 / fontSizePoints));
+      image.style.width = `${response.widthPoints * screenScale}pt`;
+      image.style.height = `${response.heightPoints * screenScale}pt`;
+      image.title = locale.startsWith('zh')
+        ? `屏幕预览放大 ${screenScale.toFixed(1)} 倍；插入字号仍为 ${fontSizePoints} pt`
+        : `Screen preview enlarged ${screenScale.toFixed(1)}×; inserted size remains ${fontSizePoints} pt`;
       image.src = response.image; image.hidden = false;
     }
   });

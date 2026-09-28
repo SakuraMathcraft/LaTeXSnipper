@@ -190,6 +190,9 @@ input[type="text"]:focus {
   background: var(--source-bg);
 }
 
+.source-mode-note:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.source-mode-note button { min-height: 26px; padding: 3px 6px; color: var(--accent); font-size: 12px; }
+
 .source-host:focus-within {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(46, 123, 230, 0.14);

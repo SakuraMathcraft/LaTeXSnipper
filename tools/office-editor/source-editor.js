@@ -11,6 +11,12 @@ import {inspectLatex, isMathMl} from '../../office_plugin/src/LaTeXSnipper.Offic
 import {templateFields, templateTransaction} from './template-fields.js';
 
 const origin = Annotation.define();
+const searchPhrases = {
+  zh: {Find: '查找', Replace: '替换', next: '下一个', previous: '上一个', all: '选中全部',
+    'match case': '区分大小写', regexp: '正则表达式', 'by word': '全字匹配',
+    replace: '替换', 'replace all': '全部替换', close: '关闭查找'},
+  en: {}
+};
 const language = StreamLanguage.define({
   startState: () => ({depth: 0, environment: false, envDepth: 0, envChange: 0}),
   token(stream, state) {
@@ -60,10 +66,12 @@ export class SourceEditor {
     this.revision = 0;
     this.composing = false;
     this.editable = new Compartment();
+    this.phrases = new Compartment();
     const commandOptions = commands.map(({label, entry}) => ({label, type: 'function',
       ...(entry ? {detail: entry.en, apply: (_view, _completion, from, to) => completeTemplate(entry, {from, to})} : {})}));
     this.extensions = [templateFields, language, syntaxHighlighting(highlight), lineNumbers(), highlightActiveLine(), highlightActiveLineGutter(),
       drawSelection(), bracketMatching(), indentOnInput(), closeBrackets(), history(), search({top: true}), highlightSelectionMatches(),
+      this.phrases.of(EditorState.phrases.of(searchPhrases.zh)),
       lintGutter(), linter(view => isMathMl(view.state.doc.toString()) ? [] : inspectLatex(view.state.doc.toString()), {delay: 250}),
       autocompletion({override: [context => {
         const env = context.matchBefore(/\\begin\{[\w*]*$/);
@@ -108,5 +116,9 @@ export class SourceEditor {
   undo() { return undo(this.view); }
   redo() { return redo(this.view); }
   focus() { this.view.focus(); }
+  setLocale(locale) {
+    this.view.dispatch({effects: this.phrases.reconfigure(EditorState.phrases.of(
+      String(locale).toLowerCase().startsWith('zh') ? searchPhrases.zh : searchPhrases.en))});
+  }
   setEnabled(value) { this.view.dispatch({effects: this.editable.reconfigure([EditorView.editable.of(value), EditorState.readOnly.of(!value)])}); }
 }

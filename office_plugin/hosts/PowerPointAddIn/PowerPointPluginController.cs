@@ -25,6 +25,8 @@ public sealed partial class PowerPointPluginController : IDisposable
     private readonly SemaphoreSlim _commandGate = new SemaphoreSlim(1, 1);
     private PowerPointFormulaEditTarget? _editorTarget;
     private long _editorTargetGeneration;
+    private PowerPointTextInsertionTarget? _textInsertionTarget;
+    private long _textInsertionTargetGeneration;
     private bool _disposed;
 
     public PowerPointPluginController(
@@ -125,8 +127,18 @@ public sealed partial class PowerPointPluginController : IDisposable
         }
         _editorTarget = null;
         _editorTargetGeneration = 0;
-        FormulaMetadata draft = CreateEditorDraft();
-        _editorTargetGeneration = await _editorSession.OpenForInsertAsync(draft, cancellationToken);
+        _textInsertionTarget = _powerPointAdapter.CaptureTextInsertionTarget();
+        FormulaMetadata draft = CreateEditorDraft(_textInsertionTarget?.FontSizePoints);
+        try
+        {
+            _textInsertionTargetGeneration = await _editorSession.OpenForInsertAsync(draft, cancellationToken);
+        }
+        catch
+        {
+            _textInsertionTarget = null;
+            _textInsertionTargetGeneration = 0;
+            throw;
+        }
         _statusSink.Post(PowerPointStatusKind.Success, PowerPointAddInText.Get("EditorReadyStatus"));
     }
 
@@ -138,8 +150,10 @@ public sealed partial class PowerPointPluginController : IDisposable
             latex = DefaultLatex;
         }
 
-        FormulaMetadata metadata = CreateMetadata(latex, previous: null);
-        await ConvertAndInsertAsync(metadata, target: null, updateMode: false, cancellationToken: cancellationToken);
+        PowerPointTextInsertionTarget? textTarget = _powerPointAdapter.CaptureTextInsertionTarget();
+        FormulaMetadata metadata = CreateMetadata(latex, previous: null, textTarget?.FontSizePoints);
+        await ConvertAndInsertAsync(metadata, target: null, updateMode: false, cancellationToken: cancellationToken,
+            textTarget: textTarget);
         await _powerPointAdapter.ActivateForEditingAsync(cancellationToken);
     }
 
@@ -154,7 +168,13 @@ public sealed partial class PowerPointPluginController : IDisposable
         PowerPointFormulaEditTarget? target = accepted.UpdateMode
             ? GetEditorTarget(accepted)
             : null;
+        if (!accepted.UpdateMode && !_editorSession.IsCurrent(accepted.SessionGeneration, accepted.InitialFormula.Identity))
+            throw new InvalidOperationException(PowerPointAddInText.Get("EditorSessionChanged"));
         FormulaMetadata metadata = CreateMetadata(accepted.Latex, previous).WithTypography(accepted.Typography);
+        PowerPointTextInsertionTarget? textTarget = !accepted.UpdateMode
+            && _textInsertionTargetGeneration == accepted.SessionGeneration
+                ? _textInsertionTarget
+                : null;
         if (previous != null && IsSameRenderedFormula(previous, metadata))
         {
             CompleteEditorSession(accepted.SessionGeneration, target);
@@ -168,12 +188,15 @@ public sealed partial class PowerPointPluginController : IDisposable
             target,
             updateMode: accepted.UpdateMode,
             cancellationToken: cancellationToken,
-            reportStatus: false);
+            reportStatus: false,
+            textTarget: textTarget);
 
         if (_editorSession.IsCurrent(accepted.SessionGeneration, accepted.InitialFormula.Identity))
         {
             string statusKey = accepted.UpdateMode
                 ? "UpdatedStatus"
+                : textTarget != null
+                    ? "InsertedNativeEquationStatus"
                 : PowerPointPluginSettings.Load().InsertionBackend == FormulaInsertionBackend.Ole
                     ? "InsertedFormulaStatus"
                     : "InsertedImageStatus";
@@ -192,8 +215,22 @@ public sealed partial class PowerPointPluginController : IDisposable
         PowerPointFormulaEditTarget? target,
         bool updateMode,
         CancellationToken cancellationToken,
-        bool reportStatus = true)
+        bool reportStatus = true,
+        PowerPointTextInsertionTarget? textTarget = null)
     {
+        if (!updateMode && textTarget != null)
+        {
+            string mathMl = await _mathJaxRenderer.ConvertTypographyToMathMlAsync(
+                metadata.Latex, FormulaDisplayMode.Inline, metadata.Typography, cancellationToken);
+            await _powerPointAdapter.InsertNativeEquationAsync(
+                textTarget, mathMl, metadata.Typography.FontSizePoints, cancellationToken);
+            if (reportStatus)
+            {
+                _statusSink.Post(PowerPointStatusKind.Success, PowerPointAddInText.Get("InsertedNativeEquationStatus"));
+            }
+            return;
+        }
+
         PowerPointPluginSettings settings = PowerPointPluginSettings.Load();
         if (settings.InsertionBackend == FormulaInsertionBackend.Ole)
         {
@@ -264,6 +301,8 @@ public sealed partial class PowerPointPluginController : IDisposable
 
         _editorTarget = target;
         _editorTargetGeneration = 0;
+        _textInsertionTarget = null;
+        _textInsertionTargetGeneration = 0;
         _statusSink.SetCurrentFormula(target.Metadata.Latex, updateMode: true);
         try
         {
@@ -301,6 +340,11 @@ public sealed partial class PowerPointPluginController : IDisposable
             _optionsProvider.ResetFormulaDraft();
             _editorTarget = null;
             _editorTargetGeneration = 0;
+        }
+        if (_textInsertionTargetGeneration == sessionGeneration)
+        {
+            _textInsertionTarget = null;
+            _textInsertionTargetGeneration = 0;
         }
     }
 
@@ -378,7 +422,7 @@ public sealed partial class PowerPointPluginController : IDisposable
         return Task.CompletedTask;
     }
 
-    private FormulaMetadata CreateMetadata(string latex, FormulaMetadata? previous)
+    private FormulaMetadata CreateMetadata(string latex, FormulaMetadata? previous, double? hostFontSizePoints = null)
     {
         string normalizedLatex = string.IsNullOrWhiteSpace(latex)
             ? DefaultLatex
@@ -392,10 +436,10 @@ public sealed partial class PowerPointPluginController : IDisposable
             string.Empty,
             previous?.RenderEngine ?? RenderEngineKind.Image,
             schemaVersion: FormulaMetadata.CurrentSchemaVersion,
-            previous?.Typography ?? settings.TypographyDefaults.ResolveForNewFormula(_powerPointAdapter.GetCurrentFontSizePoints()).Typography);
+            previous?.Typography ?? settings.TypographyDefaults.ResolveForNewFormula(hostFontSizePoints ?? _powerPointAdapter.GetCurrentFontSizePoints()).Typography);
     }
 
-    private FormulaMetadata CreateEditorDraft()
+    private FormulaMetadata CreateEditorDraft(double? hostFontSizePoints)
     {
         PowerPointPluginSettings settings = PowerPointPluginSettings.Load();
         return new FormulaMetadata(
@@ -406,7 +450,7 @@ public sealed partial class PowerPointPluginController : IDisposable
             string.Empty,
             RenderEngineKind.Image,
             schemaVersion: FormulaMetadata.CurrentSchemaVersion,
-            settings.TypographyDefaults.ResolveForNewFormula(_powerPointAdapter.GetCurrentFontSizePoints()).Typography);
+            settings.TypographyDefaults.ResolveForNewFormula(hostFontSizePoints ?? _powerPointAdapter.GetCurrentFontSizePoints()).Typography);
     }
 
     private async Task<OlePresentationResult> RenderOlePresentationAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
@@ -484,6 +528,11 @@ public sealed partial class PowerPointPluginController : IDisposable
         {
             _editorTarget = null;
             _editorTargetGeneration = 0;
+        }
+        if (_textInsertionTargetGeneration == sessionGeneration)
+        {
+            _textInsertionTarget = null;
+            _textInsertionTargetGeneration = 0;
         }
     }
 

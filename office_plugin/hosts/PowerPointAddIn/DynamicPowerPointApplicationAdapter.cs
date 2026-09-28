@@ -29,10 +29,16 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
     {
         try
         {
-            double points = Convert.ToDouble(_application.ActiveWindow.Selection.TextRange.Font.Size);
+            dynamic selection = _application.ActiveWindow.Selection;
+            if (Convert.ToInt32(selection.Type) != 3)
+            {
+                return 0;
+            }
+
+            double points = Convert.ToDouble(selection.TextRange.Font.Size);
             return FormulaFontSize.IsValid(points) ? points : 0;
         }
-        catch (Exception error) when (error is COMException || error is Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
+        catch (Exception error) when (error is COMException || error is ArgumentException || error is Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
         {
             return 0;
         }
@@ -72,7 +78,6 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
             throw new ArgumentNullException(nameof(metadata));
         }
 
-        EnsureInsertionSelectionIsAvailable();
         dynamic slide = GetActiveSlide();
         InsertionPoint insertionPoint = GetInsertionPoint(slide, image.WidthPoints, image.HeightPoints);
         return InsertPictureAtAsync(slide, image, metadata, insertionPoint.Left, insertionPoint.Top);
@@ -139,7 +144,6 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
             throw new ArgumentNullException(nameof(presentation));
         }
 
-        EnsureInsertionSelectionIsAvailable();
         dynamic slide = GetActiveSlide();
         InsertionPoint insertionPoint = GetInsertionPoint(slide, (float)presentation.WidthPoints, (float)presentation.HeightPoints);
         return InsertOleObjectAtAsync(slide, metadata, presentation, insertionPoint.Left, insertionPoint.Top);
@@ -668,31 +672,76 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         }
     }
 
-    private void EnsureInsertionSelectionIsAvailable()
-    {
-        if (HasSelectedShape())
-        {
-            throw new InvalidOperationException(PowerPointAddInText.Get("InsertInsideFormulaError"));
-        }
-    }
-
-    private bool HasSelectedShape()
+    public PowerPointTextInsertionTarget? CaptureTextInsertionTarget()
     {
         try
         {
             dynamic selection = _application.ActiveWindow.Selection;
-            if (Convert.ToInt32(selection.Type) != 2)
-            {
-                return false;
-            }
+            if (Convert.ToInt32(selection.Type) != 3) return null;
+            if (Convert.ToInt32(selection.TextRange.Length) != 0)
+                throw new InvalidOperationException(PowerPointAddInText.Get("TextCaretRequired"));
 
-            dynamic shapeRange = selection.ShapeRange;
-            return Convert.ToInt32(shapeRange.Count) > 0;
+            dynamic shape = selection.ShapeRange.Item(1);
+            if (Convert.ToInt32(shape.HasTextFrame) != MsoTrue) return null;
+            dynamic slide = GetActiveSlide();
+            if (Convert.ToInt32(shape.Parent.SlideID) != Convert.ToInt32(slide.SlideID)) return null;
+            dynamic range = shape.TextFrame2.TextRange;
+            return new PowerPointTextInsertionTarget(
+                shape,
+                GetCurrentDocumentId(),
+                Convert.ToInt32(slide.SlideID),
+                Convert.ToInt32(shape.Id),
+                Convert.ToInt32(selection.TextRange2.Start),
+                Convert.ToInt32(range.Length),
+                Convert.ToString(range.Text) ?? string.Empty,
+                GetCurrentFontSizePoints());
+        }
+        catch (Exception error) when (error is COMException || error is ArgumentException || error is Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
+        {
+            return null;
+        }
+    }
+
+    public Task InsertNativeEquationAsync(PowerPointTextInsertionTarget target, string mathMl, double fontSizePoints,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (target == null) throw new ArgumentNullException(nameof(target));
+        if (!string.Equals(target.DocumentId, GetCurrentDocumentId(), StringComparison.Ordinal)
+            || Convert.ToInt32(GetActiveSlide().SlideID) != target.SlideId)
+            throw new InvalidOperationException(PowerPointAddInText.Get("TextCaretChanged"));
+
+        dynamic shape = target.Shape;
+        dynamic fullRange = shape.TextFrame2.TextRange;
+        if (Convert.ToInt32(shape.Id) != target.ShapeId
+            || Convert.ToInt32(shape.Parent.SlideID) != target.SlideId
+            || !string.Equals(Convert.ToString(fullRange.Text), target.OriginalText, StringComparison.Ordinal)
+            || Convert.ToInt32(fullRange.Length) != target.TextLength)
+            throw new InvalidOperationException(PowerPointAddInText.Get("TextCaretChanged"));
+
+        ActivateForEditingAsync(cancellationToken).GetAwaiter().GetResult();
+        shape.TextFrame.TextRange.Characters(target.Start, 0).Select();
+        try
+        {
+            PowerPointMathMlClipboard.PasteAtSelection(_application.ActiveWindow.Selection, mathMl);
+            int insertedLength = Convert.ToInt32(shape.TextFrame2.TextRange.Length) - target.TextLength;
+            if (insertedLength <= 0)
+                throw new InvalidOperationException(PowerPointAddInText.Get("NativeEquationInsertFailed"));
+            dynamic inserted = shape.TextFrame2.TextRange.Characters(target.Start, insertedLength);
+            dynamic equation = inserted.MathZones(1, 1);
+            if (Convert.ToInt32(equation.Start) != target.Start)
+                throw new InvalidOperationException(PowerPointAddInText.Get("NativeEquationInsertFailed"));
+            equation.Font.Size = fontSizePoints;
         }
         catch
         {
-            return false;
+            int insertedLength = Convert.ToInt32(shape.TextFrame2.TextRange.Length) - target.TextLength;
+            if (insertedLength > 0)
+                shape.TextFrame2.TextRange.Characters(target.Start, insertedLength).Text = string.Empty;
+            throw;
         }
+
+        return Task.CompletedTask;
     }
 
     private static InsertionPoint GetInsertionPoint(dynamic slide, float widthPoints, float heightPoints)

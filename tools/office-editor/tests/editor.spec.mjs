@@ -191,6 +191,15 @@ test('environment completion consumes the existing auto-closed brace', async ({p
 test('find/replace, source symbol insertion, session reset and submission locking', async ({page}) => {
   const errors = await open(page, 'x+x');
   await source(page).press('Control+f');
+  await expect(page.locator('.cm-search input[name="search"]')).toHaveAttribute('placeholder', '查找');
+  await expect(page.locator('.cm-search button[name="next"]')).toHaveText('下一个');
+  await expect(page.locator('.cm-search label').first()).toHaveText('区分大小写');
+  const alignment = await page.locator('.cm-search label').first().evaluate(label => {
+    const box = label.getBoundingClientRect();
+    const checkbox = label.querySelector('input').getBoundingClientRect();
+    return Math.abs((box.top + box.bottom) / 2 - (checkbox.top + checkbox.bottom) / 2);
+  });
+  expect(alignment).toBeLessThan(2);
   await page.locator('.cm-search input[name="search"]').fill('x');
   await page.locator('.cm-search input[name="replace"]').fill('y');
   await page.locator('.cm-search button[name="replaceAll"]').click();
@@ -432,7 +441,8 @@ test('typography and current source share one preview and submission snapshot in
       cjkFontFamily: 'SimSun', defaultMathStyle: 'Upright', fontSizePoints: 10.5, color: '#cc2200'});
     await deliverPreview(page, request);
     await expect(page.locator('#previewImage')).toBeVisible();
-    expect(await page.locator('#previewImage').evaluate(image => image.getBoundingClientRect().width)).toBe(80);
+    expect(await page.locator('#previewImage').evaluate(image => image.getBoundingClientRect().width))
+      .toBeCloseTo(80 * 24 / 10.5, 1);
     await page.locator('#acceptButton').click();
     const accepted = await page.evaluate(() => window.posted.findLast(message => message.type === 'accept'));
     expect(accepted.typography).toEqual(request.typography);

@@ -98,7 +98,8 @@ internal sealed class WordSettingsWindow : Form
         CoreWebView2Environment environment = await CoreWebView2Environment.CreateAsync(null, userDataFolder).ConfigureAwait(true);
         await _webView.EnsureCoreWebView2Async(environment).ConfigureAwait(true);
         CoreWebView2 core = _webView.CoreWebView2 ?? throw new InvalidOperationException("WebView2 初始化失败，请确认已安装 Microsoft Edge WebView2 Runtime。");
-        core.Settings.AreDefaultContextMenusEnabled = true;
+        core.Settings.AreDefaultContextMenusEnabled = false;
+        core.Settings.AreBrowserAcceleratorKeysEnabled = false;
         core.Settings.AreDevToolsEnabled = false;
         core.SetVirtualHostNameToFolderMapping(
             SettingsHostName,

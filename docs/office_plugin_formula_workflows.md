@@ -7,7 +7,7 @@
 - 新建和格式化从当前设置产生样式快照；普通编辑、重编号及转换保留公式已有快照。
 - 局部字体与颜色命令优先于默认样式。默认样式在 MathJax 解析后、布局前应用。
 - 编辑器以源码最外层 `\textcolor{#RRGGBB}{…}` 表示当前公式的全局颜色；工具栏修改该命令，源码区修改该命令则同步工具栏。提交和预览的 `Typography.Color` 从源码读取，MathLive 继承同一颜色，局部 `\textcolor` 可覆盖外层。右键局部上色立即写入源码。
-- Word OLE、PPT OLE / PNG 使用同一 SVG 轮廓；OMML 复用带样式 MathML，再映射 Word 属性，最终排版由 Word 管理。
+- Word OLE、PPT OLE / PNG 使用同一 SVG 轮廓；Word OMML 与 PowerPoint 文本内原生公式复用带样式 MathML，由各自宿主管理排版。
 - MathLive 提供可视化编辑；符号、数字、汉字三类字体和独立的默认字形共同构成样式快照。设置页的 JSON 导入/导出只管理当前宿主的全局公式默认属性；编辑器内调整只作用于当前公式。
 
 ## 用户偏好与升级保留
@@ -20,7 +20,7 @@
 | PowerPoint 插入偏好 | 同一注册表项 | `PowerPointInsertionBackend` |
 | Word / PowerPoint 公式默认属性 | `%APPDATA%\LaTeXSnipper\OfficePlugin\settings.json` | 两个宿主各自的符号字体、数字字体、汉字字体、默认字形、字号、颜色和新建时跟随文字字号；JSON 导入/导出只读写对应宿主的这组属性 |
 | 公式编辑器常用内容 | `%LOCALAPPDATA%\LaTeXSnipper\OfficePlugin\WordEditorWebView2` 和 `PowerPointEditorWebView2` | 各宿主 WebView2 的 `localStorage`：内置磁贴收藏、自定义公式收藏、符号库当前标签与折叠状态；两宿主不互相覆盖 |
-| 文档内公式 | Word 文档变量与公式对象；PowerPoint shape tags | 公式源码、身份及各公式自己的样式快照；随 Office 文档保存 |
+| 文档内托管公式 | Word 文档变量与公式对象；PowerPoint OLE / PNG shape tags | 公式源码、身份及各公式自己的样式快照；随 Office 文档保存。PowerPoint 文本内原生公式由 Office 保存，不使用插件 shape tags |
 
 安装包在升级、重装前运行 `ForceClean.ps1`，清理旧安装目录、VSTO / ClickOnce 注册与缓存、OLE 注册，以及 `%LOCALAPPDATA%\LaTeXSnipper\OfficePlugin\WordAddIn` / `PowerPointAddIn` 渲染缓存和 PowerPoint 临时图片。脚本不删除上述用户偏好注册表项、`settings.json`、两个编辑器 WebView2 目录或 Office 文档。卸载时也调用同一清理脚本并保留这些用户数据。`TypographySettingsStore` 只在读取到损坏或不支持版本的 `settings.json` 时删除该文件并重建默认值，不执行配置迁移；此时注册表中的插入与编号偏好和编辑器常用内容仍保留。
 
@@ -346,14 +346,17 @@ REF LaTeXSnipperEq_{equationId} \h
 
 ## PowerPoint 插入、加载、删除、转换、格式化
 
-PowerPoint 没有 Word 编号和引用链路，公式对象是 shape：
+PowerPoint 没有 Word 编号和引用链路。插入时按当前位置选择两条路径：
 
-- 新建保存源码与样式快照，按设置插入 PNG 或 OLE；普通更新使用已有快照。
+- 文本框内为折叠的文字光标：复用 MathJax 的带样式 MathML 转换，粘贴为 PowerPoint 原生公式，保留同一文本框内的前后文字与自动换行。公式字号使用本次编辑选择；启用“新建时跟随文字字号”时，初值来自文本光标。后续在 PowerPoint 内编辑该原生公式。
+- 文字区域外：按设置将 OLE 或 PNG 作为独立幻灯片对象居中插入；选中已有插件公式不妨碍新建。选中一段文字时要求先收起选区到光标。
+
+- OLE / PNG 新建保存源码与样式快照；普通更新使用已有快照。
 - 加载从 shape 元数据恢复完整信息；删除同时清理对应 PNG 临时文件。
 - OLE / PNG 转换保留源码、样式和原位置 / 用户缩放。
 - 所选 / 全文格式化共用样式流程；全文遍历演示文稿各页的托管公式，恢复新的自然尺寸。
 
-Word 和 PowerPoint 编辑器都固定使用浅色界面、默认黑字。编辑区用于输入，最终预览显示当前公式属性对应的实际渲染效果。
+PowerPoint 文本内原生公式不参与插件的加载、OLE / PNG 转换和批量格式化，因为这些操作面向带插件元数据的幻灯片对象。Word 和 PowerPoint 编辑器固定使用浅色界面；编辑区继承源码中的全局颜色。最终预览按当前属性渲染，小字号在屏幕上适当放大以便检查；插入仍使用选定的实际字号。
 
 ## 链路复杂度核对
 
@@ -402,12 +405,3 @@ Word 插入、更新、删除、编号、解析、转换和格式化都在必要
 - OLE 对象本身或 PNG shape。
 
 这些都是 Office 文档内的原生持久化载体，不依赖本机临时内存。PowerPoint PNG 的临时图片路径只用于本机清理文件，不影响公式元数据加载。
-
-## 当前明确边界
-
-- 不从编号数字反向删除公式。
-- 默认字体不作为编辑器打开时的临时源码样式；有内容且带默认颜色的公式在编辑器中写入外层颜色命令。
-- 不在加载所选时改写侧边栏用户草稿以外的持久源码。
-- 不在格式化全文时批量重写所有公式源码。
-- 不把解析与全文重编号耦合；解析后的全局序号校正仍由用户显式执行“重编号”。
-- 不扫描非主正文 story，也不跨已有公式、字段、受保护对象或表格单元格边界配对定界符。

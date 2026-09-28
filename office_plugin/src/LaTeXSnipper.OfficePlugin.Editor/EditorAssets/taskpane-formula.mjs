@@ -4,6 +4,7 @@ import {SourceSync} from './source-sync.mjs';
 import {COMMANDS, CATALOG} from './template-catalog.mjs';
 import {TemplateInsertion} from './template-insertion.mjs';
 import {configureMathfield, configureMathfieldMenu} from './mathfield-input.mjs';
+import {formulaColor} from './formula-color.mjs';
 
 export const DEFAULT_LATEX = 'e^{i\\pi}+1=0';
 
@@ -18,13 +19,24 @@ export class TaskPaneFormula {
   constructor({previewHost, sourceHost, modeNote, onChange, onAccept}) {
     Object.assign(this, {previewHost, sourceHost, modeNote, onChange, onAccept});
     this.locale = 'zh';
+    this.modeMessage = document.createElement('span');
+    this.adoptButton = document.createElement('button');
+    this.adoptButton.type = 'button';
+    this.adoptButton.addEventListener('click', () => {
+      if (this.sync.adoptVisual()) this.mathfield.focus();
+    });
+    this.modeNote.replaceChildren(this.modeMessage, this.adoptButton);
     MathfieldElement.fontsDirectory = new URL('./vendor/fonts', import.meta.url).href;
     MathfieldElement.soundsDirectory = null;
     this.mathfield = this.createField();
     this.source = new SourceEditor(sourceHost, {
       commands: COMMANDS,
       completeTemplate: (entry, range) => this.insertion.insert(entry, {range}),
-      onChange: (_value, change) => { this.sync?.sourceChanged(change); this.onChange(this.source.value); },
+      onChange: (_value, change) => {
+        this.sync?.sourceChanged(change);
+        this.updateVisualColor();
+        this.onChange(this.source.value);
+      },
       onComposition: active => this.sync?.composition(active)
     });
     this.sync = new SourceSync({source: this.source, mathfield: this.mathfield,
@@ -56,6 +68,7 @@ export class TaskPaneFormula {
       }
     }, true);
     this.previewHost.replaceChildren(field);
+    field.style.color = formulaColor(this.source?.value || DEFAULT_LATEX);
     configureMathfieldMenu(field, this.locale, action => this.sync?.performVisual(action));
     return field;
   }
@@ -69,14 +82,24 @@ export class TaskPaneFormula {
 
   showMode(reason) {
     this.modeNote.hidden = !reason;
-    this.modeNote.textContent = MODE_MESSAGES[this.locale.startsWith('zh') ? 'zh' : 'en'][reason] || '';
+    this.modeMessage.textContent = MODE_MESSAGES[this.locale.startsWith('zh') ? 'zh' : 'en'][reason] || '';
+    this.adoptButton.hidden = reason !== 'sourceOnly';
+    this.adoptButton.textContent = this.locale.startsWith('zh')
+      ? '用上方结果替换源码（可撤销）' : 'Replace source with result (undoable)';
+  }
+
+  updateVisualColor() {
+    this.mathfield.style.color = formulaColor(this.source.value);
   }
 
   load(latex, locale = 'zh') {
     this.locale = String(locale).toLowerCase();
+    this.source.setLocale(this.locale);
     this.mathfield.setAttribute('aria-label', this.locale.startsWith('zh') ? '可视化公式编辑器' : 'Visual formula editor');
     configureMathfieldMenu(this.mathfield, this.locale, action => this.sync.performVisual(action));
     if (latex !== this.source.value) this.sync.load(latex);
+    else if (this.mathfield.readOnly) this.sync.refresh();
+    this.updateVisualColor();
     this.resize();
   }
 

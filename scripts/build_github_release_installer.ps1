@@ -25,7 +25,8 @@ function Find-Tool {
         }
     }
 
-    $command = Get-Command $ToolName -ErrorAction SilentlyContinue
+    $command = Get-Command $ToolName -CommandType Application -ErrorAction SilentlyContinue |
+        Select-Object -First 1
     if ($command) {
         return $command.Source
     }
@@ -276,7 +277,8 @@ function Remove-PythonCache {
 }
 
 $root = Resolve-RepoRoot
-$python = (Get-Command $PythonPath -CommandType Application -ErrorAction Stop).Source
+$python = (Get-Command $PythonPath -CommandType Application -ErrorAction Stop |
+    Select-Object -First 1).Source
 $bundledPython = (Resolve-Path -LiteralPath $BundledPythonPath).Path
 $runnerTemp = (Resolve-Path -LiteralPath $env:RUNNER_TEMP).Path.TrimEnd('\') + '\'
 if (-not $bundledPython.StartsWith($runnerTemp, [System.StringComparison]::OrdinalIgnoreCase)) {

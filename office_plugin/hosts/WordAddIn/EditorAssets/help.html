@@ -66,7 +66,7 @@
       <ul>
         <li><strong>可视化区与源码区：</strong>两者同步。源码含有可视化编辑器无法原样保留的写法时，上方只显示参考结果；继续在源码区编辑，或点击“用上方结果替换源码（可撤销）”。</li>
         <li><strong>符号库与常用：</strong>左侧可搜索公式和符号，点击磁贴插入。右键点击磁贴可加入或移出“常用”；工具栏星形按钮可收藏当前公式。常用内容在升级后保留。</li>
-        <li><strong>字体与预览：</strong>工具栏的字体、字形、字号和颜色优先用于当前公式。全局颜色会同步到源码和可视化编辑区；右键可对选中部分上色、剪切、粘贴或全选，局部颜色会立即写入源码。“最终预览”显示按当前属性生成的结果；修改已有公式时会沿用该公式保存的属性。</li>
+        <li><strong>字体与预览：</strong>工具栏的字体、字形、字号和颜色优先用于当前公式。全局颜色会同步到源码和可视化编辑区；右键可对选中部分上色、剪切、粘贴或全选，局部颜色会立即写入源码。“最终预览”按当前属性渲染，小字号会在屏幕上放大以便检查，插入仍使用选定字号；修改已有公式时沿用该公式保存的属性。</li>
         <li><strong>快捷键：</strong>可视化区按 <kbd>Enter</kbd> 新建数学行，<kbd>Shift</kbd> + <kbd>Enter</kbd> 插入或更新，<kbd>Esc</kbd> 收起虚拟键盘。源码区按 <kbd>Tab</kbd> 在光标处缩进；补全列表按 <kbd>Enter</kbd> 接受。</li>
       </ul>
     </section>
@@ -99,9 +99,9 @@
     </section>
     <section id="zh-ppt" class="platform-powerpoint">
       <h2>PowerPoint 中的常用操作</h2>
-      <p>“插入公式”在当前幻灯片加入公式。设置中的“公式插入方式”可选 OLE 对象或 PNG 图片；前者适合继续作为公式对象管理，后者作为图片放置。</p>
+      <p>在文本框内把光标放在文字中间并点击“插入公式”，会得到随文字排版的 PowerPoint 原生公式，可在 PowerPoint 中继续编辑。光标不在文字中时，新公式作为居中的独立幻灯片对象插入，并按设置选择 OLE 对象或 PNG 图片。</p>
       <p>选中插件公式后，可“加载所选”修改、“删除所选”、在 OLE 与 PNG 间转换，或用“格式化所选 / 全文”应用当前默认属性。更新与转换会尽量保留对象在幻灯片中的位置和手动缩放。</p>
-      <p class="muted">侧边栏用于新公式草稿；已有公式从“加载所选”进入编辑器。</p>
+      <p class="muted">侧边栏用于新公式草稿；“加载所选”、OLE / PNG 转换和批量格式化适用于插件插入的独立对象。文本内原生公式由 PowerPoint 管理。</p>
     </section>
     <section id="zh-support">
       <h2>社区与支持</h2>
@@ -138,7 +138,7 @@
       <ul>
         <li><strong>Visual and source panes:</strong>They stay in sync. When the visual editor cannot preserve source exactly, the upper pane is a reference. Keep editing below, or choose “Replace source with result (undoable)”.</li>
         <li><strong>Library and Common:</strong>Search and click a tile to insert it. Right-click a tile to add or remove it from Common. Use the toolbar star to save the current formula. Common survives upgrades.</li>
-        <li><strong>Typography and preview:</strong>Toolbar choices apply to the current formula. The formula color is synchronized with the source and visual editor. Right-click in the visual editor to color a selection, cut, paste, or select all; local colors are written to the source immediately. Final Preview shows the result at its current size. Existing formulas reopen with their saved properties.</li>
+        <li><strong>Typography and preview:</strong>Toolbar choices apply to the current formula. The formula color is synchronized with the source and visual editor. Right-click in the visual editor to color a selection, cut, paste, or select all; local colors are written to the source immediately. Final Preview enlarges small formulas on screen for inspection; insertion still uses the selected point size. Existing formulas reopen with their saved properties.</li>
         <li><strong>Keys:</strong>In the visual pane, <kbd>Enter</kbd> starts a math row, <kbd>Shift</kbd> + <kbd>Enter</kbd> inserts or updates, and <kbd>Esc</kbd> hides the virtual keyboard. In source, <kbd>Tab</kbd> indents at the caret and <kbd>Enter</kbd> accepts a completion.</li>
       </ul>
     </section>
@@ -171,9 +171,9 @@
     </section>
     <section id="en-ppt" class="platform-powerpoint">
       <h2>Common tasks in PowerPoint</h2>
-      <p>Insert Formula adds a formula to the current slide. Formula Insertion offers an OLE formula object or a PNG image.</p>
+      <p>Place the text caret inside a text box to insert a native PowerPoint equation that flows with the surrounding text and remains editable in PowerPoint. Outside text, Insert Formula adds a centered slide object using the OLE or PNG insertion setting.</p>
       <p>Select a plugin formula to Load Selected, Delete Selected, convert between OLE and PNG, or apply Format Selected / All. Updates and conversions preserve the slide position and manual scale where possible.</p>
-      <p class="muted">The side pane holds a draft for a new formula. Load Selected opens an existing one for editing.</p>
+      <p class="muted">The side pane holds a new formula draft. Load Selected, OLE / PNG conversion, and bulk formatting apply to standalone objects inserted by the plugin. PowerPoint manages equations within text.</p>
     </section>
     <section id="en-support">
       <h2>Community and support</h2>
