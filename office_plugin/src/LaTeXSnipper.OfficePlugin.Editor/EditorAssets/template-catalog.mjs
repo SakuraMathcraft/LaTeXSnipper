@@ -28,17 +28,14 @@ for (const group of GROUPS) {
 }
 export const CATALOG = [...byTemplate.values()];
 for (const entry of CATALOG) {
-  if (entry.matrix) entry.groups.push('matrices');
-  if (entry.shortcut || entry.template === '\\alpha' || entry.template === '\\pi'
-      || entry.template === '\\leq' || entry.template === '\\infty' || entry.matrix === 'bmatrix') entry.groups.push('common');
   entry.search = [...entry.aliases, entry.template, entry.matrix ? matrixTemplate(entry.matrix) : ''].join(' ').toLowerCase();
-  entry.wide = Boolean(entry.matrix || /#[0-9?@]/.test(entry.template) || entry.zh.length > 3);
 }
 
+const CATEGORY_ORDER = ['greek', 'structures', 'delimiters', 'relations', 'operators', 'bigops', 'arrows', 'sets',
+  'analysis', 'algebra', 'geometry', 'topology', 'numberTheory', 'functions', 'probability', 'chemistry', 'physics', 'misc'];
 export const CATEGORIES = [
   {id: 'common', zh: '常用', en: 'Common'},
-  ...GROUPS.map(group => ({id: group.id, zh: STRINGS.zh.tabs[group.id], en: STRINGS.en.tabs[group.id]})),
-  {id: 'matrices', zh: '矩阵', en: 'Matrices'}
+  ...CATEGORY_ORDER.map(id => ({id, zh: STRINGS.zh.tabs[id], en: STRINGS.en.tabs[id]}))
 ];
 export function findEntries(category, query = '') {
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);

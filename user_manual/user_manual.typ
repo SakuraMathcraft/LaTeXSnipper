@@ -1,5 +1,5 @@
 // LaTeXSnipper 用户手册
-// 版本: v3.0.0
+// 版本: v3.1.0
 #set page(
   paper: "a4",
   margin: (left: 2cm, right: 2cm, top: 2cm, bottom: 2.2cm),
@@ -104,7 +104,7 @@
   #v(0.3em)
   #text(size: 12pt)[用户手册]
   #v(0.4em)
-  #text(size: 9pt, fill: rgb("#888888"))[适用于 v3.0.0-LTS]
+  #text(size: 9pt, fill: rgb("#888888"))[适用于 v3.1.0-LTS]
   #v(0.6em)
   #line(length: 30%, stroke: 0.5pt + rgb("#CCCCCC"))
   #v(1em)
@@ -755,7 +755,7 @@ LaTeXSnipper 卸载默认保留用户数据，方便升级或重装后继续使�
 
 - *Windows：* 运行 Windows 安装包自带卸载程序时，会先出现可选清理窗口，随后仍会显示 Inno 标准卸载确认；标准确认通过后，卸载器会关闭正在运行的 LaTeXSnipper，并按勾选项删除用户数据/日志/临时文件、LaTeXSnipper 管理的共享工具目录、MathCraft 模型权重。安装目录内的 `_internal` 会随主程序卸载删除；用户切换到外部的完整 Python 或 venv 不会被卸载器删除。
 - *Linux `.deb`：* 包管理器卸载不会自动删除 home 目录数据。卸载前可运行 `latexsnipper-clean-user-data`，按提示删除当前用户的数据、共享工具和模型缓存；脚本不会读取或删除用户切换过的外部 Python 依赖根。
-- *macOS `.dmg` / `.app.zip`：* 删除 `.app` 只会移除应用本体。需要清理数据时，运行 `.dmg` 中的 `Uninstall User Data.command`，或运行 app 包内 `Contents/Resources/Uninstall User Data.command`。
+- *macOS `.dmg`：* 删除 `.app` 只会移除应用本体。需要清理数据时，运行 `.dmg` 中的 `Uninstall User Data.command`，或运行 app 包内 `Contents/Resources/Uninstall User Data.command`。
 
 如果你在命令行单独运行 `mathcraft_ocr` 时显式设置过 `MATHCRAFT_HOME` 指向自定义目录，卸载和清理脚本都不会自动删除该目录，避免误删用户指定的外部数据位置。桌面端通常使用应用管理的模型目录，不依赖外部 `MATHCRAFT_HOME`。
 
@@ -1011,7 +1011,7 @@ LaTeXSnipper 的主流程在 Windows、Linux、macOS 上保持一致：截图识
 - *关闭窗口 / 后台常驻：* Windows 关闭主窗口会隐藏到系统托盘，托盘菜单"退出"才真正退出；Linux 有系统托盘时关闭主窗口会隐藏到托盘，没有托盘时会询问是否退出；macOS 关闭主窗口会最小化并保持应用运行，Dock 或菜单栏"退出"才真正退出。
 - *权限要求：* Windows 普通截图路径不需要额外系统权限；Linux Wayland 可能限制截图和全局快捷键；macOS 截图需要屏幕录制权限，Carbon 全局快捷键通常不需要辅助功能权限。
 - *依赖环境：* Windows 默认依赖根为 `<安装目录>\_internal\deps`，可切换；Linux 默认依赖根为 `~/.latexsnipper/deps`，可切换；macOS 默认依赖根为 `~/Library/Application Support/LaTeXSnipper/deps`，可切换。Linux/macOS 需要系统 Python `>=3.10,<3.14` 创建 venv。
-- *安装包：* Windows 使用 Inno 安装包；GitHub Release 优先发布签名安装包，签名不可用时发布同名未签名回退包；Linux 使用 Debian/Ubuntu `.deb`；macOS 使用 `.dmg` 或 `.app.zip`。
+- *安装包：* Windows 使用 Inno 安装包；GitHub Release 优先发布签名安装包，签名不可用时发布同名未签名回退包；Linux 使用 Debian/Ubuntu `.deb`；macOS 使用 `.dmg`。
 
 #info-block("快捷键兼容性", [
   快捷键设置入口使用平台主修饰键：Windows/Linux 接受 `Ctrl+字母` 或 `Ctrl+Shift+字母`。macOS 接受非系统保留的 `Command+字母` / `Command+Shift+字母`，并支持 `Option+Command` 组合；`Command+Q/H/M/W/A/C/V/X/Z/Space/Tab` 和系统截图键会被拒绝。
@@ -1391,13 +1391,13 @@ LaTeXSnipper Office 加载项是一个 Windows 原生 VSTO 插件，安装后会
 
 ```text
 # 静默安装（显示进度条）
-OfficePluginSetup-3.0.0.exe /silent
+LaTeXSnipper_3.1.0_office_amd64.exe /silent
 
 # 完全静默（无界面）
-OfficePluginSetup-3.0.0.exe /verysilent
+LaTeXSnipper_3.1.0_office_amd64.exe /verysilent
 
 # 自定义安装目录
-OfficePluginSetup-3.0.0.exe /dir="D:\Tools\LaTeXSnipper"
+LaTeXSnipper_3.1.0_office_amd64.exe /dir="D:\Tools\LaTeXSnipper"
 ```
 
 #pagebreak()
@@ -2418,7 +2418,7 @@ python -m mathcraft_ocr ocr page.png --profile mixed --provider auto --output re
 
 #heading(level: 1)[模型集与识别配置] <sec-mathcraft-models>
 
-当前独立发布的 `mathcraft-ocr` PyPI 包版本为 `0.3.1`；它使用自己的版本线，不与 LaTeXSnipper v3.0.0 客户端或 Office 插件版本绑定。模型权重使用 MathCraft Models `v1.0.0` 发布集，包含 #text(weight: "bold")[4 个 ONNX 模型]：
+当前独立发布的 `mathcraft-ocr` PyPI 包版本为 `0.3.1`；它使用自己的版本线，不与 LaTeXSnipper v3.1.0 客户端或 Office 插件版本绑定。模型权重使用 MathCraft Models `v1.0.0` 发布集，包含 #text(weight: "bold")[4 个 ONNX 模型]：
 
 #block(
   inset: 12pt,

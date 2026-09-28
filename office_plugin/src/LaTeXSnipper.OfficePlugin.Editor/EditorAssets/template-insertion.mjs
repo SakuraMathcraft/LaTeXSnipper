@@ -11,7 +11,7 @@ export class TemplateInsertion {
     document.addEventListener('keydown', event => { this.keyboardEntry = event.key === 'Tab' && !event.isComposing; }, true);
     document.addEventListener('pointerdown', () => { this.keyboardEntry = false; this.allowVisualFocus = false; }, true);
     document.addEventListener('focusin', event => {
-      if (event.target !== mathfield) {
+      if (event.target !== this.mathfield) {
         this.focusOwner = event.target;
         this.allowVisualFocus = false;
         this.keyboardEntry = false;
@@ -26,6 +26,10 @@ export class TemplateInsertion {
       }
     });
     sourceHost.addEventListener('focusin', () => { this.target = 'source'; });
+    this.bindMathfield(mathfield);
+  }
+  bindMathfield(mathfield) {
+    this.mathfield = mathfield;
     // An already-focused MathLive field need not emit focusin after session reset.
     for (const event of ['pointerdown', 'keydown']) mathfield.addEventListener(event, () => {
       this.allowVisualFocus = true; this.target = 'visual'; this.rememberVisual();
@@ -37,6 +41,12 @@ export class TemplateInsertion {
     mathfield.addEventListener('focusout', () => this.rememberVisual());
   }
   reset() { this.target = 'source'; this.visualSelection = null; this.previewOrigin = null; }
+  focusVisual() {
+    this.target = 'visual';
+    this.allowVisualFocus = true;
+    HTMLElement.prototype.focus.call(this.mathfield);
+    this.rememberVisual();
+  }
   setPreview(active) {
     if (active) {
       this.previewOrigin = {target: this.target, selection: this.visualSelection, revision: this.source.revision};
@@ -71,6 +81,19 @@ export class TemplateInsertion {
   }
   insert(entry, {rows = 2, columns = 2, range} = {}) {
     if (this.blocked) return false;
+    if (entry.literal) {
+      if (!range && this.target === 'visual' && this.sync.performVisual(() => {
+        const saved = this.visualSelection;
+        this.allowVisualFocus = true;
+        HTMLElement.prototype.focus.call(this.mathfield);
+        this.visualSelection = saved;
+        this.restoreVisualSelection();
+        this.mathfield.insert(entry.template, {format: 'latex', insertionMode: 'replaceSelection'});
+      })) this.rememberVisual();
+      else this.source.insertTemplate([{text: entry.template}], range);
+      this.onInsert();
+      return true;
+    }
     const template = entryTemplate(entry, rows, columns);
     if (!range && this.target === 'visual' && this.sync.performVisual(() => {
       const saved = this.visualSelection;

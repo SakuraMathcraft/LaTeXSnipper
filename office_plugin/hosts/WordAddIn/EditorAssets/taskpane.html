@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LaTeXSnipper</title>
-  <link rel="stylesheet" href="./taskpane.css">
+  <link rel="stylesheet" href="https://latexsnipper-editor-shared.officeplugin.local/taskpane.css">
+  <link rel="stylesheet" href="https://latexsnipper-editor-shared.officeplugin.local/source-editor.css">
 </head>
 <body>
   <main class="taskpane-shell">
@@ -23,8 +24,9 @@
     <section class="panel editor-panel">
       <label id="equationLabel" for="previewHost">公式</label>
       <div id="previewHost" class="preview-host"></div>
+      <div id="sourceModeNote" class="source-mode-note" hidden></div>
       <label for="latexSource">LaTeX</label>
-      <textarea id="latexSource" spellcheck="false"></textarea>
+      <div id="latexSource" class="source-host"></div>
       <div id="optionsRow" class="options-row">
         <label><input id="displayMode" type="checkbox"><span id="displayLabel">行间公式</span></label>
         <label><input id="autoNumber" type="checkbox"><span id="autoNumberLabel">自动编号</span></label>
@@ -37,12 +39,6 @@
       <button id="insertButton" type="button" class="primary">插入</button>
     </section>
 
-    <section id="numberingSection" class="panel compact-panel">
-      <label id="numberingLabel">编号</label>
-      <section class="actions">
-        <button id="renumberButton" type="button">重编号全部</button>
-      </section>
-    </section>
   </main>
   <script type="module" src="./taskpane.js"></script>
 </body>

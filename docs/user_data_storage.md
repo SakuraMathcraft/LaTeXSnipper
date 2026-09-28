@@ -19,8 +19,8 @@ and temporary files. Keep new app-managed writes under the shared helpers in
 | Main settings | `LaTeXSnipper_config.json` | Unified application settings, including dependency root, recognition backends, external models, Automation API, theme, rendering, export, and window behavior |
 | Local secret key | `secret.key` on Linux/macOS; Windows uses DPAPI and does not create this file | `runtime.secret_store`; created when the first persistent secret is encrypted |
 | Automation API discovery | `automation-api.json` | Ephemeral local address and per-session token; created only while the API runs and removed on shutdown |
-| Recognition history | `history.json` | Main window history; no user-facing path selector |
-| Favorites | `favorites.json`; user-facing export writes a copy to a chosen folder without changing the app data path | Favorites window |
+| Recognition history | `history.json` | Main window history |
+| Favorites | `favorites.json` | Favorites window |
 | Single-instance lock | `instance.lock` | Runtime single-instance guard |
 | Release cache | `release_etag_cache.json` | Update checker |
 | Downloaded update package | `updates/` | Update installer and `installer_meta.json` cache; old packages are pruned |
@@ -104,7 +104,7 @@ tools, and model weights.
 |---|---|
 | Windows | Before the standard Inno uninstall confirmation, the uninstaller prompts for three optional cleanup choices: app data/logs/temp, app-managed shared tools, and MathCraft model weights. After the standard uninstall confirmation is accepted, it asks Windows/Inno to close LaTeXSnipper, force-closes any remaining `LaTeXSnipper.exe`, then runs selected cleanup before the main install payload is removed. The installed `<install-dir>\_internal` directory is removed unconditionally as part of uninstall. User-selected external Python roots are never read from config or deleted. |
 | Linux `.deb` | Package removal does not delete home-directory data. Run `latexsnipper-clean-user-data --deps` and any other needed cleanup options before `apt purge`, or remove the documented user data roots manually. The script removes shared tools under the app state root and does not read or delete `install_base_dir`. |
-| macOS `.dmg` / `.app.zip` | Moving the `.app` to Trash removes the app bundle only. The app bundle includes `Contents/Resources/Uninstall User Data.command`; the `.dmg` also exposes `Uninstall User Data.command` next to the app. The script follows the same current-user cleanup policy as Linux. |
+| macOS `.dmg` | Moving the `.app` to Trash removes the app bundle only. The app bundle includes `Contents/Resources/Uninstall User Data.command`; the `.dmg` also exposes `Uninstall User Data.command` next to the app. The script follows the same current-user cleanup policy as Linux. |
 
 Custom `MATHCRAFT_HOME` directories are never deleted automatically because
 they may point outside LaTeXSnipper-owned storage. Dependency tools created by

@@ -17,7 +17,7 @@ $MatchPatterns = @(
     "*LaTeXSnipper Office Plugin*",
     "*LaTeXSnipper\OfficePlugin*",
     "*LaTeXSnipper/OfficePlugin*",
-    "*OfficePluginSetup-*"
+    "*LaTeXSnipper_*_office_amd64.exe"
 )
 $SigningCertificateSubjects = @(
     "CN=LaTeXSnipper Office Plugin VSTO"
@@ -231,8 +231,7 @@ foreach ($root in $uninstallRoots) {
     Remove-RegistryChildrenByNameOrValue -RootPath $root -Message "Removed uninstall entry"
 }
 
-# 5.1 Clean only plugin settings under the shared LaTeXSnipper vendor key.
-Remove-RegistryTree -Path "HKCU:\Software\LaTeXSnipper\OfficePlugin" -Message "Removed plugin settings"
+# 5.1 User settings are outside the installation and must survive repair/upgrade.
 
 # 5.2 Clean stale OLE formula registrations before the installer writes the
 # current static display-only server registration.
@@ -379,14 +378,18 @@ if ($RemoveInstallDir) {
     }
 }
 
-# 10. Clean plugin-owned local caches and temporary rendered PowerPoint files
+# 10. Clean renderer caches and temporary PowerPoint files. Editor WebView2
+# profiles contain the user's Common formulas and must survive reinstall.
 $localPluginRoot = Join-Path $env:LocalAppData "LaTeXSnipper\OfficePlugin"
-if (Test-Path $localPluginRoot) {
-    try {
-        Remove-Item -LiteralPath $localPluginRoot -Recurse -Force -ErrorAction Stop
-        Write-Host "Removed local plugin cache: $localPluginRoot"
-    } catch {
-        Write-Host "Failed to remove local plugin cache: $localPluginRoot -> $($_.Exception.Message)"
+foreach ($cacheName in @("WordAddIn", "PowerPointAddIn")) {
+    $cachePath = Join-Path $localPluginRoot $cacheName
+    if (Test-Path -LiteralPath $cachePath) {
+        try {
+            Remove-Item -LiteralPath $cachePath -Recurse -Force -ErrorAction Stop
+            Write-Host "Removed renderer cache: $cachePath"
+        } catch {
+            Write-Host "Failed to remove renderer cache: $cachePath -> $($_.Exception.Message)"
+        }
     }
 }
 

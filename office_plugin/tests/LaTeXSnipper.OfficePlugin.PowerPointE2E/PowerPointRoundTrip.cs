@@ -32,9 +32,12 @@ internal static class PowerPointRoundTrip
             presentation.Slides.Add(2, 12);
             var adapter = new DynamicPowerPointApplicationAdapter(app);
             using var renderer = new MathJaxSvgRenderer(new WebView2MathJaxJavaScriptRuntime("PowerPointE2E"));
-            using var controller = new PowerPointPluginController(new FormulaEditorSession(new UnusedEditor()),
+            var editor = new TrackingEditor();
+            var options = new TestOptionsProvider { CurrentLatex = @"\sqrt{\alpha}" };
+            using var controller = new PowerPointPluginController(new FormulaEditorSession(editor),
                 new AutomationApiClient(new AutomationApiOptions()), adapter, renderer,
-                new OlePresentationPipeline(new IOlePresentationRenderer[] { new EnhancedMetafilePresentationRenderer() }));
+                new OlePresentationPipeline(new IOlePresentationRenderer[] { new EnhancedMetafilePresentationRenderer() }),
+                optionsProvider: options);
             var style = new FormulaTypography("mathjax-stix2", "Times New Roman", "SimSun",
                 FormulaMathStyle.BoldItalic, 15.5, "#123ABC");
             string[] sources = { @"\mathrm{\delta}+\text{条件概率 }P(A\mid B)",
@@ -52,6 +55,52 @@ internal static class PowerPointRoundTrip
             await VerifyAsync(adapter, style, originals, 1.5f);
             presentation.Windows.Item(1).View.GotoSlide(1);
             presentation.Slides.Item(1).Shapes.Item(1).Select();
+            Check(adapter.GetCurrentFontSizePoints() == 0, "Selected formula was treated as text font selection");
+            await controller.InsertFormulaAsync(Token);
+            Check(editor.OpenedForInsert, "Selected formula prevented the editor from opening");
+            await controller.InsertFormulaFromTaskPaneAsync(Token);
+            dynamic slide = presentation.Slides.Item(1);
+            Check(Convert.ToInt32(slide.Shapes.Count) == 2, "Selected formula was replaced instead of adding a new formula");
+            dynamic inserted = slide.Shapes.Item(2);
+            float slideWidth = Convert.ToSingle(presentation.PageSetup.SlideWidth);
+            float slideHeight = Convert.ToSingle(presentation.PageSetup.SlideHeight);
+            Check(Math.Abs(Convert.ToSingle(inserted.Left) - (slideWidth - Convert.ToSingle(inserted.Width)) / 2) < 0.1,
+                "New formula was not centered horizontally");
+            Check(Math.Abs(Convert.ToSingle(inserted.Top) - (slideHeight - Convert.ToSingle(inserted.Height)) / 2) < 0.1,
+                "New formula was not centered vertically");
+            inserted.Delete();
+            dynamic textBox = slide.Shapes.AddTextbox(1, 100, 250, 500, 100);
+            string textBoxName = Convert.ToString(textBox.Name);
+            textBox.TextFrame.TextRange.Text = "before after";
+            textBox.TextFrame.TextRange.Font.Size = 28;
+            textBox.TextFrame.TextRange.Characters(8, 0).Select();
+            Check(adapter.GetCurrentFontSizePoints() == 28, "Text cursor font size was not read from PowerPoint");
+            await controller.InsertFormulaAsync(Token);
+            Check(editor.InitialFormula != null, "Text cursor did not open formula editor");
+            slide.Shapes.Item(1).Select();
+            await controller.AcceptEditorFormulaAsync(new FormulaEditorAcceptedEventArgs(
+                editor.InitialFormula!, false, @"\frac{1}{2}", false, editor.Generation,
+                editor.InitialFormula!.Typography.WithFontSize(28)), Token);
+            Check(Convert.ToInt32(slide.Shapes.Count) == 2, "Inline equation created a floating shape");
+            Check(Convert.ToString(textBox.TextFrame.TextRange.Text).StartsWith("before ", StringComparison.Ordinal)
+                && Convert.ToString(textBox.TextFrame.TextRange.Text).EndsWith("after", StringComparison.Ordinal),
+                "Inline equation damaged surrounding text");
+            dynamic native = textBox.TextFrame2.TextRange.MathZones(1, 1);
+            Check(Convert.ToDouble(native.Font.Size) == 28, "Inline equation did not use the chosen point size");
+            Check(!Convert.ToString(native.Text).Contains(@"\frac"), "LaTeX was pasted as literal text");
+            Console.WriteLine("PASS|PPT text cursor inserts native equation from editor and preserves host text");
+
+            dynamic secondTextBox = slide.Shapes.AddTextbox(1, 100, 350, 500, 100);
+            string secondTextBoxName = Convert.ToString(secondTextBox.Name);
+            secondTextBox.TextFrame.TextRange.Text = "left right";
+            secondTextBox.TextFrame.TextRange.Characters(6, 0).Select();
+            await controller.InsertFormulaFromTaskPaneAsync(Token);
+            Check(Convert.ToInt32(slide.Shapes.Count) == 3, "Task pane inline equation created a floating shape");
+            Check(!Convert.ToString(secondTextBox.TextFrame2.TextRange.MathZones(1, 1).Text).Contains(@"\sqrt"),
+                "Task pane LaTeX was pasted as literal text");
+            Console.WriteLine("PASS|PPT task pane inserts native equation at text cursor");
+            presentation.Slides.Item(1).Shapes.Item(1).Select();
+            Console.WriteLine("PASS|PPT selected formula still opens editor and inserts a centered formula");
             var target = await adapter.LoadSelectedFormulaAsync(Token);
             var edited = new FormulaMetadata(target.Metadata.Identity, target.Metadata.Latex + "+1",
                 FormulaDisplayMode.Display, NumberingMode.None, "", RenderEngineKind.Image,
@@ -100,6 +149,11 @@ internal static class PowerPointRoundTrip
             presentation.Close();
             presentation = app.Presentations.Open(output, 0, 0, -1);
             await VerifyAsync(adapter, defaults, originals, 1);
+            dynamic reopenedSlide = presentation.Slides.Item(1);
+            Check(Convert.ToInt32(reopenedSlide.Shapes.Item(textBoxName).TextFrame2.TextRange.MathZones(1, 1).Length) > 0,
+                "Native equation was lost after reopening PowerPoint");
+            Check(Convert.ToInt32(reopenedSlide.Shapes.Item(secondTextBoxName).TextFrame2.TextRange.MathZones(1, 1).Length) > 0,
+                "Task pane native equation was lost after reopening PowerPoint");
             Check(Convert.ToInt32(presentation.Slides.Count) == 2, "Slide count changed");
             Console.WriteLine("PASS|PPT repeated format, save and reopen|" + output);
         }
@@ -152,11 +206,26 @@ internal static class PowerPointRoundTrip
         if (!value) throw new InvalidOperationException(message);
     }
 
-    private sealed class UnusedEditor : IFormulaEditor
+    private sealed class TrackingEditor : IFormulaEditor
     {
+        public bool OpenedForInsert { get; private set; }
+        public FormulaMetadata? InitialFormula { get; private set; }
+        public long Generation { get; private set; }
+
         public Task WarmUpAsync(CancellationToken token) => Task.CompletedTask;
         public Task OpenAsync(FormulaMetadata metadata, bool updateMode, long generation, CancellationToken token)
-            => throw new InvalidOperationException("Document commands must not open the formula editor.");
+        {
+            OpenedForInsert = !updateMode;
+            InitialFormula = metadata;
+            Generation = generation;
+            return Task.CompletedTask;
+        }
         public void Dispose() { }
+    }
+
+    private sealed class TestOptionsProvider : IPowerPointFormulaOptionsProvider
+    {
+        public string CurrentLatex { get; set; } = string.Empty;
+        public void ResetFormulaDraft() { }
     }
 }

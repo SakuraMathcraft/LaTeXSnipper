@@ -46,9 +46,9 @@
 
 | 平台                       | 下载文件                              | 使用识别前注意                                                  |
 | ------------------------ | --------------------------------- | -------------------------------------------------------- |
-| **Windows**              | `LaTeXSnipperSetup-<version>.exe` | 已包含 Python 运行时，无需另装系统 Python                             |
-| **Linux（Debian/Ubuntu）** | 对应架构的 `.deb`                      | 需要 Python `>=3.10,<3.14` 及 venv/pip；Wayland 可能限制截图和全局快捷键 |
-| **macOS**                | 对应架构的 `.dmg` 或 `.app.zip`         | 需要 Python `>=3.10,<3.14` 及 venv/pip；截图需授予屏幕录制权限          |
+| **Windows**              | `LaTeXSnipper_<version>_amd64.exe` | 已包含 Python 运行时，无需另装系统 Python                             |
+| **Linux（Debian/Ubuntu）** | `LaTeXSnipper_<version>_<architecture>.deb`                      | 需要 Python `>=3.10,<3.14` 及 venv/pip；Wayland 可能限制截图和全局快捷键 |
+| **macOS**                | `LaTeXSnipper_<version>_<architecture>.dmg`         | 需要 Python `>=3.10,<3.14` 及 venv/pip；截图需授予屏幕录制权限          |
 
 > [!NOTE]
 > Linux/macOS 使用系统 Python 创建受管理的依赖环境，Windows 使用内置 Python 3.11 模板。`.deb` 声明了 `python3` 和 `python3-venv` 依赖；macOS 若没有可用 Python，请先安装受支持的版本。
@@ -83,7 +83,7 @@
 * 支持公式编辑、更新，以及 Word 自动编号和引用。
 * 本地渲染公式，通过桌面端 Automation API 调用截图识别。
 
-从 [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest) 单独下载 `OfficePluginSetup-<version>.exe`。支持 Windows 上的 32 位和 64 位 Office 2019/2021/2024、LTSC 2021/2024 及 Microsoft 365 Apps。
+从 [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest) 单独下载 `LaTeXSnipper_<version>_office_amd64.exe`。支持 Windows 上的 32 位和 64 位 Office 2019/2021/2024、LTSC 2021/2024 及 Microsoft 365 Apps。
 
 [安装要求与完整功能](office_plugin/README.md) · [公式工作流](docs/office_plugin_formula_workflows.md)
 

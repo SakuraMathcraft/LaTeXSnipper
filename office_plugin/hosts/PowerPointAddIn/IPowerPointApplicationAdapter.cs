@@ -11,6 +11,10 @@ public interface IPowerPointApplicationAdapter
 
     double GetCurrentFontSizePoints();
 
+    PowerPointTextInsertionTarget? CaptureTextInsertionTarget();
+
+    Task InsertNativeEquationAsync(PowerPointTextInsertionTarget target, string mathMl, double fontSizePoints, CancellationToken cancellationToken);
+
     Task ActivateForEditingAsync(CancellationToken cancellationToken);
 
     Task InsertFormulaImageAsync(PowerPointRenderedImage image, FormulaMetadata metadata, CancellationToken cancellationToken);

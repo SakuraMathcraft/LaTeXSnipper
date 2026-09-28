@@ -75,7 +75,7 @@ office_plugin\installer\build.bat Release
 
 The build reads the shared product version from the repository `VERSION` file.
 
-Output: `office_plugin\release\OfficePluginSetup-3.0.0.exe`
+Output: `office_plugin\release\LaTeXSnipper_3.1.0_office_amd64.exe`
 
 Run the installer as administrator. Close Word and PowerPoint before installation, upgrade, or removal.
 

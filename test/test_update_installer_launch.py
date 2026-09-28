@@ -7,7 +7,7 @@ from update.installer_launch import _schedule_windows_installer
 
 
 def test_windows_installer_waiter_does_not_spawn_a_console(tmp_path: Path) -> None:
-    installer = tmp_path / "LaTeXSnipperSetup-3.0.0.exe"
+    installer = tmp_path / "LaTeXSnipper_3.1.0_amd64.exe"
     installer.touch()
 
     with (

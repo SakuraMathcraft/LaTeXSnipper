@@ -286,6 +286,9 @@ public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime
                 "Boolean(window.LaTeXSnipperMathJax && LaTeXSnipperMathJax.ready)").ConfigureAwait(true);
             if (string.Equals(ready, "true", StringComparison.OrdinalIgnoreCase))
             {
+                // MathJax 4 splits inline math into sibling SVGs by default; Office needs one image.
+                await webView.CoreWebView2.ExecuteScriptAsync(
+                    "MathJax.startup.document.outputJax.options.linebreaks.inline = false").ConfigureAwait(true);
                 return;
             }
 

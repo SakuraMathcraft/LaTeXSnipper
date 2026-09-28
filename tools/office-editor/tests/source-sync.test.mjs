@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {SourceSync} from '../../../office_plugin/src/LaTeXSnipper.OfficePlugin.Editor/EditorAssets/source-sync.mjs';
+import {SourceSync, formatVisualLatex} from '../../../office_plugin/src/LaTeXSnipper.OfficePlugin.Editor/EditorAssets/source-sync.mjs';
 import {inspectLatex, comparableLatex} from '../../../office_plugin/src/LaTeXSnipper.OfficePlugin.Editor/EditorAssets/latex-structure.mjs';
 
 function setup() {
@@ -33,6 +33,16 @@ test('explicit visual editing commits exactly once', () => {
   const {sync, source, preview} = setup(); sync.load('x'); sync.beforeVisualInput({}); preview('x+1');
   sync.visualInput(); sync.visualInput(); assert.equal(source.value, 'x+1'); assert.equal(source.revision, 2);
 });
+test('visual rows occupy source lines without changing their LaTeX meaning', () => {
+  const input = '\\displaylines{x=1\\\\ y=2\\\\ \\text{a\\\\b}}';
+  const formatted = formatVisualLatex(input);
+  assert.equal(formatted.split('\n').length, 3);
+  assert.equal(comparableLatex(formatted), comparableLatex(input));
+  assert.equal(formatVisualLatex('\\text{a\\textbf{b}\\\\c}'), '\\text{a\\textbf{b}\\\\c}');
+  const {sync, source, preview} = setup();
+  sync.load('x'); sync.beforeVisualInput({}); preview(input); sync.visualInput();
+  assert.equal(source.value, formatted);
+});
 test('new source invalidates an old visual edit', () => {
   const {sync, source, preview} = setup(); sync.load('x'); sync.beforeVisualInput({});
   source.replace('new source'); preview('old visual'); sync.visualInput(); assert.equal(source.value, 'new source');
@@ -61,6 +71,12 @@ test('lossy visual serialization and commented input become reference-only', () 
   const {sync, source, mathfield} = setup(); mathfield.setValue = () => {};
   sync.load('x+1'); assert.equal(mathfield.readOnly, true); assert.equal(source.value, 'x+1');
   sync.load('x % comment'); assert.equal(mathfield.readOnly, true);
+});
+
+test('structural errors use the invalid-source reason while lossy syntax stays reference-only', () => {
+  const {sync, mode} = setup();
+  sync.load('\\frac{a}{b'); assert.equal(mode(), 'invalid');
+  sync.load('x % comment'); assert.equal(mode(), 'sourceOnly');
 });
 test('a new document invalidates delayed work from the previous session', () => {
   const {sync, source, jobs} = setup(); sync.load('x'); source.replace('x+1'); sync.load('new'); jobs[0]();

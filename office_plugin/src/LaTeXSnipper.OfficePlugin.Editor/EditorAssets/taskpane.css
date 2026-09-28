@@ -10,8 +10,18 @@ math-field::part(menu-toggle) {
   --line: #d7dfec;
   --text: #182235;
   --muted: #667085;
+  --label: #24324a;
+  --preview-bg: #ffffff;
+  --preview-line: #c8d3e2;
+  --input-bg: #ffffff;
+  --input-text: #101828;
+  --button-bg: #ffffff;
+  --button-hover-bg: #f7fbff;
+  --button-text: #182235;
   --accent: #2e7be6;
+  --accent-soft: #e7f0ff;
   --accent-hover: #2165c8;
+  --source-bg: #fbfcfe;
   --info-bg: #eef4ff;
   --info-line: #b2ccff;
   --info-text: #1849a9;
@@ -64,7 +74,7 @@ h1 {
 
 p {
   margin: 3px 0 0;
-  color: #52637f;
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -121,12 +131,8 @@ p {
   background: var(--panel);
 }
 
-.compact-panel {
-  gap: 10px;
-}
-
 label {
-  color: #24324a;
+  color: var(--label);
   font-size: 12px;
   font-weight: 700;
 }
@@ -137,9 +143,10 @@ label {
   overflow-x: auto;
   overflow-y: auto;
   padding: 10px;
-  border: 1px solid #c8d3e2;
+  border: 1px solid var(--preview-line);
   border-radius: 4px;
-  background: #ffffff;
+  color: var(--input-text);
+  background: var(--preview-bg);
 }
 
 math-field {
@@ -149,6 +156,7 @@ math-field {
   min-height: 44px;
   border: 0;
   outline: none;
+  color: inherit;
   background: transparent;
   font-size: 24px;
   white-space: nowrap;
@@ -159,27 +167,35 @@ math-field::part(content) {
   min-width: max-content;
 }
 
-textarea,
 input[type="text"] {
   width: 100%;
-  border: 1px solid #c8d3e2;
+  border: 1px solid var(--preview-line);
   border-radius: 4px;
-  color: #101828;
-  background: #ffffff;
+  color: var(--input-text);
+  background: var(--input-bg);
   outline: none;
 }
 
-textarea:focus,
 input[type="text"]:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(46, 123, 230, 0.14);
 }
 
-textarea {
-  min-height: 112px;
-  padding: 9px 10px;
-  resize: vertical;
-  font: 14px/1.45 Consolas, "Cascadia Mono", monospace;
+.source-host {
+  height: 170px;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--preview-line);
+  border-radius: 4px;
+  background: var(--source-bg);
+}
+
+.source-mode-note:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.source-mode-note button { min-height: 26px; padding: 3px 6px; color: var(--accent); font-size: 12px; }
+
+.source-host:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(46, 123, 230, 0.14);
 }
 
 .options-row {
@@ -223,16 +239,16 @@ textarea {
 button {
   min-height: 38px;
   padding: 8px 12px;
-  border: 1px solid #c8d3e2;
+  border: 1px solid var(--preview-line);
   border-radius: 4px;
-  color: #182235;
-  background: #ffffff;
+  color: var(--button-text);
+  background: var(--button-bg);
   cursor: pointer;
 }
 
 button:hover:not(:disabled) {
   border-color: #9bb8de;
-  background: #f7fbff;
+  background: var(--button-hover-bg);
 }
 
 button.primary {

@@ -23,6 +23,14 @@ public static class FormulaFontSize
             ["六号"] = 7.5, ["小六"] = 6.5, ["七号"] = 5, ["八号"] = 5.5
         });
 
+    /// <summary>Common numeric choices shown after the named Office sizes.</summary>
+    public static IReadOnlyList<double> CommonPointSizes { get; } =
+        new ReadOnlyCollection<double>(new double[]
+        {
+            5, 5.5, 6.5, 7.5, 8, 9, 10, 10.5, 11, 12, 13, 14, 15, 16,
+            18, 20, 22, 24, 26, 28, 36, 42, 48, 72
+        });
+
     /// <summary>Rejects non-finite and out-of-range input, including Office's undefined-size sentinel.</summary>
     public static bool IsValid(double points) =>
         !double.IsNaN(points) && points >= MinimumPoints && points <= MaximumPoints;

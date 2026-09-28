@@ -1,8 +1,22 @@
 import {comparableLatex, inspectLatex, isMathMl} from './latex-structure.mjs';
+import {inheritFormulaColor, outerColor} from './formula-color.mjs';
+
+// MathLive serializes visual rows on one line. Line breaks here are TeX layout
+// whitespace, so the source pane can show the same rows without changing math.
+export function formatVisualLatex(value) {
+  let depth = 0, textDepth = -1, awaitingText = false, result = '';
+  for (const token of value.match(/\\[a-zA-Z]+\*?|\\[^\r\n]|\s+|./gs) || []) {
+    if (/^\\(?:text|textbf|textit|textrm|textsf|texttt|operatorname)\*?$/.test(token)) awaitingText = true;
+    if (token === '{') { depth++; if (awaitingText) { if (textDepth < 0) textDepth = depth; awaitingText = false; } }
+    result += token === '\\\\' && textDepth < 0 ? '\\\\\n' : token;
+    if (token === '}') { if (depth === textDepth) textDepth = -1; depth--; }
+  }
+  return result;
+}
 
 export class SourceSync {
-  constructor({source, mathfield, readVisual, onMode, schedule = callback => setTimeout(callback, 120), cancel = handle => clearTimeout(handle)}) {
-    Object.assign(this, {source, mathfield, readVisual, onMode, schedule, cancel});
+  constructor({source, mathfield, readVisual, recreateMathfield, onMode, schedule = callback => setTimeout(callback, 120), cancel = handle => clearTimeout(handle)}) {
+    Object.assign(this, {source, mathfield, readVisual, recreateMathfield, onMode, schedule, cancel});
     this.pending = null;
     this.ticket = null;
     this.composing = false;
@@ -45,15 +59,23 @@ export class SourceSync {
     const value = this.source.value;
     if (isMathMl(value)) {
       this.mathfield.setValue('', {silenceNotifications: true});
+      if (this.readVisual() && this.recreateMathfield) this.mathfield = this.recreateMathfield();
       this.setMode(false, 'mathml'); return;
     }
     try {
       this.mathfield.setValue(value, {silenceNotifications: true});
       const comparable = comparableLatex(value);
+      let invalid = Boolean(inspectLatex(value).length || this.mathfield.errors?.length);
+      const oldContainers = this.readVisual().match(/\\begin\{[^{}]+\}|\\displaylines(?=\{)/g) || [];
+      if (!invalid && comparable !== null && oldContainers.some(container => !value.includes(container)) && this.recreateMathfield) {
+        this.mathfield = this.recreateMathfield();
+        this.mathfield.setValue(value, {silenceNotifications: true});
+        invalid = Boolean(this.mathfield.errors?.length);
+      }
       const safe = comparable !== null && comparable === comparableLatex(this.readVisual())
-        && !inspectLatex(value).length && !this.mathfield.errors?.length;
-      this.setMode(safe, safe ? '' : 'sourceOnly');
-    } catch { this.setMode(false, 'sourceOnly'); }
+        && !invalid;
+      this.setMode(safe, safe ? '' : invalid ? 'invalid' : 'sourceOnly');
+    } catch { this.setMode(false, 'invalid'); }
   }
   beforeVisualInput(event) {
     if (this.locked) { event.preventDefault(); return; }
@@ -66,7 +88,9 @@ export class SourceSync {
   visualInput() {
     if (this.locked || this.visualComposing) return;
     if (this.ticket === this.source.revision && this.visualEnabled && !this.composing) {
-      const value = this.readVisual();
+      const color = outerColor(this.source.value)?.color;
+      const visual = formatVisualLatex(this.readVisual());
+      const value = color ? inheritFormulaColor(visual, color) : visual;
       this.ticket = null;
       this.source.replace(value, 'visual');
     }
@@ -82,6 +106,14 @@ export class SourceSync {
     this.ticket = this.source.revision;
     action(); this.visualInput();
     return true;
+  }
+  adoptVisual() {
+    if (this.locked || this.composing || this.visualComposing) return false;
+    const color = outerColor(this.source.value)?.color;
+    const visual = formatVisualLatex(this.readVisual());
+    this.source.replace(color ? inheritFormulaColor(visual, color) : visual, 'visual');
+    this.refresh();
+    return this.visualEnabled;
   }
   history(redo) {
     if (this.locked || this.composing || this.visualComposing) return;

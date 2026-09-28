@@ -10,7 +10,8 @@
     Automatic: null, Upright: 'normal', Bold: 'bold', Italic: 'italic', BoldItalic: 'bold-italic',
     SansSerif: 'sans-serif', SansSerifBold: 'bold-sans-serif', SansSerifItalic: 'sans-serif-italic',
     SansSerifBoldItalic: 'sans-serif-bold-italic', Monospace: 'monospace',
-    Calligraphic: '-tex-calligraphic', Script: 'script', Fraktur: 'fraktur',
+    Calligraphic: '-tex-calligraphic', BoldCalligraphic: '-tex-bold-calligraphic',
+    Script: 'script', BoldScript: 'bold-script', Fraktur: 'fraktur',
     BoldFraktur: 'bold-fraktur', Blackboard: 'double-struck'
   };
   let active = null;

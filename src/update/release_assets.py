@@ -7,7 +7,7 @@ from PyQt6.QtCore import QUrl
 
 from update.release_types import ReleaseInfo, _normalize_sha256
 
-_INSTALLER_ASSET_SUFFIXES = (".exe", ".dmg", ".deb", ".app.zip")
+_INSTALLER_ASSET_SUFFIXES = (".exe", ".dmg", ".deb")
 _ASSET_SIDECAR_SUFFIXES = (
     ".sigstore.json",
     ".sha256",
@@ -45,12 +45,12 @@ def _platform_asset_rank(name: str) -> int | None:
     machine = platform.machine().lower()
 
     if sys.platform.startswith("win"):
-        if lower.endswith(".exe") and compact.startswith("latexsnippersetup"):
+        if re.fullmatch(r"latexsnipper_\d+\.\d+\.\d+_amd64\.exe", lower):
             return 0
         return None
 
     if sys.platform == "darwin":
-        if not compact.startswith("latexsnipper") or not lower.endswith((".dmg", ".app.zip")):
+        if not compact.startswith("latexsnipper") or not lower.endswith(".dmg"):
             return None
         if "universal" in lower:
             arch_rank = 0
@@ -60,8 +60,7 @@ def _platform_asset_rank(name: str) -> int | None:
             arch_rank = 0 if "x86_64" in lower or "x64" in lower or "amd64" in lower else 2
         else:
             arch_rank = 1
-        suffix_rank = 0 if lower.endswith(".dmg") else 1
-        return arch_rank * 10 + suffix_rank
+        return arch_rank * 10
 
     if sys.platform.startswith("linux"):
         if not compact.startswith("latexsnipper") or not lower.endswith(".deb"):

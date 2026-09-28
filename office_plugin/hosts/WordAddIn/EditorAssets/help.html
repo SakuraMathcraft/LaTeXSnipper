@@ -3,338 +3,193 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LaTeXSnipper Office Plugin Help</title>
+  <title>LaTeXSnipper Office 帮助</title>
   <style>
-    :root {
-      color-scheme: light;
-      --bg: #f5f7fb;
-      --panel: #fff;
-      --line: #d6deea;
-      --text: #182235;
-      --muted: #5a6980;
-      --accent: #1f6feb;
-      --accent-soft: #eaf2ff;
-    }
+    :root { color-scheme: light; --bg: #f2f5fa; --paper: #fff; --ink: #17243b; --muted: #53647e; --line: #d5dfed; --blue: #1867d8; --soft: #eaf2ff; }
     * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      color: var(--text);
-      background: var(--bg);
-      font: 14px/1.65 "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", Arial, sans-serif;
-    }
-    main {
-      max-width: 1160px;
-      margin: 0 auto;
-      padding: 26px 26px 40px;
-    }
-    header { padding: 20px 0 18px; border-bottom: 1px solid var(--line); }
-    h1 { margin: 0; font-size: 27px; line-height: 1.25; letter-spacing: 0; }
-    h2 { margin: 0 0 10px; font-size: 18px; letter-spacing: 0; }
-    h3 { margin: 15px 0 5px; color: #0f3e8a; font-size: 15px; }
-    p, li, td, th { color: #293548; font-size: 13px; }
-    p { margin: 5px 0 10px; }
-    ul { margin: 6px 0 12px; padding-left: 20px; }
-    li { margin: 4px 0; }
-    code { padding: 1px 5px; border-radius: 3px; color: #1849a9; background: #eef3fb; font: 12px "Cascadia Code", Consolas, monospace; }
-    table { width: 100%; margin: 8px 0 14px; border-collapse: collapse; background: #fff; }
-    th { text-align: left; color: #172033; background: #f2f6fb; }
-    td, th { padding: 8px 10px; border: 1px solid var(--line); vertical-align: top; }
-    section { margin: 18px 0 0; padding: 18px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
-    .lead { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
-    .callout { margin: 12px 0 0; padding: 11px 13px; border-left: 4px solid var(--accent); background: var(--accent-soft); color: #263f69; }
-    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-    .mini { min-height: 112px; padding: 13px; border: 1px solid #dbe3ef; border-radius: 5px; background: #fbfdff; }
-    .mini h3 { margin-top: 0; }
-    .footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--line); color: #73829b; font-size: 11px; }
-    .lang-en { display: none; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.7 "Segoe UI", "Microsoft YaHei UI", sans-serif; }
+    main { max-width: 1080px; margin: auto; padding: 28px clamp(16px, 3vw, 36px) 44px; }
+    header { padding: 10px 4px 24px; }
+    .eyebrow { color: var(--blue); font-weight: 700; letter-spacing: .06em; }
+    h1 { margin: 4px 0 6px; font-size: clamp(25px, 3vw, 34px); line-height: 1.25; }
+    h2 { margin: 0 0 12px; font-size: 19px; }
+    h3 { margin: 14px 0 4px; font-size: 15px; }
+    p { margin: 6px 0 12px; }
+    a { color: var(--blue); }
+    nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 20px; }
+    nav a { padding: 6px 12px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); text-decoration: none; font-weight: 600; }
+    section { margin: 14px 0; padding: 20px 22px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+    .lead, .muted { color: var(--muted); }
+    .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .step { padding: 13px 15px; border-radius: 9px; background: var(--soft); }
+    .step strong { display: block; margin-bottom: 3px; }
+    .callout { margin-top: 12px; padding: 10px 14px; border-left: 3px solid var(--blue); background: var(--soft); }
+    ul, ol { margin: 7px 0 12px; padding-left: 22px; }
+    li { margin: 5px 0; }
+    table { width: 100%; border-collapse: collapse; margin: 8px 0 14px; }
+    th, td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: #f5f8fc; }
+    code, kbd { padding: 1px 5px; border: 1px solid var(--line); border-radius: 4px; background: #f6f9fe; font: 12px Consolas, monospace; }
+    .platform-word, .platform-powerpoint, .lang-en { display: none; }
+    .app-word .platform-word, .app-powerpoint .platform-powerpoint, html[lang="en"] .lang-en { display: block; }
     html[lang="en"] .lang-zh { display: none; }
-    html[lang="en"] .lang-en { display: block; }
-    .platform-word, .platform-powerpoint { display: none; }
-    .app-word .platform-word { display: block; }
-    .app-powerpoint .platform-powerpoint { display: block; }
-    @media (max-width: 860px) {
-      .grid { grid-template-columns: 1fr; }
-    }
+    footer { margin-top: 20px; color: var(--muted); font-size: 12px; }
+    .support-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .support-card { margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fbfdff; text-align: center; }
+    .support-card img { display: block; width: min(100%, 220px); aspect-ratio: 1; object-fit: contain; margin: 0 auto 8px; }
+    .support-card figcaption { color: var(--muted); font-weight: 600; }
+    @media (max-width: 700px) { .steps { grid-template-columns: 1fr; } section { padding: 16px; } }
   </style>
 </head>
 <body class="app-word">
   <main class="lang-zh">
     <header>
-      <h1>LaTeXSnipper Office 插件</h1>
-      <p class="lead">在 Word 和 PowerPoint 中插入、编辑、转换和维护 LaTeXSnipper 公式。</p>
+      <div class="eyebrow">LATEXSNIPPER · OFFICE</div>
+      <h1>公式使用指南</h1>
+      <p class="lead">从新建公式到修改、编号与批量整理，按实际操作顺序查找。</p>
     </header>
-
-    <section>
-      <h2>系统要求</h2>
-      <table>
-        <thead><tr><th>组件</th><th>要求</th></tr></thead>
-        <tbody>
-          <tr><td>Windows 版本</td><td>Windows 10 22H2 或更高版本 / Windows 11</td></tr>
-          <tr><td>Office 版本</td><td><ul><li>Microsoft 365 应用（当前通道或月度企业通道）</li><li>Office 2024 / 2021 / 2019 零售版或批量许可版</li><li>Office LTSC 2024 / 2021</li></ul></td></tr>
-          <tr><td>运行时</td><td>.NET Framework 4.8；Microsoft Edge WebView2 Runtime（Windows 11 已内置；M365 会自动安装）</td></tr>
-          <tr><td>Office 体系</td><td>仅支持 32 位和 64 位桌面版 Office；不支持网页版、移动版和 macOS 版 Office</td></tr>
-          <tr><td>LaTeXSnipper 桌面端</td><td>需在本机运行并开启自动化接口；插件通过受身份验证的本机 Automation API 连接桌面端</td></tr>
-        </tbody>
-      </table>
-    </section>
-
-    <section>
-      <h2>快速开始</h2>
-      <div class="grid">
-        <div class="mini"><h3>1. 启动桌面端</h3><p>打开 LaTeXSnipper 桌面端，在设置中启用 Office 插件功能。</p></div>
-        <div class="mini"><h3>2. 打开编辑器</h3><p>使用 Ribbon 插入按钮打开 MathLive 编辑器，输入或选择需要插入的公式。</p></div>
-        <div class="mini"><h3>3. 插入到文档</h3><p>默认使用 OLE 公式对象插入。侧边栏只负责独立草稿和新插入；更新公式只从编辑器窗口提交。</p></div>
+    <nav aria-label="帮助目录">
+      <a href="#zh-start">开始使用</a><a href="#zh-editor">编辑公式</a><a href="#zh-settings">设置与字体</a>
+      <a class="platform-word" href="#zh-word">Word 操作</a><a class="platform-powerpoint" href="#zh-ppt">PowerPoint 操作</a><a href="#zh-support">社区与支持</a>
+    </nav>
+    <section id="zh-start">
+      <h2>开始使用</h2>
+      <div class="steps">
+        <div class="step"><strong>1 · 打开插件</strong>在 Word 或 PowerPoint 顶部的 LaTeXSnipper 选项卡中选择插入公式。</div>
+        <div class="step"><strong>2 · 写入公式</strong>在上方可视化区域输入，或在下方源码区写 LaTeX；也可以从左侧符号库选择公式。</div>
+        <div class="step"><strong>3 · 插入文档</strong>确认字号和颜色后点击“插入”。选中已有公式并点击“加载所选”，可修改后点击“更新”。</div>
       </div>
-      <div class="callout">公式编辑与渲染在插件内本地完成；截图识别需要本机 LaTeXSnipper 桌面端。</div>
+      <div class="callout">截图识别需要打开 LaTeXSnipper 桌面端，并在桌面端设置中启用<strong>自动化接口</strong>。普通公式编辑和插入可直接在 Office 插件中完成。</div>
     </section>
-
-    <section>
-      <h2>编辑器快捷键</h2>
-      <p>MathLive 输入区按 Enter 新建数学行，首次换行会自动进入多行数学环境；按 Shift+Enter 插入或更新公式。Ctrl+F、Ctrl+R、Ctrl+H、Ctrl+L、Ctrl+J 分别插入分式、根号、上标、下标和上下标。空格键插入数学薄空格。Esc 不关闭编辑器，只收回 MathLive 虚拟键盘。提交期间按钮会禁用；如果 Office 正在执行加载、删除、重编号或 OCR 等命令，编辑器会提示稍后再试，不排队等待。</p>
-    </section>
-
-    <section>
-      <h2>字体与宏包命令</h2>
-      <p>设置页提供常用论文写作字体。下列字体既可作为新公式默认字体，也可在源码编辑框显式输入。</p>
-      <table>
-        <thead><tr><th>用途</th><th>源码示例</th><th>MathJax 扩展</th><th>插件支持</th></tr></thead>
-        <tbody>
-          <tr><td>TeX 原生数学字体</td><td><code>e^{i\pi}+1=0</code></td><td>内置</td><td>默认字体选项</td></tr>
-          <tr><td>罗马正体</td><td><code>\mathrm{rank}\,A</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
-          <tr><td>数学斜体</td><td><code>\mathit{ABCxyz}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
-          <tr><td>粗体字母</td><td><code>\mathbf{x},\mathbf{A}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
-          <tr><td>粗体符号</td><td><code>\boldsymbol{\alpha+\nabla f}</code></td><td><code>boldsymbol</code></td><td>默认字体选项；源码可用</td></tr>
-          <tr><td>粗斜体</td><td><code>\mathbfit{x},\mathbfit{T}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
-          <tr><td>无衬线</td><td><code>\mathsf{ABCxyz}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
-          <tr><td>无衬线粗体</td><td><code>\mathbfsf{ABC}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
-          <tr><td>无衬线斜体</td><td><code>\mathsfit{ABCxyz}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
-          <tr><td>无衬线粗斜体</td><td><code>\mathbfsfit{ABCxyz}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
-          <tr><td>等宽</td><td><code>\mathtt{code123}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
-          <tr><td>花体</td><td><code>\mathcal{L},\mathcal{F}</code></td><td>内置</td><td>默认字体选项；源码可用</td></tr>
-          <tr><td>手写体</td><td><code>\mathscr{F},\mathscr{O}</code></td><td>内置/AMS 自动加载</td><td>默认字体选项；源码可用</td></tr>
-          <tr><td>哥特体</td><td><code>\mathfrak{g},\mathfrak{sl}_2</code></td><td>内置/AMS 自动加载</td><td>默认字体选项；源码可用</td></tr>
-          <tr><td>黑板粗体</td><td><code>\mathbb{R},\mathbb{N}</code></td><td>内置/AMS 自动加载</td><td>默认字体选项；源码可用</td></tr>
-          <tr><td>数学文本</td><td><code>\text{if }x&gt;0</code>、<code>\textrm{Re}</code></td><td><code>textmacros</code></td><td>源码可用</td></tr>
-          <tr><td>直立希腊</td><td><code>\upalpha,\uppi,\Updelta</code></td><td><code>upgreek</code></td><td>源码可用</td></tr>
-          <tr><td>化学式文本</td><td><code>\ce{H2O}</code>、<code>\pu{9.8 m/s2}</code></td><td><code>mhchem</code></td><td>源码可用</td></tr>
-          <tr><td>物理微分和向量</td><td><code>\qty(\frac{a}{b})</code>、<code>\dv{f}{x}</code>、<code>\vb{E}</code></td><td><code>physics</code></td><td>源码可用</td></tr>
-          <tr><td>量子力学括号</td><td><code>\braket{\psi|\phi}</code>、<code>\ketbra{0}{1}</code></td><td><code>braket</code></td><td>源码可用</td></tr>
-          <tr><td>分段函数</td><td><code>\begin{cases}x^2,&amp;x&gt;0\\0,&amp;x\le0\end{cases}</code></td><td><code>cases</code></td><td>源码可用</td></tr>
-          <tr><td>删除线与标记</td><td><code>\cancel{x}</code>、<code>\bcancel{y}</code>、<code>\xcancel{z}</code></td><td><code>cancel</code></td><td>源码可用</td></tr>
-          <tr><td>长箭头</td><td><code>A\xrightarrow[\beta]{\alpha}B</code></td><td><code>extpfeil</code></td><td>源码可用</td></tr>
-          <tr><td>数学工具扩展</td><td><code>\coloneqq</code>、<code>\vcentcolon</code>、<code>\prescript{a}{b}{X}</code></td><td><code>mathtools</code></td><td>源码可用</td></tr>
-          <tr><td>常用符号补充</td><td><code>\degree</code>、<code>\celsius</code>、<code>\textdegree</code></td><td><code>gensymb</code> / <code>textcomp</code></td><td>源码可用</td></tr>
-        </tbody>
-      </table>
-      <div class="callout">默认字体会保存为对应的 LaTeX 字体命令。</div>
-    </section>
-
-    <section class="platform-word">
-      <h2>Word 功能</h2>
-      <h3>OLE 与 OMML</h3>
-      <p>默认使用 OLE 公式对象，公式显示由 MathJax SVG 转为 EMF+Dual 矢量预览。设置中可切换到 Word OMML。</p>
-      <h3>加载、更新和删除</h3>
-      <p>选中受管理公式后用 Ribbon 加载到编辑器修改。编辑器提交后更新原公式；侧边栏不会承担更新入口。编辑器提交、加载所选、删除、重编号、OCR 等 Office 命令互斥执行，正在处理时不会排队堆积新的提交。</p>
-      <h3>侧边栏草稿</h3>
-      <p>侧边栏是独立的新公式草稿区。加载公式到编辑器时会临时显示该公式属性；编辑器提交或取消后恢复原来的侧边栏草稿。</p>
-      <h3>公式解析</h3>
-      <p>“解析所选”和“解析全文”可将正文及表格单元格中完整且非空的 <code>$...$</code>、<code>\(...\)</code>、<code>$$...$$</code> 和 <code>\[...\]</code> 转换为受管理公式。行内公式不编号；行间公式使用当前插入后端和公式设置，有效的 <code>\tag{...}</code> 优先作为自定义编号。已有公式及其他受保护内容会被跳过，转换失败时保留原文并继续处理；解析不会自动执行全文重编号。</p>
-      <h3>添加编号与重编号</h3>
-      <p>添加编号只对未编号的行间公式生效。可在设置中组合章、节、公式三级编号并选择层级分隔符；Ribbon 可插入章或节边界，后续编号会递归重置。章、节分隔符可以分别隐藏，也可以选中后通过“删除所选”移除。</p>
-      <h3>转换、引用与格式化</h3>
-      <p>“转换”会处理当前选区内的受管理公式，在 Word OMML 与 OLE 之间原位转换，不处理相邻文字或段落；多选时分批执行并在状态窗格显示进度。“引用”先插入占位符，再选择编号公式或其所在段落创建 Word REF 交叉引用；重编号时引用域同步更新，导出 PDF 后仍可点击跳转。编号边界可通过“删除所选”移除。“格式化所选”恢复默认字体、颜色和自然大小，多选时同样分批执行；“格式化全文”只恢复被手动拉伸公式的自然大小，并保留编号与引用。</p>
-      <h3>带编号公式布局</h3>
-      <p>带编号公式会将公式居中显示，并按设置把编号放在最左或最右。加载、更新和删除以公式对象或公式所在段落为稳定入口；单独选中编号数字不会反向删除公式。</p>
-      <h3>OLE 对象尺寸</h3>
-      <p>新公式按光标处正文大小计算自然尺寸。更新已有 OLE 公式时保留用户在 Word 中手动拉伸出的对象倍率。</p>
-      <h3>截图识别</h3>
-      <p>点击后等待桌面端截图结果，再次点击可取消。</p>
-    </section>
-
-    <section class="platform-powerpoint">
-      <h2>PowerPoint 功能</h2>
-      <h3>OLE 与 PNG 图片</h3>
-      <p>默认使用 OLE 公式对象，公式显示由 MathJax SVG 转为 EMF+Dual 矢量预览。设置中可切换到 PNG 图片方式。</p>
-      <h3>加载和删除</h3>
-      <p>选中受管理公式后用 Ribbon 加载到同一套 MathLive 编辑器修改。编辑器提交后替换原位置公式，并保留用户在幻灯片中手动拉伸出的对象倍率。编辑器提交、加载所选、删除和 OCR 等 Office 命令互斥执行，正在处理时不会排队堆积新的提交。</p>
-      <h3>侧边栏草稿</h3>
-      <p>侧边栏是独立的新公式草稿区，不负责更新已有公式。</p>
-      <h3>转换与格式化</h3>
-      <p>“转换”会处理当前选区内的受管理公式，在 OLE 与 PNG 之间切换，不移动同页其他对象；多选时分批执行并在状态窗格显示进度。“格式化所选”恢复默认字体、颜色和自然大小，多选时同样分批执行；“格式化全文”只恢复被手动拉伸公式的自然大小。</p>
-      <h3>OLE 对象尺寸</h3>
-      <p>新插入的 OLE 与 PNG 使用相同的初始倍率。更新已有公式时保留用户在幻灯片中手动拉伸出的对象倍率。</p>
-      <h3>截图识别</h3>
-      <p>点击后等待桌面端截图结果，识别后的 LaTeX 自动填入编辑器。再次点击可取消。</p>
-    </section>
-
-    <section>
-      <h2>插件架构</h2>
-      <table>
-        <thead><tr><th>项目</th><th>实现</th></tr></thead>
-        <tbody>
-          <tr><td>运行方式</td><td>Windows 原生 VSTO 插件，Ribbon、侧边栏、设置和帮助页均在 Office 内打开。</td></tr>
-          <tr><td>Word 公式</td><td>默认写入 LaTeXSnipper OLE 公式对象；OMML 是可选插入后端。</td></tr>
-          <tr><td>PowerPoint 公式</td><td>默认写入 LaTeXSnipper OLE 公式对象；PNG 图片是可选插入后端。</td></tr>
-          <tr><td>连接方式</td><td>公式在插件内本地渲染；截图识别通过受身份验证的本机 Automation API 连接桌面端。</td></tr>
-          <tr><td>编辑器</td><td>WebView2 托管的 MathLive 编辑器，支持可视化编辑和实时预览。编辑器提交与 Office 命令统一串行化。</td></tr>
-        </tbody>
-      </table>
-    </section>
-
-    <section>
-      <h2>边界说明</h2>
+    <section id="zh-editor">
+      <h2>编辑公式</h2>
       <ul>
-        <li>只有由 LaTeXSnipper 插入的受管理公式才能被插件加载、更新、删除和重编号。</li>
-        <li>普通 Office 公式不会被自动转换为 LaTeXSnipper 公式。</li>
-        <li>如果加载项未显示，请关闭 Office，重新运行安装包进行修复或重新安装，然后再打开 Office。</li>
+        <li><strong>可视化区与源码区：</strong>两者同步。源码含有可视化编辑器无法原样保留的写法时，上方只显示参考结果；继续在源码区编辑，或点击“用上方结果替换源码（可撤销）”。</li>
+        <li><strong>符号库与常用：</strong>左侧可搜索公式和符号，点击磁贴插入。右键点击磁贴可加入或移出“常用”；工具栏星形按钮可收藏当前公式。常用内容在升级后保留。</li>
+        <li><strong>字体与预览：</strong>工具栏的字体、字形、字号和颜色优先用于当前公式。全局颜色会同步到源码和可视化编辑区；右键可对选中部分上色、剪切、粘贴或全选，局部颜色会立即写入源码。“最终预览”按当前属性渲染，小字号会在屏幕上放大以便检查，插入仍使用选定字号；修改已有公式时沿用该公式保存的属性。</li>
+        <li><strong>快捷键：</strong>可视化区按 <kbd>Enter</kbd> 新建数学行，<kbd>Shift</kbd> + <kbd>Enter</kbd> 插入或更新，<kbd>Esc</kbd> 收起虚拟键盘。源码区按 <kbd>Tab</kbd> 在光标处缩进；补全列表按 <kbd>Enter</kbd> 接受。</li>
       </ul>
     </section>
-
-    <div class="footer">LaTeXSnipper Office Plugin &copy; SakuraMathcraft</div>
+    <section id="zh-settings">
+      <h2>设置与字体</h2>
+      <p>在 LaTeXSnipper 选项卡点击“设置”。公式默认属性用于<strong>新建公式</strong>和主动执行的<strong>格式化</strong>；编辑器里临时选择的属性优先用于当前公式。导入、导出 JSON 可保存或应用当前 Word / PowerPoint 的公式默认属性。</p>
+      <table>
+        <thead><tr><th>设置</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td>符号字体</td><td>决定数学字母、符号及公式结构的字体方案。可选打包提供的 TeX 和 STIX2。</td></tr>
+          <tr><td>数字字体</td><td>单独指定普通数字使用的系统字体；选“跟随符号字体”时与公式符号保持一致。</td></tr>
+          <tr><td>汉字字体</td><td>指定公式内汉字使用的系统字体；列表只显示检测到汉字字形的字体。</td></tr>
+          <tr><td>默认字形</td><td>控制数学字符的正体、斜体、粗体、花体等表现，与字体方案分别选择。“自动”保留公式原有的数学排版；源码中明确指定的局部字形优先。</td></tr>
+          <tr><td>字号、颜色</td><td>决定新公式的默认大小和颜色。“新建时跟随文字字号”启用后优先使用光标或选区文字字号，无有效字号时使用设置中的固定值。</td></tr>
+        </tbody>
+      </table>
+      <p class="muted">升级或重装会保留公式默认属性、插入方式、Word 编号布局和编辑器常用内容。导入公式预设只替换对应宿主的公式默认属性。</p>
+    </section>
+    <section id="zh-word" class="platform-word">
+      <h2>Word 中的常用操作</h2>
+      <h3>插入与编号</h3>
+      <p>“插入行内公式”放在当前文字中；“插入行间公式”单独占一行；“插入带编号公式”按设置的左右位置与外框显示编号。设置中的“带编号公式默认布局”还可选择章、节编号、层级分隔符，以及是否显示章/节分隔符。</p>
+      <h3>加载、转换和格式化</h3>
+      <p>选中插件插入的公式后，用“加载所选”修改或用“删除所选”移除。设置中的“公式插入方式”可选 OLE 对象或 Word 原生公式；“转换为 OLE / Word 原生公式”可处理已选公式。“格式化所选 / 全文”按当前默认属性整理公式。</p>
+      <h3>解析正文中的 LaTeX</h3>
+      <p>“解析所选 / 全文”识别完整的 <code>$...$</code>、<code>\(...\)</code>、<code>$$...$$</code> 和 <code>\[...\]</code>。未闭合或转换失败的内容会保留原文；行间公式中的有效 <code>\tag{...}</code> 可作为自定义编号。</p>
+      <h3>重编号与引用</h3>
+      <p>“自动编号”可给未编号的行间公式添加编号；插入章/节分隔符后，后续编号会按层级更新。“重编号”重新计算全文插件公式编号。用“插入引用”创建占位符，再选择目标编号公式或其所在段落完成引用。</p>
+      <p class="muted">侧边栏保留独立的新公式草稿；加载并更新已有公式请使用编辑器窗口。</p>
+    </section>
+    <section id="zh-ppt" class="platform-powerpoint">
+      <h2>PowerPoint 中的常用操作</h2>
+      <p>在文本框内把光标放在文字中间并点击“插入公式”，会得到随文字排版的 PowerPoint 原生公式，可在 PowerPoint 中继续编辑。光标不在文字中时，新公式作为居中的独立幻灯片对象插入，并按设置选择 OLE 对象或 PNG 图片。</p>
+      <p>选中插件公式后，可“加载所选”修改、“删除所选”、在 OLE 与 PNG 间转换，或用“格式化所选 / 全文”应用当前默认属性。更新与转换会尽量保留对象在幻灯片中的位置和手动缩放。</p>
+      <p class="muted">侧边栏用于新公式草稿；“加载所选”、OLE / PNG 转换和批量格式化适用于插件插入的独立对象。文本内原生公式由 PowerPoint 管理。</p>
+    </section>
+    <section id="zh-support">
+      <h2>社区与支持</h2>
+      <p>项目免费开源，没有广告和内购。欢迎给仓库点 Star、反馈问题，或通过下面的二维码赞助维护并加入中文交流群。</p>
+      <div class="support-grid">
+        <figure class="support-card"><img src="support/alipay.jpg" alt="支付宝收款码"><figcaption>支付宝赞助</figcaption></figure>
+        <figure class="support-card"><img src="support/wechat-pay.png" alt="微信收款码"><figcaption>微信赞助</figcaption></figure>
+        <figure class="support-card"><img src="support/community-chat.jpg" alt="LaTeXSnipper 中文交流群二维码"><figcaption>中文交流群</figcaption></figure>
+      </div>
+    </section>
+    <footer>LaTeXSnipper Office 插件</footer>
   </main>
-
   <main class="lang-en">
     <header>
-      <h1>LaTeXSnipper Office Plugin</h1>
-      <p class="lead">Insert, edit, convert, and maintain LaTeXSnipper formulas in Word and PowerPoint.</p>
+      <div class="eyebrow">LATEXSNIPPER · OFFICE</div>
+      <h1>Formula guide</h1>
+      <p class="lead">Find the next step, from inserting a formula to editing, numbering, and formatting it.</p>
     </header>
-
-    <section>
-      <h2>System Requirements</h2>
-      <table>
-        <thead><tr><th>Component</th><th>Requirement</th></tr></thead>
-        <tbody>
-          <tr><td>Windows</td><td>Windows 10 22H2 or later / Windows 11</td></tr>
-          <tr><td>Office</td><td><ul><li>Microsoft 365 Apps (Current or Monthly Enterprise Channel)</li><li>Office 2024 / 2021 / 2019 Retail or Volume License</li><li>Office LTSC 2024 / 2021</li></ul></td></tr>
-          <tr><td>Runtime</td><td>.NET Framework 4.8; Microsoft Edge WebView2 Runtime (built into Windows 11; auto-installed by M365)</td></tr>
-          <tr><td>Office Platform</td><td>32-bit and 64-bit Windows desktop Office only; web, mobile, and macOS are not supported</td></tr>
-          <tr><td>LaTeXSnipper Desktop</td><td>Must be running locally with the Office plugin feature enabled; communicates via local Bridge at <code>127.0.0.1:28765</code></td></tr>
-        </tbody>
-      </table>
-    </section>
-
-    <section>
-      <h2>Quick Start</h2>
-      <div class="grid">
-        <div class="mini"><h3>1. Start the client</h3><p>Open LaTeXSnipper and enable Office plugin in settings.</p></div>
-        <div class="mini"><h3>2. Open the editor</h3><p>Use Ribbon insert buttons to open the MathLive editor, then type or choose the formula to insert.</p></div>
-        <div class="mini"><h3>3. Insert into Office</h3><p>OLE formula objects are the default. The side pane owns an independent draft for new insertions; formula updates are submitted only from the editor window.</p></div>
+    <nav aria-label="Help contents">
+      <a href="#en-start">Get started</a><a href="#en-editor">Edit formulas</a><a href="#en-settings">Settings and fonts</a>
+      <a class="platform-word" href="#en-word">Word</a><a class="platform-powerpoint" href="#en-ppt">PowerPoint</a><a href="#en-support">Community and support</a>
+    </nav>
+    <section id="en-start">
+      <h2>Get started</h2>
+      <div class="steps">
+        <div class="step"><strong>1 · Open the plugin</strong>Use the LaTeXSnipper tab at the top of Word or PowerPoint to insert a formula.</div>
+        <div class="step"><strong>2 · Write the formula</strong>Type in the visual area or the LaTeX source pane, or choose a formula from the symbol library.</div>
+        <div class="step"><strong>3 · Insert it</strong>Check the size and color, then select Insert. To change an existing formula, select it and use Load Selected, then Update.</div>
       </div>
-      <div class="callout">Formula editing and rendering are local to the add-in. Screenshot OCR requires the local LaTeXSnipper desktop client.</div>
+      <div class="callout">Screenshot recognition requires the LaTeXSnipper desktop app with the <strong>Automation API</strong> enabled in its settings. Ordinary formula editing and insertion work inside the Office plugin.</div>
     </section>
-
-    <section>
-      <h2>Editor Shortcuts</h2>
-      <p>Press Enter in the MathLive field to start a new math row; the first line break creates a multiline math environment. Press Shift+Enter to insert or update the formula. Ctrl+F, Ctrl+R, Ctrl+H, Ctrl+L, and Ctrl+J insert a fraction, root, superscript, subscript, and combined scripts. Space inserts a mathematical thin space. Esc does not close the editor; it only retracts the MathLive virtual keyboard. Submit buttons are disabled during submission. If Office is already running load, delete, renumber, OCR, or another command, the editor reports that processing is busy instead of queueing the submit.</p>
-    </section>
-
-    <section>
-      <h2>Fonts and Macro Commands</h2>
-      <p>The settings page includes common fonts used in academic writing. These styles can be used as new-formula defaults and as explicit source commands.</p>
-      <table>
-        <thead><tr><th>Use</th><th>Source example</th><th>MathJax extension</th><th>Add-in support</th></tr></thead>
-        <tbody>
-          <tr><td>Native TeX math</td><td><code>e^{i\pi}+1=0</code></td><td>Built in</td><td>Default font option</td></tr>
-          <tr><td>Roman upright</td><td><code>\mathrm{rank}\,A</code></td><td>Built in</td><td>Default font option; source command</td></tr>
-          <tr><td>Math italic</td><td><code>\mathit{ABCxyz}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
-          <tr><td>Bold letters</td><td><code>\mathbf{x},\mathbf{A}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
-          <tr><td>Bold symbols</td><td><code>\boldsymbol{\alpha+\nabla f}</code></td><td><code>boldsymbol</code></td><td>Default font option; source command</td></tr>
-          <tr><td>Bold italic</td><td><code>\mathbfit{x},\mathbfit{T}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
-          <tr><td>Sans serif</td><td><code>\mathsf{ABCxyz}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
-          <tr><td>Sans serif bold</td><td><code>\mathbfsf{ABC}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
-          <tr><td>Sans serif italic</td><td><code>\mathsfit{ABCxyz}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
-          <tr><td>Sans serif bold italic</td><td><code>\mathbfsfit{ABCxyz}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
-          <tr><td>Typewriter</td><td><code>\mathtt{code123}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
-          <tr><td>Calligraphic</td><td><code>\mathcal{L},\mathcal{F}</code></td><td>Built in</td><td>Default font option; source command</td></tr>
-          <tr><td>Script</td><td><code>\mathscr{F},\mathscr{O}</code></td><td>Built in / AMS autoload</td><td>Default font option; source command</td></tr>
-          <tr><td>Fraktur</td><td><code>\mathfrak{g},\mathfrak{sl}_2</code></td><td>Built in / AMS autoload</td><td>Default font option; source command</td></tr>
-          <tr><td>Blackboard bold</td><td><code>\mathbb{R},\mathbb{N}</code></td><td>Built in / AMS autoload</td><td>Default font option; source command</td></tr>
-          <tr><td>Math text</td><td><code>\text{if }x&gt;0</code>, <code>\textrm{Re}</code></td><td><code>textmacros</code></td><td>Source command</td></tr>
-          <tr><td>Upright Greek</td><td><code>\upalpha,\uppi,\Updelta</code></td><td><code>upgreek</code></td><td>Source command</td></tr>
-          <tr><td>Chemical text</td><td><code>\ce{H2O}</code>, <code>\pu{9.8 m/s2}</code></td><td><code>mhchem</code></td><td>Source command</td></tr>
-          <tr><td>Physics differentials and vectors</td><td><code>\qty(\frac{a}{b})</code>, <code>\dv{f}{x}</code>, <code>\vb{E}</code></td><td><code>physics</code></td><td>Source command</td></tr>
-          <tr><td>Quantum brackets</td><td><code>\braket{\psi|\phi}</code>, <code>\ketbra{0}{1}</code></td><td><code>braket</code></td><td>Source command</td></tr>
-          <tr><td>Piecewise functions</td><td><code>\begin{cases}x^2,&amp;x&gt;0\\0,&amp;x\le0\end{cases}</code></td><td><code>cases</code></td><td>Source command</td></tr>
-          <tr><td>Cancellation marks</td><td><code>\cancel{x}</code>, <code>\bcancel{y}</code>, <code>\xcancel{z}</code></td><td><code>cancel</code></td><td>Source command</td></tr>
-          <tr><td>Long arrows</td><td><code>A\xrightarrow[\beta]{\alpha}B</code></td><td><code>extpfeil</code></td><td>Source command</td></tr>
-          <tr><td>Math tools</td><td><code>\coloneqq</code>, <code>\vcentcolon</code>, <code>\prescript{a}{b}{X}</code></td><td><code>mathtools</code></td><td>Source command</td></tr>
-          <tr><td>Additional symbols</td><td><code>\degree</code>, <code>\celsius</code>, <code>\textdegree</code></td><td><code>gensymb</code> / <code>textcomp</code></td><td>Source command</td></tr>
-        </tbody>
-      </table>
-      <div class="callout">Default fonts are saved as the corresponding LaTeX font commands.</div>
-    </section>
-
-    <section class="platform-word">
-      <h2>Word Features</h2>
-      <h3>OLE and OMML</h3>
-      <p>OLE formula objects are the default. MathJax SVG output is converted to an EMF+Dual vector preview. Word OMML remains available in settings.</p>
-      <h3>Load, Update, Delete</h3>
-      <p>Use the Ribbon to load a managed formula into the editor. Submitting the editor updates the original formula; the side pane is not an update entry point. Editor submit, load selected, delete, renumber, and OCR Office commands run through a single command gate; a busy command rejects new editor submits instead of queueing them.</p>
-      <h3>Side Pane Draft</h3>
-      <p>The side pane is an independent new-formula draft. Loading a formula into the editor temporarily shows that formula's properties; after editor accept or cancel, the original side pane draft is restored.</p>
-      <h3>Formula Parsing</h3>
-      <p>Parse Selected and Parse All convert complete, non-empty <code>$...$</code>, <code>\(...\)</code>, <code>$$...$$</code>, and <code>\[...\]</code> expressions in body text and table cells into managed formulas. Inline formulas remain unnumbered; display formulas use the current insertion backend and formula settings, with a valid <code>\tag{...}</code> taking priority as a custom number. Existing formulas and other protected content are skipped, while failed conversions keep their source text and processing continues. Parsing does not renumber the whole document automatically.</p>
-      <h3>Add Number &amp; Renumber</h3>
-      <p>Add Number only applies to unnumbered display equations. Chapter, section, and equation levels can be combined with a configurable separator. Chapter and section boundaries recursively reset later counters and can be hidden independently.</p>
-      <h3>Conversion, References &amp; Formatting</h3>
-      <p>Conversion processes managed formulas in the current selection in place between Word OMML and OLE without touching adjacent text or paragraphs; multi-selection runs in batches and reports progress in the status pane. Insert Reference creates a placeholder; selecting a numbered formula or its paragraph creates a Word REF cross-reference, and renumbering updates the field. Exported PDFs keep the reference clickable. Numbering boundaries can be removed with Delete Selected. Format Selected restores the default font, color, and natural size and also runs multi-selection in batches; Format All only restores manually resized formulas to natural size while preserving numbering and references.</p>
-      <h3>Numbered Formula Layout</h3>
-      <p>Numbered formulas center the formula and place the number on the left or right according to settings. Loading, updating, and deleting use the formula object or its paragraph as the stable target; selecting only the number text does not delete the formula.</p>
-      <h3>OLE Object Size</h3>
-      <p>New formulas derive their natural size from the text at the insertion point. Updating an existing OLE formula preserves the object stretch factor manually set in Word.</p>
-      <h3>Screenshot OCR</h3>
-      <p>Click to wait for the next desktop screenshot; click again to cancel.</p>
-    </section>
-
-    <section class="platform-powerpoint">
-      <h2>PowerPoint Features</h2>
-      <h3>OLE and PNG Image</h3>
-      <p>OLE formula objects are the default. MathJax SVG output is converted to an EMF+Dual vector preview. PNG image insertion remains available in settings.</p>
-      <h3>Load and Delete</h3>
-      <p>Use the Ribbon to load a managed formula into the same MathLive editor. After editing, the new formula replaces the original at the same position and preserves the object stretch factor manually set on the slide. Editor submit, load selected, delete, and OCR Office commands run through a single command gate; a busy command rejects new editor submits instead of queueing them.</p>
-      <h3>Side Pane Draft</h3>
-      <p>The side pane is an independent new-formula draft and is not an update entry point.</p>
-      <h3>Conversion and Formatting</h3>
-      <p>Conversion processes managed formulas in the current selection between OLE and PNG without moving other slide objects; multi-selection runs in batches and reports progress in the status pane. Format Selected restores the default font, color, and natural size and also runs multi-selection in batches; Format All only restores manually resized formulas to natural size.</p>
-      <h3>OLE Object Size</h3>
-      <p>New OLE and PNG formulas use the same initial scale. Updating an existing formula preserves the object stretch factor manually set on the slide.</p>
-      <h3>Screenshot OCR</h3>
-      <p>Click to wait for the next desktop screenshot; recognized LaTeX is loaded into the editor. Click again to cancel.</p>
-    </section>
-
-    <section>
-      <h2>Plugin Architecture</h2>
-      <table>
-        <thead><tr><th>Area</th><th>Implementation</th></tr></thead>
-        <tbody>
-          <tr><td>Runtime</td><td>Native Windows VSTO add-in. Ribbon, side pane, settings, and help open inside Office.</td></tr>
-          <tr><td>Word Output</td><td>LaTeXSnipper OLE formula objects by default; OMML is an optional backend.</td></tr>
-          <tr><td>PowerPoint Output</td><td>LaTeXSnipper OLE formula objects by default; PNG image insertion is an optional backend.</td></tr>
-          <tr><td>Connection</td><td>Formulas render locally inside the plugin. Screenshot OCR uses the desktop client through the local Bridge at <code>127.0.0.1:28765</code>.</td></tr>
-          <tr><td>Editor</td><td>WebView2-hosted MathLive editor with visual editing and live preview. Editor submissions are serialized with Office commands.</td></tr>
-        </tbody>
-      </table>
-    </section>
-
-    <section>
-      <h2>Boundaries</h2>
+    <section id="en-editor">
+      <h2>Edit formulas</h2>
       <ul>
-        <li>Only managed formulas inserted by LaTeXSnipper can be loaded, updated, deleted, and renumbered by the plugin.</li>
-        <li>Plain Office equations are not automatically converted into LaTeXSnipper formulas.</li>
-        <li>If the add-in does not appear, close Office, run the installer again to repair or reinstall the add-in, then reopen Office.</li>
+        <li><strong>Visual and source panes:</strong>They stay in sync. When the visual editor cannot preserve source exactly, the upper pane is a reference. Keep editing below, or choose “Replace source with result (undoable)”.</li>
+        <li><strong>Library and Common:</strong>Search and click a tile to insert it. Right-click a tile to add or remove it from Common. Use the toolbar star to save the current formula. Common survives upgrades.</li>
+        <li><strong>Typography and preview:</strong>Toolbar choices apply to the current formula. The formula color is synchronized with the source and visual editor. Right-click in the visual editor to color a selection, cut, paste, or select all; local colors are written to the source immediately. Final Preview enlarges small formulas on screen for inspection; insertion still uses the selected point size. Existing formulas reopen with their saved properties.</li>
+        <li><strong>Keys:</strong>In the visual pane, <kbd>Enter</kbd> starts a math row, <kbd>Shift</kbd> + <kbd>Enter</kbd> inserts or updates, and <kbd>Esc</kbd> hides the virtual keyboard. In source, <kbd>Tab</kbd> indents at the caret and <kbd>Enter</kbd> accepts a completion.</li>
       </ul>
     </section>
-
-    <div class="footer">LaTeXSnipper Office Plugin &copy; SakuraMathcraft</div>
+    <section id="en-settings">
+      <h2>Settings and fonts</h2>
+      <p>Open Settings from the LaTeXSnipper tab. Default formula properties apply to <strong>new formulas</strong> and explicit <strong>Format</strong> commands. Editor choices take priority for the current formula. Import and export JSON to save or apply the current host's formula defaults.</p>
+      <table>
+        <thead><tr><th>Setting</th><th>What it controls</th></tr></thead>
+        <tbody>
+          <tr><td>Symbol font</td><td>The font scheme for mathematical letters, symbols, and formula structures. The bundled choices are TeX and STIX2.</td></tr>
+          <tr><td>Number font</td><td>An optional system font for ordinary digits. Follow Symbol Font keeps numbers with the mathematical symbols.</td></tr>
+          <tr><td>CJK font</td><td>A system font for Chinese characters within formulas. The list shows fonts found to contain Chinese glyphs.</td></tr>
+          <tr><td>Default math style</td><td>Upright, italic, bold, script, and other mathematical shapes, selected independently from the font scheme. Automatic preserves normal mathematical styling; explicit source styles take priority.</td></tr>
+          <tr><td>Size and color</td><td>Defaults for new formulas. Follow Text Size uses the text at the insertion point when available and falls back to the fixed size.</td></tr>
+        </tbody>
+      </table>
+      <p class="muted">Upgrades and reinstalls preserve formula defaults, insertion choices, Word numbering preferences, and Common formulas. Importing a formula preset replaces only that host's formula defaults.</p>
+    </section>
+    <section id="en-word" class="platform-word">
+      <h2>Common tasks in Word</h2>
+      <h3>Insert and number</h3>
+      <p>Insert Inline places a formula within text. Insert Display gives it a separate line. Insert Numbered positions the number and enclosure according to settings. Default Numbered Formula Layout also controls chapter and section numbering, separators, and boundary visibility.</p>
+      <h3>Load, convert, and format</h3>
+      <p>Select a plugin formula to Load Selected or Delete Selected. Formula Insertion offers OLE objects or native Word equations. Convert to OLE / Word Equation changes selected formulas. Format Selected / All applies the current default properties.</p>
+      <h3>Parse LaTeX in document text</h3>
+      <p>Parse Selected / All recognizes complete <code>$...$</code>, <code>\(...\)</code>, <code>$$...$$</code>, and <code>\[...\]</code> expressions. Incomplete or failed conversions leave the original text in place. A valid <code>\tag{...}</code> can provide a custom number for a display formula.</p>
+      <h3>Renumber and reference</h3>
+      <p>Auto Number numbers an unnumbered display formula. Chapter and section boundaries affect later numbers. Renumber recalculates plugin formula numbers across the document. Insert Reference creates a placeholder; select a numbered formula or its paragraph to complete it.</p>
+      <p class="muted">The side pane keeps a separate draft for a new formula. Use the editor window to update an existing one.</p>
+    </section>
+    <section id="en-ppt" class="platform-powerpoint">
+      <h2>Common tasks in PowerPoint</h2>
+      <p>Place the text caret inside a text box to insert a native PowerPoint equation that flows with the surrounding text and remains editable in PowerPoint. Outside text, Insert Formula adds a centered slide object using the OLE or PNG insertion setting.</p>
+      <p>Select a plugin formula to Load Selected, Delete Selected, convert between OLE and PNG, or apply Format Selected / All. Updates and conversions preserve the slide position and manual scale where possible.</p>
+      <p class="muted">The side pane holds a new formula draft. Load Selected, OLE / PNG conversion, and bulk formatting apply to standalone objects inserted by the plugin. PowerPoint manages equations within text.</p>
+    </section>
+    <section id="en-support">
+      <h2>Community and support</h2>
+      <p>LaTeXSnipper is free, open source, ad-free, and has no in-app purchases. Star the repository, report an issue, support maintenance, or join the Chinese community using the QR codes below.</p>
+      <div class="support-grid">
+        <figure class="support-card"><img src="support/alipay.jpg" alt="Alipay donation QR code"><figcaption>Alipay</figcaption></figure>
+        <figure class="support-card"><img src="support/wechat-pay.png" alt="WeChat Pay donation QR code"><figcaption>WeChat Pay</figcaption></figure>
+        <figure class="support-card"><img src="support/community-chat.jpg" alt="LaTeXSnipper community chat QR code"><figcaption>Community chat</figcaption></figure>
+      </div>
+    </section>
+    <footer>LaTeXSnipper Office Plugin</footer>
   </main>
-
   <script>
     const params = new URLSearchParams(location.search);
-    const platform = params.get("platform") || "word";
-    document.body.className = "app-" + platform;
-    const language = (params.get("locale") || "zh-CN").toLowerCase();
-    document.documentElement.lang = language.startsWith("zh") ? "zh-CN" : "en";
+    document.body.className = params.get("platform") === "powerpoint" ? "app-powerpoint" : "app-word";
+    document.documentElement.lang = (params.get("locale") || "zh-CN").toLowerCase().startsWith("zh") ? "zh-CN" : "en";
   </script>
 </body>
 </html>
-

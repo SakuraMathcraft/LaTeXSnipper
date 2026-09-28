@@ -116,7 +116,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: unsigned-latexsnipper-installer
-          path: dist/installer/LaTeXSnipperSetup-*.exe
+          path: dist/installer/LaTeXSnipper_*_amd64.exe
           if-no-files-found: error
           retention-days: 30
 
@@ -197,7 +197,7 @@ jobs:
 
   build-office-plugin-installer:
     name: Validate Office Plugin Installer
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -226,7 +226,7 @@ jobs:
             echo "Release version $version does not match VERSION $product_version." >&2
             exit 1
           fi
-          installer="office_plugin/release/OfficePluginSetup-${version}.exe"
+          installer="office_plugin/release/LaTeXSnipper_${version}_office_amd64.exe"
           checksum="${installer}.sha256"
           test -f "$installer"
           test -f "$checksum"
@@ -358,7 +358,6 @@ jobs:
           name: latexsnipper-macos
           path: |
             dist/*.dmg
-            dist/*.app.zip
             dist/SHA256SUMS-macos.txt
           if-no-files-found: error
           retention-days: 30
@@ -398,7 +397,7 @@ jobs:
   publish-release-assets:
     name: Publish Release Assets
     if: ${{ always() && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_assets)) && needs.build-windows-installer.result == 'success' && needs.build-office-plugin-installer.result == 'success' && needs.build-linux-deb.result == 'success' && needs.build-macos-app.result == 'success' && needs.build-user-manual.result == 'success' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - build-windows-installer
       - build-linux-deb
@@ -425,30 +424,30 @@ jobs:
           mkdir -p publish-assets
 
           if [[ -d release-assets/signed-latexsnipper-installer ]]; then
-            signed_count="$(find release-assets/signed-latexsnipper-installer -type f -name 'LaTeXSnipperSetup-*.exe' | wc -l | tr -d ' ')"
+            signed_count="$(find release-assets/signed-latexsnipper-installer -type f -name 'LaTeXSnipper_*_amd64.exe' | wc -l | tr -d ' ')"
           else
             signed_count="0"
           fi
 
           if [[ "${signed_count}" != "0" ]]; then
             echo "Using signed Windows installer."
-            find release-assets/signed-latexsnipper-installer -type f -name 'LaTeXSnipperSetup-*.exe' -exec cp -v {} publish-assets/ \;
+            find release-assets/signed-latexsnipper-installer -type f -name 'LaTeXSnipper_*_amd64.exe' -exec cp -v {} publish-assets/ \;
           elif [[ -d release-assets/unsigned-latexsnipper-installer ]]; then
-            unsigned_count="$(find release-assets/unsigned-latexsnipper-installer -type f -name 'LaTeXSnipperSetup-*.exe' | wc -l | tr -d ' ')"
+            unsigned_count="$(find release-assets/unsigned-latexsnipper-installer -type f -name 'LaTeXSnipper_*_amd64.exe' | wc -l | tr -d ' ')"
             if [[ "${unsigned_count}" != "0" ]]; then
               echo "Signed Windows installer is missing; using unsigned Windows installer."
-              find release-assets/unsigned-latexsnipper-installer -type f -name 'LaTeXSnipperSetup-*.exe' -exec cp -v {} publish-assets/ \;
+              find release-assets/unsigned-latexsnipper-installer -type f -name 'LaTeXSnipper_*_amd64.exe' -exec cp -v {} publish-assets/ \;
             else
-              echo "Unsigned Windows installer artifact exists but contains no LaTeXSnipperSetup-*.exe; skipping Windows release asset."
+              echo "Unsigned Windows installer artifact exists but contains no LaTeXSnipper_*_amd64.exe; skipping Windows release asset."
             fi
           else
             echo "No signed or unsigned Windows installer artifact found; skipping Windows release asset."
           fi
 
-          find release-assets/office-plugin-installer -type f -name 'OfficePluginSetup-*.exe' -exec cp -v {} publish-assets/ \;
+          find release-assets/office-plugin-installer -type f -name 'LaTeXSnipper_*_office_amd64.exe' -exec cp -v {} publish-assets/ \;
           find release-assets/user-manual -type f -name 'LaTeXSnipper_User_Manual.pdf' -exec cp -v {} publish-assets/ \;
           find release-assets/latexsnipper-linux-deb -type f -name '*.deb' -exec cp -v {} publish-assets/ \;
-          find release-assets/latexsnipper-macos -type f \( -name '*.dmg' -o -name '*.app.zip' \) -exec cp -v {} publish-assets/ \;
+          find release-assets/latexsnipper-macos -type f -name '*.dmg' -exec cp -v {} publish-assets/ \;
 
           asset_count="$(find publish-assets -maxdepth 1 -type f | wc -l | tr -d ' ')"
           if [[ "${asset_count}" == "0" ]]; then

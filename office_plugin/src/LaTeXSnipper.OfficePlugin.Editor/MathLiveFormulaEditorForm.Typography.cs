@@ -1,7 +1,6 @@
 #if NET48
 using System;
 using System.Collections.Generic;
-using System.Drawing.Text;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -17,19 +16,16 @@ internal sealed partial class MathLiveFormulaEditorForm
 
     private Dictionary<string, object> CreateTypographyCatalog()
     {
-        using var installed = new InstalledFontCollection();
-        var families = installed.Families;
-        string[] names;
-        try { names = families.Select(font => font.Name).Distinct().OrderBy(name => name).ToArray(); }
-        finally { foreach (var family in families) family.Dispose(); }
         return new Dictionary<string, object>
         {
             ["symbolFonts"] = _options.SymbolFonts,
-            ["systemFonts"] = names,
+            ["systemFonts"] = TypographySystemFonts.List(),
+            ["cjkFonts"] = TypographySystemFonts.ListCjk(),
             ["namedSizes"] = FormulaFontSize.NamedSizes,
+            ["commonPointSizes"] = FormulaFontSize.CommonPointSizes.ToArray(),
             ["minimumPoints"] = FormulaFontSize.MinimumPoints,
             ["maximumPoints"] = FormulaFontSize.MaximumPoints,
-            ["mathStyles"] = Enum.GetNames(typeof(FormulaMathStyle)),
+            ["mathStyles"] = FormulaMathStyleCatalog.List(),
         };
     }
 

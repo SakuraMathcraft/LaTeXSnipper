@@ -69,8 +69,6 @@ public sealed class WordStatusTaskPaneControl : UserControl, IWordStatusSink, IW
 
     public event EventHandler? ScreenshotOcrRequested;
 
-    public event EventHandler? RenumberRequested;
-
     public string CurrentLatex => _currentLatex.Trim();
 
     public WordFormulaOptions GetFormulaOptions()
@@ -243,9 +241,6 @@ public sealed class WordStatusTaskPaneControl : UserControl, IWordStatusSink, IW
             case "ocr":
                 ScreenshotOcrRequested?.Invoke(this, EventArgs.Empty);
                 break;
-            case "renumber":
-                RenumberRequested?.Invoke(this, EventArgs.Empty);
-                break;
         }
     }
 
@@ -332,8 +327,6 @@ public sealed class WordStatusTaskPaneControl : UserControl, IWordStatusSink, IW
             ["screenshotOcr"] = WordAddInText.Get("ScreenshotOcrButton"),
             ["cancelOcr"] = WordAddInText.Get("CancelOcrButton"),
             ["insert"] = WordAddInText.Get("EditorInsert"),
-            ["numbering"] = WordAddInText.Get("NumberingGroup"),
-            ["renumber"] = WordAddInText.Get("RenumberButton"),
         };
     }
 

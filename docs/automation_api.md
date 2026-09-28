@@ -1,6 +1,6 @@
 # Automation API v1
 
-LaTeXSnipper v3.0.0 exposes its resident MathCraft runtime and the external OCR model already configured in the desktop application through a versioned job API. Clients cannot provide or read upstream URLs, model names, credentials, paths, or prompts.
+LaTeXSnipper exposes its resident MathCraft runtime and the external OCR model already configured in the desktop application through a versioned job API. Clients cannot provide or read upstream URLs, model names, credentials, paths, or prompts.
 
 ## Enable and discover
 

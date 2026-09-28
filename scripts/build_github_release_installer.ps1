@@ -25,7 +25,8 @@ function Find-Tool {
         }
     }
 
-    $command = Get-Command $ToolName -ErrorAction SilentlyContinue
+    $command = Get-Command $ToolName -CommandType Application -ErrorAction SilentlyContinue |
+        Select-Object -First 1
     if ($command) {
         return $command.Source
     }
@@ -276,7 +277,8 @@ function Remove-PythonCache {
 }
 
 $root = Resolve-RepoRoot
-$python = (Get-Command $PythonPath -CommandType Application -ErrorAction Stop).Source
+$python = (Get-Command $PythonPath -CommandType Application -ErrorAction Stop |
+    Select-Object -First 1).Source
 $bundledPython = (Resolve-Path -LiteralPath $BundledPythonPath).Path
 $runnerTemp = (Resolve-Path -LiteralPath $env:RUNNER_TEMP).Path.TrimEnd('\') + '\'
 if (-not $bundledPython.StartsWith($runnerTemp, [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -359,7 +361,7 @@ if (-not (Test-Path $appExe)) {
 }
 
 if (Test-Path $installerOutputDir) {
-    Get-ChildItem -LiteralPath $installerOutputDir -Filter "LaTeXSnipperSetup-*.exe" -File |
+    Get-ChildItem -LiteralPath $installerOutputDir -Filter "LaTeXSnipper_*_amd64.exe" -File |
         Remove-Item -Force
 }
 & $iscc $iss
@@ -367,7 +369,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "Inno Setup failed with exit code $LASTEXITCODE"
 }
 
-$installer = Get-ChildItem -LiteralPath $installerOutputDir -Filter "LaTeXSnipperSetup-*.exe" -File |
+$installer = Get-ChildItem -LiteralPath $installerOutputDir -Filter "LaTeXSnipper_*_amd64.exe" -File |
     Sort-Object LastWriteTimeUtc -Descending |
     Select-Object -First 1
 if (-not $installer -or -not (Test-Path -LiteralPath $installer.FullName)) {

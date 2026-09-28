@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build a macOS .app bundle and optional .dmg image.
+# Build a macOS .app bundle and .dmg installer.
 #
 # Usage:
 #   ./scripts/build_macos.sh
@@ -7,7 +7,6 @@
 # Optional environment:
 #   CODESIGN_IDENTITY      Developer ID Application identity.
 #   NOTARIZE=1             Submit the app for notarization.
-#   SKIP_DMG=1             Build only the zipped app bundle.
 #   APPLE_ID               Apple ID used by notarytool.
 #   APPLE_APP_PASSWORD     App-specific password used by notarytool.
 #   APPLE_TEAM_ID          Apple developer team ID.
@@ -44,7 +43,6 @@ DIST_DIR="$PROJECT_ROOT/dist"
 APP_NAME="LaTeXSnipper"
 APP_BUNDLE="${APP_NAME}.app"
 DMG_PATH="$DIST_DIR/LaTeXSnipper_${VERSION}_${ARCH_LABEL}.dmg"
-APP_ZIP_PATH="$DIST_DIR/LaTeXSnipper_${VERSION}_${ARCH_LABEL}.app.zip"
 BUILD_WORK_DIR="$PROJECT_ROOT/build/pyinstaller_macos"
 DMG_STAGING_DIR="$PROJECT_ROOT/build/dmg_staging_macos"
 SPEC_FILE="$PROJECT_ROOT/LaTeXSnipper-macos.spec"
@@ -70,7 +68,7 @@ if [[ -n "$ICNS_PATH" ]]; then
 fi
 
 log_step "2/6" "Cleaning previous outputs"
-rm -rf "$BUILD_WORK_DIR" "$DMG_STAGING_DIR" "$DIST_DIR/$APP_NAME" "$DIST_DIR/$APP_BUNDLE" "$DMG_PATH" "$APP_ZIP_PATH"
+rm -rf "$BUILD_WORK_DIR" "$DMG_STAGING_DIR" "$DIST_DIR/$APP_NAME" "$DIST_DIR/$APP_BUNDLE" "$DMG_PATH"
 
 log_step "3/6" "Running PyInstaller"
 cd "$PROJECT_ROOT"
@@ -119,38 +117,32 @@ if [[ "${NOTARIZE:-0}" == "1" ]]; then
 fi
 
 log_step "6/6" "Packaging app artifacts"
-ditto -c -k --keepParent "$APP_PATH" "$APP_ZIP_PATH"
-
-if [[ "${SKIP_DMG:-0}" != "1" ]] && command -v create-dmg >/dev/null 2>&1; then
-    rm -rf "$DMG_STAGING_DIR"
-    mkdir -p "$DMG_STAGING_DIR"
-    ditto "$APP_PATH" "$DMG_STAGING_DIR/$APP_BUNDLE"
-    UNEXPECTED_DMG_ENTRY="$(find "$DMG_STAGING_DIR" -mindepth 1 -maxdepth 1 ! -name "$APP_BUNDLE" -print -quit)"
-    if [[ -n "$UNEXPECTED_DMG_ENTRY" ]]; then
-        die "unexpected file in DMG staging directory: $UNEXPECTED_DMG_ENTRY"
-    fi
-
-    CREATE_DMG_ARGS=(
-        --volname "LaTeXSnipper ${VERSION}"
-        --window-pos 200 120
-        --window-size 600 400
-        --icon-size 100
-        --icon "$APP_BUNDLE" 150 190
-        --hide-extension "$APP_BUNDLE"
-        --app-drop-link 450 185
-        "$DMG_PATH"
-        "$DMG_STAGING_DIR"
-    )
-    if [[ -f "$ICNS_PATH" ]]; then
-        CREATE_DMG_ARGS=(--volicon "$ICNS_PATH" "${CREATE_DMG_ARGS[@]}")
-    fi
-    create-dmg "${CREATE_DMG_ARGS[@]}"
+command -v create-dmg >/dev/null 2>&1 || die "create-dmg is required"
+rm -rf "$DMG_STAGING_DIR"
+mkdir -p "$DMG_STAGING_DIR"
+ditto "$APP_PATH" "$DMG_STAGING_DIR/$APP_BUNDLE"
+UNEXPECTED_DMG_ENTRY="$(find "$DMG_STAGING_DIR" -mindepth 1 -maxdepth 1 ! -name "$APP_BUNDLE" -print -quit)"
+if [[ -n "$UNEXPECTED_DMG_ENTRY" ]]; then
+    die "unexpected file in DMG staging directory: $UNEXPECTED_DMG_ENTRY"
 fi
 
-ARTIFACTS=("$APP_ZIP_PATH")
-[[ -f "$DMG_PATH" ]] && ARTIFACTS+=("$DMG_PATH")
-write_sha256_file "$DIST_DIR/SHA256SUMS-macos.txt" "${ARTIFACTS[@]}"
+CREATE_DMG_ARGS=(
+    --volname "LaTeXSnipper ${VERSION}"
+    --window-pos 200 120
+    --window-size 600 400
+    --icon-size 100
+    --icon "$APP_BUNDLE" 150 190
+    --hide-extension "$APP_BUNDLE"
+    --app-drop-link 450 185
+    "$DMG_PATH"
+    "$DMG_STAGING_DIR"
+)
+if [[ -f "$ICNS_PATH" ]]; then
+    CREATE_DMG_ARGS=(--volicon "$ICNS_PATH" "${CREATE_DMG_ARGS[@]}")
+fi
+create-dmg "${CREATE_DMG_ARGS[@]}"
+write_sha256_file "$DIST_DIR/SHA256SUMS-macos.txt" "$DMG_PATH"
 
 echo ""
 echo "macOS artifacts:"
-printf '  %s\n' "${ARTIFACTS[@]}"
+printf '  %s\n' "$DMG_PATH"

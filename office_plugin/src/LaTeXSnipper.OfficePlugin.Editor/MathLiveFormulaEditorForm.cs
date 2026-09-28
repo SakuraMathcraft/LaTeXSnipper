@@ -212,7 +212,8 @@ internal sealed partial class MathLiveFormulaEditorForm : Form
 
         CoreWebView2Environment environment = await CoreWebView2Environment.CreateAsync(null, userDataFolder).ConfigureAwait(true);
         await _webView.EnsureCoreWebView2Async(environment).ConfigureAwait(true);
-        _webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
+        _webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
+        _webView.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = false;
         _webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
         _webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
             _options.EditorHostName,
