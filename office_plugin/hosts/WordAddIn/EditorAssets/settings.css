@@ -108,6 +108,23 @@ label {
 
 .check-option input {
   margin: 0;
+  flex: none;
+}
+
+.follow-host-option {
+  justify-content: flex-start;
+}
+
+.size-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  color: var(--text);
+}
+
+.size-control select {
+  width: 100%;
 }
 
 .color-control {
@@ -139,6 +156,7 @@ label {
 }
 
 select {
+  width: 100%;
   min-height: 34px;
   border: 1px solid #bac8da;
   border-radius: 5px;
@@ -146,6 +164,10 @@ select {
   color: var(--text);
   font: inherit;
 }
+
+.preset-file-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+#presetStatus { color: var(--muted); }
+#presetStatus.error { color: #b42318; }
 
 button {
   min-height: 34px;

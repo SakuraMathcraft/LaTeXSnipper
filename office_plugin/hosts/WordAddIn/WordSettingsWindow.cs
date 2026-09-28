@@ -2,10 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using LaTeXSnipper.OfficePlugin.Abstractions;
+using LaTeXSnipper.OfficePlugin.Editor;
+using LaTeXSnipper.OfficePlugin.Rendering;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
@@ -130,11 +133,18 @@ internal sealed class WordSettingsWindow : Form
             ["hideChapterBoundary"] = settings.HideChapterBoundary,
             ["hideSectionBoundary"] = settings.HideSectionBoundary,
             ["numberSeparator"] = settings.NumberSeparator,
-            ["formulaColor"] = settings.FormulaColor,
-            ["defaultFormulaColor"] = WordFormulaColorDefaults.Current,
-            ["useSystemFormulaColor"] = settings.UseSystemFormulaColor,
+            ["formulaColor"] = settings.Typography.Color,
             ["formulaMathStyle"] = settings.FormulaMathStyle.ToString(),
             ["formulaFontSizePoints"] = settings.FormulaFontSizePoints,
+            ["symbolFontId"] = settings.Typography.SymbolFontId,
+            ["numberFontFamily"] = settings.Typography.NumberFontFamily ?? string.Empty,
+            ["cjkFontFamily"] = settings.Typography.CjkFontFamily,
+            ["symbolFonts"] = new MathJaxAssetResolver().SymbolFonts,
+            ["systemFonts"] = TypographySystemFonts.List(),
+            ["cjkFonts"] = TypographySystemFonts.ListCjk(),
+            ["mathStyles"] = FormulaMathStyleCatalog.List(),
+            ["namedSizes"] = FormulaFontSize.NamedSizes.Select(size => new { name = size.Key, points = size.Value }).ToArray(),
+            ["commonPointSizes"] = FormulaFontSize.CommonPointSizes.ToArray(),
             ["followHostFontSize"] = settings.FollowHostFontSize,
         });
         string script =
@@ -145,7 +155,7 @@ internal sealed class WordSettingsWindow : Form
         await _webView.CoreWebView2.ExecuteScriptAsync(script).ConfigureAwait(true);
     }
 
-    private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    private async void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
         Dictionary<string, object>? message = _serializer.Deserialize<Dictionary<string, object>>(e.WebMessageAsJson);
         if (message == null || !message.TryGetValue("type", out object rawType))
@@ -157,6 +167,12 @@ internal sealed class WordSettingsWindow : Form
         if (type == "close")
         {
             Close();
+            return;
+        }
+
+        if (type == "importTypography" || type == "exportTypography")
+        {
+            await HandleTypographyFileAsync(type).ConfigureAwait(true);
             return;
         }
 
@@ -185,13 +201,20 @@ internal sealed class WordSettingsWindow : Form
         bool hideChapterBoundary = ReadBoolean(message, "hideChapterBoundary");
         bool hideSectionBoundary = ReadBoolean(message, "hideSectionBoundary");
         string numberSeparator = ReadString(message, "numberSeparator", "-");
-        string formulaColor = ReadString(message, "formulaColor", WordFormulaColorDefaults.Current);
-        bool useSystemFormulaColor = ReadBoolean(message, "useSystemFormulaColor");
+        string formulaColor = ReadString(message, "formulaColor", "#000000");
         string fontStyleRaw = ReadString(message, "formulaMathStyle", FormulaMathStyle.Automatic.ToString());
         FormulaMathStyle formulaMathStyle = Enum.TryParse(fontStyleRaw, out FormulaMathStyle parsedFontStyle)
             ? parsedFontStyle
             : FormulaMathStyle.Automatic;
         double formulaFontSizePoints = ReadDouble(message, "formulaFontSizePoints", 12);
+        WordPluginSettings current = WordPluginSettings.Load();
+        string symbolFontId = ReadString(message, "symbolFontId", current.Typography.SymbolFontId);
+        if (!new MathJaxAssetResolver().SymbolFonts.Contains(symbolFontId))
+            throw new FormatException("无效的数学符号字体：" + symbolFontId);
+        var typography = new FormulaTypography(symbolFontId,
+            ReadString(message, "numberFontFamily", string.Empty) is string number && number.Length > 0 ? number : null,
+            ReadString(message, "cjkFontFamily", current.Typography.CjkFontFamily),
+            formulaMathStyle, formulaFontSizePoints, formulaColor);
         var settings = new WordPluginSettings(
             placement == "Left" ? WordNumberPlacement.Left : WordNumberPlacement.Right,
             insertionBackend,
@@ -202,12 +225,51 @@ internal sealed class WordSettingsWindow : Form
             hideSectionBoundary,
             numberSeparator,
             formulaColor,
-            useSystemFormulaColor,
             formulaMathStyle,
-            formulaFontSizePoints, ReadBoolean(message, "followHostFontSize"));
+            formulaFontSizePoints, ReadBoolean(message, "followHostFontSize"), typography);
         settings.Save();
+        if (!current.Typography.Equals(typography) || current.FollowHostFontSize != settings.FollowHostFontSize)
+            new TypographySettingsStore().Save("word", typography, settings.FollowHostFontSize);
         _settingsSaved();
         _ = SendSettingsAsync();
+    }
+
+    private async Task HandleTypographyFileAsync(string type)
+    {
+        string kind = type == "importTypography" ? "import" : "export";
+        string name;
+        try
+        {
+            var store = new TypographySettingsStore();
+            if (kind == "import")
+            {
+                using var dialog = new OpenFileDialog { Filter = "JSON preset (*.json)|*.json", CheckFileExists = true };
+                if (dialog.ShowDialog(this) != DialogResult.OK) return;
+                name = store.Import("word", dialog.FileName, new MathJaxAssetResolver().SymbolFonts);
+                _settingsSaved();
+                await SendSettingsAsync().ConfigureAwait(true);
+            }
+            else
+            {
+                using var dialog = new SaveFileDialog { Filter = "JSON preset (*.json)|*.json", FileName = "Word 公式设置.json" };
+                if (dialog.ShowDialog(this) != DialogResult.OK) return;
+                store.Export("word", dialog.FileName);
+                name = Path.GetFileNameWithoutExtension(dialog.FileName);
+            }
+            await SendTypographyResultAsync(kind, name, null).ConfigureAwait(true);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or FormatException or ArgumentException)
+        {
+            await SendTypographyResultAsync(kind, string.Empty, error.Message).ConfigureAwait(true);
+        }
+    }
+
+    private Task SendTypographyResultAsync(string kind, string name, string? error)
+    {
+        var result = new Dictionary<string, object> { ["kind"] = kind, ["name"] = name };
+        if (error != null) result["error"] = error;
+        return _webView.CoreWebView2.ExecuteScriptAsync(
+            "window.LaTeXSnipperSettings?.presetResult(" + _serializer.Serialize(result) + ");");
     }
 
     private static string ReadString(Dictionary<string, object> message, string key, string fallback)

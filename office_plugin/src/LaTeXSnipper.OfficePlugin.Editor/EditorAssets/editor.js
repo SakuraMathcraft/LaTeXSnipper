@@ -1,15 +1,16 @@
 import { MathfieldElement } from "./vendor/mathlive.min.mjs";
 import { SourceEditor } from "./source-editor.bundle.js";
-import { SourceSync } from "./source-sync.mjs";
+import { SourceSync, formatVisualLatex } from "./source-sync.mjs";
 
 import {STRINGS, CATALOG, COMMANDS} from './template-catalog.mjs';
 import {mountEditor} from './editor-layout.mjs';
 import {SymbolPanel} from './symbol-panel.mjs';
 import {TemplateInsertion} from './template-insertion.mjs';
-import {configureMathfield} from './mathfield-input.mjs';
+import {configureMathfield, configureMathfieldMenu} from './mathfield-input.mjs';
 
 import {DraftPreview} from './draft-preview.mjs';
 import {TypographyPanel} from './typography-panel.mjs';
+import {formulaColor, hasFormulaContent, initialFormulaColor, withFormulaColor} from './formula-color.mjs';
 
 mountEditor();
 let session = null;
@@ -25,6 +26,8 @@ let symbolPanel = null;
 let insertion = null;
 let sourceEditor = null;
 let sourceSync = null;
+let bindMathfieldInput = null;
+let initialFocusPending = false;
 let caretVisibilityFrame = 0;
 let sourcePaneHeight = 150;
 let sourceResizePointerId = null;
@@ -61,6 +64,7 @@ function setSubmitting(value) {
   cancelButton.disabled = submitting;
   sourceSync?.setLocked(submitting);
   typographyPanel?.setLocked(submitting);
+  symbolPanel?.updateCurrentFavorite();
   preview?.setLocked(submitting);
   document.getElementById('undoButton').disabled = submitting;
   document.getElementById('redoButton').disabled = submitting;
@@ -152,19 +156,44 @@ function mathfieldLatex() {
 
 function setLatex(latex) {
   sourceSync.load(String(latex || ""));
+  syncColorFromSource();
+  symbolPanel?.updateCurrentFavorite();
+}
+
+function syncColorFromSource() {
+  if (!typographyPanel) return;
+  typographyPanel.fields.color.value = formulaColor(currentLatex());
+  applyVisualColor();
+}
+
+function updateFormulaColor() {
+  const color = typographyPanel.fields.color.value;
+  const value = withFormulaColor(currentLatex(), color);
+  if (value !== currentLatex()) {
+    sourceEditor.replace(value, 'visual');
+    sourceSync.refresh();
+  }
+  applyVisualColor();
+  preview.update();
 }
 
 function setSourceMode(reason) {
   const messages = locale.startsWith("zh") ? {
-    sourceOnly: "请在源码区编辑此公式；上方仅供参考。",
+    sourceOnly: "可视化编辑器会改写这段源码；请在源码区编辑，或主动采用上方结果。",
+    invalid: "源码结构有误或包含不支持的命令；请在源码区修正。",
     mathml: "当前为 MathML 源码，请在源码区编辑。",
     updating: "正在更新参考预览…", composing: ""
   } : {
-    sourceOnly: "Edit this formula in the source pane; the view above is a reference.",
+    sourceOnly: "Visual editing would rewrite this source. Edit below or explicitly use the result above.",
+    invalid: "The source has invalid structure or unsupported commands; fix it below.",
     mathml: "MathML source: edit in the source pane.",
     updating: "Updating reference view…", composing: ""
   };
-  document.getElementById("sourceModeNote").textContent = messages[reason] || "";
+  document.getElementById('sourceModeNote').hidden = !reason;
+  document.getElementById('sourceModeMessage').textContent = messages[reason] || '';
+  const adopt = document.getElementById('adoptVisualButton');
+  adopt.hidden = reason !== 'sourceOnly';
+  adopt.textContent = locale.startsWith('zh') ? '用上方结果替换源码（可撤销）' : 'Replace source with result (undoable)';
 }
 
 function scheduleCaretVisibility() {
@@ -202,7 +231,7 @@ function accept() {
   }
   sourceSync.visualInput();
   const latex = currentLatex();
-  if (!latex.trim()) {
+  if (!hasFormulaContent(latex)) {
     setStatus(strings().latexRequired);
     return;
   }
@@ -213,6 +242,7 @@ function accept() {
     setStatus(locale.startsWith('zh') ? '请检查字体和字号设置。' : 'Check typography settings.');
     return;
   }
+  typography.color = formulaColor(latex);
   setSubmitting(true);
   send({ type: "accept", session, revision: preview.revision, latex, display, typography });
 }
@@ -221,15 +251,64 @@ function hideVirtualKeyboard() {
   window.mathVirtualKeyboard?.hide();
 }
 
+function configureMathfieldText(field) {
+  field.setAttribute('aria-label', locale.startsWith('zh') ? '可视化公式编辑器' : 'Visual formula editor');
+  field.setAttribute('aria-description', locale.startsWith('zh') ? '按 Escape 后再按 Tab 离开编辑器。' : 'Press Escape then Tab to leave the editor.');
+  configureMathfieldMenu(field, locale, action => sourceSync?.performVisual(action));
+}
+
+function applyVisualColor() {
+  if (mathfield) mathfield.style.color = typographyPanel?.fields.color.value || '#000000';
+}
+
+function createMathfield() {
+  const field = new MathfieldElement();
+  field.smartFence = true;
+  field.mathVirtualKeyboardPolicy = 'manual';
+  field.onScrollIntoView = scheduleCaretVisibility;
+  field.addEventListener('beforeinput', event => sourceSync?.beforeVisualInput(event));
+  field.addEventListener('input', () => { sourceSync?.visualInput(); scheduleCaretVisibility(); });
+  field.addEventListener('compositionstart', () => { sourceSync?.visualComposition(true); updatePreviewComposition(); });
+  field.addEventListener('compositionend', () => { sourceSync?.visualComposition(false); updatePreviewComposition(); });
+  field.addEventListener('keydown', event => {
+    if (!submitting && (event.ctrlKey || event.metaKey) && !event.altKey && !event.isComposing
+        && (event.key.toLowerCase() === 'z' || event.key.toLowerCase() === 'y')) {
+      event.preventDefault(); event.stopImmediatePropagation();
+      sourceSync.history(event.shiftKey || event.key.toLowerCase() === 'y');
+    }
+  }, true);
+  host.appendChild(field);
+  configureMathfieldText(field);
+  applyVisualColor();
+  return field;
+}
+
+function recreateMathfield() {
+  const previous = mathfield;
+  mathfield = createMathfield();
+  insertion.bindMathfield(mathfield);
+  bindMathfieldInput(mathfield);
+  previous.remove();
+  return mathfield;
+}
+
+function focusInitialEditor() {
+  if (!initialFocusPending || !insertion || !sourceSync) return;
+  if (sourceSync.visualEnabled) insertion.focusVisual();
+  else sourceEditor.focus();
+}
+
 function configureText() {
   document.documentElement.lang = locale.startsWith("zh") ? "zh-CN" : "en";
   cancelButton.textContent = strings().cancel;
   acceptButton.textContent = mode === "update" ? strings().acceptUpdate : strings().acceptInsert;
   setStatus(strings().ready);
-  document.getElementById('undoButton').textContent = locale.startsWith('zh') ? '撤销' : 'Undo';
-  document.getElementById('redoButton').textContent = locale.startsWith('zh') ? '重做' : 'Redo';
-  mathfield.setAttribute('aria-label', locale.startsWith('zh') ? '可视化公式编辑器' : 'Visual formula editor');
-  mathfield.setAttribute('aria-description', locale.startsWith('zh') ? '按 Escape 后再按 Tab 离开编辑器。' : 'Press Escape then Tab to leave the editor.');
+  for (const [id, zh, en] of [['undoButton', '撤销', 'Undo'], ['redoButton', '重做', 'Redo']]) {
+    const button = document.getElementById(id);
+    button.setAttribute('aria-label', locale.startsWith('zh') ? zh : en);
+    button.title = `${locale.startsWith('zh') ? zh : en} (${id === 'undoButton' ? 'Ctrl+Z' : 'Ctrl+Y'})`;
+  }
+  configureMathfieldText(mathfield);
   symbolPanel.configure(locale);
 }
 
@@ -242,41 +321,48 @@ function applyInit(payload) {
   typographyPanel.configure(payload);
   setSubmitting(false);
   configureText();
-  setLatex(payload?.latex || "");
+  setLatex(initialFormulaColor(payload?.latex || "", payload?.typography?.color));
   insertion.reset();
-  sourceEditor.focus();
+  initialFocusPending = true;
+  requestAnimationFrame(focusInitialEditor);
   scheduleCaretVisibility();
 }
 
 async function bootstrap() {
   initializeSourcePaneResize();
+  document.addEventListener('contextmenu', event => {
+    if (!event.composedPath().includes(mathfield)) event.preventDefault();
+  }, true);
   MathfieldElement.fontsDirectory = new URL("./vendor/fonts", import.meta.url).href;
   MathfieldElement.soundsDirectory = null;
-  mathfield = new MathfieldElement();
-  mathfield.smartFence = true;
-  mathfield.mathVirtualKeyboardPolicy = "manual";
-  mathfield.onScrollIntoView = scheduleCaretVisibility;
-  host.appendChild(mathfield);
+  mathfield = createMathfield();
   sourceEditor = new SourceEditor(latexSource, {
     commands: COMMANDS,
     completeTemplate: (entry, range) => insertion.insert(entry, {range}),
-    onChange: (_value, change) => { sourceSync?.sourceChanged(change); preview?.update(); },
+    onChange: (_value, change) => { sourceSync?.sourceChanged(change); syncColorFromSource(); preview?.update(); symbolPanel?.updateCurrentFavorite(); },
     onComposition: active => { sourceSync?.composition(active); updatePreviewComposition(); }
   });
-  sourceSync = new SourceSync({source: sourceEditor, mathfield, readVisual: mathfieldLatex, onMode: setSourceMode});
+  sourceSync = new SourceSync({source: sourceEditor, mathfield, readVisual: mathfieldLatex,
+    recreateMathfield, onMode: setSourceMode});
+  document.getElementById('adoptVisualButton').addEventListener('click', () => {
+    if (insertion.blocked) return;
+    sourceEditor.replace(formatVisualLatex(mathfieldLatex()), 'visual');
+    sourceSync.refresh();
+    if (sourceSync.visualEnabled) insertion.focusVisual();
+  });
   insertion = new TemplateInsertion({source: sourceEditor, sync: sourceSync, mathfield, sourceHost: latexSource,
     onInsert: scheduleCaretVisibility, isComposing: () => Boolean(typographyPanel?.composing)});
-  symbolPanel = new SymbolPanel(insertion);
+  symbolPanel = new SymbolPanel(insertion, currentLatex);
   const image = document.getElementById('previewImage');
   const previewStatus = document.getElementById('previewStatus');
   preview = new DraftPreview({send,
     snapshot: () => {
       const typography = typographyPanel.snapshot();
-      if (!typography || !currentLatex().trim()) {
+      if (!typography || !hasFormulaContent(currentLatex())) {
         previewStatus.textContent = locale.startsWith('zh') ? '请输入公式及有效字号。' : 'Enter a formula and valid size.';
         return null;
       }
-      return {latex: currentLatex(), display, typography};
+      return {latex: currentLatex(), display, typography: {...typography, color: formulaColor(currentLatex())}};
     },
     changed: () => {
       image.hidden = true; image.removeAttribute('src');
@@ -290,14 +376,17 @@ async function bootstrap() {
       image.src = response.image; image.hidden = false;
     }
   });
-  typographyPanel = new TypographyPanel({onChange: () => preview.update(),
+  typographyPanel = new TypographyPanel({onChange: input => {
+    if (input.id === 'color') updateFormulaColor();
+    else preview.update();
+  },
     onComposition: updatePreviewComposition,
     blocked: () => insertion.blocked,
     onMode: active => {
       sourceSync.visualInput(); insertion.setPreview(active); preview.setActive(active);
     }});
   const shortcuts = new Map(CATALOG.filter(entry => entry.shortcut).map(entry => [entry.shortcut, entry]));
-  configureMathfield(mathfield, {onAccept: accept, insert: entry => insertion.insert(entry), shortcuts,
+  bindMathfieldInput = configureMathfield(mathfield, {onAccept: accept, insert: entry => insertion.insert(entry), shortcuts,
     performEdit: action => sourceSync.performVisual(action)});
   for (const [id, redo] of [['undoButton', false], ['redoButton', true]]) {
     document.getElementById(id).addEventListener('click', () => {
@@ -305,22 +394,32 @@ async function bootstrap() {
       sourceSync.history(redo); insertion.restoreFocus();
     });
   }
-  mathfield.addEventListener("beforeinput", event => sourceSync.beforeVisualInput(event));
-  mathfield.addEventListener("input", () => { sourceSync.visualInput(); scheduleCaretVisibility(); });
-  mathfield.addEventListener("compositionstart", () => { sourceSync.visualComposition(true); updatePreviewComposition(); });
-  mathfield.addEventListener("compositionend", () => { sourceSync.visualComposition(false); updatePreviewComposition(); });
-  mathfield.addEventListener("keydown", event => {
-    if (!submitting && (event.ctrlKey || event.metaKey) && !event.altKey && !event.isComposing
-        && (event.key.toLowerCase() === "z" || event.key.toLowerCase() === "y")) {
-      event.preventDefault(); event.stopImmediatePropagation();
-      sourceSync.history(event.shiftKey || event.key.toLowerCase() === "y");
-    }
+  for (const event of ['pointerdown', 'keydown'])
+    document.addEventListener(event, () => { initialFocusPending = false; }, true);
+  document.addEventListener('focusin', event => {
+    if (!initialFocusPending || event.target === mathfield || event.target === sourceEditor.view.contentDOM) return;
+    if (event.target === document.getElementById('undoButton')) requestAnimationFrame(focusInitialEditor);
+    else initialFocusPending = false;
   }, true);
+  window.addEventListener('focus', () => requestAnimationFrame(focusInitialEditor));
   cancelButton.addEventListener("click", () => { preview.stop(); send({ type: "cancel", session }); });
   window.addEventListener("pagehide", () => preview.stop());
   acceptButton.addEventListener("click", accept);
+  window.addEventListener('keydown', event => {
+    if (event.key !== 'Escape' || event.isComposing || !window.mathVirtualKeyboard?.visible) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    hideVirtualKeyboard();
+    queueMicrotask(() => mathfield.focus());
+  }, true);
   window.addEventListener("keydown", (event) => {
     if (event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
+    const browserCommand = (event.ctrlKey || event.metaKey) && !event.altKey
+      && ['f', 'p', 'r', '+', '=', '-', '0'].includes(event.key.toLowerCase());
+    if (browserCommand || event.key === 'F3' || event.key === 'F5') {
+      event.preventDefault();
+      return;
+    }
     if (event.key === "Escape" && !event.isComposing) {
       event.preventDefault();
       hideVirtualKeyboard();

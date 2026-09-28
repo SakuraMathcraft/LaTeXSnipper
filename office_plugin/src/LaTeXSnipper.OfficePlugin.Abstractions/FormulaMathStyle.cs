@@ -14,7 +14,9 @@ public enum FormulaMathStyle
     SansSerifBoldItalic,
     Monospace,
     Calligraphic,
+    BoldCalligraphic,
     Script,
+    BoldScript,
     Fraktur,
     BoldFraktur,
     Blackboard

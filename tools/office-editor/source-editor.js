@@ -2,7 +2,7 @@ import {EditorState, Annotation, Compartment, Transaction} from '@codemirror/sta
 import {EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection} from '@codemirror/view';
 import {StreamLanguage, syntaxHighlighting, HighlightStyle, bracketMatching, indentOnInput} from '@codemirror/language';
 import {tags} from '@lezer/highlight';
-import {defaultKeymap, history, historyKeymap, undo, redo, indentWithTab, isolateHistory} from '@codemirror/commands';
+import {defaultKeymap, history, historyKeymap, undo, redo, insertTab, indentLess, isolateHistory} from '@codemirror/commands';
 import {search, searchKeymap, highlightSelectionMatches} from '@codemirror/search';
 import {autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap, snippetCompletion} from '@codemirror/autocomplete';
 import {linter, lintGutter} from '@codemirror/lint';
@@ -47,6 +47,14 @@ const highlight = HighlightStyle.define([
 ]);
 const environments = ['align', 'align*', 'aligned', 'gather', 'gathered', 'split', 'cases', 'matrix', 'pmatrix', 'bmatrix', 'vmatrix', 'Vmatrix', 'array'];
 
+function environmentCompletion(name) {
+  const completion = snippetCompletion(`${name}}\n\t\${body}\n\\end{${name}}`, {label: name, type: 'type'});
+  return {...completion, apply(view, item, from, to) {
+    const closingBrace = view.state.doc.sliceString(to, to + 1) === '}' ? 1 : 0;
+    completion.apply(view, item, from, to + closingBrace);
+  }};
+}
+
 export class SourceEditor {
   constructor(parent, {onChange, onComposition, commands = [], completeTemplate}) {
     this.revision = 0;
@@ -59,12 +67,12 @@ export class SourceEditor {
       lintGutter(), linter(view => isMathMl(view.state.doc.toString()) ? [] : inspectLatex(view.state.doc.toString()), {delay: 250}),
       autocompletion({override: [context => {
         const env = context.matchBefore(/\\begin\{[\w*]*$/);
-        if (env) return {from: env.from + 7, options: environments.map(name => snippetCompletion(
-          `${name}}\n\t\${body}\n\\end{${name}}`, {label: name, type: 'type'})), validFor: /^[\w*]*$/};
+        if (env) return {from: env.from + 7, options: environments.map(environmentCompletion), validFor: /^[\w*]*$/};
         const command = context.matchBefore(/\\[a-zA-Z]*$/);
         return command ? {from: command.from, options: commandOptions, validFor: /^\\[a-zA-Z]*$/} : null;
       }]}),
-      keymap.of([...closeBracketsKeymap, ...completionKeymap, ...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
+      keymap.of([...closeBracketsKeymap, ...completionKeymap, ...defaultKeymap, ...historyKeymap, ...searchKeymap,
+        {key: 'Tab', run: insertTab, shift: indentLess}]),
       this.editable.of(EditorView.editable.of(true)),
       EditorView.contentAttributes.of({'aria-label': 'LaTeX source', spellcheck: 'false'}),
       EditorView.domEventHandlers({

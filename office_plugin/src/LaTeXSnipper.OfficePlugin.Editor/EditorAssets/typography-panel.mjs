@@ -1,4 +1,6 @@
 // Catalogs and size limits come from the native typography contract.
+import {FontSizePicker} from './font-size-picker.mjs';
+
 export class TypographyPanel {
   constructor({onChange, onMode, onComposition, blocked}) {
     Object.assign(this, {onChange, onMode, onComposition, blocked});
@@ -8,20 +10,17 @@ export class TypographyPanel {
     this.preview = document.getElementById('previewToggle');
     this.fields = Object.fromEntries(['symbolFontId', 'numberFontFamily', 'cjkFontFamily', 'defaultMathStyle', 'fontSizePoints', 'color']
       .map(key => [key, document.getElementById(key)]));
+    this.sizePicker = new FontSizePicker({onOpen: () => this.close(), blocked: this.blocked});
     this.toggle.addEventListener('click', () => {
       if (this.blocked()) return;
       this.panel.hidden = !this.panel.hidden;
       this.toggle.setAttribute('aria-expanded', String(!this.panel.hidden));
-      if (!this.panel.hidden) this.fields.symbolFontId.focus();
     });
     this.panel.addEventListener('keydown', event => {
       if (event.key === 'Escape' && !event.isComposing) {
         event.preventDefault(); event.stopPropagation(); this.close(); this.toggle.focus();
       }
     });
-    this.panel.addEventListener('focusout', () => queueMicrotask(() => {
-      if (!this.panel.contains(document.activeElement) && document.activeElement !== this.toggle) this.close();
-    }));
     document.addEventListener('pointerdown', event => {
       if (!this.panel.contains(event.target) && !this.toggle.contains(event.target)) this.close();
     });
@@ -30,7 +29,9 @@ export class TypographyPanel {
       this.close(); this.active = !this.active; this.renderMode(); this.onMode(this.active);
     });
     for (const input of Object.values(this.fields)) {
-      input.addEventListener('input', () => this.onChange());
+      input.addEventListener(input.tagName === 'SELECT' ? 'change' : 'input', () => {
+        this.onChange(input);
+      });
       input.addEventListener('compositionstart', () => { this.composing = true; this.onComposition(); });
       input.addEventListener('compositionend', () => { this.composing = false; this.onComposition(); });
     }
@@ -48,34 +49,33 @@ export class TypographyPanel {
     });
     const options = (input, values, current, follow = false) => {
       input.replaceChildren();
-      if (follow) input.add(new Option(this.zh ? '跟随符号字体' : 'Follow symbols', ''));
-      for (const value of new Set([...values, ...(current ? [current] : [])])) input.add(new Option(value, value));
+      for (const value of new Set([...(follow ? [''] : []), ...values, current || ''])) {
+        if (value || follow) input.add(new Option(value || (this.zh ? '跟随符号字体' : 'Follow symbols'), value));
+      }
       input.value = current || '';
     };
     options(this.fields.symbolFontId, this.catalog.symbolFonts, this.initial.symbolFontId);
     options(this.fields.numberFontFamily, this.catalog.systemFonts, this.initial.numberFontFamily, true);
-    options(this.fields.cjkFontFamily, this.catalog.systemFonts, this.initial.cjkFontFamily);
-    options(this.fields.defaultMathStyle, this.catalog.mathStyles, this.initial.defaultMathStyle);
-    const styleNames = {Automatic: '自动', Upright: '正体', Bold: '粗体', Italic: '斜体', BoldItalic: '粗斜体',
-      SansSerif: '无衬线', SansSerifBold: '无衬线粗体', SansSerifItalic: '无衬线斜体', SansSerifBoldItalic: '无衬线粗斜体',
-      Monospace: '等宽', Calligraphic: '花体', Script: '手写体', Fraktur: '哥特体', BoldFraktur: '哥特粗体', Blackboard: '双线体'};
-    if (this.zh) for (const option of this.fields.defaultMathStyle.options) option.text = styleNames[option.value] || option.value;
+    options(this.fields.cjkFontFamily, this.catalog.cjkFonts, this.initial.cjkFontFamily);
+    this.fields.defaultMathStyle.replaceChildren();
+    for (const style of this.catalog.mathStyles)
+      this.fields.defaultMathStyle.add(new Option(this.zh ? style.zh : style.en, style.id));
+    this.fields.defaultMathStyle.value = this.initial.defaultMathStyle;
     this.fields.fontSizePoints.value = String(this.initial.fontSizePoints);
     this.fields.color.value = this.initial.color;
-    const sizes = document.getElementById('fontSizes'); sizes.replaceChildren();
-    for (const [name, points] of Object.entries(this.catalog.namedSizes)) sizes.append(new Option(`${name} · ${points} pt`, name));
+    this.sizePicker.configure(this.catalog, this.zh);
     this.toggle.textContent = this.zh ? '字体设置' : 'Typography';
     this.snapshot();
     this.renderMode();
   }
   renderMode() {
-    this.preview.textContent = this.active ? (this.zh ? '返回编辑' : 'Edit') : (this.zh ? '最终预览' : 'Preview');
+    this.preview.querySelector('.button-label').textContent = this.active ? (this.zh ? '返回编辑' : 'Edit') : (this.zh ? '最终预览' : 'Preview');
     this.preview.setAttribute('aria-pressed', String(this.active));
     document.getElementById('mathfieldHost').hidden = this.active;
     document.getElementById('finalPreview').hidden = !this.active;
     document.getElementById('previewNote').textContent = this.reference
       ? (this.zh ? '参考预览：以 Word 原生公式的实际排版为准。' : 'Reference preview: Word controls native equation layout.')
-      : (this.zh ? '最终预览 · 实际字号' : 'Final preview · actual point size');
+      : '';
   }
   snapshot() {
     if (!this.catalog) return null;
@@ -89,7 +89,18 @@ export class TypographyPanel {
     if (!valid || !this.catalog.symbolFonts.includes(values.symbolFontId)) return null;
     return {...values, typographyVersion: this.initial.typographyVersion, fontSizePoints: points};
   }
+  apply(typography) {
+    if (!this.catalog || !typography) return;
+    for (const [key, input] of Object.entries(this.fields)) {
+      const value = typography[key] ?? '';
+      if (input.tagName === 'SELECT' && value && !Array.from(input.options).some(option => option.value === value))
+        input.add(new Option(value, value));
+      input.value = String(value);
+    }
+    this.snapshot();
+  }
   setLocked(locked) {
     for (const input of [this.toggle, this.preview, ...Object.values(this.fields)]) input.disabled = locked;
+    this.sizePicker.setLocked(locked);
   }
 }

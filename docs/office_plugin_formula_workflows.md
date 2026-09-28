@@ -6,8 +6,23 @@
 
 - 新建和格式化从当前设置产生样式快照；普通编辑、重编号及转换保留公式已有快照。
 - 局部字体与颜色命令优先于默认样式。默认样式在 MathJax 解析后、布局前应用。
+- 编辑器以源码最外层 `\textcolor{#RRGGBB}{…}` 表示当前公式的全局颜色；工具栏修改该命令，源码区修改该命令则同步工具栏。提交和预览的 `Typography.Color` 从源码读取，MathLive 继承同一颜色，局部 `\textcolor` 可覆盖外层。右键局部上色立即写入源码。
 - Word OLE、PPT OLE / PNG 使用同一 SVG 轮廓；OMML 复用带样式 MathML，再映射 Word 属性，最终排版由 Word 管理。
-- MathLive 目前仍是编辑参考。三类字体的完整设置面板、最终效果预览与预设功能按重构方案后续阶段实施。
+- MathLive 提供可视化编辑；符号、数字、汉字三类字体和独立的默认字形共同构成样式快照。设置页的 JSON 导入/导出只管理当前宿主的全局公式默认属性；编辑器内调整只作用于当前公式。
+
+## 用户偏好与升级保留
+
+用户偏好与安装文件分开保存。Word 和 PowerPoint 共用注册表项，但使用不同的值名；两者的公式默认属性也在同一 JSON 文件内分别保存。
+
+| 数据 | 存储位置 | 具体内容 |
+| --- | --- | --- |
+| Word 插入和编号偏好 | `HKCU\Software\LaTeXSnipper\OfficePlugin` | `WordInsertionBackend`、`NumberPlacement`、`NumberEnclosure`、`NumberIncludeChapter`、`NumberIncludeSection`、`HideChapterBoundary`、`HideSectionBoundary`、`NumberSeparator` |
+| PowerPoint 插入偏好 | 同一注册表项 | `PowerPointInsertionBackend` |
+| Word / PowerPoint 公式默认属性 | `%APPDATA%\LaTeXSnipper\OfficePlugin\settings.json` | 两个宿主各自的符号字体、数字字体、汉字字体、默认字形、字号、颜色和新建时跟随文字字号；JSON 导入/导出只读写对应宿主的这组属性 |
+| 公式编辑器常用内容 | `%LOCALAPPDATA%\LaTeXSnipper\OfficePlugin\WordEditorWebView2` 和 `PowerPointEditorWebView2` | 各宿主 WebView2 的 `localStorage`：内置磁贴收藏、自定义公式收藏、符号库当前标签与折叠状态；两宿主不互相覆盖 |
+| 文档内公式 | Word 文档变量与公式对象；PowerPoint shape tags | 公式源码、身份及各公式自己的样式快照；随 Office 文档保存 |
+
+安装包在升级、重装前运行 `ForceClean.ps1`，清理旧安装目录、VSTO / ClickOnce 注册与缓存、OLE 注册，以及 `%LOCALAPPDATA%\LaTeXSnipper\OfficePlugin\WordAddIn` / `PowerPointAddIn` 渲染缓存和 PowerPoint 临时图片。脚本不删除上述用户偏好注册表项、`settings.json`、两个编辑器 WebView2 目录或 Office 文档。卸载时也调用同一清理脚本并保留这些用户数据。`TypographySettingsStore` 只在读取到损坏或不支持版本的 `settings.json` 时删除该文件并重建默认值，不执行配置迁移；此时注册表中的插入与编号偏好和编辑器常用内容仍保留。
 
 ## 统一元数据模型
 
@@ -338,7 +353,7 @@ PowerPoint 没有 Word 编号和引用链路，公式对象是 shape：
 - OLE / PNG 转换保留源码、样式和原位置 / 用户缩放。
 - 所选 / 全文格式化共用样式流程；全文遍历演示文稿各页的托管公式，恢复新的自然尺寸。
 
-PowerPoint 编辑器固定白底黑字，Word 编辑器按系统深色模式适配。编辑参考与最终预览的进一步分工见字体重构方案。
+Word 和 PowerPoint 编辑器都固定使用浅色界面、默认黑字。编辑区用于输入，最终预览显示当前公式属性对应的实际渲染效果。
 
 ## 链路复杂度核对
 
@@ -391,7 +406,7 @@ Word 插入、更新、删除、编号、解析、转换和格式化都在必要
 ## 当前明确边界
 
 - 不从编号数字反向删除公式。
-- 不把默认字体/颜色作为编辑器打开时的临时样式。
+- 默认字体不作为编辑器打开时的临时源码样式；有内容且带默认颜色的公式在编辑器中写入外层颜色命令。
 - 不在加载所选时改写侧边栏用户草稿以外的持久源码。
 - 不在格式化全文时批量重写所有公式源码。
 - 不把解析与全文重编号耦合；解析后的全局序号校正仍由用户显式执行“重编号”。

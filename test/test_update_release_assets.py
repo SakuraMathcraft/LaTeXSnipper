@@ -8,11 +8,10 @@ from update.release_types import _compare_versions, _stable_tag_key
 
 def _release_payload() -> dict:
     names = [
-        "OfficePluginSetup-2.4.0.exe",
-        "LaTeXSnipperSetup-2.4.0.exe",
+        "LaTeXSnipper_2.4.0_office_amd64.exe",
+        "LaTeXSnipper_2.4.0_amd64.exe",
         "LaTeXSnipper_2.4.0_amd64.deb",
         "LaTeXSnipper_2.4.0_arm64.dmg",
-        "LaTeXSnipper_2.4.0_arm64.app.zip",
         "LaTeXSnipper_User_Manual.pdf",
     ]
     return {
@@ -44,8 +43,8 @@ def test_windows_update_chooses_main_installer_not_office_plugin(monkeypatch) ->
     monkeypatch.setattr(sys, "platform", "win32")
     info = _release_info_from_payload(_release_payload())
 
-    assert info.asset_name == "LaTeXSnipperSetup-2.4.0.exe"
-    assert "OfficePluginSetup" not in info.asset_name
+    assert info.asset_name == "LaTeXSnipper_2.4.0_amd64.exe"
+    assert "_office_" not in info.asset_name
 
 
 def test_macos_update_chooses_dmg_for_current_arch(monkeypatch) -> None:
@@ -77,8 +76,8 @@ def test_update_has_no_generic_asset_fallback(monkeypatch) -> None:
             "browser_download_url": "https://example.invalid/manual.pdf",
         },
         {
-            "name": "OfficePluginSetup-2.4.0.exe",
-            "browser_download_url": "https://example.invalid/OfficePluginSetup-2.4.0.exe",
+            "name": "LaTeXSnipper_2.4.0_office_amd64.exe",
+            "browser_download_url": "https://example.invalid/LaTeXSnipper_2.4.0_office_amd64.exe",
         },
     ]
     info = _release_info_from_payload(payload)

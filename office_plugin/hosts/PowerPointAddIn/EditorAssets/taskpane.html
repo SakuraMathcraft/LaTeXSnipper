@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LaTeXSnipper</title>
-  <link rel="stylesheet" href="./taskpane.css">
+  <link rel="stylesheet" href="https://latexsnipper-editor-shared.officeplugin.local/taskpane.css">
+  <link rel="stylesheet" href="https://latexsnipper-editor-shared.officeplugin.local/source-editor.css">
 </head>
 <body>
   <main class="taskpane-shell">
@@ -23,8 +24,9 @@
     <section class="panel editor-panel">
       <label id="equationLabel" for="previewHost">公式</label>
       <div id="previewHost" class="preview-host"></div>
+      <div id="sourceModeNote" class="source-mode-note" hidden></div>
       <label for="latexSource">LaTeX</label>
-      <textarea id="latexSource" spellcheck="false"></textarea>
+      <div id="latexSource" class="source-host"></div>
     </section>
 
     <section class="actions primary-actions">

@@ -27,14 +27,3 @@
 .source-mode-note { min-height: 22px; padding: 3px 8px; color: var(--muted); font-size: 12px; background: var(--panel); }
 .source-mode-note:empty { visibility: hidden; }
 .mathfield-host { position: relative; }
-@media (prefers-color-scheme: dark) {
-  #latexSource {
-    --source-command: #82c5ff;
-    --source-environment: #cba8f0;
-    --source-number: #b0d6a3;
-    --source-operator: #ee879c;
-    --source-bracket: #ead37b;
-    --source-text: #dfa67a;
-    --source-comment: #8da780;
-  }
-}

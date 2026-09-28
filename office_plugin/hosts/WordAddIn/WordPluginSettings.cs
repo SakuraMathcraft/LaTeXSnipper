@@ -1,5 +1,6 @@
 using System;
 using LaTeXSnipper.OfficePlugin.Abstractions;
+using LaTeXSnipper.OfficePlugin.Editor;
 using Microsoft.Win32;
 
 namespace LaTeXSnipper.OfficePlugin.WordAddIn;
@@ -15,10 +16,6 @@ public sealed class WordPluginSettings
     private const string HideChapterBoundaryValue = "HideChapterBoundary";
     private const string HideSectionBoundaryValue = "HideSectionBoundary";
     private const string NumberSeparatorValue = "NumberSeparator";
-    private const string FormulaColorValue = "FormulaColor";
-    private const string UseSystemFormulaColorValue = "UseSystemFormulaColor";
-    private const string FormulaMathStyleValue = "FormulaMathStyle";
-    private const string FormulaFontSizePointsValue = "FormulaFontSizePoints";
 
     public WordPluginSettings(
         WordNumberPlacement numberPlacement,
@@ -30,9 +27,8 @@ public sealed class WordPluginSettings
         bool hideSectionBoundary,
         string numberSeparator,
         string formulaColor,
-        bool useSystemFormulaColor,
         FormulaMathStyle formulaMathStyle,
-        double formulaFontSizePoints, bool followHostFontSize = false)
+        double formulaFontSizePoints, bool followHostFontSize = false, FormulaTypography? typography = null)
     {
         NumberPlacement = numberPlacement;
         InsertionBackend = insertionBackend;
@@ -43,12 +39,9 @@ public sealed class WordPluginSettings
         HideChapterBoundary = hideChapterBoundary;
         HideSectionBoundary = hideSectionBoundary;
         NumberSeparator = NormalizeNumberSeparator(numberSeparator);
-        UseSystemFormulaColor = useSystemFormulaColor;
-        FormulaColor = useSystemFormulaColor
-            ? WordFormulaColorDefaults.Current
-            : string.IsNullOrWhiteSpace(formulaColor) ? WordFormulaColorDefaults.Current : formulaColor;
+        FormulaColor = string.IsNullOrWhiteSpace(formulaColor) ? "#000000" : formulaColor;
         FormulaTypography defaults = FormulaTypography.Default;
-        Typography = new FormulaTypography(defaults.SymbolFontId, defaults.NumberFontFamily, defaults.CjkFontFamily,
+        Typography = typography ?? new FormulaTypography(defaults.SymbolFontId, defaults.NumberFontFamily, defaults.CjkFontFamily,
             formulaMathStyle, formulaFontSizePoints, FormulaColor);
     }
 
@@ -70,8 +63,6 @@ public sealed class WordPluginSettings
 
     public string FormulaColor { get; }
 
-    public bool UseSystemFormulaColor { get; }
-
     public FormulaMathStyle FormulaMathStyle => Typography.DefaultMathStyle;
 
     public double FormulaFontSizePoints => Typography.FontSizePoints;
@@ -90,6 +81,7 @@ public sealed class WordPluginSettings
         FormulaInsertionBackend backend = backendRaw == FormulaInsertionBackend.WordOmml.ToString()
             ? FormulaInsertionBackend.WordOmml
             : FormulaInsertionBackend.Ole;
+        FormulaTypographyDefaults preset = new TypographySettingsStore().Load("word");
         return new WordPluginSettings(
             placementRaw == "Left" ? WordNumberPlacement.Left : WordNumberPlacement.Right,
             backend,
@@ -99,11 +91,10 @@ public sealed class WordPluginSettings
             ReadBoolean(key, HideChapterBoundaryValue),
             ReadBoolean(key, HideSectionBoundaryValue),
             key?.GetValue(NumberSeparatorValue) as string ?? "-",
-            key?.GetValue(FormulaColorValue) as string ?? WordFormulaColorDefaults.Current,
-            ReadBoolean(key, UseSystemFormulaColorValue, defaultValue: true),
-            ReadEnum(key, FormulaMathStyleValue, FormulaMathStyle.Automatic),
-            ReadDouble(key, FormulaFontSizePointsValue, defaultValue: 12),
-            ReadBoolean(key, "WordFollowHostFontSize"));
+            preset.Typography.Color,
+            preset.Typography.DefaultMathStyle,
+            preset.Typography.FontSizePoints,
+            preset.FollowHostFontSize, preset.Typography);
     }
 
     public void Save()
@@ -111,7 +102,6 @@ public sealed class WordPluginSettings
         using RegistryKey key = Registry.CurrentUser.CreateSubKey(RegistryPath)
             ?? throw new InvalidOperationException("无法打开 LaTeXSnipper Office 插件设置。");
         key.SetValue(NumberPlacementValue, NumberPlacement.ToString(), RegistryValueKind.String);
-        key.SetValue("WordFollowHostFontSize", FollowHostFontSize ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(InsertionBackendValue, InsertionBackend.ToString(), RegistryValueKind.String);
         key.SetValue(NumberEnclosureValue, NumberEnclosure.ToString(), RegistryValueKind.String);
         key.SetValue(IncludeChapterValue, IncludeChapter ? 1 : 0, RegistryValueKind.DWord);
@@ -119,13 +109,6 @@ public sealed class WordPluginSettings
         key.SetValue(HideChapterBoundaryValue, HideChapterBoundary ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(HideSectionBoundaryValue, HideSectionBoundary ? 1 : 0, RegistryValueKind.DWord);
         key.SetValue(NumberSeparatorValue, NumberSeparator, RegistryValueKind.String);
-        key.SetValue(FormulaColorValue, FormulaColor, RegistryValueKind.String);
-        key.SetValue(UseSystemFormulaColorValue, UseSystemFormulaColor ? 1 : 0, RegistryValueKind.DWord);
-        key.SetValue(FormulaMathStyleValue, FormulaMathStyle.ToString(), RegistryValueKind.String);
-        key.SetValue(
-            FormulaFontSizePointsValue,
-            FormulaFontSizePoints.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            RegistryValueKind.String);
     }
 
     private static T ReadEnum<T>(RegistryKey? key, string valueName, T defaultValue)
@@ -139,19 +122,6 @@ public sealed class WordPluginSettings
     {
         object? value = key?.GetValue(valueName);
         return value == null ? defaultValue : Convert.ToInt32(value) != 0;
-    }
-
-    private static double ReadDouble(RegistryKey? key, string valueName, double defaultValue)
-    {
-        object? value = key?.GetValue(valueName);
-        return value != null &&
-            double.TryParse(
-                Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture),
-                System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture,
-                out double parsed)
-            ? parsed
-            : defaultValue;
     }
 
     private static string NormalizeNumberSeparator(string value)

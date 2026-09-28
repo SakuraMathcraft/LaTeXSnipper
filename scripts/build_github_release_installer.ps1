@@ -359,7 +359,7 @@ if (-not (Test-Path $appExe)) {
 }
 
 if (Test-Path $installerOutputDir) {
-    Get-ChildItem -LiteralPath $installerOutputDir -Filter "LaTeXSnipperSetup-*.exe" -File |
+    Get-ChildItem -LiteralPath $installerOutputDir -Filter "LaTeXSnipper_*_amd64.exe" -File |
         Remove-Item -Force
 }
 & $iscc $iss
@@ -367,7 +367,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "Inno Setup failed with exit code $LASTEXITCODE"
 }
 
-$installer = Get-ChildItem -LiteralPath $installerOutputDir -Filter "LaTeXSnipperSetup-*.exe" -File |
+$installer = Get-ChildItem -LiteralPath $installerOutputDir -Filter "LaTeXSnipper_*_amd64.exe" -File |
     Sort-Object LastWriteTimeUtc -Descending |
     Select-Object -First 1
 if (-not $installer -or -not (Test-Path -LiteralPath $installer.FullName)) {

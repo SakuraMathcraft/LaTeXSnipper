@@ -81,7 +81,6 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
             pane.ConnectRequested += (_, _) => callbacks.OnConnect(pane);
             pane.InsertRequested += (_, _) => callbacks.OnInsertFromTaskPane(pane);
             pane.ScreenshotOcrRequested += (_, _) => callbacks.OnScreenshotOcr(pane);
-            pane.RenumberRequested += (_, _) => callbacks.OnRenumberAll(pane);
         }
 
         private sealed class ActiveWindowStatusPaneHost : IWordStatusSink, IWordFormulaOptionsProvider, IDisposable

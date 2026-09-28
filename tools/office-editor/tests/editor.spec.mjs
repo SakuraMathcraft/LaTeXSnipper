@@ -7,7 +7,7 @@ import {tmpdir} from 'node:os';
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const shared = resolve(root, 'office_plugin/src/LaTeXSnipper.OfficePlugin.Editor/EditorAssets');
 const source = page => page.locator('#latexSource .cm-content');
-async function open(page, latex = 'x+1', host = 'word') {
+async function open(page, latex = 'x+1', host = 'word', color = '#000000') {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error' || message.type() === 'warning') errors.push(message.text()); });
@@ -20,14 +20,19 @@ async function open(page, latex = 'x+1', host = 'word') {
     const types = {'.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.woff2': 'font/woff2'};
     await route.fulfill({body: await readFile(path), contentType: types[extname(path)] || 'application/octet-stream'});
   });
-  await page.addInitScript(latex => {
+  await page.addInitScript(({latex, color}) => {
     window.editorInit = {latex, locale: 'zh', mode: 'update', session: 1, display: true, referencePreview: false,
-      typography: {typographyVersion: 1, symbolFontId: 'mathjax-tex', numberFontFamily: '', cjkFontFamily: 'Microsoft YaHei', defaultMathStyle: 'Automatic', fontSizePoints: 12, color: '#000000'},
-      catalog: {symbolFonts: ['mathjax-tex', 'mathjax-stix2'], systemFonts: ['Microsoft YaHei', 'SimSun', 'Arial'], mathStyles: ['Automatic', 'Upright', 'Bold'], namedSizes: {'小四': 12, '五号': 10.5}, minimumPoints: 1, maximumPoints: 1638}};
+      typography: {typographyVersion: 1, symbolFontId: 'mathjax-tex', numberFontFamily: '', cjkFontFamily: 'Microsoft YaHei', defaultMathStyle: 'Automatic', fontSizePoints: 12, color},
+      catalog: {symbolFonts: ['mathjax-tex', 'mathjax-stix2'], systemFonts: ['Microsoft YaHei', 'SimSun', 'Arial'],
+        cjkFonts: ['Microsoft YaHei', 'SimSun'], mathStyles: [
+          {id: 'Automatic', zh: '自动数学样式', en: 'Automatic'},
+          {id: 'Upright', zh: '正体', en: 'Upright'}, {id: 'Bold', zh: '粗体', en: 'Bold'},
+          {id: 'BoldFraktur', zh: '哥特粗体', en: 'Bold Fraktur'}],
+        namedSizes: {'初号': 42, '四号': 14, '小四': 12, '五号': 10.5}, commonPointSizes: [10.5, 12, 14, 18, 24, 36, 42], minimumPoints: 1, maximumPoints: 1638}};
     window.__latexSnipperPendingInit = window.editorInit;
     window.posted = [];
     window.chrome = {webview: {postMessage: message => window.posted.push(message)}};
-  }, latex);
+  }, {latex, color});
   await page.goto(`https://latexsnipper-${host}.officeplugin.local/editor.html`);
   await expect(page).toHaveTitle('LaTeXSnipper');
   await expect(source(page)).toBeVisible();
@@ -58,6 +63,46 @@ test('complex source survives load, reference focus, source editing, undo and su
   await page.screenshot({path: join(tmpdir(), 'latexsnipper-editor-light.png')});
 });
 
+test('editor starts in the visual field and returns there after host focus', async ({page}) => {
+  const errors = await open(page, 'x+1');
+  await expect(visual(page)).toBeFocused();
+  await expect(page.locator('#undoButton')).not.toBeFocused();
+  await page.locator('#undoButton').evaluate(button => button.focus());
+  await expect(visual(page)).toBeFocused();
+  await page.keyboard.type('2');
+  await expect.poll(() => source(page).innerText()).toContain('2');
+  expect(errors).toEqual([]);
+});
+
+test('removing an align container releases visual editing without retaining its old rows', async ({page}) => {
+  const errors = await open(page, '\\begin{align}x&=1\\\\y&=2\\end{align}');
+  await expect.poll(() => visual(page).evaluate(field => field.readOnly)).toBe(false);
+  await source(page).fill('');
+  await expect.poll(() => visual(page).evaluate(field => field.getValue('latex'))).toBe('');
+  await expect.poll(() => visual(page).evaluate(field => field.readOnly)).toBe(false);
+  await source(page).fill('x+1');
+  await expect.poll(() => visual(page).evaluate(field => field.getValue('latex'))).toBe('x+1');
+  await expect(page.locator('#sourceModeNote')).toBeHidden();
+  await source(page).fill('\\begin{align}a&=b\\\\c&=d\\end{align}');
+  await expect.poll(() => visual(page).evaluate(field => field.readOnly)).toBe(false);
+  await source(page).fill('');
+  await expect(page.locator('#sourceModeNote')).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test('source that MathLive would rewrite can be adopted explicitly and undone', async ({page}) => {
+  const latex = 'x\\displaylines{y=z}';
+  const errors = await open(page, latex);
+  await expect(page.locator('#sourceModeNote')).toContainText('改写');
+  await expect.poll(() => visual(page).evaluate(field => field.readOnly)).toBe(true);
+  await page.locator('#adoptVisualButton').click();
+  await expect.poll(() => visual(page).evaluate(field => field.readOnly)).toBe(false);
+  expect(await source(page).innerText()).not.toBe(latex);
+  await source(page).press('Control+z');
+  await expect(source(page)).toHaveText(latex);
+  expect(errors).toEqual([]);
+});
+
 test('source history includes visual edits; unfocused notifications cannot replace newer source', async ({page}) => {
   const errors = await open(page);
   await page.locator('#mathfieldHost math-field').click();
@@ -86,14 +131,16 @@ test('IME composition keeps source editable, blocks submission and updates after
   expect(await submitted(page)).toBe('\\text{中文}');
 });
 
-test('PPT uses the same editor with diagnostics, search and dark theme', async ({page}) => {
+test('PPT uses the same light editor with diagnostics and search under a dark OS theme', async ({page}) => {
   await page.emulateMedia({colorScheme: 'dark'});
   await page.setViewportSize({width: 980, height: 680});
   const errors = await open(page, '\\frac{a}{b', 'powerpoint');
   await expect(page.locator('.cm-lintRange-error')).not.toHaveCount(0);
   await source(page).press('Control+f');
   await expect(page.locator('.cm-search')).toBeVisible();
-  await page.screenshot({path: join(tmpdir(), 'latexsnipper-editor-dark.png')});
+  expect(await page.locator('html').evaluate(el => getComputedStyle(el).colorScheme)).toBe('light');
+  expect(await page.locator('body').evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(238, 242, 247)');
+  await page.screenshot({path: join(tmpdir(), 'latexsnipper-editor-forced-light.png')});
   expect(errors).toEqual([]);
 });
 
@@ -123,6 +170,24 @@ test('brackets, command and environment completion and indentation work from the
   expect(errors).toEqual([]);
 });
 
+test('environment completion consumes the existing auto-closed brace', async ({page}) => {
+  const errors = await open(page, '');
+  for (const [prefix, name] of [['ali', 'align'], ['cas', 'cases'], ['mat', 'matrix']]) {
+    await source(page).fill('');
+    await source(page).click();
+    await page.keyboard.type(`\\begin{${prefix}`);
+    expect(await submitted(page)).toBe(`\\begin{${prefix}}`);
+    await source(page).press('Control+Space');
+    await expect(page.locator('.cm-tooltip-autocomplete')).toBeVisible();
+    await page.waitForTimeout(100);
+    await source(page).press('Enter');
+    const completed = await submitted(page);
+    expect(completed).toMatch(new RegExp(`^\\\\begin\\{${name}\\}[\\s\\S]*\\\\end\\{${name}\\}$`));
+    expect(completed).not.toContain(`\\end{${name}}}`);
+  }
+  expect(errors).toEqual([]);
+});
+
 test('find/replace, source symbol insertion, session reset and submission locking', async ({page}) => {
   const errors = await open(page, 'x+x');
   await source(page).press('Control+f');
@@ -132,7 +197,8 @@ test('find/replace, source symbol insertion, session reset and submission lockin
   expect(await submitted(page)).toBe('y+y');
   await source(page).press('Escape');
   await source(page).press('End');
-  await page.locator('#symbolGrid button').filter({hasText: /^α$/}).click();
+  await page.locator('[data-group="greek"]').click();
+  await page.locator('#symbolGrid').getByRole('button', {name: 'α', exact: true}).click();
   expect(await submitted(page)).toBe('y+y\\alpha');
   await page.evaluate(() => window.LaTeXSnipperEditor.init({...window.editorInit,latex: 'new', locale: 'zh'}));
   await source(page).press('Control+z');
@@ -166,6 +232,7 @@ for (const host of ['word', 'powerpoint']) {
     await source(page).press('Control+y');
     await expect(source(page)).toHaveText('\\frac{x+1}{}');
     await page.evaluate(() => window.LaTeXSnipperEditor.init({...window.editorInit,latex: '', locale: 'zh'}));
+    await source(page).click();
     await searchTile(page, 'Fraction');
     await tile(page, '分数').click();
     expect(errors).toEqual([]);
@@ -236,22 +303,28 @@ test('reference-only formulas route tiles to source; composition and submission 
   expect(errors).toEqual([]);
 });
 
-test('keyboard search, independent horizontal scrolling, lazy previews and compact layout', async ({page}) => {
+test('global search, vertical symbol scrolling, rendered previews and compact layout', async ({page}) => {
   const errors = await open(page, 'x');
   await source(page).press('End');
   await page.locator('[data-group="structures"]').click();
   const grid = page.locator('#symbolGrid');
-  await expect.poll(() => grid.locator('.tile-preview').count()).toBeGreaterThan(0);
-  expect(await grid.locator('.tile-preview').count()).toBeLessThan(await grid.locator('button').count());
+  await expect.poll(() => grid.locator('.tile-preview-content').count()).toBeGreaterThan(0);
+  await expect.poll(() => grid.evaluate(el => {
+    const viewport = el.getBoundingClientRect();
+    return [...el.querySelectorAll('.symbol-tile')].filter(button => {
+      const rect = button.getBoundingClientRect();
+      return rect.bottom > viewport.top && rect.top < viewport.bottom;
+    }).every(button => Boolean(button.querySelector('.tile-preview-content')));
+  })).toBe(true);
   const gridBox = await grid.boundingBox();
   await page.mouse.move(gridBox.x + 50, gridBox.y + 20);
   await page.mouse.wheel(0, 350);
-  await expect.poll(() => grid.evaluate(el => el.scrollLeft)).toBeGreaterThan(0);
-  const scrolled = await grid.evaluate(el => el.scrollLeft);
+  await expect.poll(() => grid.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+  const scrolled = await grid.evaluate(el => el.scrollTop);
   const sourceBox = await source(page).boundingBox();
   await page.mouse.move(sourceBox.x + 30, sourceBox.y + 10);
   await page.mouse.wheel(0, 200);
-  expect(await grid.evaluate(el => el.scrollLeft)).toBe(scrolled);
+  expect(await grid.evaluate(el => el.scrollTop)).toBe(scrolled);
   await searchTile(page, 'alpha');
   await page.locator('#symbolSearch').press('ArrowDown');
   await page.keyboard.press('Enter');
@@ -302,31 +375,36 @@ test('escaped source wraps literally; keyboard navigation, cached tiles and resi
   await page.keyboard.type('d');
   await expect(source(page)).toHaveText('\\frac{' + latex + '}{d}');
   await page.locator('[data-group="structures"]').click();
-  await expect.poll(() => tile(page, '分数').locator('.tile-preview').count()).toBe(1);
-  const cached = await tile(page, '分数').locator('.tile-preview').elementHandle();
+  await expect.poll(() => tile(page, '分数').locator('.tile-preview-content').count()).toBe(1);
+  const cached = await tile(page, '分数').locator('.tile-preview-content').elementHandle();
   await page.locator('[data-group="greek"]').click();
   await page.locator('[data-group="structures"]').click();
-  await expect.poll(() => tile(page, '分数').locator('.tile-preview').count()).toBe(1);
-  expect(await tile(page, '分数').locator('.tile-preview').evaluate((element, previous) => element === previous, cached)).toBe(true);
+  await expect.poll(() => tile(page, '分数').locator('.tile-preview-content').count()).toBe(1);
+  expect(await tile(page, '分数').locator('.tile-preview-content').evaluate((element, previous) => element === previous, cached)).toBe(true);
   await tile(page, '分数').focus();
-  await page.keyboard.press('ArrowRight');
-  await expect(tile(page, '下标')).toBeFocused();
-  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowDown');
+  await expect(tile(page, '分数')).not.toBeFocused();
+  await page.keyboard.press('Home');
   await expect(tile(page, '分数')).toBeFocused();
   const resize = page.locator('#sourceResizeHandle');
   const before = Number(await resize.getAttribute('aria-valuenow'));
   await resize.press('ArrowUp');
   expect(Number(await resize.getAttribute('aria-valuenow'))).toBeGreaterThan(before);
-  await page.locator('#libraryNext').click();
-  await expect.poll(() => page.locator('#symbolGrid').evaluate(el => el.scrollLeft)).toBeGreaterThan(0);
-  await page.locator('#libraryPrevious').click();
-  await expect.poll(() => page.locator('#symbolGrid').evaluate(el => el.scrollLeft)).toBe(0);
+  await page.locator('[data-group="geometry"]').click();
+  const grid = page.locator('#symbolGrid');
+  expect(await grid.locator('button').count()).toBeGreaterThan(100);
+  await grid.evaluate(el => { el.scrollTop = 400; });
+  const scrolled = await grid.evaluate(el => el.scrollTop);
+  expect(scrolled).toBeGreaterThan(0);
+  await page.locator('[data-group="greek"]').click();
+  await page.locator('[data-group="geometry"]').click();
+  expect(await grid.evaluate(el => el.scrollTop)).toBeGreaterThanOrEqual(scrolled - 10);
   await page.screenshot({path: join(tmpdir(), 'latexsnipper-editor-6a-structures.png')});
   await page.evaluate(() => window.LaTeXSnipperEditor.init({...window.editorInit,latex: 'x', locale: 'en'}));
   await searchTile(page, '分数');
   await expect(tile(page, 'Fraction')).toBeVisible();
   await page.locator('#symbolSearch').press('Escape');
-  await expect(source(page)).toBeFocused();
+  await expect(visual(page)).toBeFocused();
   expect(errors).toEqual([]);
 });
 
@@ -363,6 +441,412 @@ test('typography and current source share one preview and submission snapshot in
     await page.evaluate(() => window.LaTeXSnipperEditor.setSubmitting(false));
     await expect.poll(async () => (await latestPreview(page)).revision).toBeGreaterThan(request.revision);
   }
+});
+
+test('visual Enter creates a readable source line for each formula row', async ({page}) => {
+  const errors = await open(page, 'x=1');
+  await visual(page).click();
+  await visual(page).press('End');
+  await visual(page).press('Enter');
+  await page.keyboard.type('y=2');
+  await expect.poll(() => page.locator('#latexSource .cm-line').count()).toBeGreaterThan(1);
+  const latex = await submitted(page);
+  expect(latex).toMatch(/\\\\\s*\n/);
+  expect(errors).toEqual([]);
+});
+
+test('plain source Tab inserts at the caret while template fields retain Tab navigation', async ({page}) => {
+  const errors = await open(page, 'abcd');
+  await source(page).press('Home');
+  await source(page).press('ArrowRight');
+  await source(page).press('ArrowRight');
+  await source(page).press('Tab');
+  expect(await submitted(page)).toBe('ab\tcd');
+  expect(errors).toEqual([]);
+});
+
+test('font controls stay open while moving between native selects', async ({page}) => {
+  const errors = await open(page, 'x+1');
+  await page.locator('#typographyToggle').click();
+  const panel = page.locator('#typographyPanel');
+  for (const [id, value] of [['symbolFontId', 'mathjax-stix2'], ['numberFontFamily', 'Arial'],
+    ['cjkFontFamily', 'SimSun'], ['defaultMathStyle', 'Upright']]) {
+    const select = page.locator(`#${id}`);
+    await select.focus();
+    await expect(panel).toBeVisible();
+    await select.selectOption(value);
+    await expect(select).toHaveValue(value);
+    if (id === 'numberFontFamily') await expect(select.locator('option').first()).toHaveAttribute('value', '');
+    if (id === 'cjkFontFamily') await expect(select.locator('option').first()).toHaveAttribute('value', 'Microsoft YaHei');
+    if (id === 'symbolFontId') await expect(select.locator('option').first()).toHaveAttribute('value', 'mathjax-tex');
+  }
+  expect(await page.locator('#cjkFontFamily option').allTextContents()).not.toContain('Arial');
+  await expect(page.locator('#defaultMathStyle option:checked')).toHaveText('正体');
+  await expect(panel).toBeVisible();
+  await submitted(page);
+  expect((await page.evaluate(() => window.posted.findLast(message => message.type === 'accept').typography)).numberFontFamily).toBe('Arial');
+  expect(errors).toEqual([]);
+});
+
+test('browser chrome is suppressed while editor shortcuts keep working', async ({page}) => {
+  const errors = await open(page, 'x');
+  const contextMenuBlocked = await page.evaluate(() => {
+    const event = new MouseEvent('contextmenu', {bubbles: true, cancelable: true, composed: true});
+    document.querySelector('#latexSource').dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  expect(contextMenuBlocked).toBe(true);
+  const browserFindBlocked = await page.evaluate(() => {
+    const event = new KeyboardEvent('keydown', {key: 'f', ctrlKey: true, bubbles: true, cancelable: true});
+    document.querySelector('#undoButton').dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  expect(browserFindBlocked).toBe(true);
+  await source(page).press('Control+f');
+  await expect(page.locator('.cm-search')).toBeVisible();
+  await source(page).press('Escape');
+  await visual(page).click();
+  await visual(page).press('Control+a');
+  await visual(page).press('Control+r');
+  await expect(source(page)).toHaveText('\\sqrt{x}');
+  expect(errors).toEqual([]);
+});
+
+test('visual right-click offers the compact Chinese menu and keeps editing active', async ({page}) => {
+  await page.emulateMedia({colorScheme: 'dark'});
+  const errors = await open(page, 'x');
+  expect(await visual(page).evaluate(field => field.menuItems.map(item => [item.id, item.label]))).toEqual([
+    ['color', '局部上色'], ['cut', '剪切'], ['paste', '粘贴'], ['select-all', '全选']
+  ]);
+  expect(await visual(page).evaluate(field => ['menu-toggle', 'virtual-keyboard-toggle'].map(part =>
+    getComputedStyle(field.shadowRoot.querySelector(`[part~="${part}"]`)).display))).toEqual(['none', 'none']);
+  await visual(page).click();
+  await expect(visual(page)).toBeFocused();
+  await visual(page).click({button: 'right'});
+  await expect(page.getByRole('menuitem', {name: '局部上色'})).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(visual(page)).toBeFocused();
+  await page.keyboard.type('2');
+  await expect(source(page)).toHaveText('x2');
+  await page.evaluate(() => window.mathVirtualKeyboard.show());
+  await expect.poll(() => page.evaluate(() => window.mathVirtualKeyboard.visible)).toBe(true);
+  expect(await page.locator('.ML__keyboard').evaluate(el => getComputedStyle(el).getPropertyValue('--_background').trim())).toBe('#cacfd7');
+  await page.keyboard.press('Escape');
+  await expect.poll(() => page.evaluate(() => window.mathVirtualKeyboard.visible)).toBe(false);
+  await page.keyboard.type('3');
+  await expect(source(page)).toHaveText('x23');
+  expect(errors).toEqual([]);
+});
+
+test('global color matches visual editing and menu color immediately updates source', async ({page}) => {
+  const errors = await open(page, 'x+y', 'word', '#cc0000');
+  await expect(source(page)).toHaveText('\\textcolor{#cc0000}{x+y}');
+  await expect.poll(() => visual(page).evaluate(field => getComputedStyle(field).color)).toBe('rgb(204, 0, 0)');
+  await visual(page).click();
+  await visual(page).press('Control+a');
+  await visual(page).click({button: 'right'});
+  await page.getByRole('menuitem', {name: '局部上色'}).click();
+  await page.getByRole('menuitemcheckbox', {name: 'teal'}).click();
+  await expect(source(page)).toContainText('\\textcolor{teal}');
+  await expect(source(page)).toContainText('\\textcolor{#cc0000}');
+  await page.locator('#color').fill('#0000cc');
+  await expect(source(page)).toContainText('\\textcolor{#0000cc}');
+  await expect(source(page)).not.toContainText('\\textcolor{#cc0000}');
+  await visual(page).press('ArrowRight');
+  await page.locator('#previewToggle').click();
+  await expect.poll(() => page.evaluate(() => window.posted.findLast(message => message.type === 'preview')?.typography.color)).toBe('#0000cc');
+  await source(page).fill('\\textcolor{#00aa00}{z}');
+  await expect(page.locator('#color')).toHaveValue('#00aa00');
+  await expect.poll(() => page.evaluate(() => window.posted.findLast(message => message.type === 'preview')?.typography.color)).toBe('#00aa00');
+  expect(await submitted(page)).toBe('\\textcolor{#00aa00}{z}');
+  expect((await page.evaluate(() => window.posted.findLast(message => message.type === 'accept').typography)).color).toBe('#00aa00');
+  await source(page).fill('z');
+  await expect(page.locator('#color')).toHaveValue('#000000');
+  await expect.poll(() => page.evaluate(() => window.posted.findLast(message => message.type === 'preview')?.typography.color)).toBe('#000000');
+  expect(errors).toEqual([]);
+});
+
+test('compact visual menu selects, cuts and pastes through the source state', async ({page}) => {
+  const errors = await open(page, 'x+y');
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'],
+    {origin: 'https://latexsnipper-word.officeplugin.local'});
+  await visual(page).click({button: 'right'});
+  await page.getByRole('menuitem', {name: '全选'}).click();
+  await visual(page).click({button: 'right'});
+  await page.getByRole('menuitem', {name: '剪切'}).click();
+  await expect(source(page)).toBeEmpty();
+  await visual(page).click({button: 'right'});
+  await page.getByRole('menuitem', {name: '粘贴'}).click();
+  await expect(source(page)).toHaveText('x+y');
+  expect(errors).toEqual([]);
+});
+
+test('colored source remains editable in MathLive', async ({page}) => {
+  const errors = await open(page, '\\textcolor{#cc0000}{x+\\textcolor{teal}{y}}');
+  await expect(visual(page)).toHaveJSProperty('readOnly', false);
+  await expect(page.locator('#color')).toHaveValue('#cc0000');
+  await page.locator('#previewToggle').click();
+  await expect.poll(() => page.evaluate(() => window.posted.findLast(message => message.type === 'preview')?.typography.color)).toBe('#cc0000');
+  expect(errors).toEqual([]);
+});
+
+test('empty formula inherits its configured color in source and visual editing', async ({page}) => {
+  const errors = await open(page, '', 'word', '#363bd3');
+  await expect(source(page)).toHaveText('\\textcolor{#363bd3}{}');
+  await expect(page.locator('#color')).toHaveValue('#363bd3');
+  await expect(visual(page)).toHaveJSProperty('readOnly', false);
+  await visual(page).click();
+  await page.keyboard.type('x');
+  await expect(source(page)).toHaveText('\\textcolor{#363bd3}{x}');
+  expect(errors).toEqual([]);
+});
+
+test('local color on the final symbol does not pin the old global color', async ({page}) => {
+  const errors = await open(page, 'x=L', 'word', '#363bd3');
+  await visual(page).evaluate(field => {
+    field.focus();
+    field.executeCommand('moveToMathfieldEnd');
+    field.executeCommand('extendSelectionBackward');
+  });
+  await visual(page).click({button: 'right'});
+  await page.getByRole('menuitem', {name: '局部上色'}).click();
+  await page.getByRole('menuitemcheckbox', {name: 'red'}).click();
+  await expect(source(page)).toContainText('\\textcolor{red}{L}');
+  await page.locator('#color').fill('#145a32');
+  await expect(source(page)).toContainText('\\textcolor{#145a32}');
+  await expect(source(page)).not.toContainText('#363bd3');
+  expect(errors).toEqual([]);
+});
+
+test('LaTeX suggestion arrows keep the same visual field and complete the command', async ({page}) => {
+  const errors = await open(page, '');
+  await visual(page).click();
+  const original = await visual(page).evaluate(field => { field.dataset.instance = 'initial'; return field.dataset.instance; });
+  await page.keyboard.type('\\alef');
+  await expect(page.locator('#mathlive-suggestion-popover')).toHaveClass(/is-visible/);
+  await page.locator('#mathlive-suggestion-popover').evaluate(popover => { window.__suggestionPopover = popover; });
+  await page.keyboard.press('ArrowDown');
+  expect(await page.evaluate(() => document.getElementById('mathlive-suggestion-popover') === window.__suggestionPopover)).toBe(true);
+  await page.keyboard.press('ArrowUp');
+  expect(await page.evaluate(() => document.getElementById('mathlive-suggestion-popover') === window.__suggestionPopover)).toBe(true);
+  expect(await visual(page).evaluate(field => field.dataset.instance)).toBe(original);
+  await page.keyboard.press('Enter');
+  await expect.poll(() => source(page).innerText()).toContain('\\alef');
+  expect(errors).toEqual([]);
+});
+
+test('Common starts empty and right-click favorites persist without matrix controls', async ({page}) => {
+  const errors = await open(page, 'x');
+  await expect(page.locator('#libraryTitleText')).toHaveText('常用 · 0');
+  await expect(page.locator('#symbolGrid')).toContainText('右键点击公式磁贴');
+  await expect(page.locator('#matrixSize')).toBeHidden();
+  const order = await page.locator('#libraryTabs .tab').evaluateAll(tabs => tabs.map(tab => tab.dataset.group));
+  expect(order.slice(8, 14)).toEqual(['sets', 'analysis', 'algebra', 'geometry', 'topology', 'numberTheory']);
+  await page.locator('[data-group="structures"]').click();
+  await tile(page, '矩阵').click({button: 'right'});
+  await page.getByRole('menuitem', {name: '加入常用'}).click();
+  await page.locator('[data-group="common"]').click();
+  await expect(tile(page, '矩阵')).toBeVisible();
+  await expect(page.locator('#matrixSize')).toBeHidden();
+  await page.reload();
+  await expect(tile(page, '矩阵')).toBeVisible();
+  await tile(page, '矩阵').click({button: 'right'});
+  await page.getByRole('menuitem', {name: '从常用移除'}).click();
+  await expect(page.locator('#libraryTitleText')).toHaveText('常用 · 0');
+  expect(errors).toEqual([]);
+});
+
+test('current formula can be saved to Common and survives editor reload', async ({page}) => {
+  const errors = await open(page, 'x+1');
+  const favorite = page.locator('#currentFavoriteButton');
+  await expect(favorite).toHaveAttribute('aria-pressed', 'false');
+  await favorite.click();
+  await expect(favorite).toHaveAttribute('aria-pressed', 'true');
+  await expect(tile(page, '我的公式 1')).toBeVisible();
+  await page.reload();
+  await expect(tile(page, '我的公式 1')).toBeVisible();
+  await source(page).fill('');
+  await tile(page, '我的公式 1').click();
+  await expect(source(page)).toHaveText('x+1');
+  await tile(page, '我的公式 1').click({button: 'right'});
+  await page.getByRole('menuitem', {name: '从常用移除'}).click();
+  await expect(page.locator('#libraryTitleText')).toHaveText('常用 · 0');
+  expect(errors).toEqual([]);
+});
+
+test('opening controls leaves selection to the user and preview has no redundant caption', async ({page}) => {
+  const errors = await open(page, 'x+1');
+  await expect(source(page)).not.toBeFocused();
+  await page.locator('#typographyToggle').click();
+  await expect(page.locator('#symbolFontId')).not.toBeFocused();
+  await page.locator('#fontSizeToggle').click();
+  await expect(page.locator('#fontSizePoints')).not.toBeFocused();
+  await page.locator('#previewToggle').click();
+  await expect(page.locator('#previewNote')).toBeEmpty();
+  expect(errors).toEqual([]);
+});
+
+test('large categories paint on demand and keep visible tiles available', async ({page}) => {
+  const errors = await open(page, 'x');
+  const first = await page.evaluate(() => {
+    const start = performance.now();
+    document.querySelector('[data-group="analysis"]').click();
+    return {elapsed: performance.now() - start,
+      total: document.querySelectorAll('#symbolGrid .symbol-tile').length,
+      rendered: document.querySelectorAll('#symbolGrid .tile-preview-content').length};
+  });
+  expect(first.total).toBeGreaterThan(100);
+  expect(first.rendered).toBeLessThan(first.total);
+  expect(first.elapsed).toBeLessThan(300);
+  await expect.poll(() => page.locator('#symbolGrid .tile-preview-content').count()).toBeGreaterThan(0);
+  const grid = page.locator('#symbolGrid');
+  await grid.evaluate(element => { element.scrollTop = 1200; });
+  await expect.poll(() => grid.evaluate(element => [...element.querySelectorAll('.symbol-tile')]
+    .filter(tile => tile.getBoundingClientRect().bottom > element.getBoundingClientRect().top
+      && tile.getBoundingClientRect().top < element.getBoundingClientRect().bottom)
+    .some(tile => tile.querySelector('.tile-preview-content')))).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test('symbol tiles render LaTeX and pack to their measured width', async ({page}) => {
+  await page.setViewportSize({width: 932, height: 592});
+  const errors = await open(page, '');
+  await page.locator('[data-group="greek"]').click();
+  const alpha = tile(page, 'α').locator('.tile-preview-content');
+  await expect(alpha).toHaveCount(1);
+  expect(await alpha.evaluate(el => Boolean(el.querySelector('[class*="ML__"]')))).toBe(true);
+  const compactGreekCount = await page.locator('#symbolGrid .symbol-tile').evaluateAll(buttons => {
+    const top = buttons[0].getBoundingClientRect().top;
+    return buttons.filter(button => Math.abs(button.getBoundingClientRect().top - top) < 2).length;
+  });
+  expect(compactGreekCount).toBeGreaterThanOrEqual(3);
+  await page.screenshot({path: join(tmpdir(), 'latexsnipper-editor-compact-greek.png')});
+  const invalidGreek = await page.evaluate(async () => {
+    const base = 'https://latexsnipper-editor-shared.officeplugin.local/';
+    const [{findEntries, entryTemplate, templateParts}, {validateLatex}] = await Promise.all([
+      import(`${base}template-catalog.mjs`), import(`${base}vendor/mathlive.min.mjs`)]);
+    return findEntries('greek').flatMap(entry => {
+      const latex = templateParts(entryTemplate(entry)).map(part => part.hole ? '\\square' : part.text).join('');
+      return validateLatex(latex).length ? [entry.zh] : [];
+    });
+  });
+  expect(invalidGreek).toEqual([]);
+  await page.locator('[data-group="topology"]').click();
+  for (const name of ['开集', '闭包']) {
+    const rendered = tile(page, name).locator('.tile-preview-content');
+    await rendered.scrollIntoViewIfNeeded();
+    await expect(rendered).toHaveCount(1);
+    expect(await rendered.evaluate(el => Boolean(el.querySelector('[class*="ML__"]')))).toBe(true);
+    await expect(rendered).not.toHaveText(name);
+  }
+  await page.locator('[data-group="structures"]').click();
+  const fraction = tile(page, '分数');
+  const superscript = tile(page, '上标');
+  await expect(fraction.locator('.tile-preview-content')).toHaveCount(1);
+  await expect(superscript.locator('.tile-preview-content')).toHaveCount(1);
+  const first = await fraction.boundingBox(), second = await superscript.boundingBox();
+  expect(Math.abs(first.y - second.y)).toBeLessThan(2);
+  expect(second.x).toBeGreaterThan(first.x);
+  await expect(tile(page, '矩阵')).toHaveCount(1);
+  await page.locator('[data-group="delimiters"]').click();
+  const parentheses = tile(page, '( )'), brackets = tile(page, '[ ]');
+  await expect(parentheses.locator('.tile-preview-content')).toHaveCount(1);
+  await expect(brackets.locator('.tile-preview-content')).toHaveCount(1);
+  expect(Math.abs((await parentheses.boundingBox()).y - (await brackets.boundingBox()).y)).toBeLessThan(2);
+  await page.locator('[data-group="geometry"]').click();
+  const distance = tile(page, '欧氏距离');
+  await distance.scrollIntoViewIfNeeded();
+  await expect(distance.locator('.tile-preview-content')).toHaveCount(1);
+  await page.setViewportSize({width: 640, height: 592});
+  await expect.poll(() => distance.locator('.tile-preview').evaluate(frame =>
+    frame.querySelector('.tile-preview-content').getBoundingClientRect().width <= frame.clientWidth + 1)).toBe(true);
+  await page.setViewportSize({width: 932, height: 592});
+  await page.setViewportSize({width: 1920, height: 900});
+  await page.locator('[data-group="analysis"]').click();
+  const firstRow = await page.locator('#symbolGrid .symbol-tile').evaluateAll(buttons => {
+    const top = buttons[0].getBoundingClientRect().top;
+    return buttons.filter(button => Math.abs(button.getBoundingClientRect().top - top) < 2).length;
+  });
+  expect(firstRow).toBeGreaterThan(1);
+  await page.screenshot({path: join(tmpdir(), 'latexsnipper-editor-wide-analysis.png')});
+  await page.setViewportSize({width: 932, height: 592});
+  await page.locator('[data-group="chemistry"]').click();
+  const barium = tile(page, 'Ba²⁺');
+  await barium.scrollIntoViewIfNeeded();
+  await expect(barium.locator('.tile-preview-content')).toHaveCount(1);
+  const chemistryRow = await page.locator('#symbolGrid .symbol-tile').evaluateAll(buttons => {
+    const top = buttons[0].getBoundingClientRect().top;
+    return buttons.filter(button => Math.abs(button.getBoundingClientRect().top - top) < 2).length;
+  });
+  expect(chemistryRow).toBeGreaterThan(1);
+  await page.screenshot({path: join(tmpdir(), 'latexsnipper-editor-adaptive-tiles.png')});
+  await searchTile(page, 'Dirac operator');
+  await expect(tile(page, 'Dirac 算子').locator('.tile-preview-content')).toHaveText('Dirac 算子');
+  await page.evaluate(() => window.LaTeXSnipperEditor.init({...window.editorInit, locale: 'en'}));
+  await expect(tile(page, 'Dirac operator').locator('.tile-preview-content')).toHaveText('Dirac operator');
+  expect(errors).toEqual([]);
+});
+
+test('the same Greek formulas keep compact measured widths in Greek and Common', async ({page}) => {
+  await page.setViewportSize({width: 1164, height: 752});
+  const errors = await open(page, '');
+  await page.locator('[data-group="greek"]').click();
+  for (const name of ['α', 'β', 'π']) {
+    await tile(page, name).click({button: 'right'});
+    await page.getByRole('menuitem', {name: '加入常用'}).click();
+  }
+  await page.evaluate(() => document.fonts.ready);
+  const greekWidth = await tile(page, 'α').evaluate(el => el.getBoundingClientRect().width);
+  await page.locator('[data-group="common"]').click();
+  await expect(tile(page, 'π').locator('.tile-preview-content')).toHaveCount(1);
+  const commonWidth = await tile(page, 'α').evaluate(el => el.getBoundingClientRect().width);
+  expect(Math.abs(greekWidth - commonWidth)).toBeLessThan(1);
+  const firstRow = await page.locator('#symbolGrid .symbol-tile').evaluateAll(buttons => {
+    const top = buttons[0].getBoundingClientRect().top;
+    return buttons.filter(button => Math.abs(button.getBoundingClientRect().top - top) < 2).length;
+  });
+  expect(firstRow).toBeGreaterThanOrEqual(3);
+  expect(errors).toEqual([]);
+});
+
+test('styled size picker offers named and numeric sizes while accepting custom points', async ({page}) => {
+  const errors = await open(page, 'x+1');
+  await page.locator('#fontSizeToggle').click();
+  const menu = page.locator('#fontSizeMenu');
+  await expect(menu).toBeVisible();
+  await expect(menu.locator('.size-option')).toHaveCount(11);
+  await menu.getByRole('option', {name: '四号 14 pt'}).click();
+  await expect(page.locator('#fontSizePoints')).toHaveValue('四号');
+  await submitted(page);
+  expect((await page.evaluate(() => window.posted.findLast(message => message.type === 'accept').typography)).fontSizePoints).toBe(14);
+  await page.locator('#fontSizePoints').fill('14.5');
+  await submitted(page);
+  expect((await page.evaluate(() => window.posted.findLast(message => message.type === 'accept').typography)).fontSizePoints).toBe(14.5);
+  await page.locator('#fontSizePoints').press('ArrowDown');
+  await expect(menu).toBeVisible();
+  await page.locator('#fontSizePoints').press('Escape');
+  await expect(menu).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test('desktop editor keeps the full symbol catalog in a left sidebar', async ({page}) => {
+  await page.emulateMedia({colorScheme: 'dark'});
+  await page.setViewportSize({width: 1164, height: 805});
+  const errors = await open(page, 'd(p,q)=\\|p-q\\|');
+  await page.locator('[data-group="geometry"]').click();
+  const library = await page.locator('#symbolLibrary').boundingBox();
+  const workspaceBox = await page.locator('.workspace').boundingBox();
+  const grid = page.locator('#symbolGrid');
+  expect(library.x + library.width).toBeLessThan(workspaceBox.x);
+  expect(library.height).toBeGreaterThan(600);
+  expect(await grid.locator('button').count()).toBeGreaterThan(100);
+  expect(await grid.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+  await page.screenshot({path: join(tmpdir(), 'latexsnipper-editor-redesign-dark.png')});
+  await page.locator('#typographyToggle').click();
+  await page.screenshot({path: join(tmpdir(), 'latexsnipper-editor-redesign-fonts.png')});
+  await page.locator('#fontSizeToggle').click();
+  await page.screenshot({path: join(tmpdir(), 'latexsnipper-editor-redesign-sizes.png')});
+  expect(errors).toEqual([]);
 });
 
 test('invalid sizes, stale results, composition and new sessions cannot show an old preview', async ({page}) => {
@@ -449,6 +933,7 @@ for (const host of ['word', 'powerpoint']) {
 
 test('toolbar IME blocks submission and mode changes until committed', async ({page}) => {
   const errors = await open(page);
+  await page.locator('[data-group="greek"]').click();
   const size = page.locator('#fontSizePoints');
   await size.focus();
   await size.dispatchEvent('compositionstart');
@@ -466,7 +951,7 @@ test('toolbar IME blocks submission and mode changes until committed', async ({p
   expect(errors).toEqual([]);
 });
 
-test('Escape then Tab leaves either editor and font panel closes on keyboard departure', async ({page}) => {
+test('Escape then Tab leaves either editor; font panel closes explicitly', async ({page}) => {
   const errors = await open(page);
   await visual(page).click();
   await visual(page).press('Escape');
@@ -479,12 +964,14 @@ test('Escape then Tab leaves either editor and font panel closes on keyboard dep
   await page.locator('#typographyToggle').click();
   await page.locator('#defaultMathStyle').focus();
   await page.keyboard.press('Tab');
+  await expect(page.locator('#typographyPanel')).toBeVisible();
+  await page.locator('#defaultMathStyle').press('Escape');
   await expect(page.locator('#typographyPanel')).toBeHidden();
   expect(await submitted(page)).toBe('x+1');
   expect(errors).toEqual([]);
 });
 
-test('short windows retain both panes; wheel modes stay isolated', async ({page}) => {
+test('short windows retain both panes and sidebar scrolls vertically', async ({page}) => {
   const errors = await open(page);
   await page.setViewportSize({width: 640, height: 400});
   const resize = page.locator('#sourceResizeHandle');
@@ -494,12 +981,12 @@ test('short windows retain both panes; wheel modes stay isolated', async ({page}
   expect(formula.height).toBeGreaterThan(20);
   expect(sourceBox.height).toBeGreaterThan(20);
   await expect(page.locator('#acceptButton')).toBeInViewport();
-  await page.locator('[data-group="structures"]').click();
+  await page.locator('[data-group="geometry"]').click();
   const grid = page.locator('#symbolGrid');
-  for (const deltaMode of [0, 1, 2]) {
-    await grid.evaluate((el, deltaMode) => { el.scrollLeft = 0; el.dispatchEvent(new WheelEvent('wheel', {deltaY: 10, deltaMode, cancelable: true})); }, deltaMode);
-    expect(await grid.evaluate(el => el.scrollLeft)).toBeGreaterThan(0);
-  }
+  const gridBox = await grid.boundingBox();
+  await page.mouse.move(gridBox.x + 80, gridBox.y + 30);
+  await page.mouse.wheel(0, 320);
+  await expect.poll(() => grid.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
   const native = await grid.evaluate(el => ['horizontal', 'zoom'].map(mode => {
     const event = new WheelEvent('wheel', {deltaX: mode === 'horizontal' ? 100 : 0, deltaY: 10,
       ctrlKey: mode === 'zoom', cancelable: true}); el.dispatchEvent(event); return !event.defaultPrevented;
@@ -514,7 +1001,7 @@ test('keyboard entry into MathLive works while a late focus cannot steal a toolb
   const errors = await open(page);
   await page.locator('#libraryToggle').focus();
   await page.keyboard.press('Tab');
-  await expect(visual(page)).toBeFocused();
+  await expect(page.locator('#symbolSearch')).toBeFocused();
   await page.locator('#fontSizePoints').click();
   await page.evaluate(() => HTMLElement.prototype.focus.call(document.querySelector('math-field')));
   await expect(page.locator('#fontSizePoints')).toBeFocused();

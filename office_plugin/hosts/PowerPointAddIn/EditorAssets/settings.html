@@ -36,33 +36,31 @@
             <button id="resetFormulaColor" type="button" data-i18n="resetColor">恢复黑色</button>
           </span>
         </label>
+        <label><span data-i18n="symbolFontLabel">符号字体</span><select id="symbolFontId"></select></label>
+        <label><span data-i18n="numberFontLabel">数字字体</span><select id="numberFontFamily"></select></label>
+        <label><span data-i18n="cjkFontLabel">汉字字体</span><select id="cjkFontFamily"></select></label>
         <label>
-          <span data-i18n="fontStyleLabel">默认字体</span>
-          <select id="formulaMathStyle">
-            <option value="Automatic" data-i18n="fontTeX">TeX 原生字体</option>
-            <option value="Upright" data-i18n="fontRomanUpright">罗马正体</option>
-            <option value="Bold" data-i18n="fontBold">粗体符号</option>
-            <option value="BoldItalic" data-i18n="fontBoldItalic">粗斜体</option>
-            <option value="Italic" data-i18n="fontItalic">斜体</option>
-            <option value="SansSerif" data-i18n="fontSansSerif">无衬线</option>
-            <option value="SansSerifBold" data-i18n="fontSansSerifBold">无衬线粗体</option>
-            <option value="SansSerifItalic" data-i18n="fontSansSerifItalic">无衬线斜体</option>
-            <option value="SansSerifBoldItalic" data-i18n="fontSansSerifBoldItalic">无衬线粗斜体</option>
-            <option value="Monospace" data-i18n="fontTypewriter">等宽</option>
-            <option value="Calligraphic" data-i18n="fontCalligraphic">花体</option>
-            <option value="Script" data-i18n="fontScript">手写体</option>
-            <option value="Fraktur" data-i18n="fontFraktur">哥特体</option>
-            <option value="Blackboard" data-i18n="fontBlackboard">黑板粗体</option>
-          </select>
+          <span data-i18n="fontStyleLabel">默认字形</span>
+          <select id="formulaMathStyle"></select>
         </label>
-        <label>
+        <label class="font-size-field">
           <span data-i18n="fontSizeLabel">公式大小</span>
-          <span class="range-control">
-            <input id="formulaFontSizePoints" type="number" required min="1" max="1638" step="any" value="12">
-            <output id="formulaFontSizePointsValue">pt</output>
+          <span class="size-control">
+            <select id="formulaFontSizePoints"></select>
+            <span>pt</span>
           </span>
         </label>
-        <label><input id="followHostFontSize" type="checkbox"><span data-i18n="followHostSize">新建时跟随文字字号（无有效选区时使用上述字号）</span></label>
+        <label class="check-option follow-host-option"><input id="followHostFontSize" type="checkbox"><span data-i18n="followHostSize">新建时跟随文字字号（无有效选区时使用上述字号）</span></label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 data-i18n="presetTitle">全局公式预设</h2>
+      <p class="hint" data-i18n="presetHint">导入会替换当前宿主的公式默认属性；导出时用 JSON 文件名命名预设。编辑器内调整只作用于当前公式。</p>
+      <div class="preset-file-actions">
+        <button id="importTypography" type="button" data-i18n="importPreset">导入 JSON</button>
+        <button id="exportTypography" type="button" data-i18n="exportPreset">导出 JSON</button>
+        <span id="presetStatus" role="status"></span>
       </div>
     </section>
 

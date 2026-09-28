@@ -170,7 +170,6 @@ internal sealed class WordParsingE2ERunner
             hideSectionBoundary: false,
             numberSeparator: "-",
             formulaColor: "#000000",
-            useSystemFormulaColor: false,
             style,
             formulaFontSizePoints: points);
     }

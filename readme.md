@@ -46,9 +46,9 @@ English · [简体中文](README.zh-CN.md)
 
 | Platform                  | Download                                   | Before using recognition                                                                   |
 | ------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| **Windows**               | `LaTeXSnipperSetup-<version>.exe`          | Python runtime included; no separate system Python installation needed                     |
-| **Linux (Debian/Ubuntu)** | `.deb` for your architecture               | Python `>=3.10,<3.14` with venv/pip; Wayland may restrict screenshots and global shortcuts |
-| **macOS**                 | `.dmg` or `.app.zip` for your architecture | Python `>=3.10,<3.14` with venv/pip; grant Screen Recording permission for screenshots     |
+| **Windows**               | `LaTeXSnipper_<version>_amd64.exe`         | Python runtime included; no separate system Python installation needed                     |
+| **Linux (Debian/Ubuntu)** | `LaTeXSnipper_<version>_<architecture>.deb` | Python `>=3.10,<3.14` with venv/pip; Wayland may restrict screenshots and global shortcuts |
+| **macOS**                 | `LaTeXSnipper_<version>_<architecture>.dmg` | Python `>=3.10,<3.14` with venv/pip; grant Screen Recording permission for screenshots     |
 
 > [!NOTE]
 > Linux/macOS use system Python to create the managed dependency environment; Windows uses its bundled Python 3.11 template. The `.deb` declares `python3` and `python3-venv` dependencies. On macOS, install a supported Python version if one is not available.
@@ -83,7 +83,7 @@ English · [简体中文](README.zh-CN.md)
 * Formula editing, updates, and Word automatic numbering and references.
 * Local formula rendering and screenshot OCR through the desktop Automation API.
 
-Download `OfficePluginSetup-<version>.exe` separately from [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest). Supports 32-bit and 64-bit Office 2019/2021/2024, LTSC 2021/2024, and Microsoft 365 Apps on Windows.
+Download `LaTeXSnipper_<version>_office_amd64.exe` separately from [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest). Supports 32-bit and 64-bit Office 2019/2021/2024, LTSC 2021/2024, and Microsoft 365 Apps on Windows.
 
 [Installation requirements and features](office_plugin/README.md) · [Formula workflows](docs/office_plugin_formula_workflows.md)
 

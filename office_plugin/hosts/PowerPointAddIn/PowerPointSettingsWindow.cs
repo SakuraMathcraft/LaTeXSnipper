@@ -2,10 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using LaTeXSnipper.OfficePlugin.Abstractions;
+using LaTeXSnipper.OfficePlugin.Editor;
+using LaTeXSnipper.OfficePlugin.Rendering;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
@@ -121,6 +124,15 @@ internal sealed class PowerPointSettingsWindow : Form
             ["formulaColor"] = settings.FormulaColor,
             ["formulaMathStyle"] = settings.FormulaMathStyle.ToString(),
             ["formulaFontSizePoints"] = settings.FormulaFontSizePoints,
+            ["symbolFontId"] = settings.Typography.SymbolFontId,
+            ["numberFontFamily"] = settings.Typography.NumberFontFamily ?? string.Empty,
+            ["cjkFontFamily"] = settings.Typography.CjkFontFamily,
+            ["symbolFonts"] = new MathJaxAssetResolver().SymbolFonts,
+            ["systemFonts"] = TypographySystemFonts.List(),
+            ["cjkFonts"] = TypographySystemFonts.ListCjk(),
+            ["mathStyles"] = FormulaMathStyleCatalog.List(),
+            ["namedSizes"] = FormulaFontSize.NamedSizes.Select(size => new { name = size.Key, points = size.Value }).ToArray(),
+            ["commonPointSizes"] = FormulaFontSize.CommonPointSizes.ToArray(),
             ["followHostFontSize"] = settings.FollowHostFontSize,
         });
         string script =
@@ -131,7 +143,7 @@ internal sealed class PowerPointSettingsWindow : Form
         await _webView.CoreWebView2.ExecuteScriptAsync(script).ConfigureAwait(true);
     }
 
-    private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    private async void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
         Dictionary<string, object>? message = _serializer.Deserialize<Dictionary<string, object>>(e.WebMessageAsJson);
         if (message == null || !message.TryGetValue("type", out object rawType))
@@ -143,6 +155,12 @@ internal sealed class PowerPointSettingsWindow : Form
         if (type == "close")
         {
             Close();
+            return;
+        }
+
+        if (type == "importTypography" || type == "exportTypography")
+        {
+            await HandleTypographyFileAsync(type).ConfigureAwait(true);
             return;
         }
 
@@ -174,9 +192,62 @@ internal sealed class PowerPointSettingsWindow : Form
                 out double parsedScale)
             ? parsedScale
             : 12;
-        new PowerPointPluginSettings(insertionBackend, formulaColor, fontStyle, formulaFontSizePoints,
-            message.TryGetValue("followHostFontSize", out object follow) && Convert.ToBoolean(follow)).Save();
+        bool followHost = message.TryGetValue("followHostFontSize", out object follow) && Convert.ToBoolean(follow);
+        PowerPointPluginSettings current = PowerPointPluginSettings.Load();
+        string symbolFontId = ReadString(message, "symbolFontId", current.Typography.SymbolFontId);
+        if (!new MathJaxAssetResolver().SymbolFonts.Contains(symbolFontId))
+            throw new FormatException("无效的数学符号字体：" + symbolFontId);
+        string numberFont = ReadString(message, "numberFontFamily", string.Empty);
+        var typography = new FormulaTypography(symbolFontId, numberFont.Length == 0 ? null : numberFont,
+            ReadString(message, "cjkFontFamily", current.Typography.CjkFontFamily), fontStyle, formulaFontSizePoints, formulaColor);
+        new PowerPointPluginSettings(insertionBackend, formulaColor, fontStyle, formulaFontSizePoints, followHost, typography).Save();
+        if (!current.Typography.Equals(typography) || current.FollowHostFontSize != followHost)
+            new TypographySettingsStore().Save("powerpoint", typography, followHost);
         _ = SendSettingsAsync();
+    }
+
+    private async Task HandleTypographyFileAsync(string type)
+    {
+        string kind = type == "importTypography" ? "import" : "export";
+        string name;
+        try
+        {
+            var store = new TypographySettingsStore();
+            if (kind == "import")
+            {
+                using var dialog = new OpenFileDialog { Filter = "JSON preset (*.json)|*.json", CheckFileExists = true };
+                if (dialog.ShowDialog(this) != DialogResult.OK) return;
+                name = store.Import("powerpoint", dialog.FileName, new MathJaxAssetResolver().SymbolFonts);
+                await SendSettingsAsync().ConfigureAwait(true);
+            }
+            else
+            {
+                using var dialog = new SaveFileDialog { Filter = "JSON preset (*.json)|*.json", FileName = "PowerPoint 公式设置.json" };
+                if (dialog.ShowDialog(this) != DialogResult.OK) return;
+                store.Export("powerpoint", dialog.FileName);
+                name = Path.GetFileNameWithoutExtension(dialog.FileName);
+            }
+            await SendTypographyResultAsync(kind, name, null).ConfigureAwait(true);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or FormatException or ArgumentException)
+        {
+            await SendTypographyResultAsync(kind, string.Empty, error.Message).ConfigureAwait(true);
+        }
+    }
+
+    private Task SendTypographyResultAsync(string kind, string name, string? error)
+    {
+        var result = new Dictionary<string, object> { ["kind"] = kind, ["name"] = name };
+        if (error != null) result["error"] = error;
+        return _webView.CoreWebView2.ExecuteScriptAsync(
+            "window.LaTeXSnipperSettings?.presetResult(" + _serializer.Serialize(result) + ");");
+    }
+
+    private static string ReadString(Dictionary<string, object> message, string key, string fallback)
+    {
+        string value = message.TryGetValue(key, out object raw)
+            ? Convert.ToString(raw, CultureInfo.InvariantCulture) ?? string.Empty : string.Empty;
+        return string.IsNullOrWhiteSpace(value) ? fallback : value;
     }
 
     private static string ResolveAssetsRoot()

@@ -27,15 +27,15 @@ The main differences are platform integration details:
 | Window close / background behavior | Closing the main window hides it to the system tray; use the tray menu to exit. | Closing the main window hides it to the system tray when a tray is available; without a tray, the app asks before exiting. | Closing the main window minimizes it while the app keeps running; Dock/menu Quit exits the app. |
 | Permission model | No explicit screenshot permission is required for the normal capture path. | Wayland compositors can restrict global shortcuts or screenshot capture. | Screen Recording permission is required for screenshots. The native Carbon hotkey path normally does not require Accessibility permission. |
 | Dependency runtime | GitHub builds start from the bundled dependency root `<install-dir>\_internal\deps`; users may switch to another root. | Defaults to `~/.latexsnipper/deps`; users may switch to another root. | Defaults to `~/Library/Application Support/LaTeXSnipper/deps`; users may switch to another root. |
-| Packaging | Inno installer from GitHub Releases. | Debian/Ubuntu `.deb`. | `.dmg` and `.app.zip`. |
+| Packaging | Inno installer from GitHub Releases. | Debian/Ubuntu `.deb`. | `.dmg`. |
 
 The shortcut UI uses the platform's primary modifier: `Ctrl` on Windows/Linux and `Command` on macOS. macOS system and editing shortcuts such as `Command+Q`, `Command+H`, `Command+M`, `Command+W`, `Command+A`, `Command+C`, `Command+V`, `Command+X`, `Command+Z`, `Command+Space`, `Command+Tab`, and screenshot shortcuts are intentionally rejected; use an `Option+Command` combination when a plain Command shortcut is reserved.
 
 ## Which installer should I use?
 
-- Windows: use `LaTeXSnipperSetup-<version>.exe` from GitHub Releases. The release workflow prefers the signed installer; if signing is unavailable, the same filename may be published as an unsigned fallback.
+- Windows: use `LaTeXSnipper_<version>_amd64.exe` from GitHub Releases. The release workflow prefers the signed installer; if signing is unavailable, the same filename may be published as an unsigned fallback.
 - Linux: use the `.deb` package on Debian/Ubuntu-compatible systems.
-- macOS: use the `.dmg` or `.app.zip` artifact.
+- macOS: use the `.dmg` artifact for your architecture.
 
 ## Why does macOS still say Screen Recording is unavailable after I enabled it?
 

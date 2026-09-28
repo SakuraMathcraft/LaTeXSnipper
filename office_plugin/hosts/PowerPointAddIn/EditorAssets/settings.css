@@ -103,6 +103,33 @@ button:hover {
   gap: 6px;
 }
 
+.settings-grid label.follow-host-option {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: 8px;
+  align-items: center;
+}
+
+.settings-grid .font-size-field {
+  grid-column: 1 / -1;
+}
+
+.follow-host-option input {
+  margin: 0;
+  flex: none;
+}
+
+.size-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.size-control select {
+  width: 100%;
+}
+
 .color-control {
   grid-template-columns: 56px minmax(0, 1fr);
 }
@@ -219,6 +246,10 @@ kbd {
 #closeButton {
   min-width: 92px;
 }
+
+.preset-file-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+#presetStatus { color: var(--muted); }
+#presetStatus.error { color: #b42318; }
 
 @media (max-width: 720px) {
   .accent-panel {

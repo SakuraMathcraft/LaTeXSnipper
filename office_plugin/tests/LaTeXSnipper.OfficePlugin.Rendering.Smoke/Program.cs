@@ -56,6 +56,12 @@ internal static class Program
                 throw new InvalidOperationException("Render cache version mismatch");
             Console.WriteLine($"MathJax {svg.RendererVersion}: SVG {svg.Payload.Length}, EMF {emf.Payload.Length}, MathML {mathml.Length}");
         }
+        RenderResult inlinePrefix = await renderer.RenderTypographyAsync(@"e^{i\pi}", FormulaDisplayMode.Inline,
+            FormulaTypography.Default, CancellationToken.None);
+        RenderResult inlineFormula = await renderer.RenderTypographyAsync(@"e^{i\pi}+1=0", FormulaDisplayMode.Inline,
+            FormulaTypography.Default, CancellationToken.None);
+        if (inlineFormula.WidthPoints <= inlinePrefix.WidthPoints * 1.3)
+            throw new InvalidOperationException("Inline SVG omitted formula content after the first segment.");
         // The generic bridge must await promises and release abandoned requests.
         string delayed = await runtime.EvaluateAsync("new Promise(resolve => setTimeout(() => resolve({ok:true}), 50))", CancellationToken.None);
         if (delayed != "{\"ok\":true}") throw new InvalidOperationException("Async bridge lost its result");

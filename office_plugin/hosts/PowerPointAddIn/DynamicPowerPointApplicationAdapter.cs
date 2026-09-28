@@ -72,6 +72,7 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
             throw new ArgumentNullException(nameof(metadata));
         }
 
+        EnsureInsertionSelectionIsAvailable();
         dynamic slide = GetActiveSlide();
         InsertionPoint insertionPoint = GetInsertionPoint(slide, image.WidthPoints, image.HeightPoints);
         return InsertPictureAtAsync(slide, image, metadata, insertionPoint.Left, insertionPoint.Top);
@@ -138,6 +139,7 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
             throw new ArgumentNullException(nameof(presentation));
         }
 
+        EnsureInsertionSelectionIsAvailable();
         dynamic slide = GetActiveSlide();
         InsertionPoint insertionPoint = GetInsertionPoint(slide, (float)presentation.WidthPoints, (float)presentation.HeightPoints);
         return InsertOleObjectAtAsync(slide, metadata, presentation, insertionPoint.Left, insertionPoint.Top);
@@ -663,6 +665,33 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         catch (Exception exc)
         {
             throw new InvalidOperationException("请先打开一个 PowerPoint 幻灯片，再插入公式。", exc);
+        }
+    }
+
+    private void EnsureInsertionSelectionIsAvailable()
+    {
+        if (HasSelectedShape())
+        {
+            throw new InvalidOperationException(PowerPointAddInText.Get("InsertInsideFormulaError"));
+        }
+    }
+
+    private bool HasSelectedShape()
+    {
+        try
+        {
+            dynamic selection = _application.ActiveWindow.Selection;
+            if (Convert.ToInt32(selection.Type) != 2)
+            {
+                return false;
+            }
+
+            dynamic shapeRange = selection.ShapeRange;
+            return Convert.ToInt32(shapeRange.Count) > 0;
+        }
+        catch
+        {
+            return false;
         }
     }
 

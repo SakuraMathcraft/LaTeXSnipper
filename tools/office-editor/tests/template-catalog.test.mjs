@@ -4,7 +4,10 @@ import {CATALOG, CATEGORIES, COMMANDS, findEntries, entryTemplate, templateParts
 
 test('every category searches the same unique catalog in either language and by command', () => {
   assert.equal(new Set(CATALOG.map(entry => entry.template)).size, CATALOG.length);
-  for (const category of CATEGORIES) assert.ok(findEntries(category.id).length, category.id);
+  for (const category of CATEGORIES.filter(category => category.id !== 'common')) assert.ok(findEntries(category.id).length, category.id);
+  assert.equal(findEntries('common').length, 0);
+  assert.deepEqual(CATEGORIES.map(category => category.id).slice(7, 14),
+    ['arrows', 'sets', 'analysis', 'algebra', 'geometry', 'topology', 'numberTheory']);
   const fraction = findEntries('greek', 'Fraction').find(entry => entry.en === 'Fraction');
   assert.ok(fraction);
   assert.ok(findEntries('physics', '分数').includes(fraction));
@@ -12,6 +15,10 @@ test('every category searches the same unique catalog in either language and by 
   assert.equal(COMMANDS.find(command => command.label === '\\frac').entry, fraction);
   assert.equal(findEntries('common', 'no-such-formula-123').length, 0);
   assert.ok(findEntries('structures', '阿尔法').some(entry => entry.template === '\\alpha'));
+});
+
+test('library tiles contain mathematical templates rather than prose', () => {
+  assert.ok(CATALOG.every(entry => !entry.template.includes('\\text{')));
 });
 
 test('selection fills an explicit hole, otherwise the first hole; remaining holes stay independent', () => {
