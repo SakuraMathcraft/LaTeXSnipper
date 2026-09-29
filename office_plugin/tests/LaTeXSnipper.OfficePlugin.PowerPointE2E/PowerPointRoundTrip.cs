@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using LaTeXSnipper.OfficePlugin.Abstractions;
 using LaTeXSnipper.OfficePlugin.Automation;
 using LaTeXSnipper.OfficePlugin.Editor;
@@ -99,6 +100,24 @@ internal static class PowerPointRoundTrip
             Check(!Convert.ToString(secondTextBox.TextFrame2.TextRange.MathZones(1, 1).Text).Contains(@"\sqrt"),
                 "Task pane LaTeX was pasted as literal text");
             Console.WriteLine("PASS|PPT task pane inserts native equation at text cursor");
+            options.CurrentLatex = @"e^{i\pi}+1=0";
+            dynamic noSpaceTextBox = slide.Shapes.AddTextbox(1, 100, 450, 500, 100);
+            noSpaceTextBox.TextFrame.TextRange.Text = "sfasf";
+            noSpaceTextBox.TextFrame.TextRange.Characters(6, 0).Select();
+            using (var paneFocus = new Form { ShowInTaskbar = false, Width = 240, Height = 120 })
+            {
+                var paneInput = new TextBox { Dock = DockStyle.Fill };
+                paneFocus.Controls.Add(paneInput);
+                paneFocus.Show();
+                paneInput.Focus();
+                await controller.InsertFormulaFromTaskPaneAsync(Token);
+            }
+            Check(Convert.ToInt32(noSpaceTextBox.TextFrame2.TextRange.MathZones(1, 1).Length) > 0,
+                "The default formula was not inserted at the end of a text box without trailing whitespace");
+            Check(Convert.ToString(noSpaceTextBox.TextFrame.TextRange.Text).StartsWith("sfasf", StringComparison.Ordinal),
+                "Inline equation changed the text before the caret");
+            noSpaceTextBox.Delete();
+            Console.WriteLine("PASS|PPT task pane inserts the default formula after plain text without a space");
             dynamic workerTextBox = slide.Shapes.AddTextbox(1, 100, 450, 500, 100);
             workerTextBox.TextFrame.TextRange.Text = "left right";
             workerTextBox.TextFrame.TextRange.Characters(6, 0).Select();

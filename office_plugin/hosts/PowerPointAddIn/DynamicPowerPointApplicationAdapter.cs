@@ -763,27 +763,25 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
             || Convert.ToInt32(fullRange.Length) != target.TextLength)
             throw new InvalidOperationException(PowerPointAddInText.Get("TextCaretChanged"));
 
-        ActivateForEditingAsync(cancellationToken).GetAwaiter().GetResult();
-        shape.TextFrame.TextRange.Characters(target.Start, 0).Select();
+        (int Start, int Length) pasted = default;
         try
         {
-            PowerPointMathMlClipboard.PasteAtSelection(_application.ActiveWindow.Selection, mathMl);
-            int insertedLength = Convert.ToInt32(shape.TextFrame2.TextRange.Length) - target.TextLength;
-            if (insertedLength <= 0)
+            dynamic insertionRange = shape.TextFrame.TextRange.Characters(target.Start, 0);
+            pasted = PowerPointMathMlClipboard.PasteAtRange(insertionRange, mathMl);
+            if (pasted.Length <= 0)
                 throw new InvalidOperationException(PowerPointAddInText.Get("NativeEquationInsertFailed"));
-            dynamic inserted = shape.TextFrame2.TextRange.Characters(target.Start, insertedLength);
+            dynamic inserted = shape.TextFrame2.TextRange.Characters(pasted.Start, pasted.Length);
             dynamic equation = inserted.MathZones(1, 1);
             int zoneStart = Convert.ToInt32(equation.Start);
             int zoneEnd = zoneStart + Convert.ToInt32(equation.Length);
-            if (zoneStart >= target.Start + insertedLength || zoneEnd <= target.Start)
+            if (zoneStart >= pasted.Start + pasted.Length || zoneEnd <= pasted.Start)
                 throw new InvalidOperationException(PowerPointAddInText.Get("NativeEquationInsertFailed"));
             equation.Font.Size = fontSizePoints;
         }
         catch
         {
-            int insertedLength = Convert.ToInt32(shape.TextFrame2.TextRange.Length) - target.TextLength;
-            if (insertedLength > 0)
-                shape.TextFrame2.TextRange.Characters(target.Start, insertedLength).Text = string.Empty;
+            if (pasted.Length > 0)
+                shape.TextFrame.TextRange.Characters(pasted.Start, pasted.Length).Text = string.Empty;
             throw;
         }
 
