@@ -21,7 +21,7 @@ packaging/debian/usr
 
 # Large binary files
 *.exe
-!office_plugin/release/LaTeXSnipper_*_office_amd64.exe
+!office_plugin/release/LaTeXSnipperOffice_*_amd64.exe
 office_plugin/release/InstallerAssets/
 *.dll
 *.zip

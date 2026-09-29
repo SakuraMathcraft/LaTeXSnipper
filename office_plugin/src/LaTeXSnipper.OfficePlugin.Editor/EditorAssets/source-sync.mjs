@@ -65,15 +65,19 @@ export class SourceSync {
     try {
       this.mathfield.setValue(value, {silenceNotifications: true});
       const comparable = comparableLatex(value);
-      let invalid = Boolean(inspectLatex(value).length || this.mathfield.errors?.length);
-      const oldContainers = this.readVisual().match(/\\begin\{[^{}]+\}|\\displaylines(?=\{)/g) || [];
-      if (!invalid && comparable !== null && oldContainers.some(container => !value.includes(container)) && this.recreateMathfield) {
+      const structuralError = Boolean(inspectLatex(value).length);
+      let visual = this.readVisual();
+      // A previous unsupported formula can leave MathLive's serializer state in
+      // the reused field. Confirm a mismatch with a fresh parser before locking
+      // visual editing; only that second result describes the source itself.
+      if (!structuralError && comparable !== null && this.recreateMathfield
+          && (this.mathfield.errors?.length || comparable !== comparableLatex(visual))) {
         this.mathfield = this.recreateMathfield();
         this.mathfield.setValue(value, {silenceNotifications: true});
-        invalid = Boolean(this.mathfield.errors?.length);
+        visual = this.readVisual();
       }
-      const safe = comparable !== null && comparable === comparableLatex(this.readVisual())
-        && !invalid;
+      const invalid = structuralError || Boolean(this.mathfield.errors?.length);
+      const safe = comparable !== null && comparable === comparableLatex(visual) && !invalid;
       this.setMode(safe, safe ? '' : invalid ? 'invalid' : 'sourceOnly');
     } catch { this.setMode(false, 'invalid'); }
   }

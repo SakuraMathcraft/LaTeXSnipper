@@ -83,7 +83,7 @@
 * 支持公式编辑、更新，以及 Word 自动编号和引用。
 * 本地渲染公式，通过桌面端 Automation API 调用截图识别。
 
-从 [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest) 单独下载 `LaTeXSnipper_<version>_office_amd64.exe`。支持 Windows 上的 32 位和 64 位 Office 2019/2021/2024、LTSC 2021/2024 及 Microsoft 365 Apps。
+从 [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest) 单独下载 `LaTeXSnipperOffice_<version>_amd64.exe`。支持 Windows 上的 32 位和 64 位 Office 2019/2021/2024、LTSC 2021/2024 及 Microsoft 365 Apps。
 
 [安装要求与完整功能](office_plugin/README.md) · [公式工作流](docs/office_plugin_formula_workflows.md)
 

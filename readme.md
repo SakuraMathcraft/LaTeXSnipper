@@ -83,7 +83,7 @@ English · [简体中文](README.zh-CN.md)
 * Formula editing, updates, and Word automatic numbering and references.
 * Local formula rendering and screenshot OCR through the desktop Automation API.
 
-Download `LaTeXSnipper_<version>_office_amd64.exe` separately from [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest). Supports 32-bit and 64-bit Office 2019/2021/2024, LTSC 2021/2024, and Microsoft 365 Apps on Windows.
+Download `LaTeXSnipperOffice_<version>_amd64.exe` separately from [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest). Supports 32-bit and 64-bit Office 2019/2021/2024, LTSC 2021/2024, and Microsoft 365 Apps on Windows.
 
 [Installation requirements and features](office_plugin/README.md) · [Formula workflows](docs/office_plugin_formula_workflows.md)
 

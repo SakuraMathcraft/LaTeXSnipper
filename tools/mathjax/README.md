@@ -1,6 +1,6 @@
 # 共享 MathJax 运行时
 
-客户端与 Office 插件统一使用 MathJax **4.1.3**。这是第一阶段运行时更新；插件字体、字号、最终预览、源码编辑器和预设系统仍按重构方案进入下一阶段。
+客户端与 Office 插件统一使用 MathJax **4.1.3**。当前 Office 插件的公式链路与样式边界见[公式工作流文档](../../docs/office_plugin_formula_workflows.md)。
 
 ## 维护入口
 
@@ -49,9 +49,9 @@ dotnet test office_plugin/tests/LaTeXSnipper.OfficePlugin.MetadataSafety.Tests
 
 真实浏览器测试需允许 WebEngine/WebView2 子进程；`--cdn` 还需网络。单独运行 Qt 验证时省略此参数即可只验证离线链路。
 
-`--typography` 直接回归共享字体渲染服务，要求 Windows 已安装 Times New Roman、宋体、微软雅黑及 Office 的 MathML→OMML 转换资源。它在真实 WebView2 中验证两套数学字体、局部样式、混排与布局，检查 SVG / EMF 轮廓、不同 DPI 的 PNG、缓存和 OMML 属性映射；当前 61 组矢量样例与 122 个 PNG 通过。支持范围与下一阶段边界见[重构方案第 11.6 节](../../docs/office_plugin_typography_refactor.md#116-第-3-步实施记录2026-09-13)。
+`--typography` 直接回归共享字体渲染服务，要求 Windows 已安装 Times New Roman、宋体、微软雅黑及 Office 的 MathML→OMML 转换资源。它在真实 WebView2 中验证两套数学字体、局部样式、混排与布局，检查 SVG / EMF 轮廓、不同 DPI 的 PNG、缓存和 OMML 属性映射；当前 61 组矢量样例与 122 个 PNG 通过。当前公式与字体处理见[公式工作流文档](../../docs/office_plugin_formula_workflows.md)。
 
-以上第一阶段记录仅对应运行时升级。后续插件字体重构已接入 schema 3、统一字体渲染和绝对字号；当前实现、宿主验证结果与剩余验收项以[重构方案第 11 节](../../docs/office_plugin_typography_refactor.md#11-按顺序落地与验收)为准。正式发行包与安装验收另行执行。
+以上第一阶段记录仅对应运行时升级。当前插件使用 schema 3、统一字体渲染和绝对字号；公式链路与元数据边界见[公式工作流文档](../../docs/office_plugin_formula_workflows.md)。
 
 ## tools 目录的用途
 

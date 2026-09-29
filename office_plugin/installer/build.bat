@@ -93,7 +93,7 @@ if %ERRORLEVEL% neq 0 (
   exit /b 1
 )
 
-set OUTPUT_EXE=%DIST_DIR%\LaTeXSnipper_%VERSION%_office_amd64.exe
+set OUTPUT_EXE=%DIST_DIR%\LaTeXSnipperOffice_%VERSION%_amd64.exe
 "%WINDOWS_POWERSHELL%" -NoProfile -ExecutionPolicy Bypass -File "%PLUGIN_ROOT%\tools\Write-InstallerChecksum.ps1" -Path "%OUTPUT_EXE%"
 if %ERRORLEVEL% neq 0 (
   echo ERROR: Installer checksum generation failed.

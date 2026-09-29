@@ -1575,7 +1575,7 @@ Restart and open Dependency Management now?
       <translation>The image is empty.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/recognition.py" line="300" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="308" />
       <source>图片加载失败：{error}</source>
       <translation>Failed to load image: {error}</translation>
     </message>
@@ -3021,6 +3021,7 @@ Select Download to initialize it before entering the main app.</translation>
       <location filename="../../../src/ui/controllers/pdf.py" line="93" />
       <location filename="../../../src/ui/controllers/pdf.py" line="375" />
       <location filename="../../../src/ui/controllers/pdf.py" line="149" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="289" />
       <location filename="../../../src/ui/controllers/recognition.py" line="51" />
       <location filename="../../../src/ui/controllers/recognition.py" line="58" />
       <location filename="../../../src/ui/favorites_window.py" line="508" />
@@ -3207,7 +3208,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Unable to initialize pip</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/file_drop.py" line="99" />
+      <location filename="../../../src/ui/file_drop.py" line="101" />
       <source>无法处理拖入文件</source>
       <translation>Unable to process dropped file</translation>
     </message>
@@ -3761,7 +3762,7 @@ Select Download to initialize it before entering the main app.</translation>
       <location filename="../../../src/capture/capture_controller.py" line="29" />
       <location filename="../../../src/ui/controllers/pdf.py" line="87" />
       <location filename="../../../src/ui/controllers/recognition.py" line="162" />
-      <location filename="../../../src/ui/controllers/recognition.py" line="293" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="301" />
       <location filename="../../../src/ui/window_openers.py" line="101" />
       <source>模型未初始化</source>
       <translation>Model is not initialized</translation>
@@ -4884,7 +4885,7 @@ Install pymupdf in the dependency environment.</translation>
       <translation>This API or model does not support image input. Use a vision-capable model or service.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/file_drop.py" line="136" />
+      <location filename="../../../src/ui/file_drop.py" line="138" />
       <source>请一次只拖入一个图片或 PDF 文件。</source>
       <translation>Drop one image or PDF file at a time.</translation>
     </message>
@@ -4977,8 +4978,8 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Install Python with venv/pip support ({version_range}) and try again.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/file_drop.py" line="153" />
-      <location filename="../../../src/ui/file_drop.py" line="141" />
+      <location filename="../../../src/ui/file_drop.py" line="155" />
+      <location filename="../../../src/ui/file_drop.py" line="143" />
       <source>请拖入单个图片或 PDF 文件。支持图片格式：{formats}。</source>
       <translation>Drop a single image or PDF file. Supported image formats: {formats}.</translation>
     </message>
@@ -4986,6 +4987,11 @@ Install pymupdf in the dependency environment.</translation>
       <location filename="../../../src/ui/controllers/pdf.py" line="81" />
       <source>请拖入或选择 PDF 文件。</source>
       <translation>Drop or select a PDF file.</translation>
+    </message>
+    <message>
+      <location filename="../../../src/ui/controllers/recognition.py" line="290" />
+      <source>请拖入或选择图片文件。支持格式：{formats}。</source>
+      <translation>Drop or select an image file. Supported formats: {formats}.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/hotkey_controller.py" line="116" />
@@ -5499,8 +5505,8 @@ Continue?</translation>
       <location filename="../../../src/ui/controllers/recognition.py" line="165" />
       <location filename="../../../src/ui/controllers/recognition.py" line="223" />
       <location filename="../../../src/ui/controllers/recognition.py" line="283" />
-      <location filename="../../../src/ui/controllers/recognition.py" line="293" />
-      <location filename="../../../src/ui/controllers/recognition.py" line="299" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="301" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="307" />
       <location filename="../../../src/ui/notifications.py" line="10" />
       <location filename="../../../src/ui/pdf_result_window.py" line="178" />
       <location filename="../../../src/ui/pdf_result_window.py" line="172" />

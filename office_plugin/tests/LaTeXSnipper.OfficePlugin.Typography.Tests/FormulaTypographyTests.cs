@@ -24,8 +24,8 @@ public sealed class FormulaTypographyTests
     [DataRow("小五", 9d)]
     [DataRow("六号", 7.5d)]
     [DataRow("小六", 6.5d)]
-    [DataRow("七号", 5d)]
-    [DataRow("八号", 5.5d)]
+    [DataRow("七号", 5.5d)]
+    [DataRow("八号", 5d)]
     public void NamedSizeAndNumericInputProduceEqualSnapshots(string name, double expected)
     {
         double named = FormulaFontSize.Parse(name);

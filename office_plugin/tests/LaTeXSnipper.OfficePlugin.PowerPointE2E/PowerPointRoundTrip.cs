@@ -99,6 +99,29 @@ internal static class PowerPointRoundTrip
             Check(!Convert.ToString(secondTextBox.TextFrame2.TextRange.MathZones(1, 1).Text).Contains(@"\sqrt"),
                 "Task pane LaTeX was pasted as literal text");
             Console.WriteLine("PASS|PPT task pane inserts native equation at text cursor");
+            dynamic workerTextBox = slide.Shapes.AddTextbox(1, 100, 450, 500, 100);
+            workerTextBox.TextFrame.TextRange.Text = "left right";
+            workerTextBox.TextFrame.TextRange.Characters(6, 0).Select();
+            PowerPointTextInsertionTarget workerTarget = adapter.CaptureTextInsertionTarget()
+                ?? throw new InvalidOperationException("PowerPoint text caret was not captured");
+            string mathMl = await renderer.ConvertTypographyToMathMlAsync("x+1", FormulaDisplayMode.Inline, style, Token);
+            await Task.Run(() => adapter.InsertNativeEquationAsync(workerTarget, mathMl, 28, Token));
+            Check(Convert.ToInt32(workerTextBox.TextFrame2.TextRange.MathZones(1, 1).Length) > 0,
+                "Native equation insertion did not return to the Office STA thread");
+            workerTextBox.Delete();
+            Console.WriteLine("PASS|PPT native equation paste marshals from a worker to the Office STA thread");
+            dynamic inlineTextBox = slide.Shapes.AddTextbox(1, 100, 450, 500, 100);
+            inlineTextBox.TextFrame.TextRange.Text = "text ";
+            inlineTextBox.TextFrame.TextRange.Characters(6, 0).Select();
+            PowerPointTextInsertionTarget inlineTarget = adapter.CaptureTextInsertionTarget()
+                ?? throw new InvalidOperationException("PowerPoint text caret was not captured at the end of a line");
+            string inlineMathMl = await renderer.ConvertTypographyToMathMlAsync(@"e^{i\pi}+1=0",
+                FormulaDisplayMode.Inline, style, Token);
+            await Task.Run(() => adapter.InsertNativeEquationAsync(inlineTarget, inlineMathMl, 28, Token));
+            Check(Convert.ToInt32(inlineTextBox.TextFrame2.TextRange.MathZones(1, 1).Length) > 0,
+                "The default formula was not inserted as a native equation at the text caret");
+            inlineTextBox.Delete();
+            Console.WriteLine("PASS|PPT default formula inserts as a native equation at the end of text");
             presentation.Slides.Item(1).Shapes.Item(1).Select();
             Console.WriteLine("PASS|PPT selected formula still opens editor and inserts a centered formula");
             var target = await adapter.LoadSelectedFormulaAsync(Token);
