@@ -226,7 +226,7 @@ jobs:
             echo "Release version $version does not match VERSION $product_version." >&2
             exit 1
           fi
-          installer="office_plugin/release/LaTeXSnipper_${version}_office_amd64.exe"
+          installer="office_plugin/release/LaTeXSnipperOffice_${version}_amd64.exe"
           checksum="${installer}.sha256"
           test -f "$installer"
           test -f "$checksum"
@@ -444,7 +444,7 @@ jobs:
             echo "No signed or unsigned Windows installer artifact found; skipping Windows release asset."
           fi
 
-          find release-assets/office-plugin-installer -type f -name 'LaTeXSnipper_*_office_amd64.exe' -exec cp -v {} publish-assets/ \;
+          find release-assets/office-plugin-installer -type f -name 'LaTeXSnipperOffice_*_amd64.exe' -exec cp -v {} publish-assets/ \;
           find release-assets/user-manual -type f -name 'LaTeXSnipper_User_Manual.pdf' -exec cp -v {} publish-assets/ \;
           find release-assets/latexsnipper-linux-deb -type f -name '*.deb' -exec cp -v {} publish-assets/ \;
           find release-assets/latexsnipper-macos -type f -name '*.dmg' -exec cp -v {} publish-assets/ \;

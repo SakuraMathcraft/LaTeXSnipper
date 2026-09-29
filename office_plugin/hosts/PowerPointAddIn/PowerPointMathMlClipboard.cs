@@ -14,14 +14,15 @@ internal static class PowerPointMathMlClipboard
 {
     private const int PpPasteHtml = 8;
 
-    public static void PasteAtSelection(dynamic selection, string mathMl)
+    public static (int Start, int Length) PasteAtRange(dynamic range, string mathMl)
     {
         if (string.IsNullOrWhiteSpace(mathMl)) throw new ArgumentException("MathML 不能为空。", nameof(mathMl));
         IDataObject? previous = SnapshotClipboard();
         try
         {
             Clipboard.SetText(CreateHtmlClipboardPayload(CompactMathMl(mathMl)), TextDataFormat.Html);
-            selection.TextRange.PasteSpecial(PpPasteHtml);
+            dynamic pasted = range.PasteSpecial(PpPasteHtml);
+            return (Convert.ToInt32(pasted.Start), Convert.ToInt32(pasted.Length));
         }
         finally
         {

@@ -22,6 +22,24 @@ async function routeHostAssets(page, host) {
 }
 
 for (const host of ['word', 'powerpoint']) {
+  test(`${host} task pane keeps a colored limit formula visually editable`, async ({page}) => {
+    const latex = String.raw`\textcolor{#1e00ff}{\lim_{n\to\infty}a_n=L}`;
+    await routeHostAssets(page, host);
+    await page.goto(`https://latexsnipper-${host}.officeplugin.local/taskpane.html`);
+    await page.evaluate(() => window.LaTeXSnipperTaskPane.apply({type: 'state',
+      latex: 'x\\displaylines{y=z}', locale: 'zh'}));
+    await expect(page.locator('#sourceModeNote')).toContainText('改写');
+    await page.evaluate(latex => window.LaTeXSnipperTaskPane.apply({type: 'state', latex, locale: 'zh'}), latex);
+    const field = page.locator('#previewHost math-field');
+    await expect(page.locator('#sourceModeNote')).toBeHidden();
+    await expect(field).toHaveJSProperty('readOnly', false);
+    await expect(page.locator('#latexSource .cm-content')).toHaveText(latex);
+    await field.click();
+    await field.press('End');
+    await page.keyboard.type('+1');
+    await expect(page.locator('#latexSource .cm-content')).toContainText('a_{n}=L+1');
+  });
+
   test(`${host} task pane keeps a colored cases formula visually editable`, async ({page}) => {
     const latex = String.raw`\textcolor{#ff0000}{\mu(n)=\begin{cases}1,&n=1\\
 (-1)^k,&n=p_1\cdots p_k\\

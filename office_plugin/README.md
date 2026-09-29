@@ -45,7 +45,7 @@ Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 i
 
 ## Project Layout
 
-Desktop and Office now share pinned MathJax 4.1.3 with independent resource profiles and asynchronous conversion. See [runtime maintenance and verification](../tools/mathjax/README.md). The [typography, editor, and preset implementation plan](../docs/office_plugin_typography_refactor.md) describes the next phase; the formula schema and typography settings have not changed in this runtime update.
+Desktop and Office share pinned MathJax 4.1.3 with independent resource profiles and asynchronous conversion. See [runtime maintenance and verification](../tools/mathjax/README.md) and the [current formula workflows and metadata](../docs/office_plugin_formula_workflows.md).
 
 | Path | Role |
 |---|---|
@@ -75,7 +75,7 @@ office_plugin\installer\build.bat Release
 
 The build reads the shared product version from the repository `VERSION` file.
 
-Output: `office_plugin\release\LaTeXSnipper_3.1.0_office_amd64.exe`
+Output: `office_plugin\release\LaTeXSnipperOffice_3.1.0_amd64.exe`
 
 Run the installer as administrator. Close Word and PowerPoint before installation, upgrade, or removal.
 

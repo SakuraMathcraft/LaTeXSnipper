@@ -70,8 +70,6 @@ def _ensure_pandoc_binary(pyexe: str, log_fn=None, progress_fn=None, stop_event=
         progress_fn(85)
     ok = _download_pandoc_from_mirrors(pyexe, log_fn, stop_event=stop_event, pause_event=pause_event)
     if ok:
-        if log_fn:
-            log_fn("[INFO] Pandoc: pandoc 二进制文件就绪")
         if progress_fn:
             progress_fn(100)
         _cleanup_pandoc_leftovers(pyexe, log_fn)

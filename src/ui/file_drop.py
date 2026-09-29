@@ -88,7 +88,9 @@ class FileDropMixin:
         suffix = str(path.suffix or "").lower()
         if suffix == ".pdf":
             return "pdf"
-        return "image"
+        if suffix in self._get_supported_image_suffixes():
+            return "image"
+        return None
 
     def _drag_contains_local_file(self, event) -> bool:
         return bool(self._local_drop_paths(event))

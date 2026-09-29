@@ -283,6 +283,14 @@ class RecognitionControllerMixin:
                 tr("错误"), tr("图片文件不存在: {path}").format(path=path), self
             )
             return
+        if self._drop_file_kind(path) != "image":
+            formats = ", ".join(self._get_supported_image_extensions())
+            show_user_notice(
+                tr("提示"),
+                tr("请拖入或选择图片文件。支持格式：{formats}。").format(formats=formats),
+                self,
+            )
+            return
         if self.is_recognition_busy(source="main"):
             self._show_recognition_busy_info()
             return

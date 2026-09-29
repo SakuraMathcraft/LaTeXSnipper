@@ -1391,13 +1391,13 @@ LaTeXSnipper Office 加载项是一个 Windows 原生 VSTO 插件，安装后会
 
 ```text
 # 静默安装（显示进度条）
-LaTeXSnipper_3.1.0_office_amd64.exe /silent
+LaTeXSnipperOffice_3.1.0_amd64.exe /silent
 
 # 完全静默（无界面）
-LaTeXSnipper_3.1.0_office_amd64.exe /verysilent
+LaTeXSnipperOffice_3.1.0_amd64.exe /verysilent
 
 # 自定义安装目录
-LaTeXSnipper_3.1.0_office_amd64.exe /dir="D:\Tools\LaTeXSnipper"
+LaTeXSnipperOffice_3.1.0_amd64.exe /dir="<安装目录>"
 ```
 
 #pagebreak()

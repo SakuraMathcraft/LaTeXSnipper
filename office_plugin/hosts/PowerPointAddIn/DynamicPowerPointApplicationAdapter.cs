@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using LaTeXSnipper.OfficePlugin.Abstractions;
 
 namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 
-public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplicationAdapter
+public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplicationAdapter, IDisposable
 {
     private const int MsoFalse = 0;
     private const int MsoTrue = -1;
@@ -16,6 +17,8 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
     private const string OleFormulaProgId = "LaTeXSnipper.Formula";
 
     private readonly dynamic _application;
+    private readonly Control _officeThreadControl;
+    private readonly int _officeThreadId;
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -23,6 +26,18 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
     public DynamicPowerPointApplicationAdapter(object application)
     {
         _application = application ?? throw new ArgumentNullException(nameof(application));
+        if (Thread.CurrentThread.GetApartmentState() != ApartmentState.STA)
+            throw new InvalidOperationException("PowerPoint 插件必须在 Office STA 线程上初始化。");
+        _officeThreadId = Thread.CurrentThread.ManagedThreadId;
+        _officeThreadControl = new Control();
+        _ = _officeThreadControl.Handle;
+    }
+
+    public void Dispose()
+    {
+        if (Thread.CurrentThread.ManagedThreadId == _officeThreadId) _officeThreadControl.Dispose();
+        else if (_officeThreadControl.IsHandleCreated)
+            _officeThreadControl.BeginInvoke(new Action(_officeThreadControl.Dispose));
     }
 
     public double GetCurrentFontSizePoints()
@@ -707,6 +722,35 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (target == null) throw new ArgumentNullException(nameof(target));
+        return RunOnOfficeThreadAsync(() => InsertNativeEquation(target, mathMl, fontSizePoints, cancellationToken), cancellationToken);
+    }
+
+    private Task RunOnOfficeThreadAsync(Action action, CancellationToken cancellationToken)
+    {
+        if (Thread.CurrentThread.ManagedThreadId == _officeThreadId)
+        {
+            action();
+            return Task.CompletedTask;
+        }
+
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _officeThreadControl.BeginInvoke(new Action(() =>
+        {
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                action();
+                completion.TrySetResult(true);
+            }
+            catch (Exception error) { completion.TrySetException(error); }
+        }));
+        return completion.Task;
+    }
+
+    private void InsertNativeEquation(PowerPointTextInsertionTarget target, string mathMl, double fontSizePoints,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         if (!string.Equals(target.DocumentId, GetCurrentDocumentId(), StringComparison.Ordinal)
             || Convert.ToInt32(GetActiveSlide().SlideID) != target.SlideId)
             throw new InvalidOperationException(PowerPointAddInText.Get("TextCaretChanged"));
@@ -719,29 +763,28 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
             || Convert.ToInt32(fullRange.Length) != target.TextLength)
             throw new InvalidOperationException(PowerPointAddInText.Get("TextCaretChanged"));
 
-        ActivateForEditingAsync(cancellationToken).GetAwaiter().GetResult();
-        shape.TextFrame.TextRange.Characters(target.Start, 0).Select();
+        (int Start, int Length) pasted = default;
         try
         {
-            PowerPointMathMlClipboard.PasteAtSelection(_application.ActiveWindow.Selection, mathMl);
-            int insertedLength = Convert.ToInt32(shape.TextFrame2.TextRange.Length) - target.TextLength;
-            if (insertedLength <= 0)
+            dynamic insertionRange = shape.TextFrame.TextRange.Characters(target.Start, 0);
+            pasted = PowerPointMathMlClipboard.PasteAtRange(insertionRange, mathMl);
+            if (pasted.Length <= 0)
                 throw new InvalidOperationException(PowerPointAddInText.Get("NativeEquationInsertFailed"));
-            dynamic inserted = shape.TextFrame2.TextRange.Characters(target.Start, insertedLength);
+            dynamic inserted = shape.TextFrame2.TextRange.Characters(pasted.Start, pasted.Length);
             dynamic equation = inserted.MathZones(1, 1);
-            if (Convert.ToInt32(equation.Start) != target.Start)
+            int zoneStart = Convert.ToInt32(equation.Start);
+            int zoneEnd = zoneStart + Convert.ToInt32(equation.Length);
+            if (zoneStart >= pasted.Start + pasted.Length || zoneEnd <= pasted.Start)
                 throw new InvalidOperationException(PowerPointAddInText.Get("NativeEquationInsertFailed"));
             equation.Font.Size = fontSizePoints;
         }
         catch
         {
-            int insertedLength = Convert.ToInt32(shape.TextFrame2.TextRange.Length) - target.TextLength;
-            if (insertedLength > 0)
-                shape.TextFrame2.TextRange.Characters(target.Start, insertedLength).Text = string.Empty;
+            if (pasted.Length > 0)
+                shape.TextFrame.TextRange.Characters(pasted.Start, pasted.Length).Text = string.Empty;
             throw;
         }
 
-        return Task.CompletedTask;
     }
 
     private static InsertionPoint GetInsertionPoint(dynamic slide, float widthPoints, float heightPoints)

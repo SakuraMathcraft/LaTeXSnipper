@@ -18,7 +18,7 @@ build.bat Release
 
 The build reads the shared product version from the repository `VERSION` file.
 
-Output: `office_plugin\release\LaTeXSnipper_3.1.0_office_amd64.exe`
+Output: `office_plugin\release\LaTeXSnipperOffice_3.1.0_amd64.exe`
 
 ## Installation Responsibilities
 
