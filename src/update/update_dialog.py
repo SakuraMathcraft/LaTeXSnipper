@@ -96,22 +96,21 @@ def check_update_dialog(parent=None):
     lay.addWidget(lbl_current)
     lbl_status = QLabel(tr("正在联网获取最新版本信息，请保持与 GitHub 的连接畅通..."))
     lay.addWidget(lbl_status)
-    bar = ProgressBar(dlg)
+    bar = ProgressBar(dlg, useAni=False)
+    bar.setRange(0, 100)
     busy_bar = IndeterminateProgressBar(dlg)
     lay.addWidget(bar)
     lay.addWidget(busy_bar)
 
-    def set_progress_range(minimum, maximum):
-        busy = minimum == maximum == 0
+    def set_progress_busy(busy: bool) -> None:
         bar.setVisible(not busy)
         busy_bar.setVisible(busy)
         if busy:
             busy_bar.start()
         else:
             busy_bar.stop()
-            bar.setRange(minimum, maximum)
 
-    set_progress_range(0, 0)
+    set_progress_busy(True)
 
     txt = RemoteImageBrowser()
     txt.setOpenExternalLinks(True)
@@ -180,7 +179,7 @@ def check_update_dialog(parent=None):
         if state["aborted"] or state["done"] or (not dlg.isVisible()):
             return
         state["done"] = True
-        set_progress_range(0, 1)
+        set_progress_busy(False)
         lbl_status.setText(tr("获取超时，可重新检查。"))
         txt.start_new_html(
             "<pre>"
@@ -219,7 +218,7 @@ a{{color:{theme["accent"]};}}
             return
         state["done"] = True
         watchdog.stop()
-        set_progress_range(0, 1)
+        set_progress_busy(False)
         dlg.unsetCursor()
         if err:
             message = _brief_error_message(err)
@@ -351,7 +350,21 @@ a{{color:{theme["accent"]};}}
             )
             return
         ext = Path(path).suffix.lower()
-        sha256_hex = _compute_file_sha256(path)
+        logging.info("更新包下载完成，开始校验：%s", Path(path).name)
+        lbl_status.setText(tr("验证中..."))
+        try:
+            sha256_hex = _compute_file_sha256(path)
+        except OSError as error:
+            logging.exception("更新包读取失败，无法计算 SHA256")
+            lbl_status.setText(tr("下载校验失败"))
+            InfoBar.error(
+                title=tr("下载校验失败"),
+                content=_brief_error_message(error),
+                parent=dlg,
+                duration=4500,
+                position=InfoBarPosition.TOP,
+            )
+            return
         info = state.get("info")
         expected_sha256 = (
             _normalize_sha256(info.asset_sha256)
@@ -370,7 +383,9 @@ a{{color:{theme["accent"]};}}
                 position=InfoBarPosition.TOP,
             )
             return
+        logging.info("更新包 SHA256 校验通过：%s", Path(path).name)
         signature_status = _read_signature_status(path)
+        logging.info("更新包签名检查完成：%s", signature_status)
         if isinstance(info, ReleaseInfo):
             _save_installer_meta(info, path, sha256_hex)
         if os.name != "nt" or not getattr(sys, "frozen", False) or ext != ".exe":
@@ -394,38 +409,37 @@ a{{color:{theme["accent"]};}}
             )
             return
         try:
-            lbl_status.setText(tr("下载完成，正在退出程序并启动安装器..."))
-            _prepare_app_for_update_exit()
             _schedule_windows_installer(path)
-            app = QApplication.instance()
-            if app is not None:
-                QTimer.singleShot(0, app.quit)
-                QTimer.singleShot(2000, lambda: os._exit(0))
-        except Exception as e:
+            logging.info("更新安装器启动任务已创建：%s", Path(path).name)
+        except Exception:
+            logging.exception("无法创建更新安装器启动任务，尝试直接启动")
             try:
-                _prepare_app_for_update_exit()
                 subprocess.Popen([path], close_fds=True, **_hidden_subprocess_kwargs())
-                app = QApplication.instance()
-                if app is not None:
-                    QTimer.singleShot(0, app.quit)
-                    QTimer.singleShot(2000, lambda: os._exit(0))
-            except Exception:
+            except Exception as launch_error:
+                logging.exception("更新安装器启动失败")
                 InfoBar.error(
                     title=tr("启动安装器失败"),
-                    content=_brief_error_message(e),
+                    content=_brief_error_message(launch_error),
                     parent=dlg,
                     duration=4000,
                     position=InfoBarPosition.TOP,
                 )
+                lbl_status.setText(tr("启动安装器失败"))
+                return
+        lbl_status.setText(tr("下载完成，正在退出程序并启动安装器..."))
+        _prepare_app_for_update_exit()
+        app = QApplication.instance()
+        if app is not None:
+            QTimer.singleShot(0, app.quit)
 
     def _on_download_progress(cur: int, total: int, path: object):
         if state["aborted"] or (not dlg.isVisible()):
             return
-        set_progress_range(0, total if total > 0 else 0)
-        bar.setValue(max(0, min(cur, max(total, 1))))
+        set_progress_busy(total <= 0)
         name = Path(str(path or "")).name or tr("更新包")
         if total > 0:
-            pct = int((cur * 100) / total) if total > 0 else 0
+            pct = max(0, min(100, cur * 100 // total))
+            bar.setValue(pct)
             lbl_status.setText(
                 tr("正在下载 {name} ({percent}% , {current}/{total} 字节)").format(
                     name=name, percent=pct, current=cur, total=total
@@ -444,7 +458,7 @@ a{{color:{theme["accent"]};}}
             btn_copy.setEnabled(bool(state.get("info")))
             btn_retry.setEnabled(True)
             dlg.unsetCursor()
-            set_progress_range(0, 1)
+            set_progress_busy(False)
             lbl_status.setText(tr("下载已暂停，可稍后继续下载。"))
             InfoBar.info(
                 title=tr("下载已暂停"),
@@ -461,7 +475,7 @@ a{{color:{theme["accent"]};}}
             btn_copy.setEnabled(bool(state.get("info")))
             btn_retry.setEnabled(True)
             dlg.unsetCursor()
-            set_progress_range(0, 1)
+            set_progress_busy(False)
             lbl_status.setText(tr("下载失败：{message}").format(message=message))
             InfoBar.error(
                 title=tr("下载失败"),
@@ -471,8 +485,8 @@ a{{color:{theme["accent"]};}}
                 position=InfoBarPosition.TOP,
             )
             return
-        set_progress_range(0, 1)
-        bar.setValue(1)
+        set_progress_busy(False)
+        bar.setValue(100)
         _maybe_launch_installer(str(path or ""))
         _refresh_download_button()
         btn_open.setEnabled(bool(state.get("info")))
@@ -501,7 +515,8 @@ a{{color:{theme["accent"]};}}
         txt.start_new_html(
             f"<p style='color:#777;'>{html.escape(tr('正在获取...'))}</p>"
         )
-        set_progress_range(0, 0)
+        set_progress_busy(True)
+        bar.setValue(0)
         btn_open.setEnabled(False)
         btn_copy.setEnabled(False)
         btn_retry.setEnabled(False)
@@ -581,7 +596,7 @@ a{{color:{theme["accent"]};}}
         btn_copy.setEnabled(False)
         btn_retry.setEnabled(False)
         dlg.setCursor(Qt.CursorShape.BusyCursor)
-        set_progress_range(0, 100)
+        set_progress_busy(False)
         bar.setValue(0)
         lbl_status.setText(tr("正在下载更新包..."))
         state["downloading"] = True

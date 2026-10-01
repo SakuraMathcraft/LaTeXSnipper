@@ -16,7 +16,7 @@ internal static class PowerPointRoundTrip
 {
     private static readonly CancellationToken Token = CancellationToken.None;
 
-    public static async Task RunAsync(string output, bool includeOle)
+    public static async Task RunAsync(string output, bool includeOle, bool batchOnly = false)
     {
         if (Process.GetProcessesByName("POWERPNT").Length != 0)
             throw new InvalidOperationException("Close PowerPoint before running this isolated test.");
@@ -54,6 +54,14 @@ internal static class PowerPointRoundTrip
                 originals.Add(metadata.Identity.EquationId, metadata.Latex);
             }
             await VerifyAsync(adapter, style, originals, 1.5f);
+            if (batchOnly)
+            {
+                await VerifyBatchFailureHandlingAsync(adapter, (object)presentation, originals, style);
+                await controller.FormatAllAsync(Token);
+                await VerifyAsync(adapter, PowerPointPluginSettings.Load().Typography, originals, 1);
+                Console.WriteLine("PASS|PPT batch operations and retry");
+                return;
+            }
             presentation.Windows.Item(1).View.GotoSlide(1);
             presentation.Slides.Item(1).Shapes.Item(1).Select();
             Check(adapter.GetCurrentFontSizePoints() == 0, "Selected formula was treated as text font selection");
@@ -141,6 +149,20 @@ internal static class PowerPointRoundTrip
                 "The default formula was not inserted as a native equation at the text caret");
             inlineTextBox.Delete();
             Console.WriteLine("PASS|PPT default formula inserts as a native equation at the end of text");
+            dynamic chineseTextBox = slide.Shapes.AddTextbox(1, 100, 450, 500, 100);
+            string chineseTextBoxName = Convert.ToString(chineseTextBox.Name);
+            chineseTextBox.TextFrame.TextRange.Text = "left right";
+            chineseTextBox.TextFrame.TextRange.Characters(6, 0).Select();
+            PowerPointTextInsertionTarget chineseTarget = adapter.CaptureTextInsertionTarget()
+                ?? throw new InvalidOperationException("PowerPoint text caret was not captured for a Chinese equation");
+            string chineseMathMl = await renderer.ConvertTypographyToMathMlAsync(@"e^{i\pi}+1=0端",
+                FormulaDisplayMode.Inline, style, Token);
+            await adapter.InsertNativeEquationAsync(chineseTarget, chineseMathMl, 28, Token);
+            Check(Convert.ToInt32(chineseTextBox.TextFrame2.TextRange.MathZones(1, 1).Length) > 0,
+                "MathML containing Chinese did not become a native equation");
+            Check(Convert.ToString(chineseTextBox.TextFrame.TextRange.Text).Contains("端"),
+                "The Chinese glyph was lost during native equation insertion");
+            Console.WriteLine("PASS|PPT MathML with Chinese inserts as a native equation");
             presentation.Slides.Item(1).Shapes.Item(1).Select();
             Console.WriteLine("PASS|PPT selected formula still opens editor and inserts a centered formula");
             var target = await adapter.LoadSelectedFormulaAsync(Token);
@@ -183,6 +205,7 @@ internal static class PowerPointRoundTrip
             }
 
             FormulaTypography defaults = PowerPointPluginSettings.Load().Typography;
+            await VerifyBatchFailureHandlingAsync(adapter, (object)presentation, originals, style);
             await controller.FormatAllAsync(Token);
             await VerifyAsync(adapter, defaults, originals, 1);
             await controller.FormatAllAsync(Token);
@@ -196,6 +219,8 @@ internal static class PowerPointRoundTrip
                 "Native equation was lost after reopening PowerPoint");
             Check(Convert.ToInt32(reopenedSlide.Shapes.Item(secondTextBoxName).TextFrame2.TextRange.MathZones(1, 1).Length) > 0,
                 "Task pane native equation was lost after reopening PowerPoint");
+            Check(Convert.ToInt32(reopenedSlide.Shapes.Item(chineseTextBoxName).TextFrame2.TextRange.MathZones(1, 1).Length) > 0,
+                "Native equation containing Chinese was lost after reopening PowerPoint");
             Check(Convert.ToInt32(presentation.Slides.Count) == 2, "Slide count changed");
             Console.WriteLine("PASS|PPT repeated format, save and reopen|" + output);
         }
@@ -205,6 +230,56 @@ internal static class PowerPointRoundTrip
             app.Quit();
             if (File.Exists(imagePath)) File.Delete(imagePath);
         }
+    }
+
+    private static async Task VerifyBatchFailureHandlingAsync(DynamicPowerPointApplicationAdapter adapter,
+        object document, IReadOnlyDictionary<string, string> originals, FormulaTypography style)
+    {
+        dynamic presentation = document;
+        FormulaTypography defaults = PowerPointPluginSettings.Load().Typography;
+        string failedId = originals.Keys.First();
+        var status = new BatchStatusSink();
+        using (var failingController = new PowerPointPluginController(new FormulaEditorSession(new TrackingEditor()),
+            new AutomationApiClient(new AutomationApiOptions()), FailingPowerPointAdapter.Wrap(adapter, failedId),
+            new MathJaxSvgRenderer(new WebView2MathJaxJavaScriptRuntime("PowerPointBatchFailureE2E")),
+            new OlePresentationPipeline(new IOlePresentationRenderer[] { new EnhancedMetafilePresentationRenderer() }), status))
+        {
+            presentation.Windows.Item(1).View.GotoSlide(1);
+            dynamic shapes = presentation.Slides.Item(1).Shapes;
+            bool selected = false;
+            for (int index = 1; index <= Convert.ToInt32(shapes.Count); index++)
+            {
+                dynamic shape = shapes.Item(index);
+                if (string.Equals(Convert.ToString(shape.Tags.Item(PowerPointFormulaMetadataStore.EquationIdTag)),
+                    failedId, StringComparison.OrdinalIgnoreCase))
+                {
+                    shape.Select();
+                    selected = true;
+                    break;
+                }
+            }
+            Check(selected, "The failure test formula could not be selected");
+            await failingController.FormatSelectedAsync(Token);
+            Check(status.Kind == PowerPointStatusKind.Error
+                && status.Message.Contains("Injected PowerPoint formula failure"),
+                "Selected formatting did not report the individual failure");
+            await failingController.ConvertSelectedToOleAsync(Token);
+            Check(status.Kind == PowerPointStatusKind.Error
+                && status.Message.Contains("Injected PowerPoint formula failure"),
+                "Selected conversion did not report the individual failure");
+            await failingController.FormatAllAsync(Token);
+            Check(status.Kind == PowerPointStatusKind.Info
+                && status.Message.Contains("Injected PowerPoint formula failure"),
+                "Full formatting did not summarize partial success and the failure reason");
+            var partiallyFormatted = await adapter.LoadFormulaEntriesAsync(true, Token);
+            Check(partiallyFormatted.Count == originals.Count, "Failed formatting removed a formula");
+            Check(partiallyFormatted.Single(entry => entry.Metadata.Identity.EquationId == failedId)
+                .Metadata.Typography.Equals(style), "The failed formula was changed");
+            Check(partiallyFormatted.Where(entry => entry.Metadata.Identity.EquationId != failedId)
+                .All(entry => entry.Metadata.Typography.Equals(defaults) && Math.Abs(entry.Scale - 1) < .01),
+                "Formatting stopped after an individual failure");
+        }
+        Console.WriteLine("PASS|PPT batch formatting continues after a failure; selected operations report the reason");
     }
 
     private static async Task<PowerPointRenderedImage> RenderAsync(MathJaxSvgRenderer renderer, FormulaMetadata metadata, string path)

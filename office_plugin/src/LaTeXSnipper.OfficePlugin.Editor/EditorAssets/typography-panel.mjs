@@ -1,5 +1,6 @@
 // Catalogs and size limits come from the native typography contract.
 import {FontSizePicker} from './font-size-picker.mjs';
+import {populateCjkFonts} from './cjk-font-picker.mjs';
 
 export class TypographyPanel {
   constructor({onChange, onMode, onComposition, blocked}) {
@@ -56,7 +57,7 @@ export class TypographyPanel {
     };
     options(this.fields.symbolFontId, this.catalog.symbolFonts, this.initial.symbolFontId);
     options(this.fields.numberFontFamily, this.catalog.systemFonts, this.initial.numberFontFamily, true);
-    options(this.fields.cjkFontFamily, this.catalog.cjkFonts, this.initial.cjkFontFamily);
+    populateCjkFonts(this.fields.cjkFontFamily, this.catalog.cjkFonts, this.initial.cjkFontFamily, this.zh);
     this.fields.defaultMathStyle.replaceChildren();
     for (const style of this.catalog.mathStyles)
       this.fields.defaultMathStyle.add(new Option(this.zh ? style.zh : style.en, style.id));

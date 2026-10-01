@@ -22,7 +22,7 @@
 运行前必须关闭所有 Word 窗口，且测试完成前不要再次启动 Word，以确保测试实例与日常文档隔离：
 
 ```powershell
-.\office_plugin\tools\Test-WordFormulaParsingE2E.ps1
+.\office_plugin\tools\Test-OfficeTypographyE2E.ps1 -HostScope Word
 ```
 
-通过后，测试项目的 `artifacts` 目录会生成 OMML/OLE 两份 DOCX 和 Word 导出的同名 PDF。该目录已被 Git 忽略，只用于本地结构与视觉复核；可通过脚本的 `-OutputDirectory` 参数改写输出位置。
+先构建 Release 版本；统一脚本默认使用 Release，可通过 `-Configuration Debug` 改变。通过后，临时输出目录会生成 OMML/OLE 两份 DOCX、Word 导出的同名 PDF 和日志；可通过 `-OutputDirectory` 指定位置。只测原生公式时使用 `-WordBackend Omml`，不涉及 OLE 注册。

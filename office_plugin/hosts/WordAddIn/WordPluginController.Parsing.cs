@@ -38,6 +38,7 @@ public sealed partial class WordPluginController
 
         int succeeded = 0;
         int failed = 0;
+        string? firstFailure = null;
 
         for (int batchStart = 0; batchStart < candidates.Count; batchStart += BatchFormulaOperationSize)
         {
@@ -57,6 +58,7 @@ public sealed partial class WordPluginController
                     if (!preprocessed.Success)
                     {
                         failed++;
+                        firstFailure ??= WordAddInText.Get("InvalidParsingSourceStatus");
                         continue;
                     }
 
@@ -84,6 +86,7 @@ public sealed partial class WordPluginController
                         exception.GetType().Name,
                         exception.Message);
                     failed++;
+                    firstFailure ??= WordAddInText.GetExceptionMessage(exception);
                 }
             }
 
@@ -126,6 +129,7 @@ public sealed partial class WordPluginController
                             exception.GetType().Name,
                             exception.Message);
                         failed++;
+                        firstFailure ??= WordAddInText.GetExceptionMessage(exception);
                     }
                 }
             }
@@ -142,8 +146,9 @@ public sealed partial class WordPluginController
             : WordAddInText.Get("ParsedWithFailuresStatus")
                 .Replace("{total}", candidates.Count.ToString(CultureInfo.InvariantCulture))
                 .Replace("{succeeded}", succeeded.ToString(CultureInfo.InvariantCulture))
-                .Replace("{failed}", failed.ToString(CultureInfo.InvariantCulture));
-        _statusSink.Post(failed == 0 ? WordStatusKind.Success : WordStatusKind.Info, status);
+                .Replace("{failed}", failed.ToString(CultureInfo.InvariantCulture))
+                .Replace("{reason}", firstFailure ?? string.Empty);
+        _statusSink.Post(failed == 0 ? WordStatusKind.Success : succeeded == 0 ? WordStatusKind.Error : WordStatusKind.Info, status);
     }
 
     private FormulaMetadata CreateParsedFormulaMetadata(

@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using LaTeXSnipper.OfficePlugin.Abstractions;
 
 namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 
@@ -7,18 +8,7 @@ public static class PowerPointAddInText
 {
     public static string GetExceptionMessage(Exception exception)
     {
-        string message = exception?.Message?.Trim() ?? string.Empty;
-        foreach (char value in message)
-        {
-            if (value >= '\u3400' && value <= '\u9fff')
-            {
-                return message;
-            }
-        }
-
-        return exception is TimeoutException
-            ? "操作超时，请稍后重试。"
-            : "操作失败，请重试；若问题持续，请重新启动 Office 和 LaTeXSnipper。";
+        return OfficeOperationError.Describe(exception);
     }
 
     public static string Get(string key)
@@ -90,9 +80,11 @@ public static class PowerPointAddInText
             "DeletedManyStatus" => "Deleted {count} selected formulas.",
             "ConvertedStatus" => "Converted {count} formulas.",
             "ConvertedWithSkippedStatus" => "Converted {count} formulas; skipped {skipped} missing formulas.",
+            "ConvertedWithFailuresStatus" => "Processed {total} formulas: converted {succeeded}, failed {failed}, skipped {skipped}. First error: {reason}",
             "NoConversionNeededStatus" => "The selected formulas already use the target format.",
             "FormattedStatus" => "Formatted {count} formulas.",
             "FormattedWithSkippedStatus" => "Formatted {count} formulas; skipped {skipped} missing formulas.",
+            "FormattedWithFailuresStatus" => "Processed {total} formulas: formatted {succeeded}, failed {failed}, skipped {skipped}. First error: {reason}",
             "NoFormattingNeededStatus" => "No formulas need formatting.",
             "BatchConvertingStatus" => "Converting formulas: {processed}/{total}.",
             "BatchFormattingStatus" => "Formatting formulas: {processed}/{total}.",
@@ -172,9 +164,11 @@ public static class PowerPointAddInText
             "DeletedManyStatus" => "已删除 {count} 个所选公式。",
             "ConvertedStatus" => "已转换 {count} 个公式。",
             "ConvertedWithSkippedStatus" => "已转换 {count} 个公式，跳过 {skipped} 个已不存在的公式。",
+            "ConvertedWithFailuresStatus" => "共处理 {total} 个公式：成功转换 {succeeded} 个，失败 {failed} 个，跳过 {skipped} 个。首个错误：{reason}",
             "NoConversionNeededStatus" => "所选公式已经是目标格式。",
             "FormattedStatus" => "已格式化 {count} 个公式。",
             "FormattedWithSkippedStatus" => "已格式化 {count} 个公式，跳过 {skipped} 个已不存在的公式。",
+            "FormattedWithFailuresStatus" => "共处理 {total} 个公式：成功格式化 {succeeded} 个，失败 {failed} 个，跳过 {skipped} 个。首个错误：{reason}",
             "NoFormattingNeededStatus" => "没有需要格式化的公式。",
             "BatchConvertingStatus" => "正在转换公式：{processed}/{total}。",
             "BatchFormattingStatus" => "正在格式化公式：{processed}/{total}。",

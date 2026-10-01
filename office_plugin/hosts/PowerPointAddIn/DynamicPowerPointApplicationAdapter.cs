@@ -3,12 +3,11 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 using LaTeXSnipper.OfficePlugin.Abstractions;
 
 namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 
-public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplicationAdapter, IDisposable
+public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplicationAdapter
 {
     private const int MsoFalse = 0;
     private const int MsoTrue = -1;
@@ -17,8 +16,6 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
     private const string OleFormulaProgId = "LaTeXSnipper.Formula";
 
     private readonly dynamic _application;
-    private readonly Control _officeThreadControl;
-    private readonly int _officeThreadId;
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -28,16 +25,6 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         _application = application ?? throw new ArgumentNullException(nameof(application));
         if (Thread.CurrentThread.GetApartmentState() != ApartmentState.STA)
             throw new InvalidOperationException("PowerPoint 插件必须在 Office STA 线程上初始化。");
-        _officeThreadId = Thread.CurrentThread.ManagedThreadId;
-        _officeThreadControl = new Control();
-        _ = _officeThreadControl.Handle;
-    }
-
-    public void Dispose()
-    {
-        if (Thread.CurrentThread.ManagedThreadId == _officeThreadId) _officeThreadControl.Dispose();
-        else if (_officeThreadControl.IsHandleCreated)
-            _officeThreadControl.BeginInvoke(new Action(_officeThreadControl.Dispose));
     }
 
     public double GetCurrentFontSizePoints()
@@ -722,28 +709,18 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (target == null) throw new ArgumentNullException(nameof(target));
-        return RunOnOfficeThreadAsync(() => InsertNativeEquation(target, mathMl, fontSizePoints, cancellationToken), cancellationToken);
-    }
-
-    private Task RunOnOfficeThreadAsync(Action action, CancellationToken cancellationToken)
-    {
-        if (Thread.CurrentThread.ManagedThreadId == _officeThreadId)
-        {
-            action();
-            return Task.CompletedTask;
-        }
-
         var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _officeThreadControl.BeginInvoke(new Action(() =>
+        var worker = new Thread(() =>
         {
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                action();
+                InsertNativeEquation(target, mathMl, fontSizePoints, cancellationToken);
                 completion.TrySetResult(true);
             }
             catch (Exception error) { completion.TrySetException(error); }
-        }));
+        }) { IsBackground = true, Name = "LaTeXSnipper PowerPoint MathML paste" };
+        worker.SetApartmentState(ApartmentState.STA);
+        worker.Start();
         return completion.Task;
     }
 
@@ -766,7 +743,9 @@ public sealed class DynamicPowerPointApplicationAdapter : IPowerPointApplication
         (int Start, int Length) pasted = default;
         try
         {
+            ActivateForEditingAsync(cancellationToken).GetAwaiter().GetResult();
             dynamic insertionRange = shape.TextFrame.TextRange.Characters(target.Start, 0);
+            insertionRange.Select();
             pasted = PowerPointMathMlClipboard.PasteAtRange(insertionRange, mathMl);
             if (pasted.Length <= 0)
                 throw new InvalidOperationException(PowerPointAddInText.Get("NativeEquationInsertFailed"));

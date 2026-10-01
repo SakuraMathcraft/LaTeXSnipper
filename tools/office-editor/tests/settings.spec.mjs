@@ -13,9 +13,12 @@ for (const host of ['Word', 'PowerPoint']) {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.route('https://*.officeplugin.local/**', async route => {
-      const path = resolve(root, `office_plugin/hosts/${host}AddIn/EditorAssets`,
-        decodeURIComponent(new URL(route.request().url()).pathname.slice(1)));
-      const types = {'.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html'};
+      const url = new URL(route.request().url());
+      const directory = url.hostname.includes('editor-shared')
+        ? 'office_plugin/src/LaTeXSnipper.OfficePlugin.Editor/EditorAssets'
+        : `office_plugin/hosts/${host}AddIn/EditorAssets`;
+      const path = resolve(root, directory, decodeURIComponent(url.pathname.slice(1)));
+      const types = {'.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.html': 'text/html'};
       await route.fulfill({body: await readFile(path), contentType: types[extname(path)]});
     });
     await page.addInitScript(() => {
@@ -25,7 +28,7 @@ for (const host of ['Word', 'PowerPoint']) {
         locale: 'zh', formulaFontSizePoints: 12,
         symbolFontId: 'mathjax-tex', numberFontFamily: '', cjkFontFamily: 'Microsoft YaHei',
         symbolFonts: ['mathjax-tex', 'mathjax-stix2'], systemFonts: ['Microsoft YaHei', 'SimSun', 'Arial'],
-        cjkFonts: ['Microsoft YaHei', 'SimSun'], mathStyles: [
+        cjkFonts: [{id: 'Microsoft YaHei', label: '微软雅黑'}, {id: 'SimSun', label: '宋体'}], mathStyles: [
           {id: 'Automatic', zh: '自动数学样式', en: 'Automatic'},
           {id: 'Upright', zh: '正体', en: 'Upright'},
           {id: 'BoldFraktur', zh: '哥特粗体', en: 'Bold Fraktur'}],
@@ -34,6 +37,17 @@ for (const host of ['Word', 'PowerPoint']) {
       };
     });
     await page.goto(`https://latexsnipper-${host.toLowerCase()}.officeplugin.local/settings.html`);
+    const backend = page.locator('[data-backend]').first().locator('..');
+    const slider = () => backend.evaluate(el => {
+      const style = getComputedStyle(el, '::before');
+      return {transform: style.transform, duration: style.transitionDuration};
+    });
+    expect((await slider()).duration).toBe('0.18s');
+    await page.locator('[data-backend]').nth(1).click();
+    await expect.poll(async () => (await slider()).transform).not.toBe('none');
+    expect(await page.evaluate(() => window.posted.at(-1).insertionBackend)).toBe(host === 'Word' ? 'WordOmml' : 'PowerPointPng');
+    await page.emulateMedia({reducedMotion: 'reduce'});
+    expect((await slider()).duration).toBe('0s');
     expect(await page.locator('html').evaluate(el => getComputedStyle(el).colorScheme)).toBe('light');
     await expect(page.locator('#formulaColor')).toHaveValue('#000000');
     await expect(page.locator('#formulaMathStyle')).toHaveValue('Automatic');
@@ -59,6 +73,7 @@ for (const host of ['Word', 'PowerPoint']) {
     expect(await page.locator('#cjkFontFamily option').allTextContents()).not.toContain('Arial');
     await expect(page.locator('#cjkFontFamily option').first()).toHaveAttribute('value', 'Microsoft YaHei');
     await expect(page.locator('#cjkFontFamily')).toHaveValue('SimSun');
+    await expect(page.locator('#cjkFontFamily option:checked')).toHaveText('宋体');
     expect(await page.evaluate(() => window.posted.at(-1))).toMatchObject({
       symbolFontId: 'mathjax-stix2', numberFontFamily: 'Arial', cjkFontFamily: 'SimSun'});
     await page.locator('#importTypography').click();

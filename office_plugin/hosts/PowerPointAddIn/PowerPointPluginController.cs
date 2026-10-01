@@ -552,8 +552,6 @@ public sealed partial class PowerPointPluginController : IDisposable
         _editorSession.Dispose();
         _automationClient.Dispose();
         _mathJaxRenderer.Dispose();
-        if (_powerPointAdapter is IDisposable disposableAdapter) disposableAdapter.Dispose();
-
         _commandGate.Dispose();
     }
 

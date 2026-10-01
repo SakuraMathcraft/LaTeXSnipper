@@ -406,16 +406,34 @@ public sealed partial class DynamicWordApplicationAdapter
             Type.Missing,
             Type.Missing,
             range);
-        ApplyOleInlineShapeLayout(inlineShape, presentation, metadata.DisplayMode == FormulaDisplayMode.Display);
-        TagOleInlineShape(inlineShape, metadata);
-        return inlineShape;
+        try
+        {
+            ApplyOleInlineShapeLayout(inlineShape, presentation, metadata.DisplayMode == FormulaDisplayMode.Display);
+            TagOleInlineShape(inlineShape, metadata);
+            return inlineShape;
+        }
+        catch
+        {
+            TryCom(() => inlineShape.Delete());
+            throw;
+        }
     }
 
     private dynamic ReplaceOleInlineShape(dynamic inlineShape, FormulaMetadata metadata, OlePresentationResult presentation)
     {
         int insertionPoint = GetRangeStart(inlineShape.Range);
-        inlineShape.Delete();
-        return AddOleInlineShapeAtRange(CreateDocumentRange(insertionPoint, insertionPoint), metadata, presentation);
+        dynamic replacement = AddOleInlineShapeAtRange(
+            CreateDocumentRange(insertionPoint, insertionPoint), metadata, presentation);
+        try
+        {
+            inlineShape.Delete();
+            return replacement;
+        }
+        catch
+        {
+            TryCom(() => replacement.Delete());
+            throw;
+        }
     }
 
     private static void InsertTextAtRange(dynamic range, string text)

@@ -104,6 +104,30 @@ internal sealed class WordParsingE2ERunner
             var sources = (await adapter.LoadFormulaEntriesAsync(true, CancellationToken.None).ConfigureAwait(true))
                 .ToDictionary(entry => entry.Metadata!.Identity.EquationId, entry => entry.Metadata!.Latex);
             settings = CreateSettings(_options.Backend, FormulaMathStyle.BoldItalic, 15.5);
+            string failedEquationId = sources.Keys.First();
+            IWordApplicationAdapter failingAdapter = FailingWordAdapter.Wrap(adapter, failedEquationId);
+            using (WordPluginController failingController = WordAddInFactory.CreateController(
+                (object)word,
+                statusSink,
+                new TestFormulaOptionsProvider(),
+                () => settings,
+                "WordParsingFailure-" + _options.Backend,
+                failingAdapter))
+            {
+                await failingController.FormatAllAsync(CancellationToken.None).ConfigureAwait(true);
+            }
+            E2EAssert.True(statusSink.Entries.Last().Message.Contains("Injected formula update failure"),
+                "Batch formatting did not report the first formula failure");
+            IReadOnlyList<WordFormulaEntry> partiallyFormatted =
+                await adapter.LoadFormulaEntriesAsync(true, CancellationToken.None).ConfigureAwait(true);
+            E2EAssert.True(partiallyFormatted.Any(entry =>
+                entry.Metadata!.Identity.EquationId != failedEquationId
+                && entry.Metadata.Typography.Equals(settings.Typography)),
+                "Batch formatting stopped after a single formula failure");
+            E2EAssert.True(partiallyFormatted.Any(entry =>
+                entry.Metadata!.Identity.EquationId == failedEquationId
+                && !entry.Metadata.Typography.Equals(settings.Typography)),
+                "The injected formula was unexpectedly formatted");
             await controller.FormatAllAsync(CancellationToken.None).ConfigureAwait(true);
             await VerifyTypographyAsync(adapter, settings.Typography, sources).ConfigureAwait(true);
 

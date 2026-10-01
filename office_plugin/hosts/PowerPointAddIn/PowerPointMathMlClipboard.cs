@@ -1,6 +1,5 @@
 using System;
 using System.Drawing;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -12,16 +11,15 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 
 internal static class PowerPointMathMlClipboard
 {
-    private const int PpPasteHtml = 8;
-
     public static (int Start, int Length) PasteAtRange(dynamic range, string mathMl)
     {
         if (string.IsNullOrWhiteSpace(mathMl)) throw new ArgumentException("MathML 不能为空。", nameof(mathMl));
         IDataObject? previous = SnapshotClipboard();
         try
         {
-            Clipboard.SetText(CreateHtmlClipboardPayload(CompactMathMl(mathMl)), TextDataFormat.Html);
-            dynamic pasted = range.PasteSpecial(PpPasteHtml);
+            string normalized = CompactMathMl(mathMl);
+            Clipboard.SetText(normalized, TextDataFormat.UnicodeText);
+            dynamic pasted = range.Paste();
             return (Convert.ToInt32(pasted.Start), Convert.ToInt32(pasted.Length));
         }
         finally
@@ -88,19 +86,22 @@ internal static class PowerPointMathMlClipboard
             .Where(node => string.IsNullOrWhiteSpace(node.Value) && node.Parent?.Elements().Any() == true)
             .ToArray())
             whitespace.Remove();
-        return root.ToString(SaveOptions.DisableFormatting);
-    }
-
-    private static string CreateHtmlClipboardPayload(string mathMl)
-    {
-        const string prefix = "<html><body><!--StartFragment-->";
-        const string suffix = "<!--EndFragment--></body></html>";
-        const string header = "Version:0.9\r\nStartHTML:{0:D10}\r\nEndHTML:{1:D10}\r\nStartFragment:{2:D10}\r\nEndFragment:{3:D10}\r\n";
-        int startHtml = Encoding.UTF8.GetByteCount(string.Format(CultureInfo.InvariantCulture, header, 0, 0, 0, 0));
-        int startFragment = startHtml + Encoding.UTF8.GetByteCount(prefix);
-        int endFragment = startFragment + Encoding.UTF8.GetByteCount(mathMl);
-        int endHtml = endFragment + Encoding.UTF8.GetByteCount(suffix);
-        return string.Format(CultureInfo.InvariantCulture, header, startHtml, endHtml, startFragment, endFragment)
-            + prefix + mathMl + suffix;
+        // Encode non-ASCII text and attribute values as numeric references so
+        // PowerPoint's MathML paste parser accepts formulas containing Chinese.
+        string compact = root.ToString(SaveOptions.DisableFormatting);
+        var encoded = new StringBuilder(compact.Length);
+        for (int index = 0; index < compact.Length; index++)
+        {
+            char character = compact[index];
+            if (character < 128)
+            {
+                encoded.Append(character);
+                continue;
+            }
+            int codePoint = char.ConvertToUtf32(compact, index);
+            if (char.IsHighSurrogate(character)) index++;
+            encoded.Append("&#x").Append(codePoint.ToString("X", System.Globalization.CultureInfo.InvariantCulture)).Append(';');
+        }
+        return encoded.ToString();
     }
 }

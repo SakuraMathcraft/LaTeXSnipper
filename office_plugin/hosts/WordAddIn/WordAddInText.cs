@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using LaTeXSnipper.OfficePlugin.Abstractions;
 
 namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
@@ -7,18 +8,7 @@ public static class WordAddInText
 {
     public static string GetExceptionMessage(Exception exception)
     {
-        string message = exception?.Message?.Trim() ?? string.Empty;
-        foreach (char value in message)
-        {
-            if (value >= '\u3400' && value <= '\u9fff')
-            {
-                return message;
-            }
-        }
-
-        return exception is TimeoutException
-            ? "操作超时，请稍后重试。"
-            : "操作失败，请重试；若问题持续，请重新启动 Office 和 LaTeXSnipper。";
+        return OfficeOperationError.Describe(exception);
     }
 
     public static string Get(string key)
@@ -101,7 +91,7 @@ public static class WordAddInText
             "EditingFormulaTitle" => "Editing Formula",
             "HelpStatus" => "Help opened.",
             "SettingsStatus" => "Settings opened.",
-            "SettingsTitle" => "LaTeXSnipper Office Plugin Settings",
+            "SettingsTitle" => "LaTeXSnipper Word Plugin Settings",
             "SettingsNumberingGroup" => "Default numbered formula layout",
             "SettingsNumberRight" => "Number on the right",
             "SettingsNumberLeft" => "Number on the left",
@@ -138,10 +128,12 @@ public static class WordAddInText
             "SectionBoundaryText" => "Section boundary",
             "ConvertedStatus" => "Converted {count} formulas.",
             "ConvertedWithSkippedStatus" => "Converted {count} formulas; skipped {skipped} missing formulas.",
+            "ConvertedWithFailuresStatus" => "Processed {total} formulas: converted {succeeded}, failed {failed}, skipped {skipped}. First error: {reason}",
             "NoConversionTargetsStatus" => "No formulas to convert were found.",
             "NoConversionNeededStatus" => "The selected formulas already use the target format.",
             "FormattedStatus" => "Formatted {count} formulas.",
             "FormattedWithSkippedStatus" => "Formatted {count} formulas; skipped {skipped} missing formulas.",
+            "FormattedWithFailuresStatus" => "Processed {total} formulas: formatted {succeeded}, failed {failed}, skipped {skipped}. First error: {reason}",
             "NoFormattingTargetsStatus" => "No formulas to format were found.",
             "NoFormattingNeededStatus" => "The selected formulas already use the default style.",
             "BatchConvertingStatus" => "Converting formulas: {processed}/{total}.",
@@ -149,7 +141,8 @@ public static class WordAddInText
             "BatchParsingStatus" => "Parsing formulas: {processed}/{total}.",
             "NoParsingTargetsStatus" => "No formulas to parse were found.",
             "ParsedStatus" => "Parsed {count} formulas.",
-            "ParsedWithFailuresStatus" => "Processed {total} formulas: {succeeded} succeeded, {failed} failed.",
+            "ParsedWithFailuresStatus" => "Processed {total} formulas: {succeeded} succeeded, {failed} failed. First error: {reason}",
+            "InvalidParsingSourceStatus" => "The LaTeX delimiter or equation tag is incomplete.",
             "ParseSourceChangedError" => "The source text changed before it could be parsed.",
             _ => key,
         };
@@ -229,7 +222,7 @@ public static class WordAddInText
             "EditingFormulaTitle" => "正在编辑公式",
             "HelpStatus" => "已打开帮助。",
             "SettingsStatus" => "已打开设置。",
-            "SettingsTitle" => "LaTeXSnipper Office 插件设置",
+            "SettingsTitle" => "LaTeXSnipper Word 插件设置",
             "SettingsNumberingGroup" => "带编号公式默认布局",
             "SettingsNumberRight" => "编号在右侧",
             "SettingsNumberLeft" => "编号在左侧",
@@ -266,10 +259,12 @@ public static class WordAddInText
             "SectionBoundaryText" => "节分隔符",
             "ConvertedStatus" => "已转换 {count} 个公式。",
             "ConvertedWithSkippedStatus" => "已转换 {count} 个公式，跳过 {skipped} 个已不存在的公式。",
+            "ConvertedWithFailuresStatus" => "共处理 {total} 个公式：成功转换 {succeeded} 个，失败 {failed} 个，跳过 {skipped} 个。首个错误：{reason}",
             "NoConversionTargetsStatus" => "未找到可转换的公式。",
             "NoConversionNeededStatus" => "所选公式已经是目标格式。",
             "FormattedStatus" => "已格式化 {count} 个公式。",
             "FormattedWithSkippedStatus" => "已格式化 {count} 个公式，跳过 {skipped} 个已不存在的公式。",
+            "FormattedWithFailuresStatus" => "共处理 {total} 个公式：成功格式化 {succeeded} 个，失败 {failed} 个，跳过 {skipped} 个。首个错误：{reason}",
             "NoFormattingTargetsStatus" => "未找到可格式化的公式。",
             "NoFormattingNeededStatus" => "所选公式已经是默认样式。",
             "BatchConvertingStatus" => "正在转换公式：{processed}/{total}。",
@@ -277,7 +272,8 @@ public static class WordAddInText
             "BatchParsingStatus" => "正在解析公式：{processed}/{total}。",
             "NoParsingTargetsStatus" => "未找到可解析的公式。",
             "ParsedStatus" => "已解析 {count} 个公式。",
-            "ParsedWithFailuresStatus" => "共处理 {total} 个公式，成功 {succeeded} 个，失败 {failed} 个。",
+            "ParsedWithFailuresStatus" => "共处理 {total} 个公式，成功 {succeeded} 个，失败 {failed} 个。首个错误：{reason}",
+            "InvalidParsingSourceStatus" => "LaTeX 定界符或公式编号标记不完整。",
             "ParseSourceChangedError" => "源文本在解析前已发生变化。",
             _ => key,
         };

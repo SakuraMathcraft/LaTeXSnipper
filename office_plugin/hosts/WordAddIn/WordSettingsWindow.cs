@@ -105,6 +105,11 @@ internal sealed class WordSettingsWindow : Form
             SettingsHostName,
             assetsRoot,
             CoreWebView2HostResourceAccessKind.Allow);
+        core.SetVirtualHostNameToFolderMapping(
+            "latexsnipper-editor-shared.officeplugin.local",
+            InstalledAssetResolver.FindSharedAssetRoot("settings.css")
+                ?? throw new DirectoryNotFoundException("Shared settings assets were not found."),
+            CoreWebView2HostResourceAccessKind.Allow);
         core.WebMessageReceived += OnWebMessageReceived;
         core.NavigationCompleted += OnNavigationCompleted;
         _webView.Source = new Uri("https://" + SettingsHostName + "/settings.html?_=" + DateTime.UtcNow.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));

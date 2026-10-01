@@ -1,12 +1,12 @@
 # LaTeXSnipper Office Plugin Installer
 
-Produces the released Word and PowerPoint plugin installer with Inno Setup 6.
+Produces the released Word and PowerPoint plugin installer with Inno Setup 6 or newer.
 
 ## Prerequisites
 
 - Inno Setup 6+ (install from <https://jrsoftware.org/isdl.php>)
-- Visual Studio 2022 with Office/SharePoint development workload (for VSTO MSBuild)
-- Visual Studio 2022 Visual C++ ATL components (for the native OLE formula object)
+- Visual Studio 2022 or newer with Office/SharePoint development workload (for VSTO MSBuild)
+- Visual C++ ATL components (for the native OLE formula object)
 - .NET 9.0 SDK (for dotnet build of shared libraries)
 
 ## Build
@@ -18,7 +18,7 @@ build.bat Release
 
 The build reads the shared product version from the repository `VERSION` file.
 
-Output: `office_plugin\release\LaTeXSnipperOffice_3.1.0_amd64.exe`
+Output: `office_plugin\release\LaTeXSnipperOffice_<version>_amd64.exe` and its adjacent `.sha256` file. The SignPath Office artifact configuration matches the same filename pattern.
 
 ## Installation Responsibilities
 

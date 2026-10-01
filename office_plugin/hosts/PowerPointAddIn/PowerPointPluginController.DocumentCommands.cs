@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -38,6 +39,8 @@ public sealed partial class PowerPointPluginController
             await _powerPointAdapter.LoadFormulaEntriesAsync(false, cancellationToken);
         int converted = 0;
         int skipped = 0;
+        int failed = 0;
+        string? firstFailure = null;
         for (int batchStart = 0; batchStart < entries.Count; batchStart += BatchFormulaOperationSize)
         {
             PowerPointFormulaEntry[] batch = entries
@@ -47,31 +50,46 @@ public sealed partial class PowerPointPluginController
             foreach (PowerPointFormulaEntry entry in batch)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (entry.Metadata.RenderEngine == target)
+                try
                 {
-                    continue;
-                }
+                    if (entry.Metadata.RenderEngine == target)
+                    {
+                        continue;
+                    }
 
-                if (!_powerPointAdapter.ContainsFormula(entry.Metadata.Identity.EquationId))
-                {
-                    skipped++;
-                    continue;
-                }
+                    if (!_powerPointAdapter.ContainsFormula(entry.Metadata.Identity.EquationId))
+                    {
+                        skipped++;
+                        continue;
+                    }
 
-                if (await ReplaceEntryAsync(entry, WithRenderEngine(entry.Metadata, target), entry.Scale, cancellationToken))
-                {
-                    converted++;
+                    if (await ReplaceEntryAsync(entry, WithRenderEngine(entry.Metadata, target), entry.Scale, cancellationToken))
+                    {
+                        converted++;
+                    }
+                    else
+                    {
+                        skipped++;
+                    }
                 }
-                else
+                catch (OperationCanceledException)
                 {
-                    skipped++;
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    failed++;
+                    firstFailure ??= PowerPointAddInText.GetExceptionMessage(exception);
+                    Trace.TraceWarning("Formula conversion failed on slide {0}, formula {1}: {2}",
+                        entry.SlideIndex, entry.Metadata.Identity.EquationId, exception);
                 }
             }
 
             PostBatchProgress("BatchConvertingStatus", Math.Min(batchStart + batch.Length, entries.Count), entries.Count);
         }
 
-        PostChangedCount(converted, skipped, "ConvertedStatus", "ConvertedWithSkippedStatus", "NoConversionNeededStatus");
+        PostBatchResult(entries.Count, converted, skipped, failed, firstFailure,
+            "ConvertedStatus", "ConvertedWithSkippedStatus", "ConvertedWithFailuresStatus", "NoConversionNeededStatus");
     }
 
     private async Task FormatAsync(bool all, CancellationToken cancellationToken)
@@ -81,6 +99,8 @@ public sealed partial class PowerPointPluginController
             await _powerPointAdapter.LoadFormulaEntriesAsync(all, cancellationToken);
         int formatted = 0;
         int skipped = 0;
+        int failed = 0;
+        string? firstFailure = null;
         for (int batchStart = 0; batchStart < entries.Count; batchStart += BatchFormulaOperationSize)
         {
             PowerPointFormulaEntry[] batch = entries
@@ -90,41 +110,56 @@ public sealed partial class PowerPointPluginController
             foreach (PowerPointFormulaEntry entry in batch)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!NeedsFormatting(entry, settings))
+                try
                 {
-                    continue;
-                }
+                    if (!NeedsFormatting(entry, settings))
+                    {
+                        continue;
+                    }
 
-                if (!_powerPointAdapter.ContainsFormula(entry.Metadata.Identity.EquationId))
-                {
-                    skipped++;
-                    continue;
-                }
+                    if (!_powerPointAdapter.ContainsFormula(entry.Metadata.Identity.EquationId))
+                    {
+                        skipped++;
+                        continue;
+                    }
 
-                string latex = entry.Metadata.Latex;
-                FormulaMetadata metadata = new FormulaMetadata(
-                    entry.Metadata.Identity,
-                    latex,
-                    entry.Metadata.DisplayMode,
-                    entry.Metadata.NumberingMode,
-                    entry.Metadata.NumberText,
-                    entry.Metadata.RenderEngine,
-                    entry.Metadata.SchemaVersion,
-                    settings.Typography);
-                if (await ReplaceEntryAsync(entry, metadata, scale: 1, cancellationToken))
-                {
-                    formatted++;
+                    string latex = entry.Metadata.Latex;
+                    FormulaMetadata metadata = new FormulaMetadata(
+                        entry.Metadata.Identity,
+                        latex,
+                        entry.Metadata.DisplayMode,
+                        entry.Metadata.NumberingMode,
+                        entry.Metadata.NumberText,
+                        entry.Metadata.RenderEngine,
+                        entry.Metadata.SchemaVersion,
+                        settings.Typography);
+                    if (await ReplaceEntryAsync(entry, metadata, scale: 1, cancellationToken))
+                    {
+                        formatted++;
+                    }
+                    else
+                    {
+                        skipped++;
+                    }
                 }
-                else
+                catch (OperationCanceledException)
                 {
-                    skipped++;
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    failed++;
+                    firstFailure ??= PowerPointAddInText.GetExceptionMessage(exception);
+                    Trace.TraceWarning("Formula formatting failed on slide {0}, formula {1}: {2}",
+                        entry.SlideIndex, entry.Metadata.Identity.EquationId, exception);
                 }
             }
 
             PostBatchProgress("BatchFormattingStatus", Math.Min(batchStart + batch.Length, entries.Count), entries.Count);
         }
 
-        PostChangedCount(formatted, skipped, "FormattedStatus", "FormattedWithSkippedStatus", "NoFormattingNeededStatus");
+        PostBatchResult(entries.Count, formatted, skipped, failed, firstFailure,
+            "FormattedStatus", "FormattedWithSkippedStatus", "FormattedWithFailuresStatus", "NoFormattingNeededStatus");
     }
 
     private async Task<bool> ReplaceEntryAsync(
@@ -171,8 +206,21 @@ public sealed partial class PowerPointPluginController
         return true;
     }
 
-    private void PostChangedCount(int count, int skipped, string changedKey, string skippedKey, string unchangedKey)
+    private void PostBatchResult(int total, int count, int skipped, int failed, string? firstFailure,
+        string changedKey, string skippedKey, string failedKey, string unchangedKey)
     {
+        if (failed > 0)
+        {
+            string summary = PowerPointAddInText.Get(failedKey)
+                .Replace("{total}", total.ToString(CultureInfo.InvariantCulture))
+                .Replace("{succeeded}", count.ToString(CultureInfo.InvariantCulture))
+                .Replace("{failed}", failed.ToString(CultureInfo.InvariantCulture))
+                .Replace("{skipped}", skipped.ToString(CultureInfo.InvariantCulture))
+                .Replace("{reason}", firstFailure ?? string.Empty);
+            _statusSink.Post(count == 0 ? PowerPointStatusKind.Error : PowerPointStatusKind.Info, summary);
+            return;
+        }
+
         if (count == 0)
         {
             _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get(unchangedKey));

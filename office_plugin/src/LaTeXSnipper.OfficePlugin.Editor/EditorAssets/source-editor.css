@@ -1,4 +1,5 @@
 #latexSource {
+  container-type: inline-size;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -17,24 +18,58 @@
 #latexSource .cm-cursor { border-left-color: var(--text); }
 #latexSource .cm-selectionBackground, #latexSource .cm-focused .cm-selectionBackground { background: #8db9ef55; }
 #latexSource .cm-panels, #latexSource .cm-tooltip { color: var(--text); background: var(--panel); border-color: var(--line); }
+.workspace:has(#latexSource .cm-search) { grid-template-rows: minmax(0, 1fr) 8px max(var(--source-pane-height), 300px); }
+#latexSource.source-host:has(.cm-search) { height: 300px; }
 #latexSource .cm-search {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   align-items: center;
-  gap: 6px;
-  padding: 8px 38px 8px 8px;
+  gap: 8px;
+  padding: 12px 44px 12px 12px;
   font: 12px/1.5 "Segoe UI", "Microsoft YaHei", sans-serif;
 }
-#latexSource .cm-search br { flex-basis: 100%; height: 0; }
-#latexSource .cm-search label { display: inline-flex; align-items: center; gap: 4px; margin: 0; font: inherit; white-space: nowrap; }
-#latexSource .cm-search input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+#latexSource .cm-search br { display: none; }
+#latexSource .cm-search label { display: inline-flex; align-items: center; gap: 7px; margin: 0; padding: 5px 7px; border: 1px solid transparent; border-radius: 6px; font: inherit; white-space: nowrap; cursor: pointer; transition: background-color 120ms, border-color 120ms; }
+#latexSource .cm-search label:hover { background: var(--accent-soft); }
+#latexSource .cm-search label:has(input:checked) { color: var(--accent); background: var(--accent-soft); border-color: var(--line); }
+#latexSource .cm-search input[type="checkbox"] { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); cursor: pointer; }
 #latexSource .cm-search input:not([type="checkbox"]), #latexSource .cm-search button {
-  color: var(--text); background: var(--source-bg); border: 1px solid var(--line);
-  font: inherit; min-height: 32px; padding: 5px 8px;
+  color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  font: inherit; min-height: 32px; min-width: 0; margin: 0; padding: 5px 8px;
+  transition: background-color 120ms, border-color 120ms, box-shadow 120ms;
 }
-#latexSource .cm-search input:not([type="checkbox"]) { width: min(240px, 100%); min-width: 120px; }
-#latexSource .cm-search button { white-space: nowrap; }
-#latexSource .cm-search button[name="close"] { position: absolute; top: 8px; right: 6px; width: 28px; min-height: 28px; padding: 0; }
+#latexSource .cm-search input:not([type="checkbox"]) { width: 100%; }
+#latexSource .cm-search input::placeholder { color: var(--muted); }
+#latexSource .cm-search button { background-image: none; white-space: nowrap; cursor: pointer; }
+#latexSource .cm-search button:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+#latexSource .cm-search button:active { box-shadow: inset 0 1px 3px #17203320; background: var(--accent-soft); }
+#latexSource .cm-search input:focus-visible, #latexSource .cm-search button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#latexSource .cm-search input[name="search"] { grid-area: 1 / 1 / 2 / 7; }
+#latexSource .cm-search button[name="next"] { grid-area: 1 / 7 / 2 / 9; }
+#latexSource .cm-search button[name="prev"] { grid-area: 1 / 9 / 2 / 11; }
+#latexSource .cm-search button[name="select"] { grid-area: 1 / 11 / 2 / 13; }
+#latexSource .cm-search label:has(input[name="case"]) { grid-area: 2 / 1 / 3 / 5; }
+#latexSource .cm-search label:has(input[name="re"]) { grid-area: 2 / 5 / 3 / 9; }
+#latexSource .cm-search label:has(input[name="word"]) { grid-area: 2 / 9 / 3 / 13; }
+#latexSource .cm-search input[name="replace"] { grid-area: 3 / 1 / 4 / 7; }
+#latexSource .cm-search button[name="replace"] { grid-area: 3 / 7 / 4 / 9; }
+#latexSource .cm-search button[name="replaceAll"] { grid-area: 3 / 9 / 4 / 13; }
+#latexSource .cm-search button[name="close"] { position: absolute; top: 12px; right: 8px; width: 28px; min-height: 28px; padding: 0; border-color: transparent; background: transparent; }
+#latexSource .cm-search button[name="close"]:hover { background: var(--accent-soft); border-color: var(--line); }
+@container (max-width: 480px) {
+  #latexSource .cm-search input[name="search"] { grid-area: 1 / 1 / 2 / 13; }
+  #latexSource .cm-search button[name="next"] { grid-area: 2 / 1 / 3 / 5; }
+  #latexSource .cm-search button[name="prev"] { grid-area: 2 / 5 / 3 / 9; }
+  #latexSource .cm-search button[name="select"] { grid-area: 2 / 9 / 3 / 13; }
+  #latexSource .cm-search label:has(input[name="case"]) { grid-area: 3 / 1 / 4 / 5; }
+  #latexSource .cm-search label:has(input[name="re"]) { grid-area: 3 / 5 / 4 / 9; }
+  #latexSource .cm-search label:has(input[name="word"]) { grid-area: 3 / 9 / 4 / 13; }
+  #latexSource .cm-search input[name="replace"] { grid-area: 4 / 1 / 5 / 13; }
+  #latexSource .cm-search button[name="replace"] { grid-area: 5 / 1 / 6 / 7; }
+  #latexSource .cm-search button[name="replaceAll"] { grid-area: 5 / 7 / 6 / 13; }
+  #latexSource .cm-search label { font-size: 11px; padding-inline: 0; gap: 4px; }
+}
+@media (prefers-reduced-motion: reduce) { #latexSource .cm-search * { transition: none; } }
 #latexSource .cm-matchingBracket { background: #65b8a540; outline: 1px solid #469f90; }
 #latexSource .cm-template-hole { display: inline-block; width: 5px; height: 12px; border: 1px solid var(--accent); vertical-align: text-bottom; }
 #latexSource .cm-template-field { background: var(--accent-soft); }
