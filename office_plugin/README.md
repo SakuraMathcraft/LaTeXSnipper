@@ -39,6 +39,8 @@ Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 i
 
 ### Shared
 
+- Double-click editing and independent cross-document copies of LaTeXSnipper OLE formulas
+- Explicit conversion of unnumbered LaTeXSnipper OLE formulas to native MathType objects, using the installed MathType desktop SDK; multi-selection continues after individual failures and reports specific errors; MathType owns subsequent editing and layout
 - Reusable WebView2/MathLive formula editor
 - 18-category shared symbol and formula library
 - Chinese and English Ribbon, task pane, editor, settings, and help
@@ -98,10 +100,12 @@ Build the installer or the managed solution and native handler first, then close
 
 ```powershell
 office_plugin\tools\Test-OfficeTypographyE2E.ps1
+# Include native MathType conversion and save/reopen checks (requires installed MathType):
+office_plugin\tools\Test-OfficeTypographyE2E.ps1 -IncludeMathType
 # Word OMML only, without temporary OLE registration:
 office_plugin\tools\Test-OfficeTypographyE2E.ps1 -HostScope Word -WordBackend Omml
 # PowerPoint batch failure and retry only, without OLE:
 office_plugin\tools\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint -PowerPointMode Batch
 ```
 
-The unified runner defaults to Release binaries, Word OMML/OLE, and the full PowerPoint suite. Use `-Configuration Debug`, `-WordBackend Ole`, or `-HostScope` to select a smaller run. Evidence goes to a unique temporary directory, or `-OutputDirectory`. OLE runs require 64-bit Click-to-Run Office and temporarily register the built handler under HKCU; existing user registration is refused, and the runner removes only the keys it creates. The plugin installer itself registers the OLE handler under HKLM.
+The unified runner defaults to Release binaries, Word OMML/OLE, and the full PowerPoint suite. Use `-Configuration Debug`, `-WordBackend Ole`, or `-HostScope` to select a smaller run. Evidence goes to a unique temporary directory, or `-OutputDirectory`. OLE runs require 64-bit Click-to-Run Office and temporarily register the built handler under HKCU; valid existing user registration is refused; original values are restored, and the runner removes only the roots it creates. The plugin installer itself registers the OLE handler under HKLM.

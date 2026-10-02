@@ -57,7 +57,7 @@
       <div class="steps">
         <div class="step"><strong>1 · 打开插件</strong>在 Word 或 PowerPoint 顶部的 LaTeXSnipper 选项卡中选择插入公式。</div>
         <div class="step"><strong>2 · 写入公式</strong>在上方可视化区域输入，或在下方源码区写 LaTeX；也可以从左侧符号库选择公式。</div>
-        <div class="step"><strong>3 · 插入文档</strong>确认字号和颜色后点击“插入”。选中已有公式并点击“加载所选”，可修改后点击“更新”。</div>
+        <div class="step"><strong>3 · 插入文档</strong>确认字号和颜色后点击“插入”。双击已有 OLE 公式，或选中公式后点击“加载所选”，可修改后点击“更新”。</div>
       </div>
       <div class="callout">截图识别需要打开 LaTeXSnipper 桌面端，并在桌面端设置中启用<strong>自动化接口</strong>。普通公式编辑和插入可直接在 Office 插件中完成。</div>
     </section>
@@ -67,7 +67,7 @@
         <li><strong>可视化区与源码区：</strong>两者同步。源码含有可视化编辑器无法原样保留的写法时，上方只显示参考结果；继续在源码区编辑，或点击“用上方结果替换源码（可撤销）”。</li>
         <li><strong>符号库与常用：</strong>左侧可搜索公式和符号，点击磁贴插入。右键点击磁贴可加入或移出“常用”；工具栏星形按钮可收藏当前公式。常用内容在升级后保留。</li>
         <li><strong>字体与预览：</strong>工具栏的字体、字形、字号和颜色优先用于当前公式。全局颜色会同步到源码和可视化编辑区；右键可对选中部分上色、剪切、粘贴或全选，局部颜色会立即写入源码。“最终预览”按当前属性渲染，小字号会在屏幕上放大以便检查，插入仍使用选定字号；修改已有公式时沿用该公式保存的属性。</li>
-        <li><strong>快捷键：</strong>可视化区按 <kbd>Enter</kbd> 新建数学行，<kbd>Shift</kbd> + <kbd>Enter</kbd> 插入或更新，<kbd>Esc</kbd> 收起虚拟键盘。源码区按 <kbd>Tab</kbd> 在光标处缩进；补全列表按 <kbd>Enter</kbd> 接受。</li>
+        <li><strong>快捷键：</strong>可视化区按 <kbd>Shift</kbd> + <kbd>Enter</kbd> 插入或更新。源码区按 <kbd>Tab</kbd> 在光标处缩进；补全列表按 <kbd>Enter</kbd> 接受。</li>
       </ul>
     </section>
     <section id="zh-settings">
@@ -78,7 +78,7 @@
         <tbody>
           <tr><td>符号字体</td><td>决定数学字母、符号及公式结构的字体方案。可选打包提供的 TeX 和 STIX2。</td></tr>
           <tr><td>数字字体</td><td>单独指定普通数字使用的系统字体；选“跟随符号字体”时与公式符号保持一致。</td></tr>
-          <tr><td>汉字字体</td><td>指定公式内汉字使用的系统字体；列表只显示检测到汉字字形的字体。</td></tr>
+          <tr><td>汉字字体</td><td>指定公式内汉字使用的系统字体；使用与 Word 常用汉字字体一致的固定列表（等线到幼圆）。</td></tr>
           <tr><td>默认字形</td><td>控制数学字符的正体、斜体、粗体、花体等表现，与字体方案分别选择。“自动”保留公式原有的数学排版；源码中明确指定的局部字形优先。</td></tr>
           <tr><td>字号、颜色</td><td>决定新公式的默认大小和颜色。“新建时跟随文字字号”启用后优先使用光标或选区文字字号，无有效字号时使用设置中的固定值。</td></tr>
         </tbody>
@@ -90,6 +90,7 @@
       <h3>插入与编号</h3>
       <p>“插入行内公式”放在当前文字中；“插入行间公式”单独占一行；“插入带编号公式”按设置的左右位置与外框显示编号。设置中的“带编号公式默认布局”还可选择章、节编号、层级分隔符，以及是否显示章/节分隔符。</p>
       <h3>加载、转换和格式化</h3>
+      <p>OLE 公式复制到另一份文档后仍可加载并独立编辑。选择普通 OLE 公式并点击“转为 MathType”，可得到由 MathType 管理的原生对象；需要安装 MathType，转换后双击由 MathType 打开，不再保留插件源码与字体快照。Word 带编号公式暂不支持此转换。支持同时选择多个公式逐项转换，失败项保留原公式并继续处理其他项，结束后显示统计及具体错误。选择 MathType 公式后点击“转为 OLE”，可以用其当前 MathML 内容重新生成插件公式，支持多选和失败续跑；不会恢复转换前的 LaTeX 与字体快照。</p>
       <p>选中插件插入的公式后，用“加载所选”修改或用“删除所选”移除。设置中的“公式插入方式”可选 OLE 对象或 Word 原生公式；“转换为 OLE / Word 原生公式”可处理已选公式。“格式化所选 / 全文”按当前默认属性整理公式。</p>
       <h3>解析正文中的 LaTeX</h3>
       <p>“解析所选 / 全文”识别完整的 <code>$...$</code>、<code>\(...\)</code>、<code>$$...$$</code> 和 <code>\[...\]</code>。未闭合或转换失败的内容会保留原文；行间公式中的有效 <code>\tag{...}</code> 可作为自定义编号。</p>
@@ -99,6 +100,7 @@
     </section>
     <section id="zh-ppt" class="platform-powerpoint">
       <h2>PowerPoint 中的常用操作</h2>
+      <p>插件 OLE 公式复制到另一份演示文稿后仍可加载并独立编辑。“转为 MathType”将所选插件 OLE 公式转换为 MathType 原生对象，需要安装 MathType；转换后由 MathType 管理内容与排版，双击进入 MathType，不再保留插件源码和字体快照。支持多选批量转换；失败项保留原公式，继续处理其他项，并显示统计及具体错误。选择 MathType 公式后点击“转为 OLE”，可以用其当前 MathML 内容重新生成插件公式，支持多选和失败续跑；不会恢复转换前的 LaTeX 与字体快照。</p>
       <p>在文本框内把光标放在文字中间并点击“插入公式”，会得到随文字排版的 PowerPoint 原生公式，可在 PowerPoint 中继续编辑。光标不在文字中时，新公式作为居中的独立幻灯片对象插入，并按设置选择 OLE 对象或 PNG 图片。</p>
       <p>选中插件公式后，可“加载所选”修改、“删除所选”、在 OLE 与 PNG 间转换，或用“格式化所选 / 全文”应用当前默认属性。更新与转换会尽量保留对象在幻灯片中的位置和手动缩放。</p>
       <p class="muted">侧边栏用于新公式草稿；“加载所选”、OLE / PNG 转换和批量格式化适用于插件插入的独立对象。文本内原生公式由 PowerPoint 管理。</p>
@@ -129,7 +131,7 @@
       <div class="steps">
         <div class="step"><strong>1 · Open the plugin</strong>Use the LaTeXSnipper tab at the top of Word or PowerPoint to insert a formula.</div>
         <div class="step"><strong>2 · Write the formula</strong>Type in the visual area or the LaTeX source pane, or choose a formula from the symbol library.</div>
-        <div class="step"><strong>3 · Insert it</strong>Check the size and color, then select Insert. To change an existing formula, select it and use Load Selected, then Update.</div>
+        <div class="step"><strong>3 · Insert it</strong>Check the size and color, then select Insert. Double-click an existing OLE formula, or select a formula and use Load Selected, then Update.</div>
       </div>
       <div class="callout">Screenshot recognition requires the LaTeXSnipper desktop app with the <strong>Automation API</strong> enabled in its settings. Ordinary formula editing and insertion work inside the Office plugin.</div>
     </section>
@@ -139,7 +141,7 @@
         <li><strong>Visual and source panes:</strong>They stay in sync. When the visual editor cannot preserve source exactly, the upper pane is a reference. Keep editing below, or choose “Replace source with result (undoable)”.</li>
         <li><strong>Library and Common:</strong>Search and click a tile to insert it. Right-click a tile to add or remove it from Common. Use the toolbar star to save the current formula. Common survives upgrades.</li>
         <li><strong>Typography and preview:</strong>Toolbar choices apply to the current formula. The formula color is synchronized with the source and visual editor. Right-click in the visual editor to color a selection, cut, paste, or select all; local colors are written to the source immediately. Final Preview enlarges small formulas on screen for inspection; insertion still uses the selected point size. Existing formulas reopen with their saved properties.</li>
-        <li><strong>Keys:</strong>In the visual pane, <kbd>Enter</kbd> starts a math row, <kbd>Shift</kbd> + <kbd>Enter</kbd> inserts or updates, and <kbd>Esc</kbd> hides the virtual keyboard. In source, <kbd>Tab</kbd> indents at the caret and <kbd>Enter</kbd> accepts a completion.</li>
+        <li><strong>Keys:</strong>In the visual pane, <kbd>Shift</kbd> + <kbd>Enter</kbd> inserts or updates. In source, <kbd>Tab</kbd> indents at the caret and <kbd>Enter</kbd> accepts a completion.</li>
       </ul>
     </section>
     <section id="en-settings">
@@ -150,7 +152,7 @@
         <tbody>
           <tr><td>Symbol font</td><td>The font scheme for mathematical letters, symbols, and formula structures. The bundled choices are TeX and STIX2.</td></tr>
           <tr><td>Number font</td><td>An optional system font for ordinary digits. Follow Symbol Font keeps numbers with the mathematical symbols.</td></tr>
-          <tr><td>CJK font</td><td>A system font for Chinese characters within formulas. The list shows fonts found to contain Chinese glyphs.</td></tr>
+          <tr><td>CJK font</td><td>A system font for Chinese characters within formulas. The fixed list contains common Chinese fonts, from DengXian to YouYuan.</td></tr>
           <tr><td>Default math style</td><td>Upright, italic, bold, script, and other mathematical shapes, selected independently from the font scheme. Automatic preserves normal mathematical styling; explicit source styles take priority.</td></tr>
           <tr><td>Size and color</td><td>Defaults for new formulas. Follow Text Size uses the text at the insertion point when available and falls back to the fixed size.</td></tr>
         </tbody>
@@ -162,6 +164,7 @@
       <h3>Insert and number</h3>
       <p>Insert Inline places a formula within text. Insert Display gives it a separate line. Insert Numbered positions the number and enclosure according to settings. Default Numbered Formula Layout also controls chapter and section numbering, separators, and boundary visibility.</p>
       <h3>Load, convert, and format</h3>
+      <p>Copied OLE formulas remain independently editable in another document. To MathType converts an unnumbered OLE formula into a native MathType object; desktop MathType must be installed. Double-click the converted object to edit it in MathType. Its content and fonts are then managed by MathType, without a separate plugin source snapshot. You can convert multiple selected formulas; failed items remain unchanged while the rest continue, followed by a summary and the specific error. Select MathType equations and choose To OLE to generate plugin objects from their current MathML, with the same batch handling. This does not restore the original LaTeX or font snapshot.</p>
       <p>Select a plugin formula to Load Selected or Delete Selected. Formula Insertion offers OLE objects or native Word equations. Convert to OLE / Word Equation changes selected formulas. Format Selected / All applies the current default properties.</p>
       <h3>Parse LaTeX in document text</h3>
       <p>Parse Selected / All recognizes complete <code>$...$</code>, <code>\(...\)</code>, <code>$$...$$</code>, and <code>\[...\]</code> expressions. Incomplete or failed conversions leave the original text in place. A valid <code>\tag{...}</code> can provide a custom number for a display formula.</p>
@@ -171,6 +174,7 @@
     </section>
     <section id="en-ppt" class="platform-powerpoint">
       <h2>Common tasks in PowerPoint</h2>
+      <p>Plugin OLE formulas remain independently editable after copying to another presentation. To MathType converts the selected plugin OLE formula into a native MathType object and requires desktop MathType. MathType then manages its content and layout; double-click to edit it in MathType. The plugin source and font snapshot are not retained. Multiple selected formulas are converted individually; failed items remain unchanged while the rest continue, with a summary and the specific error. Select MathType equations and choose To OLE to generate plugin objects from their current MathML, with the same batch handling. This does not restore the original LaTeX or font snapshot.</p>
       <p>Place the text caret inside a text box to insert a native PowerPoint equation that flows with the surrounding text and remains editable in PowerPoint. Outside text, Insert Formula adds a centered slide object using the OLE or PNG insertion setting.</p>
       <p>Select a plugin formula to Load Selected, Delete Selected, convert between OLE and PNG, or apply Format Selected / All. Updates and conversions preserve the slide position and manual scale where possible.</p>
       <p class="muted">The side pane holds a new formula draft. Load Selected, OLE / PNG conversion, and bulk formatting apply to standalone objects inserted by the plugin. PowerPoint manages equations within text.</p>

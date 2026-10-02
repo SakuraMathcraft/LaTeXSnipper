@@ -14,6 +14,7 @@ class FormulaOleObject final
     , public IOleCache
     , public IExternalConnection
     , public IPersistStorage
+    , public IDispatch
 {
 public:
     FormulaOleObject();
@@ -22,6 +23,12 @@ public:
     STDMETHOD(QueryInterface)(REFIID iid, void** object) override;
     STDMETHOD_(ULONG, AddRef)() override;
     STDMETHOD_(ULONG, Release)() override;
+
+    STDMETHOD(GetTypeInfoCount)(UINT* count) override;
+    STDMETHOD(GetTypeInfo)(UINT index, LCID locale, ITypeInfo** info) override;
+    STDMETHOD(GetIDsOfNames)(REFIID iid, LPOLESTR* names, UINT count, LCID locale, DISPID* ids) override;
+    STDMETHOD(Invoke)(DISPID id, REFIID iid, LCID locale, WORD flags, DISPPARAMS* parameters,
+        VARIANT* result, EXCEPINFO* exception, UINT* argumentError) override;
 
     STDMETHOD(SetClientSite)(IOleClientSite* clientSite) override;
     STDMETHOD(GetClientSite)(IOleClientSite** clientSite) override;

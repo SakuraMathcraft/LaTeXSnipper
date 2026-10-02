@@ -11,6 +11,37 @@ public sealed partial class DynamicWordApplicationAdapter
 {
     private const string InlineConversionSlot = "\u2060";
 
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    public bool TrySelectOleFormulaAtScreenPoint(int x, int y)
+    {
+        try
+        {
+            dynamic window = _wordApplication.ActiveWindow;
+            if (GetForegroundWindow() != new IntPtr(Convert.ToInt32(window.Hwnd))) return false;
+            dynamic hit = window.RangeFromPoint(x, y);
+            if (hit == null) return false;
+            int position = GetRangeStart(hit);
+            dynamic nearby = CreateDocumentRange(Math.Max(0, position - 1),
+                Math.Min(GetRangeEnd(CurrentDocument.Content), position + 1));
+            dynamic shapes = nearby.InlineShapes;
+            for (int index = 1; index <= Convert.ToInt32(shapes.Count); index++)
+            {
+                dynamic shape = shapes.Item(index);
+                if (!LaTeXSnipper.OfficePlugin.Rendering.OleFormulaContent.IsFormula((object)shape)) continue;
+                int left = 0, top = 0, width = 0, height = 0;
+                window.GetPoint(out left, out top, out width, out height, shape.Range);
+                if (x < left || x > left + width || y < top || y > top + height) continue;
+                shape.Range.Select();
+                return true;
+            }
+        }
+        catch (Exception error) when (error is System.Runtime.InteropServices.COMException
+            || error is Microsoft.CSharp.RuntimeBinder.RuntimeBinderException) { }
+        return false;
+    }
+
     public Task<FormulaMetadata> LoadSelectedFormulaAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -99,6 +130,12 @@ public sealed partial class DynamicWordApplicationAdapter
     }
 
     public Task<IReadOnlyList<WordFormulaEntry>> LoadFormulaEntriesAsync(bool all, CancellationToken cancellationToken)
+        => Task.FromResult(CollectFormulaEntries(all, false, cancellationToken));
+
+    public Task<IReadOnlyList<WordFormulaEntry>> LoadConversionEntriesAsync(bool includeMathType, CancellationToken cancellationToken)
+        => _officeThread.InvokeAsync(() => CollectFormulaEntries(false, includeMathType, cancellationToken), cancellationToken);
+
+    private IReadOnlyList<WordFormulaEntry> CollectFormulaEntries(bool all, bool includeMathType, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var formulas = new List<SelectedWordFormula>();
@@ -113,6 +150,7 @@ public sealed partial class DynamicWordApplicationAdapter
             .Select(EnsureUniqueFormulaIdentity)
             .Select(item => new WordFormulaEntry(GetFormulaStart(item), item.Metadata))
             .Concat(all ? Array.Empty<WordFormulaEntry>() : CollectSelectedNativeWordFormulaEntries())
+            .Concat(includeMathType ? CollectSelectedMathTypeEntries() : Array.Empty<WordFormulaEntry>())
             .OrderByDescending(item => item.Start)
             .ToArray();
         if (!all && entries.Count == 0)
@@ -120,7 +158,7 @@ public sealed partial class DynamicWordApplicationAdapter
             throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
         }
 
-        return Task.FromResult(entries);
+        return entries;
     }
 
     public bool ContainsFormula(string equationId)
@@ -217,9 +255,8 @@ public sealed partial class DynamicWordApplicationAdapter
                 dynamic inlineShape = ole;
                 int insertionPoint = GetRangeStart(inlineShape.Range);
                 double oleFontSizePoints = metadata.Typography.FontSizePoints;
-                double width = 0, height = 0;
-                if (preserveUserScale && WordFormulaMetadataStore.TryLoadOleNaturalSize(CurrentDocument,
-                    Convert.ToString(inlineShape.AlternativeText) ?? string.Empty, out width, out height))
+                var (width, height) = GetOleNaturalSize((object)inlineShape);
+                if (preserveUserScale)
                     oleFontSizePoints *= Math.Max(0.05, Math.Min(Convert.ToDouble(inlineShape.Width) / width,
                         Convert.ToDouble(inlineShape.Height) / height));
                 dynamic insertionRange;
@@ -412,14 +449,7 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         dynamic inlineShape = shape;
-        if (!WordFormulaMetadataStore.TryLoadOleNaturalSize(
-            CurrentDocument,
-            Convert.ToString(inlineShape.AlternativeText) ?? string.Empty,
-            out double naturalWidth,
-            out double naturalHeight))
-        {
-            return false;
-        }
+        var (naturalWidth, naturalHeight) = GetOleNaturalSize((object)inlineShape);
 
         double width = Convert.ToDouble(inlineShape.Width, System.Globalization.CultureInfo.InvariantCulture);
         double height = Convert.ToDouble(inlineShape.Height, System.Globalization.CultureInfo.InvariantCulture);

@@ -4,6 +4,14 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public sealed class WordFormulaEntry
 {
+    public WordFormulaEntry(MathTypeFormulaTarget target)
+        : this(target.Location, null, string.Empty, FormulaDisplayMode.Inline, false)
+    {
+        MathTypeTarget = target;
+    }
+
+    public MathTypeFormulaTarget? MathTypeTarget { get; }
+
     public WordFormulaEntry(int start, FormulaMetadata metadata)
         : this(start, metadata, string.Empty, FormulaDisplayMode.Inline, false)
     {

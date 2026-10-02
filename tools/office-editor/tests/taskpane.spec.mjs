@@ -109,3 +109,31 @@ for (const host of ['word', 'powerpoint']) {
     expect(errors).toEqual([]);
   });
 }
+
+
+for (const host of ['word', 'powerpoint']) {
+  test(`${host} task pane reloads colored displaylines with local colors intact`, async ({page}) => {
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await routeHostAssets(page, host);
+    await page.goto(`https://latexsnipper-${host}.officeplugin.local/taskpane.html`);
+    const body = String.raw`\displaylines{x=\begin{cases}1,&n=1\\0,&n=2\end{cases}\\y=\textcolor{#008080}{L}}`;
+    const latex = String.raw`\textcolor{#c92222}{${body}}`;
+    const field = page.locator('#previewHost math-field');
+    const source = page.locator('#latexSource .cm-content');
+    for (const value of [latex, String.raw`\textcolor{#00aa00}{${body}}`, latex]) {
+      await page.evaluate(latex => window.LaTeXSnipperTaskPane.apply({type: 'state', latex, locale: 'zh'}), value);
+      await expect(source).toHaveText(value);
+      await expect(field).toHaveJSProperty('readOnly', false);
+      await expect.poll(() => field.evaluate(element => element.shadowRoot.querySelector('[part=content]')?.textContent)).toContain('L');
+      await expect.poll(() => field.evaluate(element => getComputedStyle([...element.shadowRoot.querySelectorAll('[part=content] span')].find(span => span.textContent === 'L' && !span.childElementCount)).color)).toBe('rgb(0, 128, 128)');
+    }
+    await field.click();
+    await field.press('Control+End');
+    await page.keyboard.type('+z');
+    await expect(source).toContainText('+z');
+    await expect(source).toContainText(String.raw`\textcolor{#008080}{L}`);
+    expect((await source.innerText()).match(/\\textcolor\{#c92222\}/g)).toHaveLength(1);
+    expect(errors).toEqual([]);
+  });
+}

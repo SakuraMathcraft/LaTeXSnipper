@@ -710,6 +710,24 @@ test('current formula can be saved to Common and survives editor reload', async 
   expect(errors).toEqual([]);
 });
 
+for (const host of ['word', 'powerpoint']) test(`${host}: colored multiline favorite renders on first visual insertion and reopening`, async ({page}) => {
+  const latex = '\\textcolor{#ff0000}{\\displaylines{\\varphi(n)=n\\prod_{p\\mid n}\\left(1-\\frac{1}{p}\\right)\\\\\n\n\\mu(n)=\\begin{cases}1,&n=1\\\\\n\n(-1)^k,&n=p_1\\cdots p_k\\\\\n\n0,&p^2\\mid n\\end{cases}}}';
+  const errors = await open(page, latex, host, '#ff0000');
+  await page.locator('#currentFavoriteButton').click();
+  await page.evaluate(() => window.LaTeXSnipperEditor.init({...window.editorInit, latex: ''}));
+  await expect(visual(page)).toBeFocused();
+  await tile(page, '我的公式 1').click();
+  await expect.poll(() => visual(page).locator('[part="content"]').innerText()).toContain('φ');
+  expect(await submitted(page)).toBe(latex);
+  await page.reload();
+  await page.evaluate(() => window.LaTeXSnipperEditor.init({...window.editorInit, latex: ''}));
+  await tile(page, '我的公式 1').click();
+  await expect.poll(() => visual(page).locator('[part="content"]').innerText()).toContain('μ');
+  await expect(tile(page, '我的公式 1').locator('.tile-preview')).toContainText('μ');
+  expect(await submitted(page)).toBe(latex);
+  expect(errors).toEqual([]);
+});
+
 test('opening controls leaves selection to the user and preview has no redundant caption', async ({page}) => {
   const errors = await open(page, 'x+1');
   await expect(source(page)).not.toBeFocused();
@@ -1040,3 +1058,35 @@ test('keyboard entry into MathLive works while a late focus cannot steal a toolb
   expect(await submitted(page)).toBe('x+1');
   expect(errors).toEqual([]);
 });
+
+
+for (const host of ['word', 'powerpoint']) {
+  test(`${host} colored displaylines stay rendered after recolor and reload`, async ({page}) => {
+    const body = String.raw`\displaylines{\mu(n)=\begin{cases}1,&n=1\\
+(-1)^{k},&n=p_1\cdots p_{k}\\
+0,&p^2\mid n\end{cases}\\
+\varphi(n)=n\prod_{p\mid n}\left(1-\frac{1}{p}\right)}`;
+    const errors = await open(page, body, host, '#d52020');
+    const rendered = () => visual(page).evaluate(field => field.shadowRoot.querySelector('[part=content]')?.textContent);
+    await expect.poll(async () => await rendered()).toContain('1');
+    await expect(visual(page)).toHaveJSProperty('readOnly', false);
+    await page.locator('#color').fill('#c92222');
+    await expect.poll(async () => await rendered()).toContain('1');
+    await expect(visual(page)).toHaveJSProperty('readOnly', false);
+    await expect.poll(() => visual(page).evaluate(field => getComputedStyle(field.shadowRoot.querySelector('.ML__mathit')).color)).toBe('rgb(201, 34, 34)');
+    const saved = await source(page).innerText();
+    await page.reload();
+    // Loading the same saved source exercises a fresh MathLive parser.
+    await source(page).fill(saved);
+    await expect.poll(async () => await rendered()).toContain('1');
+    await expect(visual(page)).toHaveJSProperty('readOnly', false);
+    await expect.poll(() => source(page).innerText()).toBe(saved);
+    await visual(page).click();
+    await visual(page).press('Control+End');
+    await page.keyboard.type('+z');
+    await expect(source(page)).toContainText('+z');
+    expect((await source(page).innerText()).match(/\\textcolor\{#c92222\}/g)).toHaveLength(1);
+    await page.screenshot({path: join(tmpdir(), `latexsnipper-${host}-colored-displaylines.png`)});
+    expect(errors).toEqual([]);
+  });
+}

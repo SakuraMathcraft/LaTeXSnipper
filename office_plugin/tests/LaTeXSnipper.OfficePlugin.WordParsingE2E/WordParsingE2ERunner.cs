@@ -43,15 +43,29 @@ internal sealed class WordParsingE2ERunner
         WordPluginController? controller = null;
         try
         {
-            Type wordType = Type.GetTypeFromProgID("Word.Application")
-                ?? throw new InvalidOperationException("Microsoft Word is not installed.");
-            word = Activator.CreateInstance(wordType)
-                ?? throw new InvalidOperationException("Microsoft Word could not be started.");
+            using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\WINWORD.EXE"))
+            {
+                var executable = Convert.ToString(key?.GetValue("")) ?? throw new InvalidOperationException("Microsoft Word is not installed.");
+                Process.Start(new ProcessStartInfo(executable, "/n /q") { UseShellExecute = false, WindowStyle = ProcessWindowStyle.Hidden });
+            }
+            for (int attempt = 0; attempt < 100 && word == null; attempt++)
+            {
+                try { word = System.Runtime.InteropServices.Marshal.GetActiveObject("Word.Application"); }
+                catch (System.Runtime.InteropServices.COMException) { await Task.Delay(100); }
+            }
+            if (word == null) throw new InvalidOperationException("Microsoft Word did not register its automation object.");
             Console.WriteLine("STAGE|Word started");
             word.Visible = false;
             word.DisplayAlerts = 0;
             document = word.Documents.Add();
             Console.WriteLine("STAGE|Document created");
+            if (_options.Backend == FormulaInsertionBackend.Ole)
+            {
+                if (_options.IncludeMathType) await MathTypeRoundTrip.VerifyAsync((object)word, _options.OutputPath);
+                document.Activate();
+                await WordOleCopyRoundTrip.VerifyAsync((object)word, (object)document, _options.OutputPath);
+                if (_options.CopyOnly) return;
+            }
             WordParsingFixtureBuilder.Build(document, _options.Backend);
             Console.WriteLine("STAGE|Fixture created");
 

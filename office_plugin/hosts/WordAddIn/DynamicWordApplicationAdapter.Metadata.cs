@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LaTeXSnipper.OfficePlugin.Abstractions;
+using LaTeXSnipper.OfficePlugin.Rendering;
 
 namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
@@ -51,20 +52,10 @@ public sealed partial class DynamicWordApplicationAdapter
             return;
         }
 
-        if (!WordFormulaMetadataStore.TryLoadOleNaturalSize(
-                CurrentDocument,
-                ReadFormulaObjectTag(shape),
-                out double naturalWidth,
-                out double naturalHeight))
-        {
-            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
-        }
-
+        OleFormulaContent.UpdateNumbering((object)shape, metadata);
         shape.AlternativeText = WordFormulaMetadataStore.Save(
             CurrentDocument,
-            metadata,
-            naturalWidth,
-            naturalHeight);
+            metadata);
     }
 
     private FormulaMetadata LoadFormulaMetadata(
@@ -72,6 +63,9 @@ public sealed partial class DynamicWordApplicationAdapter
         string equationId,
         RenderEngineKind actualRenderEngine)
     {
+        if (actualRenderEngine == RenderEngineKind.MathJaxSvg)
+            return OleFormulaContent.Read((object)control).Metadata(
+                WordFormulaMetadataStore.LoadOleIdentity(CurrentDocument, ReadFormulaObjectTag(control)));
         FormulaMetadata metadata = WordFormulaMetadataStore.Load(
             CurrentDocument,
             ReadFormulaObjectTag(control));

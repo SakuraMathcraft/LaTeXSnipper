@@ -50,6 +50,7 @@
                   onAction="OnDeleteSelected" />
         </group>
         <group id="LaTeXSnipperConversionGroup" label="{ConversionGroup}">
+          <button id="SelectedToMathTypeButton" label="{ToMathTypeButton}" supertip="{ToMathTypeTip}" size="large" imageMso="FunctionWizard" onAction="OnConvertSelectedToMathType" />
           <button id="SelectedToOleButton" label="{ToOleButton}" supertip="{ToOleSelectedTip}" size="large" imageMso="ObjectEditDialog" onAction="OnConvertSelectedToOle" />
           <button id="SelectedToOmmlButton" label="{ToOmmlButton}" supertip="{ToOmmlSelectedTip}" size="large" imageMso="ConvertTextToTable" onAction="OnConvertSelectedToOmml" />
         </group>

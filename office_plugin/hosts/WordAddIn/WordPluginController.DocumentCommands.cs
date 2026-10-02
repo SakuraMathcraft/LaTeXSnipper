@@ -1,16 +1,63 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LaTeXSnipper.OfficePlugin.Abstractions;
+using LaTeXSnipper.OfficePlugin.Rendering;
 
 namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public sealed partial class WordPluginController
 {
     private const int BatchFormulaOperationSize = 5;
+
+    public async Task ConvertSelectedToMathTypeAsync(CancellationToken cancellationToken)
+    {
+        ThrowIfDisposed();
+        // Capture every target before conversion changes the host selection.
+        IReadOnlyList<WordFormulaEditTarget> targets = await _wordAdapter.LoadSelectedFormulaTargetsAsync(cancellationToken);
+        if (targets.Count == 0) throw new InvalidOperationException(MathTypeText.Get("MathTypeOleRequired"));
+        int converted = 0, skipped = 0, failed = 0;
+        string? firstFailure = null;
+        for (int index = 0; index < targets.Count; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            WordFormulaEditTarget target = targets[index];
+            try
+            {
+                if (!target.IsOle || target.Metadata.NumberingMode != NumberingMode.None)
+                {
+                    skipped++;
+                    continue;
+                }
+                string mathMl = await _mathJaxRenderer.ConvertTypographyToMathMlAsync(target.Metadata.Latex,
+                    target.Metadata.DisplayMode, target.Metadata.Typography, cancellationToken);
+                await _wordAdapter.ReplaceWithMathTypeAsync(target, mathMl, cancellationToken);
+                converted++;
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception exception)
+            {
+                failed++;
+                firstFailure ??= WordAddInText.GetExceptionMessage(exception);
+                Trace.TraceWarning("MathType conversion failed for {0}: {1}", target.Metadata.Identity.EquationId, exception);
+            }
+            finally
+            {
+                if ((index + 1) % BatchFormulaOperationSize == 0 || index + 1 == targets.Count)
+                    PostBatchProgress("BatchConvertingStatus", index + 1, targets.Count);
+            }
+        }
+        if (failed > 0)
+            PostBatchFailures("ConvertedWithFailuresStatus", targets.Count, converted, failed, skipped, firstFailure!);
+        else
+            _statusSink.Post(converted == 0 ? WordStatusKind.Info : WordStatusKind.Success,
+                converted == 0 ? WordAddInText.Get("NoConversionNeededStatus")
+                    : BuildChangedStatus("ConvertedStatus", "ConvertedWithSkippedStatus", converted, skipped));
+    }
 
     public Task ConvertSelectedToOleAsync(CancellationToken cancellationToken)
     {
@@ -59,7 +106,7 @@ public sealed partial class WordPluginController
 
     private async Task ConvertSelectedAsync(FormulaInsertionBackend target, CancellationToken cancellationToken)
     {
-        IReadOnlyList<WordFormulaEntry> formulas = (await _wordAdapter.LoadFormulaEntriesAsync(false, cancellationToken))
+        IReadOnlyList<WordFormulaEntry> formulas = (await _wordAdapter.LoadConversionEntriesAsync(target == FormulaInsertionBackend.Ole, cancellationToken))
             .OrderByDescending(item => item.Start)
             .ToArray();
         int targetCount = formulas.Count(entry => !entry.IsNativeWordFormula || target == FormulaInsertionBackend.Ole);
@@ -95,6 +142,18 @@ public sealed partial class WordPluginController
                 cancellationToken.ThrowIfCancellationRequested();
                 try
                 {
+                    if (entry.MathTypeTarget is MathTypeFormulaTarget mathType)
+                    {
+                        string mathMl = await _wordAdapter.ReadMathTypeMathMlAsync(mathType, cancellationToken);
+                        var imported = new FormulaMetadata(
+                            new FormulaIdentity(mathType.DocumentId, Guid.NewGuid().ToString("N")),
+                            mathMl, FormulaDisplayMode.Inline, NumberingMode.None, string.Empty,
+                            RenderEngineKind.MathJaxSvg, FormulaMetadata.CurrentSchemaVersion, _settingsLoader().Typography);
+                        PreparedWordFormula importedPrepared = await PrepareRenderedFormulaAsync(imported,
+                            includeEquationOoxml: false, cancellationToken, FormulaInsertionBackend.Ole, reportProgress: false);
+                        preparedBatch.Add((entry, importedPrepared));
+                        continue;
+                    }
                     if (entry.IsNativeWordFormula)
                     {
                         if (target != FormulaInsertionBackend.Ole)
@@ -158,6 +217,12 @@ public sealed partial class WordPluginController
                     cancellationToken.ThrowIfCancellationRequested();
                     try
                     {
+                        if (entry.MathTypeTarget is MathTypeFormulaTarget mathType)
+                        {
+                            await _wordAdapter.ReplaceMathTypeWithOleAsync(mathType, prepared.Metadata, prepared.OlePresentation!, cancellationToken);
+                            convertedCount++;
+                            continue;
+                        }
                         if (entry.IsNativeWordFormula)
                         {
                             if (!_wordAdapter.ContainsNativeWordFormula(entry.Start))

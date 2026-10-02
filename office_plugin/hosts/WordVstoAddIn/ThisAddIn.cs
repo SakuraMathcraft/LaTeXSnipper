@@ -11,6 +11,7 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
         private WordPluginController? controller;
         private WordRibbonCallbacks? ribbonCallbacks;
         private ActiveWindowStatusPaneHost? statusPaneHost;
+        private IDisposable? doubleClickListener;
 
         protected override IRibbonExtensibility CreateRibbonExtensibilityObject()
         {
@@ -31,6 +32,11 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
                 var visibleStatusSink = new VisibleWordStatusSink(statusPaneHost, ShowStatusPane);
                 controller = WordAddInFactory.CreateController(Application, visibleStatusSink, statusPaneHost);
                 ribbonCallbacks = new WordRibbonCallbacks(controller, visibleStatusSink, ShowStatusPane);
+                try { doubleClickListener = ribbonCallbacks.ListenForFormulaDoubleClick(System.Diagnostics.Process.GetCurrentProcess().Id); }
+                catch (Exception error)
+                {
+                    visibleStatusSink.Post(WordStatusKind.Error, WordAddInText.GetExceptionMessage(error));
+                }
                 statusPaneHost.AttachCallbacks(ribbonCallbacks);
                 ribbonExtensibility?.AttachCallbacks(ribbonCallbacks);
                 Application.WindowSelectionChange += OnWindowSelectionChange;
@@ -40,6 +46,8 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
 
         private void ThisAddIn_Shutdown(object sender, EventArgs e)
         {
+            doubleClickListener?.Dispose();
+            doubleClickListener = null;
             Application.WindowSelectionChange -= OnWindowSelectionChange;
             controller?.Dispose();
             controller = null;

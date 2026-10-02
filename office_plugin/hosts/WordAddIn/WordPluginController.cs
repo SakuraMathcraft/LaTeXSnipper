@@ -179,6 +179,8 @@ public sealed partial class WordPluginController : IDisposable
         return OpenEditorForInsertAsync(new WordFormulaOptions(display: true, numberingMode, options.ManualNumber), cancellationToken);
     }
 
+    internal bool TrySelectOleFormulaAtScreenPoint(int x, int y) => _wordAdapter.TrySelectOleFormulaAtScreenPoint(x, y);
+
     public async Task TestConnectionAsync(CancellationToken cancellationToken)
     {
         await _automationClient.ConfigureAsync(cancellationToken);
@@ -839,6 +841,7 @@ public sealed partial class WordPluginController : IDisposable
         _editorSession.Dispose();
         _automationClient.Dispose();
         _mathJaxRenderer.Dispose();
+        (_wordAdapter as IDisposable)?.Dispose();
 
         _commandGate.Dispose();
     }

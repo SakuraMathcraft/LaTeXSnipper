@@ -12,6 +12,7 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
         private PowerPointPluginController? controller;
         private PowerPointRibbonCallbacks? ribbonCallbacks;
         private ActiveWindowStatusPaneHost? statusPaneHost;
+        private IDisposable? doubleClickListener;
 
         protected override IRibbonExtensibility CreateRibbonExtensibilityObject()
         {
@@ -32,6 +33,11 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
                 var visibleStatusSink = new VisiblePowerPointStatusSink(statusPaneHost, ShowStatusPane);
                 controller = PowerPointAddInFactory.CreateController(Application, visibleStatusSink, statusPaneHost);
                 ribbonCallbacks = new PowerPointRibbonCallbacks(controller, visibleStatusSink, ShowStatusPane);
+                try { doubleClickListener = ribbonCallbacks.ListenForFormulaDoubleClick(System.Diagnostics.Process.GetCurrentProcess().Id); }
+                catch (Exception error)
+                {
+                    visibleStatusSink.Post(PowerPointStatusKind.Error, PowerPointAddInText.GetExceptionMessage(error));
+                }
                 statusPaneHost.AttachCallbacks(ribbonCallbacks);
                 ribbonExtensibility?.AttachCallbacks(ribbonCallbacks);
                 Application.WindowActivate += OnWindowActivate;
@@ -42,6 +48,8 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
 
         private void ThisAddIn_Shutdown(object sender, EventArgs e)
         {
+            doubleClickListener?.Dispose();
+            doubleClickListener = null;
             Application.WindowActivate -= OnWindowActivate;
             controller?.Dispose();
             controller = null;

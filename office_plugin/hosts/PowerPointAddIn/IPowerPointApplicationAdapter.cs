@@ -9,6 +9,8 @@ public interface IPowerPointApplicationAdapter
 {
     string GetCurrentDocumentId();
 
+    bool TrySelectOleFormulaAtScreenPoint(int x, int y);
+
     double GetCurrentFontSizePoints();
 
     PowerPointTextInsertionTarget? CaptureTextInsertionTarget();
@@ -30,6 +32,16 @@ public interface IPowerPointApplicationAdapter
     Task UpdateOleFormulaObjectAsync(PowerPointFormulaEditTarget target, FormulaMetadata metadata, OlePresentationResult presentation, CancellationToken cancellationToken);
 
     Task<PowerPointFormulaEditTarget> LoadSelectedFormulaAsync(CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<PowerPointFormulaEditTarget>> LoadSelectedFormulaTargetsAsync(CancellationToken cancellationToken);
+
+    Task ReplaceWithMathTypeAsync(PowerPointFormulaEditTarget target, string mathMl, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<PowerPointFormulaEntry>> LoadConversionEntriesAsync(bool includeMathType, CancellationToken cancellationToken);
+
+    Task<string> ReadMathTypeMathMlAsync(MathTypeFormulaTarget target, CancellationToken cancellationToken);
+
+    Task ReplaceMathTypeWithOleAsync(MathTypeFormulaTarget target, FormulaMetadata metadata, OlePresentationResult presentation, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<PowerPointFormulaEntry>> LoadFormulaEntriesAsync(bool all, CancellationToken cancellationToken);
 

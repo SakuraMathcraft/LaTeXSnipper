@@ -51,10 +51,10 @@ public static class PowerPointFormulaMetadataStore
     {
         shape.Tags.Add(DocumentIdTag, metadata.Identity.DocumentId);
         shape.Tags.Add(EquationIdTag, metadata.Identity.EquationId);
-        WriteEncodedText(shape, metadata.Latex);
-        shape.Tags.Add(DisplayModeTag, metadata.DisplayMode.ToString());
         shape.Tags.Add(SchemaVersionTag, metadata.SchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
         shape.Tags.Add(RenderEngineTag, metadata.RenderEngine.ToString());
+        WriteEncodedText(shape, metadata.Latex);
+        shape.Tags.Add(DisplayModeTag, metadata.DisplayMode.ToString());
         WriteEncodedText(shape, new JavaScriptSerializer().Serialize(FormulaTypographyFields.Write(metadata.Typography)), TypographyPrefix);
     }
 
@@ -77,8 +77,9 @@ public static class PowerPointFormulaMetadataStore
             throw MetadataMissing();
         }
 
+        var identity = new FormulaIdentity(ReadRequiredTag(shape, DocumentIdTag), equationId);
         return new FormulaMetadata(
-            new FormulaIdentity(ReadRequiredTag(shape, DocumentIdTag), equationId),
+            identity,
             ReadEncodedText(shape),
             ReadRequiredEnumTag<FormulaDisplayMode>(shape, DisplayModeTag),
             NumberingMode.None,
@@ -86,6 +87,19 @@ public static class PowerPointFormulaMetadataStore
             ReadRequiredEnumTag<RenderEngineKind>(shape, RenderEngineTag),
             FormulaMetadata.CurrentSchemaVersion,
             FormulaTypographyFields.Read(new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(ReadEncodedText(shape, TypographyPrefix))));
+    }
+
+    public static (float Width, float Height) NaturalSize(object shapeObject)
+    {
+        dynamic shape = shapeObject;
+        return (ReadNaturalSize(shape, NaturalWidthPointsTag), ReadNaturalSize(shape, NaturalHeightPointsTag));
+    }
+
+    private static float ReadNaturalSize(dynamic shape, string name)
+    {
+        if (!float.TryParse(ReadRequiredTag(shape, name), NumberStyles.Float, CultureInfo.InvariantCulture, out float size)
+            || size <= 0 || float.IsNaN(size) || float.IsInfinity(size)) throw MetadataMissing();
+        return size;
     }
 
     private static void WriteEncodedText(dynamic shape, string value, string prefix = LatexChunkTagPrefix)

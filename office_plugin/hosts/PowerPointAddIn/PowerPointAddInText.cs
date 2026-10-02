@@ -13,6 +13,8 @@ public static class PowerPointAddInText
 
     public static string Get(string key)
     {
+        if (key == "ToMathTypeButton" || key == "ToMathTypeTip" || key.StartsWith("MathType", StringComparison.Ordinal))
+            return MathTypeText.Get(key);
         return CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "zh"
             ? GetChinese(key)
             : GetEnglish(key);
@@ -44,7 +46,7 @@ public static class PowerPointAddInText
             "ScreenshotOcrTip" => "Wait for the next LaTeXSnipper recognition result; click again to cancel.",
             "LoadSelectedTip" => "Load the selected formula into the editor.",
             "DeleteSelectedTip" => "Delete the selected managed formulas.",
-            "ToOleTip" => "Convert the selected PNG formulas to OLE.",
+            "ToOleTip" => "Convert selected PNG or MathType equations to plugin OLE objects. Failed items remain unchanged while the rest continue.",
             "ToPngTip" => "Convert the selected OLE formulas to PNG.",
             "FormatSelectedTip" => "Reset selected formulas to the default font, color, and natural size.",
             "FormatAllTip" => "Apply the current default font and color to all plugin formulas and restore their natural size.",
@@ -128,7 +130,7 @@ public static class PowerPointAddInText
             "ScreenshotOcrTip" => "等待 LaTeXSnipper 的下一次识别结果；再次单击可取消。",
             "LoadSelectedTip" => "将所选公式加载到编辑器中。",
             "DeleteSelectedTip" => "删除所选受管理公式。",
-            "ToOleTip" => "将所选 PNG 公式转换为 OLE。",
+            "ToOleTip" => "将所选 PNG 或 MathType 公式转换为插件 OLE 对象。支持多选；失败项保留并继续处理其余公式。",
             "ToPngTip" => "将所选 OLE 公式转换为 PNG。",
             "FormatSelectedTip" => "将所选公式恢复为默认字体、颜色和自然大小。",
             "FormatAllTip" => "将全文插件公式应用当前默认字体和颜色，并恢复自然大小。",

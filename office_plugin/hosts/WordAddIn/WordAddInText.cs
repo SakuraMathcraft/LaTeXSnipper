@@ -13,6 +13,8 @@ public static class WordAddInText
 
     public static string Get(string key)
     {
+        if (key == "ToMathTypeButton" || key == "ToMathTypeTip" || key.StartsWith("MathType", StringComparison.Ordinal))
+            return MathTypeText.Get(key);
         bool zh = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "zh";
         return zh ? GetZh(key) : GetEn(key);
     }
@@ -105,7 +107,7 @@ public static class WordAddInText
             "ParsingGroup" => "Formula Parsing",
             "ToOleButton" => "Convert to OLE",
             "ToOmmlButton" => "Convert to Word",
-            "ToOleSelectedTip" => "Convert the selected managed formula to an OLE formula object.",
+            "ToOleSelectedTip" => "Convert selected Word or MathType equations to plugin OLE objects. Failed items remain unchanged while the rest continue.",
             "ToOmmlSelectedTip" => "Convert the selected managed formula to native Word OMML.",
             "InsertReferenceButton" => "Insert Reference",
             "InsertReferenceTip" => "Insert a placeholder, then click a numbered formula to create the cross-reference.",
@@ -236,7 +238,7 @@ public static class WordAddInText
             "ParsingGroup" => "公式解析",
             "ToOleButton" => "转为 OLE",
             "ToOmmlButton" => "转为 Word",
-            "ToOleSelectedTip" => "将所选受管公式转换为 OLE 公式对象。",
+            "ToOleSelectedTip" => "将所选 Word 或 MathType 公式转换为插件 OLE 对象。支持多选；失败项保留并继续处理其余公式。",
             "ToOmmlSelectedTip" => "将所选受管公式转换为 Word 原生 OMML。",
             "InsertReferenceButton" => "插入引用",
             "InsertReferenceTip" => "插入占位符后，单击带编号公式即可创建交叉引用。",

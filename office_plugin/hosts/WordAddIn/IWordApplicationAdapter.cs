@@ -10,6 +10,8 @@ public interface IWordApplicationAdapter
 {
     string GetCurrentDocumentId();
 
+    bool TrySelectOleFormulaAtScreenPoint(int x, int y);
+
     Task ValidateCurrentInsertionTargetAsync(CancellationToken cancellationToken);
 
     Task ActivateForEditingAsync(CancellationToken cancellationToken);
@@ -51,6 +53,16 @@ public interface IWordApplicationAdapter
     Task<FormulaMetadata> LoadSelectedFormulaAsync(CancellationToken cancellationToken);
 
     Task<WordFormulaEditTarget> LoadSelectedFormulaTargetAsync(CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<WordFormulaEditTarget>> LoadSelectedFormulaTargetsAsync(CancellationToken cancellationToken);
+
+    Task ReplaceWithMathTypeAsync(WordFormulaEditTarget target, string mathMl, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<WordFormulaEntry>> LoadConversionEntriesAsync(bool includeMathType, CancellationToken cancellationToken);
+
+    Task<string> ReadMathTypeMathMlAsync(MathTypeFormulaTarget target, CancellationToken cancellationToken);
+
+    Task ReplaceMathTypeWithOleAsync(MathTypeFormulaTarget target, FormulaMetadata metadata, OlePresentationResult presentation, CancellationToken cancellationToken);
 
     bool IsFormulaEditTargetValid(WordFormulaEditTarget target);
 

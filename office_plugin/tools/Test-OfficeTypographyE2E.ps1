@@ -9,7 +9,10 @@ param(
     [ValidateSet('Omml', 'Ole', 'Both')]
     [string]$WordBackend = 'Both',
 
-    [ValidateSet('Full', 'Batch')]
+    [switch]$WordCopyOnly,
+    [switch]$IncludeMathType,
+
+    [ValidateSet('Full', 'Batch', 'Copy', 'Gesture')]
     [string]$PowerPointMode = 'Full',
     [string]$OutputDirectory = (Join-Path $env:TEMP ('latexsnipper-office-' + [Guid]::NewGuid().ToString('N')))
 )
@@ -22,7 +25,7 @@ if (Get-Process WINWORD, POWERPNT -ErrorAction SilentlyContinue) {
 }
 $runWord = $HostScope -in @('Word', 'Both')
 $runPowerPoint = $HostScope -in @('PowerPoint', 'Both')
-$needsOle = ($runWord -and $WordBackend -ne 'Omml') -or ($runPowerPoint -and $PowerPointMode -eq 'Full')
+$needsOle = ($runWord -and $WordBackend -ne 'Omml') -or ($runPowerPoint -and $PowerPointMode -ne 'Batch')
 if ($needsOle -and (-not [Environment]::Is64BitProcess -or
     (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Office\ClickToRun\Configuration').Platform -ne 'x64')) {
     throw 'This Office integration runner requires 64-bit PowerShell and 64-bit Office.'
@@ -41,12 +44,22 @@ $clsid = '{B7F5B4AB-5F94-4D87-A29F-9A41D41B3B9F}'
 $classes = 'HKCU:\Software\Classes'
 $registrationRoots = if ($needsOle) { @("$classes\LaTeXSnipper.Formula", "$classes\LaTeXSnipper.Formula.1", "$classes\CLSID\$clsid") } else { @() }
 foreach ($path in $registrationRoots) {
-    if (Test-Path -LiteralPath $path) { throw "Existing user registration must not be overwritten: $path" }
+    if (Test-Path -LiteralPath $path) {
+        $serverPath = "$classes\CLSID\$clsid\InprocServer32"
+        $server = if (Test-Path -LiteralPath $serverPath) { Get-Item -LiteralPath $serverPath } else { $null }
+        try {
+            if ($server -and $server.GetValue('')) { throw "Existing user registration must not be overwritten: $path" }
+        } finally { if ($server) { $server.Close() } }
+    }
 }
 $createdRoots = [System.Collections.Generic.List[string]]::new()
+$originalValues = [System.Collections.Generic.List[object]]::new()
 function Set-TestRegistration([string]$Path, [string]$Value, [string]$Name = '') {
-    $key = if (Test-Path -LiteralPath $Path) { Get-Item -LiteralPath $Path } else { New-Item -Path $Path }
-    try { $key.SetValue($Name, $Value, [Microsoft.Win32.RegistryValueKind]::String) }
+    $key = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey($Path.Substring('HKCU:\'.Length))
+    try {
+        $originalValues.Add(@{ Path = $Path; Name = $Name; Exists = $key.GetValueNames() -contains $Name; Value = $key.GetValue($Name) })
+        $key.SetValue($Name, $Value, [Microsoft.Win32.RegistryValueKind]::String)
+    }
     finally { $key.Close() }
 }
 function Wait-OfficeExit([string]$Name) {
@@ -59,8 +72,10 @@ function Wait-OfficeExit([string]$Name) {
 try {
     if ($needsOle) {
         foreach ($path in $registrationRoots) {
-            New-Item -Path $path -Force | Out-Null
-            $createdRoots.Add($path)
+            if (-not (Test-Path -LiteralPath $path)) {
+                New-Item -Path $path -Force | Out-Null
+                $createdRoots.Add($path)
+            }
             Set-TestRegistration $path 'LaTeXSnipper Formula'
         }
         Set-TestRegistration "$classes\LaTeXSnipper.Formula\CLSID" $clsid
@@ -70,8 +85,8 @@ try {
         Set-TestRegistration "$classPath\VersionIndependentProgID" 'LaTeXSnipper.Formula'
         Set-TestRegistration "$classPath\InprocServer32" $handler
         Set-TestRegistration "$classPath\InprocServer32" 'Apartment' 'ThreadingModel'
-        Set-TestRegistration "$classPath\MiscStatus" '672280'
-        Set-TestRegistration "$classPath\MiscStatus\1" '672280'
+        Set-TestRegistration "$classPath\MiscStatus" '672272'
+        Set-TestRegistration "$classPath\MiscStatus\1" '672272'
         $registered = Get-Item -LiteralPath "$classPath\InprocServer32"
         try {
             if ($registered.GetValue('') -ne $handler -or $registered.GetValue('ThreadingModel') -ne 'Apartment') {
@@ -83,21 +98,33 @@ try {
     if ($runWord) {
         $backends = if ($WordBackend -eq 'Both') { @('omml', 'ole') } else { @($WordBackend.ToLowerInvariant()) }
         foreach ($backend in $backends) {
-            & $wordTest --backend $backend --output (Join-Path $OutputDirectory "word-$backend.docx") | Tee-Object -FilePath (Join-Path $OutputDirectory "word-$backend.log")
+            $wordArgs = @('--backend', $backend, '--output', (Join-Path $OutputDirectory "word-$backend.docx"))
+            if ($WordCopyOnly) { $wordArgs += '--copy' }
+            if ($IncludeMathType) { $wordArgs += '--mathtype' }
+            & $wordTest @wordArgs | Tee-Object -FilePath (Join-Path $OutputDirectory "word-$backend.log")
             if ($LASTEXITCODE -ne 0) { throw "Word $backend E2E failed: $LASTEXITCODE" }
             Wait-OfficeExit 'WINWORD'
         }
     }
     if ($runPowerPoint) {
-        $mode = if ($PowerPointMode -eq 'Batch') { '--batch' } else { '--ole' }
-        & $pptTest (Join-Path $OutputDirectory 'powerpoint.pptx') $mode | Tee-Object -FilePath (Join-Path $OutputDirectory 'powerpoint.log')
+        $mode = switch ($PowerPointMode) { 'Batch' { '--batch' } 'Copy' { '--copy' } 'Gesture' { '--gesture' } default { '--ole' } }
+        $pptArgs = @((Join-Path $OutputDirectory 'powerpoint.pptx'), $mode)
+        if ($IncludeMathType -and $PowerPointMode -in @('Full', 'Copy')) { $pptArgs += '--mathtype' }
+        & $pptTest @pptArgs | Tee-Object -FilePath (Join-Path $OutputDirectory 'powerpoint.log')
         if ($LASTEXITCODE -ne 0) { throw "PowerPoint E2E failed: $LASTEXITCODE" }
     }
     Write-Host "PASS|Office typography|$OutputDirectory"
 }
 finally {
+    foreach ($entry in $originalValues) {
+        $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($entry.Path.Substring('HKCU:\'.Length), $true)
+        try {
+            if ($entry.Exists) { $key.SetValue($entry.Name, $entry.Value, [Microsoft.Win32.RegistryValueKind]::String) }
+            else { $key.DeleteValue($entry.Name, $false) }
+        } finally { $key.Close() }
+    }
     foreach ($path in $createdRoots) {
         Remove-Item -LiteralPath $path -Recurse -Force
     }
-    if ($needsOle) { Write-Host 'Temporary user COM registrations removed; machine registration unchanged.' }
+    if ($needsOle) { Write-Host 'Temporary COM registration restored; machine registration unchanged.' }
 }

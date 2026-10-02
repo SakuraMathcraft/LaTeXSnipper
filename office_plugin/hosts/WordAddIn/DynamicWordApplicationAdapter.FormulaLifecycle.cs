@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LaTeXSnipper.OfficePlugin.Abstractions;
+using LaTeXSnipper.OfficePlugin.Rendering;
 
 namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
@@ -818,18 +819,8 @@ public sealed partial class DynamicWordApplicationAdapter
 
     private (double Width, double Height) GetOleNaturalSize(object inlineShape)
     {
-        dynamic shape = inlineShape;
-        string tag = Convert.ToString(shape.AlternativeText) ?? string.Empty;
-        if (!WordFormulaMetadataStore.TryLoadOleNaturalSize(
-                CurrentDocument,
-                tag,
-                out double naturalWidth,
-                out double naturalHeight))
-        {
-            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
-        }
-
-        return (naturalWidth, naturalHeight);
+        var content = OleFormulaContent.Read(inlineShape);
+        return (content.WidthPoints, content.HeightPoints);
     }
 
     private float ApplyUserScaleToReplacement(
@@ -918,12 +909,7 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic inlineShape,
         FormulaMetadata metadata)
     {
-        (float width, float height) = GetInlineShapeSize((object)inlineShape);
-        string tag = WordFormulaMetadataStore.Save(
-            inlineShape.Range.Document,
-            metadata,
-            width,
-            height);
+        string tag = WordFormulaMetadataStore.Save(inlineShape.Range.Document, metadata);
         inlineShape.AlternativeText = tag;
         string storedTag = Convert.ToString(inlineShape.AlternativeText) ?? string.Empty;
         if (!string.Equals(storedTag, tag, StringComparison.Ordinal))

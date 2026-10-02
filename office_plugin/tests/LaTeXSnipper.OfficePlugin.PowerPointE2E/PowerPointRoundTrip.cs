@@ -16,14 +16,25 @@ internal static class PowerPointRoundTrip
 {
     private static readonly CancellationToken Token = CancellationToken.None;
 
-    public static async Task RunAsync(string output, bool includeOle, bool batchOnly = false)
+    public static async Task RunAsync(string output, bool includeOle, bool batchOnly = false, bool includeMathType = false, bool copyOnly = false, bool gestureOnly = false)
     {
         if (Process.GetProcessesByName("POWERPNT").Length != 0)
             throw new InvalidOperationException("Close PowerPoint before running this isolated test.");
         if (File.Exists(output)) throw new IOException("Output already exists: " + output);
         Directory.CreateDirectory(Path.GetDirectoryName(output)!);
         string imagePath = Path.Combine(Path.GetTempPath(), "latexsnipper-ppt-" + Guid.NewGuid().ToString("N") + ".png");
-        dynamic app = Activator.CreateInstance(Type.GetTypeFromProgID("PowerPoint.Application")!);
+        using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\POWERPNT.EXE"))
+        {
+            var executable = Convert.ToString(key?.GetValue("")) ?? throw new InvalidOperationException("PowerPoint is not installed.");
+            Process.Start(new ProcessStartInfo(executable) { UseShellExecute = false, WindowStyle = ProcessWindowStyle.Hidden });
+        }
+        object? instance = null;
+        for (int attempt = 0; attempt < 100 && instance == null; attempt++)
+        {
+            try { instance = System.Runtime.InteropServices.Marshal.GetActiveObject("PowerPoint.Application"); }
+            catch (System.Runtime.InteropServices.COMException) { await Task.Delay(100); }
+        }
+        dynamic app = instance ?? throw new InvalidOperationException("PowerPoint did not register its automation object.");
         dynamic? presentation = null;
         try
         {
@@ -38,18 +49,46 @@ internal static class PowerPointRoundTrip
             using var controller = new PowerPointPluginController(new FormulaEditorSession(editor),
                 new AutomationApiClient(new AutomationApiOptions()), adapter, renderer,
                 new OlePresentationPipeline(new IOlePresentationRenderer[] { new EnhancedMetafilePresentationRenderer() }),
-                optionsProvider: options);
+                statusSink: new BatchStatusSink(), optionsProvider: options);
+            if (includeMathType) await MathTypeRoundTrip.VerifyAsync((object)app, (object)presentation, controller, renderer, output);
             var style = new FormulaTypography("mathjax-stix2", "Times New Roman", "SimSun",
                 FormulaMathStyle.BoldItalic, 15.5, "#123ABC");
+            if (copyOnly || gestureOnly)
+            {
+                var metadata = new FormulaMetadata(new FormulaIdentity(adapter.GetCurrentDocumentId(), Guid.NewGuid().ToString("N")),
+                    @"\frac{x}{y}+\text{端}", FormulaDisplayMode.Display, NumberingMode.None, "", RenderEngineKind.MathJaxSvg,
+                    FormulaMetadata.CurrentSchemaVersion, style);
+                var svg = await renderer.RenderAsync(new RenderRequest(metadata.Latex, metadata.DisplayMode, metadata.RenderEngine, style), Token);
+                var emf = await new EnhancedMetafilePresentationRenderer().RenderPresentationAsync(new OlePresentationRequest(svg, OlePresentationKind.EnhancedMetafile), Token);
+                presentation.Windows.Item(1).Activate();
+                await adapter.InsertOleFormulaObjectOnSlideAsync(1, metadata, emf, 80, 90, 1.5f, Token);
+                if (gestureOnly)
+                {
+                    using var listener = new PowerPointRibbonCallbacks(controller).ListenForFormulaDoubleClick(Process.GetProcessesByName("POWERPNT").Single().Id);
+                    presentation.Windows.Item(1).View.GotoSlide(1);
+                    Console.WriteLine("READY|Double-click the OLE formula on the first slide within 90 seconds");
+                    var deadline = DateTime.UtcNow.AddSeconds(90);
+                    while (editor.InitialFormula == null && DateTime.UtcNow < deadline) await Task.Delay(100);
+                    Check(editor.InitialFormula?.Latex == metadata.Latex && !editor.OpenedForInsert,
+                        "Double-click did not load the hit formula into the update editor");
+                    Console.WriteLine("PASS|PPT physical double-click loads the hit OLE formula through Ribbon callbacks");
+                    return;
+                }
+                await PowerPointOleCopyRoundTrip.VerifyAsync((object)app, (object)presentation,
+                    (object)presentation.Slides.Item(1).Shapes.Item(1), output, renderer);
+                return;
+            }
             string[] sources = { @"\mathrm{\delta}+\text{条件概率 }P(A\mid B)",
                 @"\begin{align}x&=12\\y&=\frac{1}{2}\end{align}" };
             var originals = new Dictionary<string, string>();
             for (int index = 0; index < sources.Length; index++)
             {
+                presentation.Windows.Item(1).Activate();
                 var metadata = new FormulaMetadata(new FormulaIdentity(adapter.GetCurrentDocumentId(), Guid.NewGuid().ToString("N")),
                     sources[index], FormulaDisplayMode.Display, NumberingMode.None, "", RenderEngineKind.Image,
                     FormulaMetadata.CurrentSchemaVersion, style);
                 PowerPointRenderedImage image = await RenderAsync(renderer, metadata, imagePath);
+                presentation.Windows.Item(1).Activate();
                 await adapter.InsertFormulaImageOnSlideAsync(index + 1, image, metadata, 80, 90, 1.5f, Token);
                 originals.Add(metadata.Identity.EquationId, metadata.Latex);
             }
@@ -179,8 +218,11 @@ internal static class PowerPointRoundTrip
                 await ConvertSlidesAsync((object)presentation, controller, toOle: true);
                 await VerifyAsync(adapter, style, originals, 1.5f, RenderEngineKind.MathJaxSvg);
                 presentation.Windows.Item(1).View.GotoSlide(1);
-                presentation.Slides.Item(1).Shapes.Item(1).Select();
-                presentation.Slides.Item(1).Shapes.Item(1).OLEFormat.DoVerb(0);
+                await PowerPointOleCopyRoundTrip.VerifyAsync((object)app, (object)presentation,
+                    (object)FormulaShape((object)presentation.Slides.Item(1)), output, renderer);
+                dynamic selectedOle = FormulaShape((object)presentation.Slides.Item(1));
+                selectedOle.Select();
+                selectedOle.OLEFormat.DoVerb(0);
                 var oleTarget = await adapter.LoadSelectedFormulaAsync(Token);
                 var oleEdit = new FormulaMetadata(oleTarget.Metadata.Identity, oleTarget.Metadata.Latex + "+2",
                     FormulaDisplayMode.Display, NumberingMode.None, "", RenderEngineKind.MathJaxSvg,
@@ -198,7 +240,7 @@ internal static class PowerPointRoundTrip
                 presentation = app.Presentations.Open(olePath, 0, 0, -1);
                 await VerifyAsync(adapter, style, originals, 1.5f, RenderEngineKind.MathJaxSvg);
                 presentation.Windows.Item(1).View.GotoSlide(1);
-                presentation.Slides.Item(1).Shapes.Item(1).OLEFormat.DoVerb(0);
+                FormulaShape((object)presentation.Slides.Item(1)).OLEFormat.DoVerb(0);
                 await ConvertSlidesAsync((object)presentation, controller, toOle: false);
                 await VerifyAsync(adapter, style, originals, 1.5f);
                 Console.WriteLine("PASS|PPT PNG/OLE conversion, activation, edit, save and reopen");
@@ -300,7 +342,7 @@ internal static class PowerPointRoundTrip
         {
             Check(entry.Metadata.Typography.Equals(typography), "Typography snapshot changed");
             Check(entry.Metadata.Latex == sources[entry.Metadata.Identity.EquationId], "Source or identity changed");
-            Check(entry.Metadata.RenderEngine == engine, "Unexpected formula backend");
+                Check(entry.Metadata.RenderEngine == engine, "Unexpected formula backend: slide " + entry.SlideIndex + " " + entry.Metadata.RenderEngine);
             Check(Math.Abs(entry.Scale - scale) < .01, "User scale changed");
             Check(Math.Abs(entry.Left - 80) < .01 && Math.Abs(entry.Top - 90) < .01, "Position changed");
         }
@@ -312,10 +354,22 @@ internal static class PowerPointRoundTrip
         for (int index = 1; index <= Convert.ToInt32(presentation.Slides.Count); index++)
         {
             presentation.Windows.Item(1).View.GotoSlide(index);
-            presentation.Slides.Item(index).Shapes.Item(1).Select();
+            FormulaShape((object)presentation.Slides.Item(index)).Select();
             if (toOle) await controller.ConvertSelectedToOleAsync(Token);
             else await controller.ConvertSelectedToPngAsync(Token);
         }
+    }
+
+    private static dynamic FormulaShape(object slideObject)
+    {
+        dynamic slide = slideObject;
+        dynamic shapes = slide.Shapes;
+        for (int index = 1; index <= Convert.ToInt32(shapes.Count); index++)
+        {
+            dynamic shape = shapes.Item(index);
+            if (!string.IsNullOrEmpty(Convert.ToString(shape.Tags.Item(PowerPointFormulaMetadataStore.EquationIdTag)))) return shape;
+        }
+        throw new InvalidOperationException("Test slide has no managed formula");
     }
 
     private static void Check(bool value, string message)

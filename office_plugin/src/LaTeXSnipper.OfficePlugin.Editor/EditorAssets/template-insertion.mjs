@@ -1,4 +1,5 @@
 import {entryTemplate, templateParts} from './template-catalog.mjs';
+import {hasFormulaContent} from './formula-color.mjs';
 
 export class TemplateInsertion {
   constructor({source, sync, mathfield, sourceHost, onInsert, isComposing}) {
@@ -82,6 +83,14 @@ export class TemplateInsertion {
   insert(entry, {rows = 2, columns = 2, range} = {}) {
     if (this.blocked) return false;
     if (entry.literal) {
+      if (!range && !hasFormulaContent(this.source.value)) {
+        // Complete saved source must use the same projection as initial loading.
+        this.source.replace(entry.template, 'source');
+        this.sync.refresh();
+        this.restoreFocus();
+        this.onInsert();
+        return true;
+      }
       if (!range && this.target === 'visual' && this.sync.performVisual(() => {
         const saved = this.visualSelection;
         this.allowVisualFocus = true;

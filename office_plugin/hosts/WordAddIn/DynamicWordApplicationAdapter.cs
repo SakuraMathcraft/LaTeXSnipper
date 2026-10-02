@@ -8,7 +8,7 @@ using LaTeXSnipper.OfficePlugin.Abstractions;
 
 namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
-public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdapter
+public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdapter, IDisposable
 {
     private const double WordOleBaseFontPoints = 10.5;
     private const int WdCollapseEnd = 0;
@@ -26,6 +26,7 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
     private readonly dynamic _wordApplication;
     private readonly OmmlToMathMlConverter _ommlToMathMlConverter;
     private int _undoRecordDepth;
+    private readonly LaTeXSnipper.OfficePlugin.Rendering.OfficeStaDispatcher _officeThread = new();
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -137,6 +138,8 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
         _wordApplication = wordApplication ?? throw new ArgumentNullException(nameof(wordApplication));
         _ommlToMathMlConverter = ommlToMathMlConverter ?? new OmmlToMathMlConverter();
     }
+
+    public void Dispose() => _officeThread.Dispose();
 
     public double GetCurrentFontSizePoints()
     {

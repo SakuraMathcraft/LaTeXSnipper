@@ -6,7 +6,7 @@
 
 - 新建和格式化从当前设置产生样式快照；普通编辑、重编号及转换保留公式已有快照。
 - 局部字体与颜色命令优先于默认样式。默认样式在 MathJax 解析后、布局前应用。
-- 编辑器以源码最外层 `\textcolor{#RRGGBB}{…}` 表示当前公式的全局颜色；工具栏修改该命令，源码区修改该命令则同步工具栏。提交和预览的 `Typography.Color` 从源码读取，MathLive 继承同一颜色，局部 `\textcolor` 可覆盖外层。右键局部上色立即写入源码。
+- 编辑器以源码最外层 `\textcolor{#RRGGBB}{…}` 表示当前公式的全局颜色；工具栏修改该命令，源码区修改该命令则同步工具栏。提交和预览的 `Typography.Color` 从源码读取，MathLive 继承同一颜色，局部 `\textcolor` 可覆盖外层。右键局部上色立即写入源码。 MathLive 的编辑视图只解析最外层颜色命令内的公式，并从同一源码读取颜色用于显示，避免 `\displaylines` 被嵌套颜色组吞掉；任何可视化编辑写回时重新保留该外层命令，局部颜色命令始终留在公式内。状态窗格与独立编辑器共享此投影和写回逻辑。
 - Word OLE、PPT OLE / PNG 使用同一 SVG 轮廓；Word OMML 与 PowerPoint 文本内原生公式复用带样式 MathML，由各自宿主管理排版。
 - MathLive 提供可视化编辑；符号、数字、汉字三类字体和独立的默认字形共同构成样式快照。设置页的 JSON 导入/导出只管理当前宿主的全局公式默认属性；编辑器内调整只作用于当前公式。
 - 数字字体枚举全部系统字体；汉字字体使用从等线到幼圆的 23 项固定列表，中文名称与稳定字体 ID 分开，不探测字形。全局设置和编辑器共享列表与 17 项字形选项。字体列表顺序固定，当前选择不改变顺序。
@@ -21,7 +21,7 @@
 | PowerPoint 插入偏好 | 同一注册表项 | `PowerPointInsertionBackend` |
 | Word / PowerPoint 公式默认属性 | `%APPDATA%\LaTeXSnipper\OfficePlugin\settings.json` | 两个宿主各自的符号字体、数字字体、汉字字体、默认字形、字号、颜色和新建时跟随文字字号；JSON 导入/导出只读写对应宿主的这组属性 |
 | 公式编辑器常用内容 | `%LOCALAPPDATA%\LaTeXSnipper\OfficePlugin\WordEditorWebView2` 和 `PowerPointEditorWebView2` | 各宿主 WebView2 的 `localStorage`：内置磁贴收藏、自定义公式收藏、符号库当前标签与折叠状态；两宿主不互相覆盖 |
-| 文档内托管公式 | Word 文档变量与公式对象；PowerPoint OLE / PNG shape tags | 公式源码、身份及各公式自己的样式快照；随 Office 文档保存。PowerPoint 文本内原生公式由 Office 保存，不使用插件 shape tags |
+| 文档内托管公式 | OLE 内部存储；Word 文档变量与对象短标签；PowerPoint shape tags | Word OLE 从对象内部读取源码、样式和自然尺寸，文档变量保存实例身份；PowerPoint OLE / PNG 从完整 shape tags 读取同一公式快照。Word OMML 保留完整文档变量。文本内 PowerPoint 原生公式由 Office 保存 |
 
 安装包在升级、重装前运行 `ForceClean.ps1`，清理旧安装目录、VSTO / ClickOnce 注册与缓存、OLE 注册，以及 `%LOCALAPPDATA%\LaTeXSnipper\OfficePlugin\WordAddIn` / `PowerPointAddIn` 渲染缓存和 PowerPoint 临时图片。脚本不删除上述用户偏好注册表项、`settings.json`、两个编辑器 WebView2 目录或 Office 文档。卸载时也调用同一清理脚本并保留这些用户数据。`TypographySettingsStore` 只在读取到损坏或不支持版本的 `settings.json` 时删除该文件并重建默认值，不执行配置迁移；此时注册表中的插入与编号偏好和编辑器常用内容仍保留。
 
@@ -43,62 +43,46 @@
 
 `Typography` 保存完整快照；文档重绘不依赖本机预设。只读取 schema 3，损坏或不支持的版本在入口拒绝，不迁移或删除原对象。
 
+## OLE 内容与宿主实例
+
+Word OLE 识别先验证 `OLEFormat.ProgID` 为本产品对象，再通过 `OleFormulaContent` 的 `IDispatch.GetPayload` 读取 schema 3 内容，恢复完整源码、样式、显示/编号信息与自然尺寸。损坏内容或 COM 读取失败保留具体错误，不当作普通选区忽略。
+
+原生对象的 `Payload` / `PresentationEmf` 随复制和文档保存。创建时同步写入存储；Word 的 `UpdatePayload` 校验内容并准备新预览后才提交，失败保留原内容和预览。重编号通过同一接口更新相关内容字段。Word 宿主变量不重复保存 OLE 的源码、样式或自然尺寸。
+
+PowerPoint 保留已验证的完整 shape tags 读取路径；复制后的 `OLEFormat.Object` 激活返回 `REGDB_E_CLASSNOTREG` 的具体原因尚未查明，不能把这一接口作为 PowerPoint 内容读取的前提。PowerPoint 编辑、格式化与转换统一读取 tags 中的 `FormulaMetadata`，更新时由同一快照生成对象 Payload 和 tags；不使用当前设置替代既有属性，不增加内部读取失败后的第二条兜底分支。
+
+同文档副本和跨文档副本在读取有效内容后建立新的实例身份。关闭来源文档后仍能加载，编辑一个副本不会更新其他副本。编辑会话固定文档和具体对象，切换活动文档不改变保存目标。
+
 ## Word 元数据存储
 
-Word 中公式对象自身只保存短标签：
+对象使用短标签 `latexsnipper-eq-{equationId}|{revision}`；OMML 放在 content control `Tag`，OLE 放在 inline shape `AlternativeText`。文档变量名为 `LS.E.{equationId}.{revision}`，每次绑定生成新的 10 位 revision。
 
-```text
-latexsnipper-eq-{equationId}|{revision}
-```
+- **OLE：**变量只保存 schema、文档 ID 和公式 ID。完整内容与自然尺寸来自 OLE Payload。复制导致变量或标签缺失时，验证对象内容后重新绑定当前实例。
+- **OMML：**变量保存完整 `FormulaMetadata`。加载仍需要控制项短标签与对应文档变量；跨文档复制后的源码精确保留本轮未接入，不能用近似 LaTeX 覆盖原始内容。
 
-短标签写入：
-
-- OMML 公式：content control 的 `Tag`
-- OLE 公式：inline shape 的 `AlternativeText`
-
-完整 JSON 元数据写入 Word `Document.Variables`：
-
-```text
-LS.E.{equationId}.{revision}
-```
-
-这样可以避开 Word content control tag 的 64 字符限制。每次保存都会生成新的 10 位 revision，并把短标签指向新 revision。加载时必须同时拿到 equationId 和 revision，然后从 `Document.Variables` 读取完整 JSON。
-
-OLE 公式还会在同一份 JSON 中保存自然宽高：
-
-| 字段 | 用途 |
-| --- | --- |
-| `naturalWidthPoints` | OLE 初始自然宽度 |
-| `naturalHeightPoints` | OLE 初始自然高度 |
-
-这些字段用于判断用户是否手动拉伸公式，并支持格式化时恢复自然尺寸。
-
-OMML 的自然字号直接取 `Typography.FontSizePoints`，不另建文档变量。
+OMML 的自然字号取 `Typography.FontSizePoints`。
 
 ## PowerPoint 元数据存储
 
-PowerPoint 公式以 shape 为单位保存元数据。短字段写入 shape tags：
+OLE / PNG 的 shape tags 保存 `LaTeXSnipperDocumentId`、`LaTeXSnipperEquationId`、`LaTeXSnipperSchemaVersion`、`LaTeXSnipperRenderEngine`、显示模式和自然宽高；PNG 另保存临时图片路径。完整源码与样式 JSON 按 UTF-8 十六进制分块保存，前缀分别为 `LaTeXSnipperLatex` / `LaTeXSnipperTypography`，含 `Bytes`、`Chunks` 和 `0000` 起的分块。每块 200 个字符，读取校验长度、块数和十六进制内容。
 
-| Tag | 用途 |
-| --- | --- |
-| `LaTeXSnipperDocumentId` | 当前演示文稿标识 |
-| `LaTeXSnipperEquationId` | 公式 ID |
-| `LaTeXSnipperDisplayMode` | 显示模式 |
-| `LaTeXSnipperSchemaVersion` | schema |
-| `LaTeXSnipperRenderEngine` | 渲染类型 |
-| `LaTeXSnipperNaturalWidthPoints` | 自然宽度 |
-| `LaTeXSnipperNaturalHeightPoints` | 自然高度 |
-| `LaTeXSnipperImagePath` | PNG 插入时的临时图片路径 |
+OLE / PNG 均要求完整 tags；复制时保留这些数据并重新绑定实例身份。丢弃 tags 的粘贴方式不能恢复原始源码。临时图片路径只用于本机文件清理。
 
-完整 LaTeX 源码使用 UTF-8 转十六进制后分块存储：
+## 双击编辑
 
-| Tag | 用途 |
-| --- | --- |
-| `LaTeXSnipperLatexBytes` | 原始 UTF-8 字节数 |
-| `LaTeXSnipperLatexChunks` | 分块数量 |
-| `LaTeXSnipperLatex0000` 起 | 十六进制源码分块 |
+加载项在独立消息线程检测系统双击手势，限定前台 Office 进程；回调只投递点击位置，随后在 Office UI 线程确认自己的 OLE 对象并复用“加载所选”流程。Word 通过范围命中和对象屏幕边界定位，PowerPoint 在普通视图中等待 Office 完成对象选中，再通过 `PointsToScreenPixelsX/Y` 核对实际点击是否落在所选 OLE 对象的边界内；不使用不存在的 `DocumentWindow.HWND`，也不依赖会对 OLE 返回空的 `RangeFromPoint`。普通文本、其他 OLE 与编辑器内部点击不打开公式编辑器。
 
-每块长度为 200 个十六进制字符，并校验字节数、分块数量和十六进制解析结果。样式 JSON 使用同一编码与分块实现，前缀为 `LaTeXSnipperTypography`，保存 `Bytes`、`Chunks` 和 `0000` 起的分块。这样同时保留长源码、中文字体名称和字体名称的大小写。
+监听启动失败显示具体错误，其他插件功能继续可用；卸载释放钩子和待处理请求。对象内容读取与保存不依赖双击监听。
+
+## 转为 MathType
+
+独立的“转为 MathType”入口处理所选普通 LaTeXSnipper OLE；Word 带编号公式暂不纳入。需要本机安装提供桌面 SDK 的 MathType。转换开始前固定整个选区的目标，逐项执行并沿用统一命令互斥和超时兜底；单项失败保留原公式，继续其余项，最终报告成功、失败、跳过数量及首个具体错误。宿主读取、对象创建、MathType SDK 导入与保存均由适配器持有的调度句柄返回创建它的 Office STA 线程执行，不依赖异步续体的 `SynchronizationContext`。
+
+现有 MathJax 样式链路输出 MathML，宿主创建 `Equation.DSMT4` 对象，安装的 MathType SDK 导入 MathML并保存原生内容。导入前移除单侧定界符产生的空 `<mo/>`，避免 MathType SDK -9999；原源码与样式不变。Word 在隐藏的临时文档完成原生保存，将原宽、高以 pt 写入对象的 OOXML 显示框，再把完整原生存储与显示框一起插入目标文档，避免目标对象受到 SDK 保存后的尺寸缓存更新影响；临时文档立即关闭。PowerPoint 在原生保存返回后的下一次 STA 调度中分别恢复原宽、高，并保留位置（Office OLE 对象不支持旋转）。只有创建、导入、内容回读和尺寸恢复成功后才删除原 LaTeXSnipper 对象；失败移除新对象并保留原对象。
+
+转换后由 MathType 原生内容管理公式，双击进入 MathType，排版和字体由 MathType 管理。插件不附带另一份原始源码或字体快照，也不从 MathType 内容推导近似源码。该出口不承诺任意 TeX 命令或字体方案的完全等价；MathType 回读 MathML 的表示也不能用于证明所有显示属性均可精确恢复。
+
+“转为 OLE”同时接收 MathType 原生对象。转换前固定所选对象的位置，逐项读取当前 MathML（保存为单个完整、默认命名空间的 `<math>` 根节点），交给现有 MathJax 渲染与插件 OLE 创建链路。成功生成并保存新对象后删除 MathType 对象；读取或渲染失败保留原对象并继续。支持与 Word 公式 / PowerPoint PNG 混合多选，沿用现有批量统计、命令互斥和超时。新 OLE 的唯一源码是当前 MathML，字体使用当前插件默认设置及 MathML 中显式样式；不会恢复旧 LaTeX 或旧字体快照，MathType 导出未表达的样式无法精确保留。
 
 ## 设置项影响边界
 
@@ -237,7 +221,7 @@ REF LaTeXSnipperEq_{equationId} \h
 加载所选只读取被选中的公式对象：
 
 - OMML：读取 content control `Tag`，再读取 `Document.Variables`。
-- OLE：读取 inline shape `AlternativeText`，再读取 `Document.Variables`。
+- OLE：验证类身份并读取对象 Payload；inline shape `AlternativeText` 与文档变量只承担实例绑定。
 
 加载后：
 
@@ -390,7 +374,7 @@ PowerPoint 文本内原生公式不参与插件的加载、OLE / PNG 转换和�
 
 ## OLE payload 与字体输出
 
-pending payload 的 schema 为 3，包含源码、显示 / 编号 / 渲染类型、完整样式字段、运行时版本，以及 presentation 自然宽高、基线、MIME 与 base64 数据。`FormulaTypographyFields` 统一定义样式字段；OLE 使用平铺字段，Word JSON 使用 `typography` 对象，PPT 使用编码后的样式 JSON。
+pending payload 的 schema 为 3，包含源码、显示 / 编号 / 渲染类型、完整样式字段、运行时版本，以及 presentation 自然宽高、基线、MIME 与 base64 数据。`FormulaTypographyFields` 统一定义样式字段；OLE 使用平铺字段，Word OMML JSON 使用 `typography` 对象，PPT OLE / PNG 使用编码后的样式 JSON。
 
 原生 handler 校验 schema 与样式版本、字体方案、数学样式、字号范围和呈现数据，原样保存 payload。身份仍由宿主对象与文档元数据管理，不写入 OLE payload。
 
@@ -400,11 +384,6 @@ MathJax 4.1.3 在排版前取得字形度量与轮廓。最终 SVG 不包含依�
 
 Word 插入、更新、删除、编号、解析、转换和格式化都在必要位置使用 Word undo record。用户撤销后，Word 会同时回撤对象、字段和文档变量的变化。
 
-文档发给其他用户再返回时，插件能否加载取决于 Office 是否保留：
+OLE 的内容随对象存储传递，Word 中缺失的实例绑定可以根据有效对象内容重建；PowerPoint 使用随复制保留的完整 shape tags。接收方需安装插件才能再次用 LaTeXSnipper 编辑；MathType 转换后的对象需 MathType 编辑。
 
-- Word content control `Tag` 或 OLE inline shape `AlternativeText`。
-- Word `Document.Variables`。
-- PowerPoint shape tags。
-- OLE 对象本身或 PNG shape。
-
-这些都是 Office 文档内的原生持久化载体，不依赖本机临时内存。PowerPoint PNG 的临时图片路径只用于本机清理文件，不影响公式元数据加载。
+Word OMML 仍依赖 content control `Tag` 和完整 `Document.Variables`，PowerPoint OLE / PNG 依赖完整 shape tags；只保留图像或丢弃这些载体的粘贴方式不能恢复原始源码。所有载体均在 Office 文档内持久化，不依赖本机临时内存。
