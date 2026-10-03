@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using LaTeXSnipper.OfficePlugin.Abstractions;
+using LaTeXSnipper.OfficePlugin.Rendering;
 
 namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
@@ -406,16 +407,34 @@ public sealed partial class DynamicWordApplicationAdapter
             Type.Missing,
             Type.Missing,
             range);
-        ApplyOleInlineShapeLayout(inlineShape, presentation, metadata.DisplayMode == FormulaDisplayMode.Display);
-        TagOleInlineShape(inlineShape, metadata);
-        return inlineShape;
+        try
+        {
+            ApplyOleInlineShapeLayout(inlineShape, presentation, metadata.DisplayMode == FormulaDisplayMode.Display);
+            TagOleInlineShape(inlineShape, metadata);
+            return inlineShape;
+        }
+        catch
+        {
+            TryCom(() => inlineShape.Delete());
+            throw;
+        }
     }
 
     private dynamic ReplaceOleInlineShape(dynamic inlineShape, FormulaMetadata metadata, OlePresentationResult presentation)
     {
         int insertionPoint = GetRangeStart(inlineShape.Range);
-        inlineShape.Delete();
-        return AddOleInlineShapeAtRange(CreateDocumentRange(insertionPoint, insertionPoint), metadata, presentation);
+        dynamic replacement = AddOleInlineShapeAtRange(
+            CreateDocumentRange(insertionPoint, insertionPoint), metadata, presentation);
+        try
+        {
+            inlineShape.Delete();
+            return replacement;
+        }
+        catch
+        {
+            TryCom(() => replacement.Delete());
+            throw;
+        }
     }
 
     private static void InsertTextAtRange(dynamic range, string text)
@@ -800,18 +819,8 @@ public sealed partial class DynamicWordApplicationAdapter
 
     private (double Width, double Height) GetOleNaturalSize(object inlineShape)
     {
-        dynamic shape = inlineShape;
-        string tag = Convert.ToString(shape.AlternativeText) ?? string.Empty;
-        if (!WordFormulaMetadataStore.TryLoadOleNaturalSize(
-                CurrentDocument,
-                tag,
-                out double naturalWidth,
-                out double naturalHeight))
-        {
-            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
-        }
-
-        return (naturalWidth, naturalHeight);
+        var content = OleFormulaContent.Read(inlineShape);
+        return (content.WidthPoints, content.HeightPoints);
     }
 
     private float ApplyUserScaleToReplacement(
@@ -900,12 +909,7 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic inlineShape,
         FormulaMetadata metadata)
     {
-        (float width, float height) = GetInlineShapeSize((object)inlineShape);
-        string tag = WordFormulaMetadataStore.Save(
-            inlineShape.Range.Document,
-            metadata,
-            width,
-            height);
+        string tag = WordFormulaMetadataStore.Save(inlineShape.Range.Document, metadata);
         inlineShape.AlternativeText = tag;
         string storedTag = Convert.ToString(inlineShape.AlternativeText) ?? string.Empty;
         if (!string.Equals(storedTag, tag, StringComparison.Ordinal))

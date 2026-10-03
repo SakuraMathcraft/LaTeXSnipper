@@ -9,23 +9,16 @@ namespace LaTeXSnipper.OfficePlugin.MetadataSafety.Tests;
 public sealed class WordMetadataSafetyTests
 {
     [TestMethod]
-    public void Schema3RoundTripPreservesMetadataAndNaturalSize()
+    public void OmmlRoundTripPreservesMetadata()
     {
         var document = new FakeWordDocument();
         string documentId = WordDocumentIdentityStore.GetOrCreate(document);
         FormulaMetadata expected = CreateMetadata(documentId, "word-schema3", @"\boldsymbol{x+y}");
 
-        string tag = WordFormulaMetadataStore.Save(document, expected, 42.5, 18.25);
+        string tag = WordFormulaMetadataStore.Save(document, expected);
         FormulaMetadata actual = WordFormulaMetadataStore.Load(document, tag);
 
         MetadataAssert.AreEqual(expected, actual);
-        Assert.IsTrue(WordFormulaMetadataStore.TryLoadOleNaturalSize(
-            document,
-            tag,
-            out double width,
-            out double height));
-        Assert.AreEqual(42.5, width, 0.000001);
-        Assert.AreEqual(18.25, height, 0.000001);
     }
 
     [TestMethod]

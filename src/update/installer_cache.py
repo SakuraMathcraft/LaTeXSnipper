@@ -118,14 +118,24 @@ def _local_installer_valid(info: ReleaseInfo) -> bool:
         return False
     if any(str(meta.get(k, "")) != str(v) for k, v in _asset_fingerprint(info).items() if k != "asset_size"):
         return False
-    if int(meta.get("asset_size", 0) or 0) != int(info.asset_size or 0):
+    try:
+        saved_size = int(meta.get("asset_size", 0) or 0)
+    except (TypeError, ValueError):
         return False
-    if info.asset_size and dest_path.stat().st_size != int(info.asset_size):
+    if saved_size != int(info.asset_size or 0):
+        return False
+    try:
+        if info.asset_size and dest_path.stat().st_size != int(info.asset_size):
+            return False
+    except OSError:
         return False
     saved_sha256 = str(meta.get("sha256", "") or "").strip().lower()
     if not saved_sha256:
         return False
-    return _compute_file_sha256(str(dest_path)).lower() == saved_sha256
+    try:
+        return _compute_file_sha256(str(dest_path)).lower() == saved_sha256
+    except OSError:
+        return False
 
 
 def _ensure_latest_installer_only(info: ReleaseInfo) -> bool:

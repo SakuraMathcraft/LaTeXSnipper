@@ -45,6 +45,14 @@ public sealed class PowerPointRibbonCallbacks
         FireAndForgetSerial(ct => _controller.LoadSelectedAsync(ct));
     }
 
+    public IDisposable ListenForFormulaDoubleClick(int officeProcessId)
+    {
+        return new LaTeXSnipper.OfficePlugin.Rendering.OfficeFormulaDoubleClickListener(officeProcessId, (x, y) =>
+        {
+            if (_controller.TrySelectOleFormulaAtScreenPoint(x, y)) OnLoadSelected(this);
+        });
+    }
+
     public void OnScreenshotOcr(object control)
     {
         if (Interlocked.CompareExchange(ref _ocrRunning, 1, 0) == 1)
@@ -63,6 +71,7 @@ public sealed class PowerPointRibbonCallbacks
     }
 
     public void OnConvertSelectedToOle(object control) => FireAndForgetSerial(ct => _controller.ConvertSelectedToOleAsync(ct));
+    public void OnConvertSelectedToMathType(object control) => FireAndForgetSerial(ct => _controller.ConvertSelectedToMathTypeAsync(ct));
 
     public void OnConvertSelectedToPng(object control) => FireAndForgetSerial(ct => _controller.ConvertSelectedToPngAsync(ct));
 

@@ -16,14 +16,26 @@ internal static class PowerPointRoundTrip
 {
     private static readonly CancellationToken Token = CancellationToken.None;
 
-    public static async Task RunAsync(string output, bool includeOle)
+    public static async Task RunAsync(string output, bool includeOle, bool batchOnly = false, bool includeMathType = false,
+        bool copyOnly = false, bool gestureOnly = false, bool mathTypeNativeEdit = false, bool mathTypeOnly = false)
     {
         if (Process.GetProcessesByName("POWERPNT").Length != 0)
             throw new InvalidOperationException("Close PowerPoint before running this isolated test.");
         if (File.Exists(output)) throw new IOException("Output already exists: " + output);
         Directory.CreateDirectory(Path.GetDirectoryName(output)!);
         string imagePath = Path.Combine(Path.GetTempPath(), "latexsnipper-ppt-" + Guid.NewGuid().ToString("N") + ".png");
-        dynamic app = Activator.CreateInstance(Type.GetTypeFromProgID("PowerPoint.Application")!);
+        using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\POWERPNT.EXE"))
+        {
+            var executable = Convert.ToString(key?.GetValue("")) ?? throw new InvalidOperationException("PowerPoint is not installed.");
+            Process.Start(new ProcessStartInfo(executable) { UseShellExecute = false, WindowStyle = ProcessWindowStyle.Hidden });
+        }
+        object? instance = null;
+        for (int attempt = 0; attempt < 100 && instance == null; attempt++)
+        {
+            try { instance = System.Runtime.InteropServices.Marshal.GetActiveObject("PowerPoint.Application"); }
+            catch (System.Runtime.InteropServices.COMException) { await Task.Delay(100); }
+        }
+        dynamic app = instance ?? throw new InvalidOperationException("PowerPoint did not register its automation object.");
         dynamic? presentation = null;
         try
         {
@@ -38,22 +50,59 @@ internal static class PowerPointRoundTrip
             using var controller = new PowerPointPluginController(new FormulaEditorSession(editor),
                 new AutomationApiClient(new AutomationApiOptions()), adapter, renderer,
                 new OlePresentationPipeline(new IOlePresentationRenderer[] { new EnhancedMetafilePresentationRenderer() }),
-                optionsProvider: options);
+                statusSink: new BatchStatusSink(), optionsProvider: options);
+            if (includeMathType) await MathTypeRoundTrip.VerifyAsync((object)app, (object)presentation, controller, renderer, output, mathTypeNativeEdit);
+            if (mathTypeOnly) return;
             var style = new FormulaTypography("mathjax-stix2", "Times New Roman", "SimSun",
                 FormulaMathStyle.BoldItalic, 15.5, "#123ABC");
+            if (copyOnly || gestureOnly)
+            {
+                var metadata = new FormulaMetadata(new FormulaIdentity(adapter.GetCurrentDocumentId(), Guid.NewGuid().ToString("N")),
+                    @"\frac{x}{y}+\text{端}", FormulaDisplayMode.Display, NumberingMode.None, "", RenderEngineKind.MathJaxSvg,
+                    FormulaMetadata.CurrentSchemaVersion, style);
+                var svg = await renderer.RenderAsync(new RenderRequest(metadata.Latex, metadata.DisplayMode, metadata.RenderEngine, style), Token);
+                var emf = await new EnhancedMetafilePresentationRenderer().RenderPresentationAsync(new OlePresentationRequest(svg, OlePresentationKind.EnhancedMetafile), Token);
+                presentation.Windows.Item(1).Activate();
+                await adapter.InsertOleFormulaObjectOnSlideAsync(1, metadata, emf, 80, 90, 1.5f, Token);
+                if (gestureOnly)
+                {
+                    using var listener = new PowerPointRibbonCallbacks(controller).ListenForFormulaDoubleClick(Process.GetProcessesByName("POWERPNT").Single().Id);
+                    presentation.Windows.Item(1).View.GotoSlide(1);
+                    Console.WriteLine("READY|Double-click the OLE formula on the first slide within 90 seconds");
+                    var deadline = DateTime.UtcNow.AddSeconds(90);
+                    while (editor.InitialFormula == null && DateTime.UtcNow < deadline) await Task.Delay(100);
+                    Check(editor.InitialFormula?.Latex == metadata.Latex && !editor.OpenedForInsert,
+                        "Double-click did not load the hit formula into the update editor");
+                    Console.WriteLine("PASS|PPT physical double-click loads the hit OLE formula through Ribbon callbacks");
+                    return;
+                }
+                await PowerPointOleCopyRoundTrip.VerifyAsync((object)app, (object)presentation,
+                    (object)presentation.Slides.Item(1).Shapes.Item(1), output, renderer);
+                return;
+            }
             string[] sources = { @"\mathrm{\delta}+\text{条件概率 }P(A\mid B)",
                 @"\begin{align}x&=12\\y&=\frac{1}{2}\end{align}" };
             var originals = new Dictionary<string, string>();
             for (int index = 0; index < sources.Length; index++)
             {
+                presentation.Windows.Item(1).Activate();
                 var metadata = new FormulaMetadata(new FormulaIdentity(adapter.GetCurrentDocumentId(), Guid.NewGuid().ToString("N")),
                     sources[index], FormulaDisplayMode.Display, NumberingMode.None, "", RenderEngineKind.Image,
                     FormulaMetadata.CurrentSchemaVersion, style);
                 PowerPointRenderedImage image = await RenderAsync(renderer, metadata, imagePath);
+                presentation.Windows.Item(1).Activate();
                 await adapter.InsertFormulaImageOnSlideAsync(index + 1, image, metadata, 80, 90, 1.5f, Token);
                 originals.Add(metadata.Identity.EquationId, metadata.Latex);
             }
             await VerifyAsync(adapter, style, originals, 1.5f);
+            if (batchOnly)
+            {
+                await VerifyBatchFailureHandlingAsync(adapter, (object)presentation, originals, style);
+                await controller.FormatAllAsync(Token);
+                await VerifyAsync(adapter, PowerPointPluginSettings.Load().Typography, originals, 1);
+                Console.WriteLine("PASS|PPT batch operations and retry");
+                return;
+            }
             presentation.Windows.Item(1).View.GotoSlide(1);
             presentation.Slides.Item(1).Shapes.Item(1).Select();
             Check(adapter.GetCurrentFontSizePoints() == 0, "Selected formula was treated as text font selection");
@@ -141,6 +190,20 @@ internal static class PowerPointRoundTrip
                 "The default formula was not inserted as a native equation at the text caret");
             inlineTextBox.Delete();
             Console.WriteLine("PASS|PPT default formula inserts as a native equation at the end of text");
+            dynamic chineseTextBox = slide.Shapes.AddTextbox(1, 100, 450, 500, 100);
+            string chineseTextBoxName = Convert.ToString(chineseTextBox.Name);
+            chineseTextBox.TextFrame.TextRange.Text = "left right";
+            chineseTextBox.TextFrame.TextRange.Characters(6, 0).Select();
+            PowerPointTextInsertionTarget chineseTarget = adapter.CaptureTextInsertionTarget()
+                ?? throw new InvalidOperationException("PowerPoint text caret was not captured for a Chinese equation");
+            string chineseMathMl = await renderer.ConvertTypographyToMathMlAsync(@"e^{i\pi}+1=0端",
+                FormulaDisplayMode.Inline, style, Token);
+            await adapter.InsertNativeEquationAsync(chineseTarget, chineseMathMl, 28, Token);
+            Check(Convert.ToInt32(chineseTextBox.TextFrame2.TextRange.MathZones(1, 1).Length) > 0,
+                "MathML containing Chinese did not become a native equation");
+            Check(Convert.ToString(chineseTextBox.TextFrame.TextRange.Text).Contains("端"),
+                "The Chinese glyph was lost during native equation insertion");
+            Console.WriteLine("PASS|PPT MathML with Chinese inserts as a native equation");
             presentation.Slides.Item(1).Shapes.Item(1).Select();
             Console.WriteLine("PASS|PPT selected formula still opens editor and inserts a centered formula");
             var target = await adapter.LoadSelectedFormulaAsync(Token);
@@ -157,8 +220,11 @@ internal static class PowerPointRoundTrip
                 await ConvertSlidesAsync((object)presentation, controller, toOle: true);
                 await VerifyAsync(adapter, style, originals, 1.5f, RenderEngineKind.MathJaxSvg);
                 presentation.Windows.Item(1).View.GotoSlide(1);
-                presentation.Slides.Item(1).Shapes.Item(1).Select();
-                presentation.Slides.Item(1).Shapes.Item(1).OLEFormat.DoVerb(0);
+                await PowerPointOleCopyRoundTrip.VerifyAsync((object)app, (object)presentation,
+                    (object)FormulaShape((object)presentation.Slides.Item(1)), output, renderer);
+                dynamic selectedOle = FormulaShape((object)presentation.Slides.Item(1));
+                selectedOle.Select();
+                selectedOle.OLEFormat.DoVerb(0);
                 var oleTarget = await adapter.LoadSelectedFormulaAsync(Token);
                 var oleEdit = new FormulaMetadata(oleTarget.Metadata.Identity, oleTarget.Metadata.Latex + "+2",
                     FormulaDisplayMode.Display, NumberingMode.None, "", RenderEngineKind.MathJaxSvg,
@@ -176,13 +242,14 @@ internal static class PowerPointRoundTrip
                 presentation = app.Presentations.Open(olePath, 0, 0, -1);
                 await VerifyAsync(adapter, style, originals, 1.5f, RenderEngineKind.MathJaxSvg);
                 presentation.Windows.Item(1).View.GotoSlide(1);
-                presentation.Slides.Item(1).Shapes.Item(1).OLEFormat.DoVerb(0);
+                FormulaShape((object)presentation.Slides.Item(1)).OLEFormat.DoVerb(0);
                 await ConvertSlidesAsync((object)presentation, controller, toOle: false);
                 await VerifyAsync(adapter, style, originals, 1.5f);
                 Console.WriteLine("PASS|PPT PNG/OLE conversion, activation, edit, save and reopen");
             }
 
             FormulaTypography defaults = PowerPointPluginSettings.Load().Typography;
+            await VerifyBatchFailureHandlingAsync(adapter, (object)presentation, originals, style);
             await controller.FormatAllAsync(Token);
             await VerifyAsync(adapter, defaults, originals, 1);
             await controller.FormatAllAsync(Token);
@@ -196,6 +263,8 @@ internal static class PowerPointRoundTrip
                 "Native equation was lost after reopening PowerPoint");
             Check(Convert.ToInt32(reopenedSlide.Shapes.Item(secondTextBoxName).TextFrame2.TextRange.MathZones(1, 1).Length) > 0,
                 "Task pane native equation was lost after reopening PowerPoint");
+            Check(Convert.ToInt32(reopenedSlide.Shapes.Item(chineseTextBoxName).TextFrame2.TextRange.MathZones(1, 1).Length) > 0,
+                "Native equation containing Chinese was lost after reopening PowerPoint");
             Check(Convert.ToInt32(presentation.Slides.Count) == 2, "Slide count changed");
             Console.WriteLine("PASS|PPT repeated format, save and reopen|" + output);
         }
@@ -205,6 +274,56 @@ internal static class PowerPointRoundTrip
             app.Quit();
             if (File.Exists(imagePath)) File.Delete(imagePath);
         }
+    }
+
+    private static async Task VerifyBatchFailureHandlingAsync(DynamicPowerPointApplicationAdapter adapter,
+        object document, IReadOnlyDictionary<string, string> originals, FormulaTypography style)
+    {
+        dynamic presentation = document;
+        FormulaTypography defaults = PowerPointPluginSettings.Load().Typography;
+        string failedId = originals.Keys.First();
+        var status = new BatchStatusSink();
+        using (var failingController = new PowerPointPluginController(new FormulaEditorSession(new TrackingEditor()),
+            new AutomationApiClient(new AutomationApiOptions()), FailingPowerPointAdapter.Wrap(adapter, failedId),
+            new MathJaxSvgRenderer(new WebView2MathJaxJavaScriptRuntime("PowerPointBatchFailureE2E")),
+            new OlePresentationPipeline(new IOlePresentationRenderer[] { new EnhancedMetafilePresentationRenderer() }), status))
+        {
+            presentation.Windows.Item(1).View.GotoSlide(1);
+            dynamic shapes = presentation.Slides.Item(1).Shapes;
+            bool selected = false;
+            for (int index = 1; index <= Convert.ToInt32(shapes.Count); index++)
+            {
+                dynamic shape = shapes.Item(index);
+                if (string.Equals(Convert.ToString(shape.Tags.Item(PowerPointFormulaMetadataStore.EquationIdTag)),
+                    failedId, StringComparison.OrdinalIgnoreCase))
+                {
+                    shape.Select();
+                    selected = true;
+                    break;
+                }
+            }
+            Check(selected, "The failure test formula could not be selected");
+            await failingController.FormatSelectedAsync(Token);
+            Check(status.Kind == PowerPointStatusKind.Error
+                && status.Message.Contains("Injected PowerPoint formula failure"),
+                "Selected formatting did not report the individual failure");
+            await failingController.ConvertSelectedToOleAsync(Token);
+            Check(status.Kind == PowerPointStatusKind.Error
+                && status.Message.Contains("Injected PowerPoint formula failure"),
+                "Selected conversion did not report the individual failure");
+            await failingController.FormatAllAsync(Token);
+            Check(status.Kind == PowerPointStatusKind.Info
+                && status.Message.Contains("Injected PowerPoint formula failure"),
+                "Full formatting did not summarize partial success and the failure reason");
+            var partiallyFormatted = await adapter.LoadFormulaEntriesAsync(true, Token);
+            Check(partiallyFormatted.Count == originals.Count, "Failed formatting removed a formula");
+            Check(partiallyFormatted.Single(entry => entry.Metadata.Identity.EquationId == failedId)
+                .Metadata.Typography.Equals(style), "The failed formula was changed");
+            Check(partiallyFormatted.Where(entry => entry.Metadata.Identity.EquationId != failedId)
+                .All(entry => entry.Metadata.Typography.Equals(defaults) && Math.Abs(entry.Scale - 1) < .01),
+                "Formatting stopped after an individual failure");
+        }
+        Console.WriteLine("PASS|PPT batch formatting continues after a failure; selected operations report the reason");
     }
 
     private static async Task<PowerPointRenderedImage> RenderAsync(MathJaxSvgRenderer renderer, FormulaMetadata metadata, string path)
@@ -225,7 +344,7 @@ internal static class PowerPointRoundTrip
         {
             Check(entry.Metadata.Typography.Equals(typography), "Typography snapshot changed");
             Check(entry.Metadata.Latex == sources[entry.Metadata.Identity.EquationId], "Source or identity changed");
-            Check(entry.Metadata.RenderEngine == engine, "Unexpected formula backend");
+                Check(entry.Metadata.RenderEngine == engine, "Unexpected formula backend: slide " + entry.SlideIndex + " " + entry.Metadata.RenderEngine);
             Check(Math.Abs(entry.Scale - scale) < .01, "User scale changed");
             Check(Math.Abs(entry.Left - 80) < .01 && Math.Abs(entry.Top - 90) < .01, "Position changed");
         }
@@ -237,10 +356,22 @@ internal static class PowerPointRoundTrip
         for (int index = 1; index <= Convert.ToInt32(presentation.Slides.Count); index++)
         {
             presentation.Windows.Item(1).View.GotoSlide(index);
-            presentation.Slides.Item(index).Shapes.Item(1).Select();
+            FormulaShape((object)presentation.Slides.Item(index)).Select();
             if (toOle) await controller.ConvertSelectedToOleAsync(Token);
             else await controller.ConvertSelectedToPngAsync(Token);
         }
+    }
+
+    private static dynamic FormulaShape(object slideObject)
+    {
+        dynamic slide = slideObject;
+        dynamic shapes = slide.Shapes;
+        for (int index = 1; index <= Convert.ToInt32(shapes.Count); index++)
+        {
+            dynamic shape = shapes.Item(index);
+            if (!string.IsNullOrEmpty(Convert.ToString(shape.Tags.Item(PowerPointFormulaMetadataStore.EquationIdTag)))) return shape;
+        }
+        throw new InvalidOperationException("Test slide has no managed formula");
     }
 
     private static void Check(bool value, string message)

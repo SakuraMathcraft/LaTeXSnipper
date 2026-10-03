@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LaTeXSnipper Office Plugin Settings</title>
-  <link rel="stylesheet" href="./settings.css">
+  <title>LaTeXSnipper PowerPoint Plugin Settings</title>
+  <link rel="stylesheet" href="https://latexsnipper-editor-shared.officeplugin.local/settings.css">
 </head>
 <body>
   <main class="shell">
     <header class="header">
-      <h1 data-i18n="title">LaTeXSnipper Office 插件设置</h1>
+      <h1 data-i18n="title">LaTeXSnipper PowerPoint 插件设置</h1>
     </header>
 
-    <section class="panel accent-panel">
+    <section class="panel backend-panel">
       <div>
         <h2 data-i18n="backendTitle">公式插入方式</h2>
         <p class="hint" data-i18n="backendHint">默认使用 OLE 公式对象，也可切换为 PNG 图片。</p>
@@ -23,7 +23,7 @@
       </div>
     </section>
 
-    <section class="panel accent-panel">
+    <section class="panel">
       <div>
         <h2 data-i18n="formulaDefaultsTitle">公式默认属性</h2>
         <p class="hint" data-i18n="formulaDefaultsHint">这些设置应用于新插入公式和格式化命令。</p>
@@ -43,7 +43,7 @@
           <span data-i18n="fontStyleLabel">默认字形</span>
           <select id="formulaMathStyle"></select>
         </label>
-        <label class="font-size-field">
+        <label>
           <span data-i18n="fontSizeLabel">公式大小</span>
           <span class="size-control">
             <select id="formulaFontSizePoints"></select>
@@ -58,8 +58,8 @@
       <h2 data-i18n="presetTitle">全局公式预设</h2>
       <p class="hint" data-i18n="presetHint">导入会替换当前宿主的公式默认属性；导出时用 JSON 文件名命名预设。编辑器内调整只作用于当前公式。</p>
       <div class="preset-file-actions">
-        <button id="importTypography" type="button" data-i18n="importPreset">导入 JSON</button>
-        <button id="exportTypography" type="button" data-i18n="exportPreset">导出 JSON</button>
+        <button id="importTypography" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 15v5h16v-5"/></svg><span data-i18n="importPreset">导入 JSON</span></button>
+        <button id="exportTypography" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m-4 4 4-4 4 4M4 15v5h16v-5"/></svg><span data-i18n="exportPreset">导出 JSON</span></button>
         <span id="presetStatus" role="status"></span>
       </div>
     </section>
@@ -67,17 +67,15 @@
     <section class="panel">
       <h2 data-i18n="editorTitle">编辑器键盘行为</h2>
       <div class="key-list">
-        <div><kbd>Enter</kbd><span data-i18n="newlineShortcut">新建数学行</span></div>
         <div><kbd>Shift</kbd><span>+</span><kbd>Enter</kbd><span data-i18n="acceptShortcut">插入或更新当前公式</span></div>
         <div><kbd>Ctrl</kbd><span>+</span><kbd>F</kbd><span data-i18n="fractionShortcut">插入分式</span></div>
         <div><kbd>Ctrl</kbd><span>+</span><kbd>R</kbd><span data-i18n="rootShortcut">插入根号</span></div>
         <div><kbd>Ctrl</kbd><span>+</span><kbd>H</kbd><span data-i18n="superscriptShortcut">插入上标</span></div>
         <div><kbd>Ctrl</kbd><span>+</span><kbd>L</kbd><span data-i18n="subscriptShortcut">插入下标</span></div>
         <div><kbd>Ctrl</kbd><span>+</span><kbd>J</kbd><span data-i18n="scriptsShortcut">插入上下标</span></div>
-        <div><kbd>Esc</kbd><span data-i18n="cancelShortcut">收回 MathLive 虚拟键盘</span></div>
       </div>
     </section>
   </main>
-  <script src="./settings.js"></script>
+  <script type="module" src="./settings.js"></script>
 </body>
 </html>

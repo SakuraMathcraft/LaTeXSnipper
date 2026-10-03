@@ -46,6 +46,8 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
             callbacks?.OnConvertSelectedToOle(control);
         }
 
+        public void OnConvertSelectedToMathType(IRibbonControl control) => callbacks?.OnConvertSelectedToMathType(control);
+
         public void OnConvertSelectedToPng(IRibbonControl control)
         {
             callbacks?.OnConvertSelectedToPng(control);

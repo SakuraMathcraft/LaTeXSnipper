@@ -27,34 +27,21 @@ python -X utf8 .\tools\mathjax\prepare.py --verify
 
 升级时修改清单及完整性校验值，再重建生成文件。验证会拒绝清单漂移、被修改的上游文件和多余资源；有意移除的旧资源须同步删除，不保留版本回退目录。Git 属性保留上游文件和生成清单的字节，避免 Windows 换行转换破坏校验。
 
-## 第一阶段验证记录（2026-09-12）
+## 验证入口
 
-- Python 导出、源码保留、加载配置和资源测试：34 项通过。
-- Ruff：本次修改的 Python 文件通过。
-- Office Rendering：.NET Framework 4.8 与 .NET 9 编译通过；Word/PowerPoint 主机由已有测试项目一并编译。
-- Office 元数据安全测试：14 项通过。
-- Qt WebEngine：3 个真实 SVG/MathML 转换、6 个 CHTML 页面通过，包含本地 TeX/STIX2、客户端预览和 CDN HTML 独立页。
-- WebView2：5 组真实 SVG、MathML、EMF 转换通过，包含多行中文、化学公式、正体宏、Office 输入处理和 MathML；缓存、Promise 延迟结果与取消请求通过。
-- 安装资源暂存：Office 86 个文件与清单逐文件一致。
-
-复验入口：
+先使用开发者选定的 Python 环境，从仓库根目录运行：
 
 ```powershell
+python -X utf8 tools/mathjax/prepare.py --verify
 python -X utf8 -m pytest test/test_mathjax_runtime.py test/test_formula_export_matrix.py test/test_formula_omml_export.py test/test_content_preview.py test/test_handwriting_preview.py test/test_pandoc_export_formats.py -q
 python -X utf8 tools/mathjax/smoke_qt.py --cdn
-dotnet run --project office_plugin/tests/LaTeXSnipper.OfficePlugin.Rendering.Smoke
-dotnet run --project office_plugin/tests/LaTeXSnipper.OfficePlugin.Rendering.Smoke -- --typography
-dotnet test office_plugin/tests/LaTeXSnipper.OfficePlugin.MetadataSafety.Tests
+dotnet test office_plugin/LaTeXSnipper.OfficePlugin.slnx -c Release
 ```
 
-真实浏览器测试需允许 WebEngine/WebView2 子进程；`--cdn` 还需网络。单独运行 Qt 验证时省略此参数即可只验证离线链路。
+Qt 验证省略 `--cdn` 时只验证离线链路；CDN 验证需要网络，WebEngine 子进程必须允许运行。
 
-`--typography` 直接回归共享字体渲染服务，要求 Windows 已安装 Times New Roman、宋体、微软雅黑及 Office 的 MathML→OMML 转换资源。它在真实 WebView2 中验证两套数学字体、局部样式、混排与布局，检查 SVG / EMF 轮廓、不同 DPI 的 PNG、缓存和 OMML 属性映射；当前 61 组矢量样例与 122 个 PNG 通过。当前公式与字体处理见[公式工作流文档](../../docs/office_plugin_formula_workflows.md)。
+Office 实际渲染与文档往返使用 `office_plugin/tools/Test-OfficeTypographyE2E.ps1`，覆盖 Word OMML/OLE、PowerPoint 文本内原生公式、OLE/PNG 对象和批处理。先构建插件，再按 [Office 插件说明](../../office_plugin/README.md) 选择宿主与测试范围。浏览器编辑器另有 [共享编辑器回归](../office-editor/README.md)，使用模拟桥接，不能替代真实 Office 验证。
 
-以上第一阶段记录仅对应运行时升级。当前插件使用 schema 3、统一字体渲染和绝对字号；公式链路与元数据边界见[公式工作流文档](../../docs/office_plugin_formula_workflows.md)。
+## 工具与发布边界
 
-## tools 目录的用途
-
-- `tools/mathjax` 是长期维护工具：固定资源清单、可复现的生成脚本和被测试直接引用的回归入口；不属于应用运行环境，也不是一次性试验目录。此前直接复制整套 MathJax 3 资源，不需要此处的裁剪与校验工具。
-- Python 维护命令使用开发者自行选择的环境；发布包运行时由 GitHub Actions 准备。
-- 本次验证曾在 `tools/deps/nuget` 下载 .NET 构建包，属于可重建缓存，不是新增运行依赖；收尾时已删除。后续正常 `dotnet restore` 使用开发者原有 NuGet 配置和缓存。
+`tools/mathjax` 是固定资源清单、可复现生成脚本和回归入口，不进入用户运行环境。Python 维护命令使用开发者选定的环境；桌面发布包运行时由 GitHub Actions 准备，Office 发布安装包在本地构建。

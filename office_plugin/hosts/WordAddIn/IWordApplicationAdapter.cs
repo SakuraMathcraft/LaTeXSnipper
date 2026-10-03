@@ -10,6 +10,8 @@ public interface IWordApplicationAdapter
 {
     string GetCurrentDocumentId();
 
+    bool TrySelectOleFormulaAtScreenPoint(int x, int y);
+
     Task ValidateCurrentInsertionTargetAsync(CancellationToken cancellationToken);
 
     Task ActivateForEditingAsync(CancellationToken cancellationToken);
@@ -52,6 +54,16 @@ public interface IWordApplicationAdapter
 
     Task<WordFormulaEditTarget> LoadSelectedFormulaTargetAsync(CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<WordFormulaEditTarget>> LoadSelectedFormulaTargetsAsync(CancellationToken cancellationToken);
+
+    Task ReplaceWithMathTypeAsync(WordFormulaEditTarget target, byte[] compoundFile, OlePresentationResult presentation, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<WordFormulaEntry>> LoadConversionEntriesAsync(bool includeMathType, CancellationToken cancellationToken);
+
+    Task<MathTypeFormulaContent> ReadMathTypeAsync(MathTypeFormulaTarget target, CancellationToken cancellationToken);
+
+    Task ReplaceMathTypeWithOleAsync(MathTypeFormulaTarget target, FormulaMetadata metadata, OlePresentationResult presentation, CancellationToken cancellationToken);
+
     bool IsFormulaEditTargetValid(WordFormulaEditTarget target);
 
     Task UpdateOleFormulaObjectAsync(WordFormulaEditTarget target, FormulaMetadata metadata, OlePresentationResult presentation, bool display, CancellationToken cancellationToken);
@@ -82,7 +94,7 @@ public interface IWordApplicationAdapter
 
     bool HasCustomFormulaScale(FormulaMetadata metadata);
 
-    Task<IReadOnlyList<string>> DeleteSelectedFormulaAsync(CancellationToken cancellationToken);
+    Task DeleteSelectedFormulaAsync(CancellationToken cancellationToken);
 
     Task<WordRenumberResult> RenumberAutomaticFormulasAsync(CancellationToken cancellationToken);
 

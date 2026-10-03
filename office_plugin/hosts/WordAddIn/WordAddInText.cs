@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using LaTeXSnipper.OfficePlugin.Abstractions;
 
 namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
@@ -7,22 +8,13 @@ public static class WordAddInText
 {
     public static string GetExceptionMessage(Exception exception)
     {
-        string message = exception?.Message?.Trim() ?? string.Empty;
-        foreach (char value in message)
-        {
-            if (value >= '\u3400' && value <= '\u9fff')
-            {
-                return message;
-            }
-        }
-
-        return exception is TimeoutException
-            ? "操作超时，请稍后重试。"
-            : "操作失败，请重试；若问题持续，请重新启动 Office 和 LaTeXSnipper。";
+        return OfficeOperationError.Describe(exception);
     }
 
     public static string Get(string key)
     {
+        if (key == "ToMathTypeButton" || key == "ToMathTypeTip" || key.StartsWith("MathType", StringComparison.Ordinal))
+            return MathTypeText.Get(key);
         bool zh = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "zh";
         return zh ? GetZh(key) : GetEn(key);
     }
@@ -56,15 +48,15 @@ public static class WordAddInText
             "ConnectButton" => "Connect",
             "InsertInlineTip" => "Insert an inline Word equation.",
             "InsertDisplayTip" => "Insert a centered display equation.",
-            "InsertNumberedTip" => "Insert a numbered display equation using the status pane setting.",
-            "ScreenshotOcrTip" => "Wait for the next LaTeXSnipper recognition result; click again to cancel.",
+            "InsertNumberedTip" => "Insert a numbered display equation.",
+            "ScreenshotOcrTip" => "Wait for screenshot OCR; click again to cancel.",
             "AutoNumberTip" => "Add an automatic number to the selected display formula.",
             "RenumberTip" => "Renumber all automatically numbered formulas in document order.",
-            "HelpTip" => "Show Office plugin help.",
-            "SettingsTip" => "Open LaTeXSnipper settings.",
+            "HelpTip" => "View plugin help.",
+            "SettingsTip" => "Open plugin settings.",
             "ShowTaskPaneTip" => "Show the status pane.",
-            "LoadSelectedTip" => "Load the selected formula.",
-            "DeleteSelectedTip" => "Delete the selected control.",
+            "LoadSelectedTip" => "Load the selected formula into the editor.",
+            "DeleteSelectedTip" => "Delete selected formulas.",
             "EditorInsert" => "Insert",
             "EditorUpdate" => "Update",
             "Cancel" => "Cancel",
@@ -86,7 +78,7 @@ public static class WordAddInText
             "OmmlInsertedStatus" => "Inserted OMML equation.",
             "UpdatedStatus" => "Updated equation in Word.",
             "UnchangedStatus" => "Equation unchanged.",
-            "DeletedStatus" => "Deleted selected control.",
+            "DeletedStatus" => "Deleted selected formula.",
             "LoadedStatus" => "Loaded selected equation.",
             "OcrWaitingStatus" => "Waiting for screenshot OCR.",
             "OcrRecognizingStatus" => "Recognizing screenshot formula.",
@@ -101,7 +93,7 @@ public static class WordAddInText
             "EditingFormulaTitle" => "Editing Formula",
             "HelpStatus" => "Help opened.",
             "SettingsStatus" => "Settings opened.",
-            "SettingsTitle" => "LaTeXSnipper Office Plugin Settings",
+            "SettingsTitle" => "LaTeXSnipper Word Plugin Settings",
             "SettingsNumberingGroup" => "Default numbered formula layout",
             "SettingsNumberRight" => "Number on the right",
             "SettingsNumberLeft" => "Number on the left",
@@ -115,22 +107,22 @@ public static class WordAddInText
             "ParsingGroup" => "Formula Parsing",
             "ToOleButton" => "Convert to OLE",
             "ToOmmlButton" => "Convert to Word",
-            "ToOleSelectedTip" => "Convert the selected managed formula to an OLE formula object.",
-            "ToOmmlSelectedTip" => "Convert the selected managed formula to native Word OMML.",
+            "ToOleSelectedTip" => "Convert selected Word or MathType equations to plugin OLE formulas.",
+            "ToOmmlSelectedTip" => "Convert selected formulas to native Word equations.",
             "InsertReferenceButton" => "Insert Reference",
-            "InsertReferenceTip" => "Insert a placeholder, then click a numbered formula to create the cross-reference.",
+            "InsertReferenceTip" => "Insert a placeholder, then click a numbered formula.",
             "InsertChapterBoundaryButton" => "Chapter Separator",
             "InsertSectionBoundaryButton" => "Section Boundary",
             "InsertChapterBoundaryTip" => "Mark the start of a chapter for automatic numbering.",
             "InsertSectionBoundaryTip" => "Mark the start of a section for automatic numbering.",
             "FormatSelectedButton" => "Format Selected",
             "FormatAllButton" => "Format All",
-            "FormatSelectedTip" => "Reset selected formulas to their default font, color, and natural size.",
-            "FormatAllTip" => "Apply the current default font and color to all plugin formulas and restore their natural size.",
+            "FormatSelectedTip" => "Reset selected plugin formulas to the default style and natural size.",
+            "FormatAllTip" => "Reset all plugin formulas to the default style and natural size.",
             "ParseSelectedButton" => "Parse Selected",
             "ParseAllButton" => "Parse All",
-            "ParseSelectedTip" => "Convert delimited LaTeX in the selection to managed formulas.",
-            "ParseAllTip" => "Convert delimited LaTeX in the document body and tables to managed formulas.",
+            "ParseSelectedTip" => "Convert delimited LaTeX in the selection to formulas.",
+            "ParseAllTip" => "Convert delimited LaTeX in the document body and tables to formulas.",
             "ReferencePlaceholderText" => "[Select a formula]",
             "ReferencePlaceholderStatus" => "Select a numbered formula to complete the reference.",
             "ReferenceInsertedStatus" => "Inserted formula reference.",
@@ -138,10 +130,12 @@ public static class WordAddInText
             "SectionBoundaryText" => "Section boundary",
             "ConvertedStatus" => "Converted {count} formulas.",
             "ConvertedWithSkippedStatus" => "Converted {count} formulas; skipped {skipped} missing formulas.",
+            "ConvertedWithFailuresStatus" => "Processed {total} formulas: converted {succeeded}, failed {failed}, skipped {skipped}. First error: {reason}",
             "NoConversionTargetsStatus" => "No formulas to convert were found.",
             "NoConversionNeededStatus" => "The selected formulas already use the target format.",
             "FormattedStatus" => "Formatted {count} formulas.",
             "FormattedWithSkippedStatus" => "Formatted {count} formulas; skipped {skipped} missing formulas.",
+            "FormattedWithFailuresStatus" => "Processed {total} formulas: formatted {succeeded}, failed {failed}, skipped {skipped}. First error: {reason}",
             "NoFormattingTargetsStatus" => "No formulas to format were found.",
             "NoFormattingNeededStatus" => "The selected formulas already use the default style.",
             "BatchConvertingStatus" => "Converting formulas: {processed}/{total}.",
@@ -149,7 +143,8 @@ public static class WordAddInText
             "BatchParsingStatus" => "Parsing formulas: {processed}/{total}.",
             "NoParsingTargetsStatus" => "No formulas to parse were found.",
             "ParsedStatus" => "Parsed {count} formulas.",
-            "ParsedWithFailuresStatus" => "Processed {total} formulas: {succeeded} succeeded, {failed} failed.",
+            "ParsedWithFailuresStatus" => "Processed {total} formulas: {succeeded} succeeded, {failed} failed. First error: {reason}",
+            "InvalidParsingSourceStatus" => "The LaTeX delimiter or equation tag is incomplete.",
             "ParseSourceChangedError" => "The source text changed before it could be parsed.",
             _ => key,
         };
@@ -184,15 +179,15 @@ public static class WordAddInText
             "ConnectButton" => "连接",
             "InsertInlineTip" => "插入行内公式。",
             "InsertDisplayTip" => "插入行间公式。",
-            "InsertNumberedTip" => "按状态窗格编号设置插入带编号公式。",
-            "ScreenshotOcrTip" => "等待 LaTeXSnipper 的下一次识别结果；再次点击可取消。",
+            "InsertNumberedTip" => "插入带编号的行间公式。",
+            "ScreenshotOcrTip" => "等待截图识别结果，再次点击取消。",
             "AutoNumberTip" => "为选中的行间公式添加自动编号。",
             "RenumberTip" => "重排所有自动编号的公式。",
-            "HelpTip" => "显示插件帮助。",
-            "SettingsTip" => "打开 LaTeXSnipper 设置。",
+            "HelpTip" => "查看插件帮助。",
+            "SettingsTip" => "打开插件设置。",
             "ShowTaskPaneTip" => "显示状态窗格。",
-            "LoadSelectedTip" => "加载选中的公式。",
-            "DeleteSelectedTip" => "删除所选控件。",
+            "LoadSelectedTip" => "将所选公式加载到编辑器。",
+            "DeleteSelectedTip" => "删除所选公式。",
             "EditorInsert" => "插入",
             "EditorUpdate" => "更新",
             "Cancel" => "取消",
@@ -214,7 +209,7 @@ public static class WordAddInText
             "OmmlInsertedStatus" => "已插入 OMML 公式。",
             "UpdatedStatus" => "已更新公式。",
             "UnchangedStatus" => "公式未更改。",
-            "DeletedStatus" => "已删除所选控件。",
+            "DeletedStatus" => "已删除所选公式。",
             "LoadedStatus" => "已加载所选公式。",
             "OcrWaitingStatus" => "正在等待截图识别；请使用全局快捷键后框选公式区域。",
             "OcrRecognizingStatus" => "正在识别截图公式。",
@@ -229,7 +224,7 @@ public static class WordAddInText
             "EditingFormulaTitle" => "正在编辑公式",
             "HelpStatus" => "已打开帮助。",
             "SettingsStatus" => "已打开设置。",
-            "SettingsTitle" => "LaTeXSnipper Office 插件设置",
+            "SettingsTitle" => "LaTeXSnipper Word 插件设置",
             "SettingsNumberingGroup" => "带编号公式默认布局",
             "SettingsNumberRight" => "编号在右侧",
             "SettingsNumberLeft" => "编号在左侧",
@@ -243,22 +238,22 @@ public static class WordAddInText
             "ParsingGroup" => "公式解析",
             "ToOleButton" => "转为 OLE",
             "ToOmmlButton" => "转为 Word",
-            "ToOleSelectedTip" => "将所选受管公式转换为 OLE 公式对象。",
-            "ToOmmlSelectedTip" => "将所选受管公式转换为 Word 原生 OMML。",
+            "ToOleSelectedTip" => "将所选 Word 或 MathType 公式转为插件 OLE 公式。",
+            "ToOmmlSelectedTip" => "将所选公式转为 Word 原生公式。",
             "InsertReferenceButton" => "插入引用",
-            "InsertReferenceTip" => "插入占位符后，单击带编号公式即可创建交叉引用。",
+            "InsertReferenceTip" => "插入占位符，再单击带编号公式。",
             "InsertChapterBoundaryButton" => "章分隔符",
             "InsertSectionBoundaryButton" => "节分隔符",
             "InsertChapterBoundaryTip" => "标记自动编号的新章节起点。",
             "InsertSectionBoundaryTip" => "标记自动编号的新节起点。",
             "FormatSelectedButton" => "格式化所选",
             "FormatAllButton" => "格式化全文",
-            "FormatSelectedTip" => "将所选公式恢复为默认字体、颜色和自然大小。",
-            "FormatAllTip" => "将全文插件公式应用当前默认字体和颜色，并恢复自然大小。",
+            "FormatSelectedTip" => "恢复所选插件公式的默认样式和自然大小。",
+            "FormatAllTip" => "恢复全文插件公式的默认样式和自然大小。",
             "ParseSelectedButton" => "解析所选",
             "ParseAllButton" => "解析全文",
-            "ParseSelectedTip" => "将选区内带定界符的 LaTeX 转换为受管公式。",
-            "ParseAllTip" => "将正文及表格中带定界符的 LaTeX 转换为受管公式。",
+            "ParseSelectedTip" => "将选区内带定界符的 LaTeX 转为公式。",
+            "ParseAllTip" => "将正文及表格中带定界符的 LaTeX 转为公式。",
             "ReferencePlaceholderText" => "[请选择公式]",
             "ReferencePlaceholderStatus" => "请选择一个带编号公式以完成引用。",
             "ReferenceInsertedStatus" => "已插入公式引用。",
@@ -266,10 +261,12 @@ public static class WordAddInText
             "SectionBoundaryText" => "节分隔符",
             "ConvertedStatus" => "已转换 {count} 个公式。",
             "ConvertedWithSkippedStatus" => "已转换 {count} 个公式，跳过 {skipped} 个已不存在的公式。",
+            "ConvertedWithFailuresStatus" => "共处理 {total} 个公式：成功转换 {succeeded} 个，失败 {failed} 个，跳过 {skipped} 个。首个错误：{reason}",
             "NoConversionTargetsStatus" => "未找到可转换的公式。",
             "NoConversionNeededStatus" => "所选公式已经是目标格式。",
             "FormattedStatus" => "已格式化 {count} 个公式。",
             "FormattedWithSkippedStatus" => "已格式化 {count} 个公式，跳过 {skipped} 个已不存在的公式。",
+            "FormattedWithFailuresStatus" => "共处理 {total} 个公式：成功格式化 {succeeded} 个，失败 {failed} 个，跳过 {skipped} 个。首个错误：{reason}",
             "NoFormattingTargetsStatus" => "未找到可格式化的公式。",
             "NoFormattingNeededStatus" => "所选公式已经是默认样式。",
             "BatchConvertingStatus" => "正在转换公式：{processed}/{total}。",
@@ -277,7 +274,8 @@ public static class WordAddInText
             "BatchParsingStatus" => "正在解析公式：{processed}/{total}。",
             "NoParsingTargetsStatus" => "未找到可解析的公式。",
             "ParsedStatus" => "已解析 {count} 个公式。",
-            "ParsedWithFailuresStatus" => "共处理 {total} 个公式，成功 {succeeded} 个，失败 {failed} 个。",
+            "ParsedWithFailuresStatus" => "共处理 {total} 个公式，成功 {succeeded} 个，失败 {failed} 个。首个错误：{reason}",
+            "InvalidParsingSourceStatus" => "LaTeX 定界符或公式编号标记不完整。",
             "ParseSourceChangedError" => "源文本在解析前已发生变化。",
             _ => key,
         };

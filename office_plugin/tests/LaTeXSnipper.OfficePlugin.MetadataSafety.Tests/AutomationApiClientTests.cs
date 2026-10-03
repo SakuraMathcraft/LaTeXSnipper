@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -32,6 +33,9 @@ public sealed class AutomationApiClientTests
         Assert.IsTrue(ContainsChinese(AutomationApiUserMessages.DesktopUnavailable));
         Assert.IsTrue(ContainsChinese(WordAddInText.GetExceptionMessage(new InvalidOperationException("raw error"))));
         Assert.IsTrue(ContainsChinese(PowerPointAddInText.GetExceptionMessage(new InvalidOperationException("raw error"))));
+        StringAssert.Contains(WordAddInText.GetExceptionMessage(new InvalidOperationException("raw error")), "raw error");
+        StringAssert.Contains(PowerPointAddInText.GetExceptionMessage(new InvalidOperationException("raw error")), "raw error");
+        StringAssert.Contains(WordAddInText.GetExceptionMessage(new COMException("Command failed", unchecked((int)0x80040154))), "0x80040154");
         Assert.AreEqual("已有中文提示。", WordAddInText.GetExceptionMessage(new InvalidOperationException("已有中文提示。")));
     }
 

@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using LaTeXSnipper.OfficePlugin.Abstractions;
+using LaTeXSnipper.OfficePlugin.Rendering;
 
 namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
@@ -151,46 +152,21 @@ public sealed partial class DynamicWordApplicationAdapter
 
     private void AddSelectedFormulasFromRange(ICollection<SelectedWordFormula> formulas, ISet<string> seen, dynamic range)
     {
-        try
+        dynamic controls = range.ContentControls;
+        int count = Convert.ToInt32(controls.Count);
+        for (int i = 1; i <= count; i++)
         {
-            dynamic controls = range.ContentControls;
-            int count = Convert.ToInt32(controls.Count);
-            for (int i = 1; i <= count; i++)
-            {
-                AddSelectedFormula(formulas, seen, controls.Item(i));
-            }
-        }
-        catch
-        {
+            AddSelectedFormula(formulas, seen, controls.Item(i));
         }
     }
 
     private void AddSelectedOleInlineShapes(ICollection<SelectedWordFormula> formulas, ISet<string> seen, dynamic range)
     {
-        try
+        dynamic inlineShapes = range.InlineShapes;
+        int count = Convert.ToInt32(inlineShapes.Count);
+        for (int i = 1; i <= count; i++)
         {
-            dynamic inlineShapes = range.InlineShapes;
-            int count = Convert.ToInt32(inlineShapes.Count);
-            for (int i = 1; i <= count; i++)
-            {
-                AddSelectedOleInlineShape(formulas, seen, inlineShapes.Item(i));
-            }
-        }
-        catch
-        {
-        }
-
-        try
-        {
-            dynamic inlineShapes = _wordApplication.Selection.InlineShapes;
-            int count = Convert.ToInt32(inlineShapes.Count);
-            for (int i = 1; i <= count; i++)
-            {
-                AddSelectedOleInlineShape(formulas, seen, inlineShapes.Item(i));
-            }
-        }
-        catch
-        {
+            AddSelectedOleInlineShape(formulas, seen, inlineShapes.Item(i));
         }
 
     }
@@ -201,30 +177,24 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic selection,
         dynamic selectionRange)
     {
-        try
+        int selectionType = Convert.ToInt32(selection.Type);
+        if (selectionType != 6 && selectionType != 7 && selectionType != 8)
         {
-            int selectionType = Convert.ToInt32(selection.Type);
-            if (selectionType != 6 && selectionType != 7 && selectionType != 8)
-            {
-                return;
-            }
-
-            int documentEnd = GetRangeEnd(CurrentDocument.Content);
-            int start = Math.Max(0, GetRangeStart(selectionRange) - 1);
-            int end = Math.Min(documentEnd, Math.Max(start + 1, GetRangeEnd(selectionRange) + 1));
-            AddSelectedOleInlineShapes(
-                formulas,
-                seen,
-                CreateDocumentRange(start, end));
-
-            if (formulas.Count == 0)
-            {
-                dynamic paragraphRange = selectionRange.Paragraphs.Item(1).Range;
-                AddSelectedOleInlineShapes(formulas, seen, paragraphRange);
-            }
+            return;
         }
-        catch
+
+        int documentEnd = GetRangeEnd(CurrentDocument.Content);
+        int start = Math.Max(0, GetRangeStart(selectionRange) - 1);
+        int end = Math.Min(documentEnd, Math.Max(start + 1, GetRangeEnd(selectionRange) + 1));
+        AddSelectedOleInlineShapes(
+            formulas,
+            seen,
+            CreateDocumentRange(start, end));
+
+        if (formulas.Count == 0)
         {
+            dynamic paragraphRange = selectionRange.Paragraphs.Item(1).Range;
+            AddSelectedOleInlineShapes(formulas, seen, paragraphRange);
         }
     }
 
@@ -236,16 +206,16 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         dynamic inlineShape = candidate;
-        string equationId = GetOleInlineShapeEquationId(inlineShape);
-        if (string.IsNullOrWhiteSpace(equationId) || !seen.Add(equationId))
+        if (!OleFormulaContent.IsFormula(candidate)) return;
+        if (!seen.Add("ole:" + GetRangeStart(inlineShape.Range).ToString(System.Globalization.CultureInfo.InvariantCulture))) return;
+        var content = OleFormulaContent.Read(candidate);
+        FormulaIdentity? identity = WordFormulaMetadataStore.TryLoadOleIdentity(CurrentDocument, ReadFormulaObjectTag(inlineShape));
+        if (identity == null)
         {
-            return;
+            identity = new FormulaIdentity(WordDocumentIdentityStore.GetOrCreate(CurrentDocument), Guid.NewGuid().ToString("N"));
+            inlineShape.AlternativeText = WordFormulaMetadataStore.Save(CurrentDocument, content.Metadata(identity));
         }
-
-        FormulaMetadata metadata = LoadFormulaMetadata(
-            inlineShape,
-            equationId,
-            RenderEngineKind.MathJaxSvg);
+        FormulaMetadata metadata = content.Metadata(identity);
         formulas.Add(new SelectedWordFormula(inlineShape, metadata, isOleInlineShape: true));
     }
 
@@ -260,7 +230,9 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         var seen = new HashSet<string>(
-            formulas.Select(item => item.Metadata.Identity.EquationId),
+            formulas.Select(item => item.IsOleInlineShape
+                ? "ole:" + GetFormulaStart(item).ToString(System.Globalization.CultureInfo.InvariantCulture)
+                : item.Metadata.Identity.EquationId),
             StringComparer.Ordinal);
         dynamic inlineShapes = CurrentDocument.InlineShapes;
         int count = Convert.ToInt32(inlineShapes.Count);

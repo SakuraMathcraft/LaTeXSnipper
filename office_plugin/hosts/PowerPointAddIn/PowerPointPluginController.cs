@@ -49,6 +49,8 @@ public sealed partial class PowerPointPluginController : IDisposable
         _imageFileStore = imageFileStore ?? new PowerPointImageFileStore();
     }
 
+    internal bool TrySelectOleFormulaAtScreenPoint(int x, int y) => _powerPointAdapter.TrySelectOleFormulaAtScreenPoint(x, y);
+
     public async Task TestConnectionAsync(CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
@@ -552,8 +554,7 @@ public sealed partial class PowerPointPluginController : IDisposable
         _editorSession.Dispose();
         _automationClient.Dispose();
         _mathJaxRenderer.Dispose();
-        if (_powerPointAdapter is IDisposable disposableAdapter) disposableAdapter.Dispose();
-
+        (_powerPointAdapter as IDisposable)?.Dispose();
         _commandGate.Dispose();
     }
 

@@ -63,8 +63,14 @@ export class SourceSync {
       this.setMode(false, 'mathml'); return;
     }
     try {
-      this.mathfield.setValue(value, {silenceNotifications: true});
-      const comparable = comparableLatex(value);
+      // MathLive only renders a displaylines array at the field root, not inside
+      // textcolor. Project the outer global color into CSS; the source keeps its
+      // wrapper and visual commits below restore it from that same source.
+      const color = outerColor(value);
+      const visualSource = color?.body ?? value;
+      if (this.mathfield.style) this.mathfield.style.color = color?.color || '#000000';
+      this.mathfield.setValue(visualSource, {silenceNotifications: true});
+      const comparable = comparableLatex(visualSource);
       const structuralError = Boolean(inspectLatex(value).length);
       let visual = this.readVisual();
       // A previous unsupported formula can leave MathLive's serializer state in
@@ -73,7 +79,7 @@ export class SourceSync {
       if (!structuralError && comparable !== null && this.recreateMathfield
           && (this.mathfield.errors?.length || comparable !== comparableLatex(visual))) {
         this.mathfield = this.recreateMathfield();
-        this.mathfield.setValue(value, {silenceNotifications: true});
+        this.mathfield.setValue(visualSource, {silenceNotifications: true});
         visual = this.readVisual();
       }
       const invalid = structuralError || Boolean(this.mathfield.errors?.length);

@@ -155,6 +155,7 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         try
         {
+            if (!LaTeXSnipper.OfficePlugin.Rendering.OleFormulaContent.IsFormula((object)inlineShape)) return string.Empty;
             string tag = Convert.ToString(inlineShape.AlternativeText) ?? string.Empty;
             return WordFormulaMetadataStore.EquationIdFromTag(tag);
         }

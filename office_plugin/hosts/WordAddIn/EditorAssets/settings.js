@@ -1,6 +1,8 @@
+import {populateTypographyOptions} from 'https://latexsnipper-editor-shared.officeplugin.local/settings-typography.mjs';
+
 const TEXT = {
   zh: {
-    title: "LaTeXSnipper Office 插件设置",
+    title: "LaTeXSnipper Word 插件设置",
     backendTitle: "公式插入方式",
     backendHint: "默认使用 OLE 公式对象；也可切换为 Word OMML。",
     backendOle: "OLE 对象",
@@ -21,11 +23,10 @@ const TEXT = {
     colorLabel: "字体颜色",
     resetToBlack: "恢复黑色",
     fontStyleLabel: "默认字形",
-    fontSizeLabel: "公式字号（pt）",
+    fontSizeLabel: "公式字号",
     symbolFontLabel: "符号字体",
     numberFontLabel: "数字字体",
     cjkFontLabel: "汉字字体",
-    followSymbolFont: "跟随符号字体",
     presetTitle: "全局公式预设",
     presetHint: "导入会替换当前宿主的公式默认属性；导出时用 JSON 文件名命名预设。编辑器内调整只作用于当前公式。",
     importPreset: "导入 JSON",
@@ -35,16 +36,14 @@ const TEXT = {
     followHostSize: "新建时跟随文字字号（无有效选区时使用上述字号）",
     editorTitle: "编辑器键盘行为",
     acceptShortcut: "插入或更新当前公式",
-    newlineShortcut: "新建数学行",
     fractionShortcut: "插入分式",
     rootShortcut: "插入根号",
     superscriptShortcut: "插入上标",
     subscriptShortcut: "插入下标",
     scriptsShortcut: "插入上下标",
-    cancelShortcut: "收回 MathLive 虚拟键盘",
   },
   en: {
-    title: "LaTeXSnipper Office Plugin Settings",
+    title: "LaTeXSnipper Word Plugin Settings",
     backendTitle: "Formula Insertion",
     backendHint: "OLE formula objects are the default. Word OMML insertion is also available.",
     backendOle: "OLE Object",
@@ -65,11 +64,10 @@ const TEXT = {
     colorLabel: "Font color",
     resetToBlack: "Reset to black",
     fontStyleLabel: "Default math style",
-    fontSizeLabel: "Formula size (pt)",
+    fontSizeLabel: "Formula size",
     symbolFontLabel: "Symbol font",
     numberFontLabel: "Number font",
     cjkFontLabel: "CJK font",
-    followSymbolFont: "Follow symbol font",
     presetTitle: "Global formula preset",
     presetHint: "Import replaces this host's formula defaults. The JSON filename names the preset. Editor changes apply to the current formula.",
     importPreset: "Import JSON",
@@ -79,13 +77,11 @@ const TEXT = {
     followHostSize: "Follow text size for new formulas (use the size above when unavailable)",
     editorTitle: "Editor Keyboard Behavior",
     acceptShortcut: "insert or update the current formula",
-    newlineShortcut: "start a new math row",
     fractionShortcut: "insert a fraction",
     rootShortcut: "insert a square root",
     superscriptShortcut: "insert a superscript",
     subscriptShortcut: "insert a subscript",
     scriptsShortcut: "insert superscript and subscript",
-    cancelShortcut: "hide the MathLive virtual keyboard",
   },
 };
 
@@ -128,40 +124,6 @@ const numberFontInput = document.getElementById("numberFontFamily");
 const cjkFontInput = document.getElementById("cjkFontFamily");
 const presetStatus = document.getElementById("presetStatus");
 
-function populateFonts(payload) {
-  const setOptions = (select, values, selected) => {
-    select.replaceChildren();
-    for (const value of [...new Set([...values, selected])]) {
-      if (value === undefined || value === null) continue;
-      select.add(new Option(value || strings().followSymbolFont, value));
-    }
-    select.value = selected;
-  };
-  setOptions(symbolFontInput, payload.symbolFonts, symbolFontId);
-  setOptions(numberFontInput, ["", ...payload.systemFonts], numberFontFamily);
-  setOptions(cjkFontInput, payload.cjkFonts, cjkFontFamily);
-}
-
-function populateMathStyles(styles) {
-  formulaMathStyleSelect.replaceChildren();
-  for (const style of styles) {
-    formulaMathStyleSelect.add(new Option(locale.startsWith("zh") ? style.zh : style.en, style.id));
-  }
-}
-
-function populateFontSizes(payload) {
-  formulaFontSizePointsInput.replaceChildren();
-  for (const size of payload.namedSizes) {
-    formulaFontSizePointsInput.add(new Option(size.name, String(size.points)));
-  }
-  for (const points of payload.commonPointSizes) {
-    formulaFontSizePointsInput.add(new Option(String(points), String(points)));
-  }
-  if (![...formulaFontSizePointsInput.options].some((option) => Number(option.value) === formulaFontSizePoints)) {
-    formulaFontSizePointsInput.add(new Option(String(formulaFontSizePoints), String(formulaFontSizePoints)));
-  }
-}
-
 function strings() {
   return locale.startsWith("zh") ? TEXT.zh : TEXT.en;
 }
@@ -172,6 +134,7 @@ function send(message) {
 
 function applyText() {
   const dict = strings();
+  document.title = dict.title;
   document.documentElement.lang = locale.startsWith("zh") ? "zh-CN" : "en";
   document.querySelectorAll("[data-i18n]").forEach((node) => {
     node.textContent = dict[node.dataset.i18n] || node.textContent;
@@ -257,10 +220,8 @@ function init(payload) {
   symbolFontId = String(payload?.symbolFontId || "mathjax-tex");
   numberFontFamily = String(payload?.numberFontFamily || "");
   cjkFontFamily = String(payload?.cjkFontFamily || "Microsoft YaHei");
-  populateFontSizes(payload);
   applyText();
-  populateMathStyles(payload.mathStyles);
-  populateFonts(payload);
+  populateTypographyOptions(payload, {symbolFontId, numberFontFamily, cjkFontFamily, formulaFontSizePoints}, locale);
   applyPlatform();
   renderPlacement();
   renderBackend();

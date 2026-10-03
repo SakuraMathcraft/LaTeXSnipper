@@ -36,6 +36,7 @@
                   onAction="OnDeleteSelected" />
         </group>
         <group id="LaTeXSnipperPowerPointConversionGroup" label="{ConversionGroup}">
+          <button id="SelectedToMathTypeButton" label="{ToMathTypeButton}" supertip="{ToMathTypeTip}" size="large" imageMso="FunctionWizard" onAction="OnConvertSelectedToMathType" />
           <button id="PowerPointConvertSelectedToOle" label="{ToOleButton}" supertip="{ToOleTip}" size="large" imageMso="ObjectEditDialog" onAction="OnConvertSelectedToOle" />
           <button id="PowerPointConvertSelectedToPng" label="{ToPngButton}" supertip="{ToPngTip}" size="large" imageMso="PictureInsertFromFile" onAction="OnConvertSelectedToPng" />
         </group>

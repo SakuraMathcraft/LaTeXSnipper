@@ -71,10 +71,18 @@ internal sealed class E2EOptions
 
     public string OutputPath { get; }
 
+    public bool CopyOnly { get; private set; }
+    public bool IncludeMathType { get; private set; }
+    public bool MathTypeOnly { get; private set; }
+    public bool MathTypeNativeEdit { get; private set; }
+
     public static E2EOptions Parse(string[] args)
     {
         FormulaInsertionBackend? backend = null;
         string outputPath = string.Empty;
+        bool copyOnly = false;
+        bool includeMathType = false;
+        bool mathTypeOnly = false, mathTypeNativeEdit = false;
         for (int index = 0; index < args.Length; index++)
         {
             string argument = args[index];
@@ -86,6 +94,10 @@ internal sealed class E2EOptions
             {
                 outputPath = Path.GetFullPath(ReadValue(args, ref index, argument));
             }
+            else if (argument == "--copy") { copyOnly = true; }
+            else if (argument == "--mathtype") { includeMathType = true; }
+            else if (argument == "--mathtype-only") { includeMathType = true; mathTypeOnly = true; }
+            else if (argument == "--mathtype-native-edit") { includeMathType = true; mathTypeNativeEdit = true; }
             else
             {
                 throw new ArgumentException("Unknown argument: " + argument);
@@ -102,7 +114,7 @@ internal sealed class E2EOptions
             throw new ArgumentException("--output is required.");
         }
 
-        return new E2EOptions(backend.Value, outputPath);
+        return new E2EOptions(backend.Value, outputPath) { CopyOnly = copyOnly, IncludeMathType = includeMathType, MathTypeOnly = mathTypeOnly, MathTypeNativeEdit = mathTypeNativeEdit };
     }
 
     private static FormulaInsertionBackend ParseBackend(string value)

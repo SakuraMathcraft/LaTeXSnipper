@@ -15,7 +15,6 @@ namespace
 {
 volatile LONG g_objectCount = 0;
 volatile LONG g_lockCount = 0;
-
 void LogInterfaceQuery(REFIID iid, HRESULT result)
 {
     LPOLESTR iidText = nullptr;
@@ -106,6 +105,10 @@ FormulaOleObject::FormulaOleObject()
     : presentation_(CreatePresentationFromPayload(ConsumePendingPayload()))
 {
     WriteNativeOleLog(L"FormulaOleObject constructed.");
+    wchar_t details[160]{};
+    swprintf_s(details, L"Formula payload characters=%zu, EMF bytes=%zu, supported=%d.",
+        presentation_.payloadJson.size(), presentation_.enhancedMetafile.size(), IsSupportedFormulaPayload(presentation_.payloadJson));
+    WriteNativeOleLog(details);
     InterlockedIncrement(&g_objectCount);
 }
 
@@ -137,10 +140,6 @@ void FormulaOleObject::NotifyPresentationChanged()
         }
     }
 
-    if (clientSite_ != nullptr)
-    {
-        clientSite_->SaveObject();
-    }
 }
 
 STDMETHODIMP FormulaOleObject::QueryInterface(REFIID iid, void** object)
@@ -182,6 +181,10 @@ STDMETHODIMP FormulaOleObject::QueryInterface(REFIID iid, void** object)
     {
         *object = static_cast<IPersistStorage*>(this);
     }
+    else if (iid == IID_IDispatch)
+    {
+        *object = static_cast<IDispatch*>(this);
+    }
     else
     {
         *object = nullptr;
@@ -214,6 +217,73 @@ STDMETHODIMP FormulaOleObject::SetClientSite(IOleClientSite* clientSite)
 {
     WriteNativeOleLog(L"FormulaOleObject SetClientSite.");
     clientSite_ = clientSite;
+    return S_OK;
+}
+
+STDMETHODIMP FormulaOleObject::GetTypeInfoCount(UINT* count)
+{
+    if (count == nullptr) return E_POINTER;
+    *count = 0;
+    return S_OK;
+}
+
+STDMETHODIMP FormulaOleObject::GetTypeInfo(UINT, LCID, ITypeInfo** info)
+{
+    if (info == nullptr) return E_POINTER;
+    *info = nullptr;
+    return E_NOTIMPL;
+}
+
+STDMETHODIMP FormulaOleObject::GetIDsOfNames(REFIID iid, LPOLESTR* names, UINT count, LCID, DISPID* ids)
+{
+    if (iid != IID_NULL) return DISP_E_UNKNOWNINTERFACE;
+    if (names == nullptr || ids == nullptr) return E_POINTER;
+    if (count != 1) return DISP_E_UNKNOWNNAME;
+    ids[0] = _wcsicmp(names[0], L"GetPayload") == 0 ? 1
+        : _wcsicmp(names[0], L"UpdatePayload") == 0 ? 2 : DISPID_UNKNOWN;
+    return ids[0] == DISPID_UNKNOWN ? DISP_E_UNKNOWNNAME : S_OK;
+}
+
+STDMETHODIMP FormulaOleObject::Invoke(DISPID id, REFIID iid, LCID, WORD flags,
+    DISPPARAMS* parameters, VARIANT* result, EXCEPINFO*, UINT*)
+{
+    if (iid != IID_NULL) return DISP_E_UNKNOWNINTERFACE;
+    if ((flags & DISPATCH_METHOD) == 0) return DISP_E_MEMBERNOTFOUND;
+    if (parameters == nullptr) return E_POINTER;
+    if (id == 1)
+    {
+        if (parameters->cArgs != 0) return DISP_E_BADPARAMCOUNT;
+        if (result == nullptr) return E_POINTER;
+        if (!IsSupportedFormulaPayload(presentation_.payloadJson)) return STG_E_INVALIDHEADER;
+        VariantInit(result);
+        result->vt = VT_BSTR;
+        result->bstrVal = SysAllocStringLen(presentation_.payloadJson.data(),
+            static_cast<UINT>(presentation_.payloadJson.size()));
+        return result->bstrVal == nullptr ? E_OUTOFMEMORY : S_OK;
+    }
+    if (id != 2) return DISP_E_MEMBERNOTFOUND;
+    if (parameters->cArgs != 1) return DISP_E_BADPARAMCOUNT;
+    const VARIANT& input = parameters->rgvarg[0];
+    if (input.vt != VT_BSTR || input.bstrVal == nullptr) return DISP_E_TYPEMISMATCH;
+    const UINT length = SysStringLen(input.bstrVal);
+    if (length == 0 || length > 32 * 1024 * 1024) return E_INVALIDARG;
+    std::wstring payload(input.bstrVal, length);
+    if (!IsSupportedFormulaPayload(payload)) return STG_E_INVALIDHEADER;
+    if (storage_ == nullptr) return STG_E_REVERTED;
+    FormulaPresentation previous = presentation_;
+    presentation_ = CreatePresentationFromPayload(payload);
+    dirty_ = true;
+    HRESULT status = SavePresentationToStorage(storage_, presentation_);
+    if (SUCCEEDED(status)) status = storage_->Commit(STGC_DEFAULT);
+    if (SUCCEEDED(status) && clientSite_ != nullptr) status = clientSite_->SaveObject();
+    if (FAILED(status))
+    {
+        presentation_ = std::move(previous);
+        SavePresentationToStorage(storage_, presentation_);
+        storage_->Commit(STGC_DEFAULT);
+        return status;
+    }
+    NotifyPresentationChanged();
     return S_OK;
 }
 
@@ -413,8 +483,7 @@ STDMETHODIMP FormulaOleObject::GetMiscStatus(DWORD aspect, DWORD* status)
         return aspectResult;
     }
 
-    *status = OLEMISC_STATIC
-        | OLEMISC_CANTLINKINSIDE
+    *status = OLEMISC_CANTLINKINSIDE
         | OLEMISC_RENDERINGISDEVICEINDEPENDENT
         | OLEMISC_NOUIACTIVATE
         | OLEMISC_IGNOREACTIVATEWHENVISIBLE
@@ -828,13 +897,17 @@ STDMETHODIMP FormulaOleObject::InitNew(IStorage* storage)
         return result;
     }
 
+    result = SavePresentationToStorage(storage, presentation_);
+    if (SUCCEEDED(result)) result = storage->Commit(STGC_DEFAULT);
+    if (FAILED(result)) return result;
     storage_ = storage;
-    dirty_ = true;
+    dirty_ = false;
     return S_OK;
 }
 
 STDMETHODIMP FormulaOleObject::Load(IStorage* storage)
 {
+    WriteNativeOleLog(L"FormulaOleObject Load.");
     FormulaPresentation loaded;
     HRESULT result = LoadPresentationFromStorage(storage, &loaded);
     if (SUCCEEDED(result))
@@ -844,7 +917,10 @@ STDMETHODIMP FormulaOleObject::Load(IStorage* storage)
         dirty_ = false;
     }
 
-    return SUCCEEDED(result) ? S_OK : result;
+    wchar_t message[96]{};
+    swprintf_s(message, L"FormulaOleObject Load -> 0x%08X", static_cast<unsigned int>(result));
+    WriteNativeOleLog(message);
+    return result;
 }
 
 STDMETHODIMP FormulaOleObject::Save(IStorage* storage, BOOL)
@@ -858,8 +934,9 @@ STDMETHODIMP FormulaOleObject::Save(IStorage* storage, BOOL)
     return result;
 }
 
-STDMETHODIMP FormulaOleObject::SaveCompleted(IStorage*)
+STDMETHODIMP FormulaOleObject::SaveCompleted(IStorage* storage)
 {
+    if (storage != nullptr) storage_ = storage;
     if (storage_ != nullptr)
     {
         storage_->Commit(STGC_DEFAULT);

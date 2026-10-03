@@ -1,5 +1,6 @@
 import {renderMathInElement, validateLatex} from './vendor/mathlive.min.mjs';
 import {CATALOG, CATEGORIES, findEntries, entryTemplate, templateParts} from './template-catalog.mjs';
+import {outerColor} from './formula-color.mjs';
 
 const FAVORITES_KEY = 'latexSnipperSymbolFavorites';
 const CUSTOM_FAVORITES_KEY = 'latexSnipperCustomFormulaFavorites';
@@ -336,7 +337,10 @@ export class SymbolPanel {
     if (!preview) {
       preview = document.createElement('span'); preview.className = 'tile-preview-content';
       preview.setAttribute('aria-hidden', 'true'); preview.inert = true;
-      const latex = templateParts(entryTemplate(entry)).map(part => part.hole ? '\\square' : part.text).join('');
+      const source = templateParts(entryTemplate(entry)).map(part => part.hole ? '\\square' : part.text).join('');
+      const color = outerColor(source);
+      const latex = color?.body ?? source;
+      if (color) preview.style.color = color.color;
       if (validateLatex(latex).length) {
         preview.textContent = entry[this.locale];
         preview.dataset.fallback = 'true';

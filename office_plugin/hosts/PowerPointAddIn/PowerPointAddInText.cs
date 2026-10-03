@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using LaTeXSnipper.OfficePlugin.Abstractions;
 
 namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 
@@ -7,22 +8,13 @@ public static class PowerPointAddInText
 {
     public static string GetExceptionMessage(Exception exception)
     {
-        string message = exception?.Message?.Trim() ?? string.Empty;
-        foreach (char value in message)
-        {
-            if (value >= '\u3400' && value <= '\u9fff')
-            {
-                return message;
-            }
-        }
-
-        return exception is TimeoutException
-            ? "操作超时，请稍后重试。"
-            : "操作失败，请重试；若问题持续，请重新启动 Office 和 LaTeXSnipper。";
+        return OfficeOperationError.Describe(exception);
     }
 
     public static string Get(string key)
     {
+        if (key == "ToMathTypeButton" || key == "ToMathTypeTip" || key.StartsWith("MathType", StringComparison.Ordinal))
+            return MathTypeText.Get(key);
         return CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "zh"
             ? GetChinese(key)
             : GetEnglish(key);
@@ -51,16 +43,16 @@ public static class PowerPointAddInText
             "SettingsButton" => "Settings",
             "HelpButton" => "Help",
             "InsertFormulaTip" => "Open the formula editor.",
-            "ScreenshotOcrTip" => "Wait for the next LaTeXSnipper recognition result; click again to cancel.",
+            "ScreenshotOcrTip" => "Wait for screenshot OCR; click again to cancel.",
             "LoadSelectedTip" => "Load the selected formula into the editor.",
-            "DeleteSelectedTip" => "Delete the selected managed formulas.",
-            "ToOleTip" => "Convert the selected PNG formulas to OLE.",
+            "DeleteSelectedTip" => "Delete selected formulas.",
+            "ToOleTip" => "Convert selected PNG or MathType equations to plugin OLE formulas.",
             "ToPngTip" => "Convert the selected OLE formulas to PNG.",
-            "FormatSelectedTip" => "Reset selected formulas to the default font, color, and natural size.",
-            "FormatAllTip" => "Apply the current default font and color to all plugin formulas and restore their natural size.",
+            "FormatSelectedTip" => "Reset selected plugin formulas to the default style and natural size.",
+            "FormatAllTip" => "Reset all plugin formulas to the default style and natural size.",
             "ShowTaskPaneTip" => "Show the status pane.",
-            "SettingsTip" => "Open LaTeXSnipper settings.",
-            "HelpTip" => "Show Office plugin help.",
+            "SettingsTip" => "Open plugin settings.",
+            "HelpTip" => "View plugin help.",
             "OfficePluginLabel" => "Office plugin",
             "EquationLabel" => "Formula",
             "ConnectButton" => "Connect",
@@ -90,9 +82,11 @@ public static class PowerPointAddInText
             "DeletedManyStatus" => "Deleted {count} selected formulas.",
             "ConvertedStatus" => "Converted {count} formulas.",
             "ConvertedWithSkippedStatus" => "Converted {count} formulas; skipped {skipped} missing formulas.",
+            "ConvertedWithFailuresStatus" => "Processed {total} formulas: converted {succeeded}, failed {failed}, skipped {skipped}. First error: {reason}",
             "NoConversionNeededStatus" => "The selected formulas already use the target format.",
             "FormattedStatus" => "Formatted {count} formulas.",
             "FormattedWithSkippedStatus" => "Formatted {count} formulas; skipped {skipped} missing formulas.",
+            "FormattedWithFailuresStatus" => "Processed {total} formulas: formatted {succeeded}, failed {failed}, skipped {skipped}. First error: {reason}",
             "NoFormattingNeededStatus" => "No formulas need formatting.",
             "BatchConvertingStatus" => "Converting formulas: {processed}/{total}.",
             "BatchFormattingStatus" => "Formatting formulas: {processed}/{total}.",
@@ -133,16 +127,16 @@ public static class PowerPointAddInText
             "SettingsButton" => "设置",
             "HelpButton" => "帮助",
             "InsertFormulaTip" => "打开公式编辑器。",
-            "ScreenshotOcrTip" => "等待 LaTeXSnipper 的下一次识别结果；再次单击可取消。",
-            "LoadSelectedTip" => "将所选公式加载到编辑器中。",
-            "DeleteSelectedTip" => "删除所选受管理公式。",
-            "ToOleTip" => "将所选 PNG 公式转换为 OLE。",
+            "ScreenshotOcrTip" => "等待截图识别结果，再次点击取消。",
+            "LoadSelectedTip" => "将所选公式加载到编辑器。",
+            "DeleteSelectedTip" => "删除所选公式。",
+            "ToOleTip" => "将所选 PNG 或 MathType 公式转为插件 OLE 公式。",
             "ToPngTip" => "将所选 OLE 公式转换为 PNG。",
-            "FormatSelectedTip" => "将所选公式恢复为默认字体、颜色和自然大小。",
-            "FormatAllTip" => "将全文插件公式应用当前默认字体和颜色，并恢复自然大小。",
+            "FormatSelectedTip" => "恢复所选插件公式的默认样式和自然大小。",
+            "FormatAllTip" => "恢复全文插件公式的默认样式和自然大小。",
             "ShowTaskPaneTip" => "显示状态窗格。",
-            "SettingsTip" => "打开 LaTeXSnipper 设置。",
-            "HelpTip" => "显示 Office 插件帮助。",
+            "SettingsTip" => "打开插件设置。",
+            "HelpTip" => "查看插件帮助。",
             "OfficePluginLabel" => "Office 插件",
             "EquationLabel" => "公式",
             "ConnectButton" => "连接",
@@ -172,9 +166,11 @@ public static class PowerPointAddInText
             "DeletedManyStatus" => "已删除 {count} 个所选公式。",
             "ConvertedStatus" => "已转换 {count} 个公式。",
             "ConvertedWithSkippedStatus" => "已转换 {count} 个公式，跳过 {skipped} 个已不存在的公式。",
+            "ConvertedWithFailuresStatus" => "共处理 {total} 个公式：成功转换 {succeeded} 个，失败 {failed} 个，跳过 {skipped} 个。首个错误：{reason}",
             "NoConversionNeededStatus" => "所选公式已经是目标格式。",
             "FormattedStatus" => "已格式化 {count} 个公式。",
             "FormattedWithSkippedStatus" => "已格式化 {count} 个公式，跳过 {skipped} 个已不存在的公式。",
+            "FormattedWithFailuresStatus" => "共处理 {total} 个公式：成功格式化 {succeeded} 个，失败 {failed} 个，跳过 {skipped} 个。首个错误：{reason}",
             "NoFormattingNeededStatus" => "没有需要格式化的公式。",
             "BatchConvertingStatus" => "正在转换公式：{processed}/{total}。",
             "BatchFormattingStatus" => "正在格式化公式：{processed}/{total}。",

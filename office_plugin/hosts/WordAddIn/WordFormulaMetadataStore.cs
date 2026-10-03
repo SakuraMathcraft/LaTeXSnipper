@@ -38,9 +38,7 @@ internal static class WordFormulaMetadataStore
 
     public static string Save(
         dynamic document,
-        FormulaMetadata metadata,
-        double naturalWidthPoints = 0,
-        double naturalHeightPoints = 0)
+        FormulaMetadata metadata)
     {
         if (metadata.SchemaVersion != FormulaMetadata.CurrentSchemaVersion)
         {
@@ -57,7 +55,14 @@ internal static class WordFormulaMetadataStore
         SaveVariable(
             document,
             BuildMetadataStorageKey(metadata.Identity.EquationId, revision),
-            Serialize(metadata, naturalWidthPoints, naturalHeightPoints));
+            metadata.RenderEngine == RenderEngineKind.MathJaxSvg
+                ? new JavaScriptSerializer().Serialize(new Dictionary<string, object>
+                {
+                    ["schemaVersion"] = metadata.SchemaVersion,
+                    ["documentId"] = metadata.Identity.DocumentId,
+                    ["equationId"] = metadata.Identity.EquationId
+                })
+                : Serialize(metadata));
         return BuildEquationTag(metadata.Identity.EquationId, revision);
     }
 
@@ -73,32 +78,33 @@ internal static class WordFormulaMetadataStore
         return metadata;
     }
 
-    public static bool TryLoadOleNaturalSize(
-        dynamic document,
-        string tag,
-        out double widthPoints,
-        out double heightPoints)
+    public static FormulaIdentity LoadOleIdentity(dynamic document, string tag)
     {
-        widthPoints = 0;
-        heightPoints = 0;
-        try
+        var fields = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(LoadPayload(document, tag));
+        if (ReadInt(fields, "schemaVersion") != FormulaMetadata.CurrentSchemaVersion
+            || ReadString(fields, "equationId") != EquationIdFromTag(tag))
+            throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
+        return new FormulaIdentity(ReadRequiredNonEmptyString(fields, "documentId"), ReadString(fields, "equationId"));
+    }
+
+    public static FormulaIdentity? TryLoadOleIdentity(dynamic document, string tag)
+    {
+        string equationId = EquationIdFromTag(tag);
+        string revision = RevisionFromTag(tag);
+        if (string.IsNullOrWhiteSpace(equationId) || string.IsNullOrWhiteSpace(revision)) return null;
+        string key = BuildMetadataStorageKey(equationId, revision);
+        dynamic variables = document.Variables;
+        int count = Convert.ToInt32(variables.Count);
+        for (int index = 1; index <= count; index++)
         {
-            var serializer = new JavaScriptSerializer();
-            var dto = serializer.Deserialize<Dictionary<string, object>>(LoadPayload(document, tag));
-            widthPoints = ReadDouble(dto, "naturalWidthPoints");
-            heightPoints = ReadDouble(dto, "naturalHeightPoints");
-            return widthPoints > 0 && heightPoints > 0;
+            if (string.Equals(Convert.ToString(variables.Item(index).Name), key, StringComparison.Ordinal))
+                return LoadOleIdentity(document, tag);
         }
-        catch
-        {
-            return false;
-        }
+        return null;
     }
 
     public static string Serialize(
-        FormulaMetadata metadata,
-        double naturalWidthPoints = 0,
-        double naturalHeightPoints = 0)
+        FormulaMetadata metadata)
     {
         var serializer = new JavaScriptSerializer();
         var dto = new Dictionary<string, object>
@@ -113,12 +119,6 @@ internal static class WordFormulaMetadataStore
             ["renderEngine"] = metadata.RenderEngine.ToString(),
             ["typography"] = FormulaTypographyFields.Write(metadata.Typography),
         };
-        if (naturalWidthPoints > 0 && naturalHeightPoints > 0)
-        {
-            dto["naturalWidthPoints"] = naturalWidthPoints;
-            dto["naturalHeightPoints"] = naturalHeightPoints;
-        }
-
         return serializer.Serialize(dto);
     }
 
@@ -227,14 +227,6 @@ internal static class WordFormulaMetadataStore
         }
 
         return parsed;
-    }
-
-    private static double ReadDouble(Dictionary<string, object> dto, string key)
-    {
-        return dto.TryGetValue(key, out object value)
-            && double.TryParse(Convert.ToString(value), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double parsed)
-            ? parsed
-            : 0;
     }
 
     private static TEnum ReadEnum<TEnum>(Dictionary<string, object> dto, string key)

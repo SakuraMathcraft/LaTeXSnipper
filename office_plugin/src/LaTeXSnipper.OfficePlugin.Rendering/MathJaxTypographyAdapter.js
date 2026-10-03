@@ -88,7 +88,8 @@
   }
   function apply(math) {
     if (!active) return;
-    if (!math.root.attributes.hasExplicit('mathcolor')) math.root.attributes.set('mathcolor', active.typography.Color);
+    if (!math.root.attributes.hasExplicit('mathcolor') && active.typography.Color.toLowerCase() !== '#000000')
+      math.root.attributes.set('mathcolor', active.typography.Color);
     math.root.walkTree(node => {
       if (!node.isToken) return;
       const attrs = node.attributes;

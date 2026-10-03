@@ -5,191 +5,265 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LaTeXSnipper Office 帮助</title>
   <style>
-    :root { color-scheme: light; --bg: #f2f5fa; --paper: #fff; --ink: #17243b; --muted: #53647e; --line: #d5dfed; --blue: #1867d8; --soft: #eaf2ff; }
+    :root { color-scheme: light; --bg: #f4f7fc; --paper: #fff; --ink: #182b45; --muted: #66788f; --line: #dce4ef; --blue: #2563eb; --soft: #edf4ff; }
     * { box-sizing: border-box; }
-    body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.7 "Segoe UI", "Microsoft YaHei UI", sans-serif; }
-    main { max-width: 1080px; margin: auto; padding: 28px clamp(16px, 3vw, 36px) 44px; }
-    header { padding: 10px 4px 24px; }
-    .eyebrow { color: var(--blue); font-weight: 700; letter-spacing: .06em; }
-    h1 { margin: 4px 0 6px; font-size: clamp(25px, 3vw, 34px); line-height: 1.25; }
-    h2 { margin: 0 0 12px; font-size: 19px; }
-    h3 { margin: 14px 0 4px; font-size: 15px; }
-    p { margin: 6px 0 12px; }
+    html { scroll-padding-top: 28px; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.75 "Segoe UI", "Microsoft YaHei UI", sans-serif; }
+    main { display: grid; grid-template-columns: 176px minmax(0, 1fr); gap: 0 36px; max-width: 1100px; min-height: 100vh; margin: auto; padding: 36px 40px 44px; background: var(--paper); }
+    header { grid-column: 1 / -1; margin-bottom: 32px; padding-bottom: 28px; border-bottom: 1px solid var(--line); }
+    .brand { color: var(--blue); font-weight: 650; }
+    .brand span { margin-left: 12px; color: var(--muted); font-weight: 400; }
+    h1 { margin: 12px 0 8px; font-size: 30px; font-weight: 650; line-height: 1.3; }
+    h2 { margin: 0 0 18px; font-size: 21px; font-weight: 650; line-height: 1.4; }
+    h3 { margin: 24px 0 8px; font-size: 15px; font-weight: 650; }
+    p { margin: 0 0 14px; }
     a { color: var(--blue); }
-    nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 20px; }
-    nav a { padding: 6px 12px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); text-decoration: none; font-weight: 600; }
-    section { margin: 14px 0; padding: 20px 22px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+    a:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+    nav { grid-column: 1; grid-row: 2; position: sticky; top: 28px; align-self: start; display: flex; flex-direction: column; gap: 4px; max-height: calc(100vh - 56px); overflow: auto; padding-right: 18px; border-right: 1px solid var(--line); }
+    .nav-title { margin: 0 0 8px; padding: 0 10px; color: var(--muted); font-size: 12px; }
+    nav a { padding: 8px 10px; border-radius: 6px; color: var(--muted); text-decoration: none; font-weight: 600; }
+    nav a:hover, nav a:focus-visible { color: var(--blue); background: var(--soft); }
+    .guide-content { grid-column: 2; min-width: 0; }
+    section { margin-bottom: 30px; padding-bottom: 30px; border-bottom: 1px solid var(--line); }
+    section:target h2 { color: var(--blue); }
     .lead, .muted { color: var(--muted); }
-    .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-    .step { padding: 13px 15px; border-radius: 9px; background: var(--soft); }
-    .step strong { display: block; margin-bottom: 3px; }
-    .callout { margin-top: 12px; padding: 10px 14px; border-left: 3px solid var(--blue); background: var(--soft); }
-    ul, ol { margin: 7px 0 12px; padding-left: 22px; }
-    li { margin: 5px 0; }
-    table { width: 100%; border-collapse: collapse; margin: 8px 0 14px; }
-    th, td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
-    th { background: #f5f8fc; }
-    code, kbd { padding: 1px 5px; border: 1px solid var(--line); border-radius: 4px; background: #f6f9fe; font: 12px Consolas, monospace; }
+    .lead { margin-bottom: 0; }
+    .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .step { padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: #f8fafd; }
+    .step-number { display: block; margin-bottom: 8px; color: var(--blue); font-size: 22px; font-weight: 600; line-height: 1.2; }
+    .step strong { display: block; margin-bottom: 6px; }
+    .step p { margin: 0; color: var(--muted); font-size: 13px; }
+    .callout { margin-top: 16px; padding: 12px 16px; border-left: 3px solid var(--blue); background: var(--soft); font-size: 13px; }
+    ul, ol { margin: 8px 0 16px; padding-left: 20px; }
+    li { margin: 8px 0; }
+    .editor-topics { margin: 0; padding: 0; list-style: none; }
+    .editor-topics li { margin: 0 0 18px; }
+    .editor-topics li:last-child { margin-bottom: 0; }
+    .editor-topics strong { display: block; margin-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 13px; line-height: 1.65; }
+    th, td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: #f4f7fc; font-weight: 650; }
+    th:first-child, td:first-child { width: 136px; font-weight: 600; }
+    code, kbd { padding: 2px 5px; border: 1px solid var(--line); border-radius: 4px; background: #f6f9fe; font: 12px Consolas, monospace; }
+    kbd { box-shadow: 0 1px 0 var(--line); white-space: nowrap; }
     .platform-word, .platform-powerpoint, .lang-en { display: none; }
-    .app-word .platform-word, .app-powerpoint .platform-powerpoint, html[lang="en"] .lang-en { display: block; }
+    .app-word .platform-word, .app-powerpoint .platform-powerpoint { display: block; }
+    html[lang="en"] .lang-en { display: grid; }
     html[lang="en"] .lang-zh { display: none; }
-    footer { margin-top: 20px; color: var(--muted); font-size: 12px; }
+    footer { color: var(--muted); font-size: 12px; }
     .support-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-    .support-card { margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fbfdff; text-align: center; }
-    .support-card img { display: block; width: min(100%, 220px); aspect-ratio: 1; object-fit: contain; margin: 0 auto 8px; }
-    .support-card figcaption { color: var(--muted); font-weight: 600; }
-    @media (max-width: 700px) { .steps { grid-template-columns: 1fr; } section { padding: 16px; } }
+    .support-card { margin: 0; padding: 16px 12px; border: 1px solid var(--line); border-radius: 8px; text-align: center; }
+    .support-card img { display: block; width: min(100%, 176px); aspect-ratio: 1; object-fit: contain; margin: 0 auto 12px; }
+    .support-card figcaption { font-size: 13px; font-weight: 600; }
+    @media (max-width: 900px) {
+      main, html[lang="en"] .lang-en { display: block; padding: 28px 24px 36px; }
+      header { margin-bottom: 24px; padding-bottom: 24px; }
+      nav { position: static; flex-direction: row; flex-wrap: wrap; max-height: none; margin-bottom: 28px; padding: 0 0 20px; border-right: 0; border-bottom: 1px solid var(--line); }
+      .nav-title { flex-basis: 100%; padding: 0; }
+      nav a { background: #f4f7fc; }
+    }
+    @media (max-width: 600px) {
+      main, html[lang="en"] .lang-en { padding: 24px 20px 32px; }
+      h1 { font-size: 26px; }
+      .steps, .support-grid { grid-template-columns: 1fr; }
+      .step { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 0 12px; }
+      .step-number { grid-row: 1 / span 2; margin: 2px 0 0; }
+      .step p { grid-column: 2; }
+      th, td { padding: 10px 8px; }
+      th:first-child, td:first-child { width: 100px; }
+    }
   </style>
 </head>
 <body class="app-word">
   <main class="lang-zh">
     <header>
-      <div class="eyebrow">LATEXSNIPPER · OFFICE</div>
+      <div class="brand">LaTeXSnipper<span>Office 插件帮助</span></div>
       <h1>公式使用指南</h1>
       <p class="lead">从新建公式到修改、编号与批量整理，按实际操作顺序查找。</p>
     </header>
     <nav aria-label="帮助目录">
+      <p class="nav-title">目录</p>
       <a href="#zh-start">开始使用</a><a href="#zh-editor">编辑公式</a><a href="#zh-settings">设置与字体</a>
       <a class="platform-word" href="#zh-word">Word 操作</a><a class="platform-powerpoint" href="#zh-ppt">PowerPoint 操作</a><a href="#zh-support">社区与支持</a>
     </nav>
-    <section id="zh-start">
-      <h2>开始使用</h2>
-      <div class="steps">
-        <div class="step"><strong>1 · 打开插件</strong>在 Word 或 PowerPoint 顶部的 LaTeXSnipper 选项卡中选择插入公式。</div>
-        <div class="step"><strong>2 · 写入公式</strong>在上方可视化区域输入，或在下方源码区写 LaTeX；也可以从左侧符号库选择公式。</div>
-        <div class="step"><strong>3 · 插入文档</strong>确认字号和颜色后点击“插入”。选中已有公式并点击“加载所选”，可修改后点击“更新”。</div>
-      </div>
-      <div class="callout">截图识别需要打开 LaTeXSnipper 桌面端，并在桌面端设置中启用<strong>自动化接口</strong>。普通公式编辑和插入可直接在 Office 插件中完成。</div>
-    </section>
-    <section id="zh-editor">
-      <h2>编辑公式</h2>
-      <ul>
-        <li><strong>可视化区与源码区：</strong>两者同步。源码含有可视化编辑器无法原样保留的写法时，上方只显示参考结果；继续在源码区编辑，或点击“用上方结果替换源码（可撤销）”。</li>
-        <li><strong>符号库与常用：</strong>左侧可搜索公式和符号，点击磁贴插入。右键点击磁贴可加入或移出“常用”；工具栏星形按钮可收藏当前公式。常用内容在升级后保留。</li>
-        <li><strong>字体与预览：</strong>工具栏的字体、字形、字号和颜色优先用于当前公式。全局颜色会同步到源码和可视化编辑区；右键可对选中部分上色、剪切、粘贴或全选，局部颜色会立即写入源码。“最终预览”按当前属性渲染，小字号会在屏幕上放大以便检查，插入仍使用选定字号；修改已有公式时沿用该公式保存的属性。</li>
-        <li><strong>快捷键：</strong>可视化区按 <kbd>Enter</kbd> 新建数学行，<kbd>Shift</kbd> + <kbd>Enter</kbd> 插入或更新，<kbd>Esc</kbd> 收起虚拟键盘。源码区按 <kbd>Tab</kbd> 在光标处缩进；补全列表按 <kbd>Enter</kbd> 接受。</li>
-      </ul>
-    </section>
-    <section id="zh-settings">
-      <h2>设置与字体</h2>
-      <p>在 LaTeXSnipper 选项卡点击“设置”。公式默认属性用于<strong>新建公式</strong>和主动执行的<strong>格式化</strong>；编辑器里临时选择的属性优先用于当前公式。导入、导出 JSON 可保存或应用当前 Word / PowerPoint 的公式默认属性。</p>
-      <table>
-        <thead><tr><th>设置</th><th>作用</th></tr></thead>
-        <tbody>
-          <tr><td>符号字体</td><td>决定数学字母、符号及公式结构的字体方案。可选打包提供的 TeX 和 STIX2。</td></tr>
-          <tr><td>数字字体</td><td>单独指定普通数字使用的系统字体；选“跟随符号字体”时与公式符号保持一致。</td></tr>
-          <tr><td>汉字字体</td><td>指定公式内汉字使用的系统字体；列表只显示检测到汉字字形的字体。</td></tr>
-          <tr><td>默认字形</td><td>控制数学字符的正体、斜体、粗体、花体等表现，与字体方案分别选择。“自动”保留公式原有的数学排版；源码中明确指定的局部字形优先。</td></tr>
-          <tr><td>字号、颜色</td><td>决定新公式的默认大小和颜色。“新建时跟随文字字号”启用后优先使用光标或选区文字字号，无有效字号时使用设置中的固定值。</td></tr>
-        </tbody>
-      </table>
-      <p class="muted">升级或重装会保留公式默认属性、插入方式、Word 编号布局和编辑器常用内容。导入公式预设只替换对应宿主的公式默认属性。</p>
-    </section>
-    <section id="zh-word" class="platform-word">
-      <h2>Word 中的常用操作</h2>
-      <h3>插入与编号</h3>
-      <p>“插入行内公式”放在当前文字中；“插入行间公式”单独占一行；“插入带编号公式”按设置的左右位置与外框显示编号。设置中的“带编号公式默认布局”还可选择章、节编号、层级分隔符，以及是否显示章/节分隔符。</p>
-      <h3>加载、转换和格式化</h3>
-      <p>选中插件插入的公式后，用“加载所选”修改或用“删除所选”移除。设置中的“公式插入方式”可选 OLE 对象或 Word 原生公式；“转换为 OLE / Word 原生公式”可处理已选公式。“格式化所选 / 全文”按当前默认属性整理公式。</p>
-      <h3>解析正文中的 LaTeX</h3>
-      <p>“解析所选 / 全文”识别完整的 <code>$...$</code>、<code>\(...\)</code>、<code>$$...$$</code> 和 <code>\[...\]</code>。未闭合或转换失败的内容会保留原文；行间公式中的有效 <code>\tag{...}</code> 可作为自定义编号。</p>
-      <h3>重编号与引用</h3>
-      <p>“自动编号”可给未编号的行间公式添加编号；插入章/节分隔符后，后续编号会按层级更新。“重编号”重新计算全文插件公式编号。用“插入引用”创建占位符，再选择目标编号公式或其所在段落完成引用。</p>
-      <p class="muted">侧边栏保留独立的新公式草稿；加载并更新已有公式请使用编辑器窗口。</p>
-    </section>
-    <section id="zh-ppt" class="platform-powerpoint">
-      <h2>PowerPoint 中的常用操作</h2>
-      <p>在文本框内把光标放在文字中间并点击“插入公式”，会得到随文字排版的 PowerPoint 原生公式，可在 PowerPoint 中继续编辑。光标不在文字中时，新公式作为居中的独立幻灯片对象插入，并按设置选择 OLE 对象或 PNG 图片。</p>
-      <p>选中插件公式后，可“加载所选”修改、“删除所选”、在 OLE 与 PNG 间转换，或用“格式化所选 / 全文”应用当前默认属性。更新与转换会尽量保留对象在幻灯片中的位置和手动缩放。</p>
-      <p class="muted">侧边栏用于新公式草稿；“加载所选”、OLE / PNG 转换和批量格式化适用于插件插入的独立对象。文本内原生公式由 PowerPoint 管理。</p>
-    </section>
-    <section id="zh-support">
-      <h2>社区与支持</h2>
-      <p>项目免费开源，没有广告和内购。欢迎给仓库点 Star、反馈问题，或通过下面的二维码赞助维护并加入中文交流群。</p>
-      <div class="support-grid">
-        <figure class="support-card"><img src="support/alipay.jpg" alt="支付宝收款码"><figcaption>支付宝赞助</figcaption></figure>
-        <figure class="support-card"><img src="support/wechat-pay.png" alt="微信收款码"><figcaption>微信赞助</figcaption></figure>
-        <figure class="support-card"><img src="support/community-chat.jpg" alt="LaTeXSnipper 中文交流群二维码"><figcaption>中文交流群</figcaption></figure>
-      </div>
-    </section>
-    <footer>LaTeXSnipper Office 插件</footer>
+    <div class="guide-content">
+      <section id="zh-start">
+        <h2>开始使用</h2>
+        <div class="steps">
+          <div class="step"><span class="step-number">01</span><strong>打开插件</strong><p>在 Word 或 PowerPoint 顶部的 LaTeXSnipper 选项卡中选择插入公式。</p></div>
+          <div class="step"><span class="step-number">02</span><strong>写入公式</strong><p>在上方可视化区域输入，或在下方源码区写 LaTeX；也可以从左侧符号库选择公式。</p></div>
+          <div class="step"><span class="step-number">03</span><strong>插入文档</strong><p>确认字号和颜色后点击“插入”。双击已有 OLE 公式，或选中公式后点击“加载所选”，可修改后点击“更新”。</p></div>
+        </div>
+        <div class="callout">截图识别需要打开 LaTeXSnipper 桌面端，并在桌面端设置中启用<strong>自动化接口</strong>。普通公式编辑和插入可直接在 Office 插件中完成。</div>
+      </section>
+      <section id="zh-editor">
+        <h2>编辑公式</h2>
+        <ul class="editor-topics">
+          <li><strong>可视化区与源码区：</strong>两者同步。源码含有可视化编辑器无法原样保留的写法时，上方只显示参考结果；继续在源码区编辑，或点击“用上方结果替换源码（可撤销）”。</li>
+          <li><strong>符号库与常用：</strong>左侧可搜索公式和符号，点击磁贴插入。右键点击磁贴可加入或移出“常用”；工具栏星形按钮可收藏当前公式。常用内容在升级后保留。</li>
+          <li><strong>字体与颜色：</strong>工具栏的字体、字形、字号和颜色优先用于当前公式。全局颜色会同步到源码和可视化编辑区；右键可对选中部分上色、剪切、粘贴或全选，局部颜色会立即写入源码。</li>
+          <li><strong>最终预览：</strong>按当前属性渲染，小字号会在屏幕上放大以便检查，插入仍使用选定字号；修改已有公式时沿用该公式保存的属性。</li>
+          <li><strong>快捷键：</strong>可视化区按 <kbd>Shift</kbd> + <kbd>Enter</kbd> 插入或更新。源码区按 <kbd>Tab</kbd> 在光标处缩进；补全列表按 <kbd>Enter</kbd> 接受。</li>
+        </ul>
+      </section>
+      <section id="zh-settings">
+        <h2>设置与字体</h2>
+        <p>在 LaTeXSnipper 选项卡点击“设置”。公式默认属性用于<strong>新建公式</strong>和主动执行的<strong>格式化</strong>；编辑器里临时选择的属性优先用于当前公式。导入、导出 JSON 可保存或应用当前 Word / PowerPoint 的公式默认属性。</p>
+        <table>
+          <thead><tr><th>设置</th><th>作用</th></tr></thead>
+          <tbody>
+            <tr><td>符号字体</td><td>决定数学字母、符号及公式结构的字体方案。可选打包提供的 TeX 和 STIX2。</td></tr>
+            <tr><td>数字字体</td><td>单独指定普通数字使用的系统字体；选“跟随符号字体”时与公式符号保持一致。</td></tr>
+            <tr><td>汉字字体</td><td>指定公式内汉字使用的系统字体；使用与 Word 常用汉字字体一致的固定列表（等线到幼圆）。</td></tr>
+            <tr><td>默认字形</td><td>控制数学字符的正体、斜体、粗体、花体等表现，与字体方案分别选择。“自动”保留公式原有的数学排版；源码中明确指定的局部字形优先。</td></tr>
+            <tr><td>字号、颜色</td><td>决定新公式的默认大小和颜色。“新建时跟随文字字号”启用后优先使用光标或选区文字字号，无有效字号时使用设置中的固定值。</td></tr>
+          </tbody>
+        </table>
+        <p class="muted">升级或重装会保留公式默认属性、插入方式、Word 编号布局和编辑器常用内容。导入公式预设只替换对应宿主的公式默认属性。</p>
+      </section>
+      <section id="zh-word" class="platform-word">
+        <h2>Word 中的常用操作</h2>
+        <h3>插入与编号</h3>
+        <p>“插入行内公式”放在当前文字中；“插入行间公式”单独占一行；“插入带编号公式”按设置的左右位置与外框显示编号。设置中的“带编号公式默认布局”还可选择章、节编号、层级分隔符，以及是否显示章/节分隔符。</p>
+        <h3>加载、转换和格式化</h3>
+        <p>OLE 公式复制到另一份文档后仍可加载并独立编辑。选中插件公式后，用“加载所选”修改或用“删除所选”移除。</p>
+        <ul>
+          <li><strong>转为 OLE / Word：</strong>在插件 OLE 与 Word 原生公式间转换；“转为 OLE”也支持 MathType 公式。</li>
+          <li><strong>转为 MathType：</strong>将普通插件 OLE 公式转为 MathType 原生对象，带编号公式暂不支持。</li>
+          <li><strong>格式化所选 / 全文：</strong>恢复插件公式的默认样式和自然大小。</li>
+        </ul>
+        <p>设置中的“公式插入方式”可选 OLE 对象或 Word 原生公式。</p>
+        <p class="muted">MathType 双向转换无需安装 MathType；双击编辑 MathType 对象需要安装。转换不保留原插件源码与字体快照，转回 OLE 根据对象当前内容生成。</p>
+        <h3>解析正文中的 LaTeX</h3>
+        <p>“解析所选 / 全文”识别完整的 <code>$...$</code>、<code>\(...\)</code>、<code>$$...$$</code> 和 <code>\[...\]</code>。未闭合或转换失败的内容会保留原文；行间公式中的有效 <code>\tag{...}</code> 可作为自定义编号。</p>
+        <h3>重编号与引用</h3>
+        <p>“自动编号”可给未编号的行间公式添加编号；插入章/节分隔符后，后续编号会按层级更新。“重编号”重新计算全文插件公式编号。用“插入引用”创建占位符，再选择目标编号公式或其所在段落完成引用。</p>
+        <p class="muted">侧边栏保留独立的新公式草稿；加载并更新已有公式请使用编辑器窗口。</p>
+      </section>
+      <section id="zh-ppt" class="platform-powerpoint">
+        <h2>PowerPoint 中的常用操作</h2>
+        <h3>插入公式</h3>
+        <p>在文本框内把光标放在文字中间并点击“插入公式”，会得到随文字排版的 PowerPoint 原生公式，可在 PowerPoint 中继续编辑。光标不在文字中时，新公式作为居中的独立幻灯片对象插入，并按设置选择 OLE 对象或 PNG 图片。</p>
+        <h3>加载、转换和格式化</h3>
+        <p>插件 OLE 公式复制到另一份演示文稿后仍可加载并独立编辑。选中插件公式后，用“加载所选”修改或用“删除所选”移除。</p>
+        <ul>
+          <li><strong>转为 OLE / PNG：</strong>在插件 OLE 与 PNG 间转换；“转为 OLE”也支持 MathType 公式。</li>
+          <li><strong>转为 MathType：</strong>将所选插件 OLE 公式转为 MathType 原生对象。</li>
+          <li><strong>格式化所选 / 全文：</strong>恢复插件公式的默认样式和自然大小。</li>
+        </ul>
+        <p>更新与转换会尽量保留对象在幻灯片中的位置和手动缩放。</p>
+        <p class="muted">MathType 双向转换无需安装 MathType；双击编辑 MathType 对象需要安装。转换不保留原插件源码与字体快照，转回 OLE 根据对象当前内容生成。</p>
+        <p class="muted">侧边栏用于新公式草稿；“加载所选”、OLE / PNG 转换和批量格式化适用于插件插入的独立对象。文本内原生公式由 PowerPoint 管理。</p>
+      </section>
+      <section id="zh-support">
+        <h2>社区与支持</h2>
+        <p>项目免费开源，没有广告和内购。欢迎给仓库点 Star、反馈问题，或通过下面的二维码赞助维护并加入中文交流群。</p>
+        <div class="support-grid">
+          <figure class="support-card"><img src="support/alipay.jpg" alt="支付宝收款码"><figcaption>支付宝赞助</figcaption></figure>
+          <figure class="support-card"><img src="support/wechat-pay.png" alt="微信收款码"><figcaption>微信赞助</figcaption></figure>
+          <figure class="support-card"><img src="support/community-chat.jpg" alt="LaTeXSnipper 中文交流群二维码"><figcaption>中文交流群</figcaption></figure>
+        </div>
+      </section>
+      <footer>LaTeXSnipper Office 插件</footer>
+    </div>
   </main>
   <main class="lang-en">
     <header>
-      <div class="eyebrow">LATEXSNIPPER · OFFICE</div>
+      <div class="brand">LaTeXSnipper<span>Office plugin help</span></div>
       <h1>Formula guide</h1>
       <p class="lead">Find the next step, from inserting a formula to editing, numbering, and formatting it.</p>
     </header>
     <nav aria-label="Help contents">
+      <p class="nav-title">Contents</p>
       <a href="#en-start">Get started</a><a href="#en-editor">Edit formulas</a><a href="#en-settings">Settings and fonts</a>
       <a class="platform-word" href="#en-word">Word</a><a class="platform-powerpoint" href="#en-ppt">PowerPoint</a><a href="#en-support">Community and support</a>
     </nav>
-    <section id="en-start">
-      <h2>Get started</h2>
-      <div class="steps">
-        <div class="step"><strong>1 · Open the plugin</strong>Use the LaTeXSnipper tab at the top of Word or PowerPoint to insert a formula.</div>
-        <div class="step"><strong>2 · Write the formula</strong>Type in the visual area or the LaTeX source pane, or choose a formula from the symbol library.</div>
-        <div class="step"><strong>3 · Insert it</strong>Check the size and color, then select Insert. To change an existing formula, select it and use Load Selected, then Update.</div>
-      </div>
-      <div class="callout">Screenshot recognition requires the LaTeXSnipper desktop app with the <strong>Automation API</strong> enabled in its settings. Ordinary formula editing and insertion work inside the Office plugin.</div>
-    </section>
-    <section id="en-editor">
-      <h2>Edit formulas</h2>
-      <ul>
-        <li><strong>Visual and source panes:</strong>They stay in sync. When the visual editor cannot preserve source exactly, the upper pane is a reference. Keep editing below, or choose “Replace source with result (undoable)”.</li>
-        <li><strong>Library and Common:</strong>Search and click a tile to insert it. Right-click a tile to add or remove it from Common. Use the toolbar star to save the current formula. Common survives upgrades.</li>
-        <li><strong>Typography and preview:</strong>Toolbar choices apply to the current formula. The formula color is synchronized with the source and visual editor. Right-click in the visual editor to color a selection, cut, paste, or select all; local colors are written to the source immediately. Final Preview enlarges small formulas on screen for inspection; insertion still uses the selected point size. Existing formulas reopen with their saved properties.</li>
-        <li><strong>Keys:</strong>In the visual pane, <kbd>Enter</kbd> starts a math row, <kbd>Shift</kbd> + <kbd>Enter</kbd> inserts or updates, and <kbd>Esc</kbd> hides the virtual keyboard. In source, <kbd>Tab</kbd> indents at the caret and <kbd>Enter</kbd> accepts a completion.</li>
-      </ul>
-    </section>
-    <section id="en-settings">
-      <h2>Settings and fonts</h2>
-      <p>Open Settings from the LaTeXSnipper tab. Default formula properties apply to <strong>new formulas</strong> and explicit <strong>Format</strong> commands. Editor choices take priority for the current formula. Import and export JSON to save or apply the current host's formula defaults.</p>
-      <table>
-        <thead><tr><th>Setting</th><th>What it controls</th></tr></thead>
-        <tbody>
-          <tr><td>Symbol font</td><td>The font scheme for mathematical letters, symbols, and formula structures. The bundled choices are TeX and STIX2.</td></tr>
-          <tr><td>Number font</td><td>An optional system font for ordinary digits. Follow Symbol Font keeps numbers with the mathematical symbols.</td></tr>
-          <tr><td>CJK font</td><td>A system font for Chinese characters within formulas. The list shows fonts found to contain Chinese glyphs.</td></tr>
-          <tr><td>Default math style</td><td>Upright, italic, bold, script, and other mathematical shapes, selected independently from the font scheme. Automatic preserves normal mathematical styling; explicit source styles take priority.</td></tr>
-          <tr><td>Size and color</td><td>Defaults for new formulas. Follow Text Size uses the text at the insertion point when available and falls back to the fixed size.</td></tr>
-        </tbody>
-      </table>
-      <p class="muted">Upgrades and reinstalls preserve formula defaults, insertion choices, Word numbering preferences, and Common formulas. Importing a formula preset replaces only that host's formula defaults.</p>
-    </section>
-    <section id="en-word" class="platform-word">
-      <h2>Common tasks in Word</h2>
-      <h3>Insert and number</h3>
-      <p>Insert Inline places a formula within text. Insert Display gives it a separate line. Insert Numbered positions the number and enclosure according to settings. Default Numbered Formula Layout also controls chapter and section numbering, separators, and boundary visibility.</p>
-      <h3>Load, convert, and format</h3>
-      <p>Select a plugin formula to Load Selected or Delete Selected. Formula Insertion offers OLE objects or native Word equations. Convert to OLE / Word Equation changes selected formulas. Format Selected / All applies the current default properties.</p>
-      <h3>Parse LaTeX in document text</h3>
-      <p>Parse Selected / All recognizes complete <code>$...$</code>, <code>\(...\)</code>, <code>$$...$$</code>, and <code>\[...\]</code> expressions. Incomplete or failed conversions leave the original text in place. A valid <code>\tag{...}</code> can provide a custom number for a display formula.</p>
-      <h3>Renumber and reference</h3>
-      <p>Auto Number numbers an unnumbered display formula. Chapter and section boundaries affect later numbers. Renumber recalculates plugin formula numbers across the document. Insert Reference creates a placeholder; select a numbered formula or its paragraph to complete it.</p>
-      <p class="muted">The side pane keeps a separate draft for a new formula. Use the editor window to update an existing one.</p>
-    </section>
-    <section id="en-ppt" class="platform-powerpoint">
-      <h2>Common tasks in PowerPoint</h2>
-      <p>Place the text caret inside a text box to insert a native PowerPoint equation that flows with the surrounding text and remains editable in PowerPoint. Outside text, Insert Formula adds a centered slide object using the OLE or PNG insertion setting.</p>
-      <p>Select a plugin formula to Load Selected, Delete Selected, convert between OLE and PNG, or apply Format Selected / All. Updates and conversions preserve the slide position and manual scale where possible.</p>
-      <p class="muted">The side pane holds a new formula draft. Load Selected, OLE / PNG conversion, and bulk formatting apply to standalone objects inserted by the plugin. PowerPoint manages equations within text.</p>
-    </section>
-    <section id="en-support">
-      <h2>Community and support</h2>
-      <p>LaTeXSnipper is free, open source, ad-free, and has no in-app purchases. Star the repository, report an issue, support maintenance, or join the Chinese community using the QR codes below.</p>
-      <div class="support-grid">
-        <figure class="support-card"><img src="support/alipay.jpg" alt="Alipay donation QR code"><figcaption>Alipay</figcaption></figure>
-        <figure class="support-card"><img src="support/wechat-pay.png" alt="WeChat Pay donation QR code"><figcaption>WeChat Pay</figcaption></figure>
-        <figure class="support-card"><img src="support/community-chat.jpg" alt="LaTeXSnipper community chat QR code"><figcaption>Community chat</figcaption></figure>
-      </div>
-    </section>
-    <footer>LaTeXSnipper Office Plugin</footer>
+    <div class="guide-content">
+      <section id="en-start">
+        <h2>Get started</h2>
+        <div class="steps">
+          <div class="step"><span class="step-number">01</span><strong>Open the plugin</strong><p>Use the LaTeXSnipper tab at the top of Word or PowerPoint to insert a formula.</p></div>
+          <div class="step"><span class="step-number">02</span><strong>Write the formula</strong><p>Type in the visual area or the LaTeX source pane, or choose a formula from the symbol library.</p></div>
+          <div class="step"><span class="step-number">03</span><strong>Insert it</strong><p>Check the size and color, then select Insert. Double-click an existing OLE formula, or select a formula and use Load Selected, then Update.</p></div>
+        </div>
+        <div class="callout">Screenshot recognition requires the LaTeXSnipper desktop app with the <strong>Automation API</strong> enabled in its settings. Ordinary formula editing and insertion work inside the Office plugin.</div>
+      </section>
+      <section id="en-editor">
+        <h2>Edit formulas</h2>
+        <ul class="editor-topics">
+          <li><strong>Visual and source panes:</strong> They stay in sync. When the visual editor cannot preserve source exactly, the upper pane is a reference. Keep editing below, or choose “Replace source with result (undoable)”.</li>
+          <li><strong>Library and Common:</strong> Search and click a tile to insert it. Right-click a tile to add or remove it from Common. Use the toolbar star to save the current formula. Common survives upgrades.</li>
+          <li><strong>Typography and color:</strong> Toolbar choices apply to the current formula. The formula color is synchronized with the source and visual editor. Right-click in the visual editor to color a selection, cut, paste, or select all; local colors are written to the source immediately.</li>
+          <li><strong>Final Preview:</strong> Small formulas are enlarged on screen for inspection; insertion still uses the selected point size. Existing formulas reopen with their saved properties.</li>
+          <li><strong>Keys:</strong> In the visual pane, <kbd>Shift</kbd> + <kbd>Enter</kbd> inserts or updates. In source, <kbd>Tab</kbd> indents at the caret and <kbd>Enter</kbd> accepts a completion.</li>
+        </ul>
+      </section>
+      <section id="en-settings">
+        <h2>Settings and fonts</h2>
+        <p>Open Settings from the LaTeXSnipper tab. Default formula properties apply to <strong>new formulas</strong> and explicit <strong>Format</strong> commands. Editor choices take priority for the current formula. Import and export JSON to save or apply the current host's formula defaults.</p>
+        <table>
+          <thead><tr><th>Setting</th><th>What it controls</th></tr></thead>
+          <tbody>
+            <tr><td>Symbol font</td><td>The font scheme for mathematical letters, symbols, and formula structures. The bundled choices are TeX and STIX2.</td></tr>
+            <tr><td>Number font</td><td>An optional system font for ordinary digits. Follow Symbol Font keeps numbers with the mathematical symbols.</td></tr>
+            <tr><td>CJK font</td><td>A system font for Chinese characters within formulas. The fixed list contains common Chinese fonts, from DengXian to YouYuan.</td></tr>
+            <tr><td>Default math style</td><td>Upright, italic, bold, script, and other mathematical shapes, selected independently from the font scheme. Automatic preserves normal mathematical styling; explicit source styles take priority.</td></tr>
+            <tr><td>Size and color</td><td>Defaults for new formulas. Follow Text Size uses the text at the insertion point when available and falls back to the fixed size.</td></tr>
+          </tbody>
+        </table>
+        <p class="muted">Upgrades and reinstalls preserve formula defaults, insertion choices, Word numbering preferences, and Common formulas. Importing a formula preset replaces only that host's formula defaults.</p>
+      </section>
+      <section id="en-word" class="platform-word">
+        <h2>Common tasks in Word</h2>
+        <h3>Insert and number</h3>
+        <p>Insert Inline places a formula within text. Insert Display gives it a separate line. Insert Numbered positions the number and enclosure according to settings. Default Numbered Formula Layout also controls chapter and section numbering, separators, and boundary visibility.</p>
+        <h3>Load, convert, and format</h3>
+        <p>Copied OLE formulas remain independently editable in another document. Select a plugin formula to Load Selected or Delete Selected.</p>
+        <ul>
+          <li><strong>To OLE / Word:</strong> Converts between plugin OLE formulas and native Word equations. To OLE also accepts MathType equations.</li>
+          <li><strong>To MathType:</strong> Converts an unnumbered plugin OLE formula into a native MathType object. Numbered formulas are not supported.</li>
+          <li><strong>Format Selected / All:</strong> Restores plugin formulas to the default style and natural size.</li>
+        </ul>
+        <p>Formula Insertion offers OLE objects or native Word equations.</p>
+        <p class="muted">MathType conversion in either direction works without MathType installed; double-click editing requires MathType. Conversion does not retain the original plugin source or font snapshot. Converting back to OLE uses the object's current content.</p>
+        <h3>Parse LaTeX in document text</h3>
+        <p>Parse Selected / All recognizes complete <code>$...$</code>, <code>\(...\)</code>, <code>$$...$$</code>, and <code>\[...\]</code> expressions. Incomplete or failed conversions leave the original text in place. A valid <code>\tag{...}</code> can provide a custom number for a display formula.</p>
+        <h3>Renumber and reference</h3>
+        <p>Auto Number numbers an unnumbered display formula. Chapter and section boundaries affect later numbers. Renumber recalculates plugin formula numbers across the document. Insert Reference creates a placeholder; select a numbered formula or its paragraph to complete it.</p>
+        <p class="muted">The side pane keeps a separate draft for a new formula. Use the editor window to update an existing one.</p>
+      </section>
+      <section id="en-ppt" class="platform-powerpoint">
+        <h2>Common tasks in PowerPoint</h2>
+        <h3>Insert formulas</h3>
+        <p>Place the text caret inside a text box to insert a native PowerPoint equation that flows with the surrounding text and remains editable in PowerPoint. Outside text, Insert Formula adds a centered slide object using the OLE or PNG insertion setting.</p>
+        <h3>Load, convert, and format</h3>
+        <p>Plugin OLE formulas remain independently editable after copying to another presentation. Select a plugin formula to Load Selected or Delete Selected.</p>
+        <ul>
+          <li><strong>To OLE / PNG:</strong> Converts between plugin OLE formulas and PNG. To OLE also accepts MathType equations.</li>
+          <li><strong>To MathType:</strong> Converts the selected plugin OLE formula into a native MathType object.</li>
+          <li><strong>Format Selected / All:</strong> Restores plugin formulas to the default style and natural size.</li>
+        </ul>
+        <p>Updates and conversions preserve the slide position and manual scale where possible.</p>
+        <p class="muted">MathType conversion in either direction works without MathType installed; double-click editing requires MathType. Conversion does not retain the original plugin source or font snapshot. Converting back to OLE uses the object's current content.</p>
+        <p class="muted">The side pane holds a new formula draft. Load Selected, OLE / PNG conversion, and bulk formatting apply to standalone objects inserted by the plugin. PowerPoint manages equations within text.</p>
+      </section>
+      <section id="en-support">
+        <h2>Community and support</h2>
+        <p>LaTeXSnipper is free, open source, ad-free, and has no in-app purchases. Star the repository, report an issue, support maintenance, or join the Chinese community using the QR codes below.</p>
+        <div class="support-grid">
+          <figure class="support-card"><img src="support/alipay.jpg" alt="Alipay donation QR code"><figcaption>Alipay</figcaption></figure>
+          <figure class="support-card"><img src="support/wechat-pay.png" alt="WeChat Pay donation QR code"><figcaption>WeChat Pay</figcaption></figure>
+          <figure class="support-card"><img src="support/community-chat.jpg" alt="LaTeXSnipper community chat QR code"><figcaption>Community chat</figcaption></figure>
+        </div>
+      </section>
+      <footer>LaTeXSnipper Office Plugin</footer>
+    </div>
   </main>
   <script>
     const params = new URLSearchParams(location.search);
     document.body.className = params.get("platform") === "powerpoint" ? "app-powerpoint" : "app-word";
     document.documentElement.lang = (params.get("locale") || "zh-CN").toLowerCase().startsWith("zh") ? "zh-CN" : "en";
+    document.title = document.documentElement.lang === "zh-CN" ? "LaTeXSnipper Office 帮助" : "LaTeXSnipper Office Help";
   </script>
 </body>
 </html>

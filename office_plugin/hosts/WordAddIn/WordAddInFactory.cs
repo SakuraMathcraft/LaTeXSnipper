@@ -14,7 +14,8 @@ public static class WordAddInFactory
         IWordStatusSink? statusSink = null,
         IWordFormulaOptionsProvider? optionsProvider = null,
         Func<WordPluginSettings>? settingsLoader = null,
-        string? mathJaxHostName = null)
+        string? mathJaxHostName = null,
+        IWordApplicationAdapter? applicationAdapter = null)
     {
         statusSink ??= NullWordStatusSink.Instance;
         var oleIntermediateRenderer = new MathJaxSvgRenderer(
@@ -22,7 +23,7 @@ public static class WordAddInFactory
         var editor = new MathLiveFormulaEditor(CreateEditorOptions(oleIntermediateRenderer));
         var editorSession = new FormulaEditorSession(editor);
         var automationClient = new AutomationApiClient(new AutomationApiOptions());
-        var wordAdapter = new DynamicWordApplicationAdapter(wordApplication);
+        IWordApplicationAdapter wordAdapter = applicationAdapter ?? new DynamicWordApplicationAdapter(wordApplication);
 
         var olePresentationPipeline = new OlePresentationPipeline(new IOlePresentationRenderer[] { new EnhancedMetafilePresentationRenderer() });
         var controller = new WordPluginController(

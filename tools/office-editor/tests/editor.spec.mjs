@@ -4,6 +4,21 @@ import {resolve, extname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {tmpdir} from 'node:os';
 
+test('catalog previews are renderable formulas', async ({page}) => {
+  await open(page, '');
+  const invalid = await page.evaluate(async () => {
+    const base = 'https://latexsnipper-editor-shared.officeplugin.local/';
+    const [{CATALOG, entryTemplate, templateParts}, {validateLatex}] = await Promise.all([
+      import(`${base}template-catalog.mjs`), import(`${base}vendor/mathlive.min.mjs`)]);
+    return CATALOG.flatMap(entry => {
+      const latex = templateParts(entryTemplate(entry)).map(part => part.hole ? '\\square' : part.text).join('');
+      const errors = validateLatex(latex);
+      return errors.length ? [{name: entry.zh, latex, errors}] : [];
+    });
+  });
+  expect(invalid).toEqual([]);
+});
+
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const shared = resolve(root, 'office_plugin/src/LaTeXSnipper.OfficePlugin.Editor/EditorAssets');
 const source = page => page.locator('#latexSource .cm-content');
@@ -24,7 +39,7 @@ async function open(page, latex = 'x+1', host = 'word', color = '#000000') {
     window.editorInit = {latex, locale: 'zh', mode: 'update', session: 1, display: true, referencePreview: false,
       typography: {typographyVersion: 1, symbolFontId: 'mathjax-tex', numberFontFamily: '', cjkFontFamily: 'Microsoft YaHei', defaultMathStyle: 'Automatic', fontSizePoints: 12, color},
       catalog: {symbolFonts: ['mathjax-tex', 'mathjax-stix2'], systemFonts: ['Microsoft YaHei', 'SimSun', 'Arial'],
-        cjkFonts: ['Microsoft YaHei', 'SimSun'], mathStyles: [
+        cjkFonts: [{id: 'Microsoft YaHei', label: '微软雅黑'}, {id: 'SimSun', label: '宋体'}], mathStyles: [
           {id: 'Automatic', zh: '自动数学样式', en: 'Automatic'},
           {id: 'Upright', zh: '正体', en: 'Upright'}, {id: 'Bold', zh: '粗体', en: 'Bold'},
           {id: 'BoldFraktur', zh: '哥特粗体', en: 'Bold Fraktur'}],
@@ -114,7 +129,10 @@ test('source history includes visual edits; unfocused notifications cannot repla
   await page.locator('#mathfieldHost math-field').click();
   await page.locator('#mathfieldHost math-field').press('Control+y');
   expect(await submitted(page)).toBe('x+12');
-  await source(page).fill('newest');
+  await source(page).focus();
+  await source(page).press('Control+a');
+  await page.keyboard.insertText('newest');
+  await expect(source(page)).toHaveText('newest');
   await page.evaluate(() => { const mf = document.querySelector('#mathfieldHost math-field'); mf.setValue('stale', {silenceNotifications: true}); mf.dispatchEvent(new Event('input')); });
   expect(await submitted(page)).toBe('newest');
   expect(errors).toEqual([]);
@@ -189,7 +207,9 @@ test('environment completion consumes the existing auto-closed brace', async ({p
 });
 
 test('find/replace, source symbol insertion, session reset and submission locking', async ({page}) => {
+  await page.setViewportSize({width: 735, height: 670});
   const errors = await open(page, 'x+x');
+  const initialSourceHeight = (await page.locator('#latexSource').boundingBox()).height;
   await source(page).press('Control+f');
   await expect(page.locator('.cm-search input[name="search"]')).toHaveAttribute('placeholder', '查找');
   await expect(page.locator('.cm-search button[name="next"]')).toHaveText('下一个');
@@ -200,11 +220,20 @@ test('find/replace, source symbol insertion, session reset and submission lockin
     return Math.abs((box.top + box.bottom) / 2 - (checkbox.top + checkbox.bottom) / 2);
   });
   expect(alignment).toBeLessThan(2);
+  const next = page.locator('.cm-search button[name="next"]');
+  const idleBackground = await next.evaluate(button => getComputedStyle(button).backgroundColor);
+  await next.hover();
+  await expect.poll(() => next.evaluate(button => getComputedStyle(button).backgroundColor)).not.toBe(idleBackground);
+  const sourceBox = await page.locator('#latexSource').boundingBox();
+  const replaceBox = await page.locator('.cm-search button[name="replaceAll"]').boundingBox();
+  expect(replaceBox.y + replaceBox.height).toBeLessThanOrEqual(sourceBox.y + sourceBox.height);
   await page.locator('.cm-search input[name="search"]').fill('x');
   await page.locator('.cm-search input[name="replace"]').fill('y');
   await page.locator('.cm-search button[name="replaceAll"]').click();
   expect(await submitted(page)).toBe('y+y');
   await source(page).press('Escape');
+  await expect(page.locator('.cm-search')).toBeHidden();
+  expect((await page.locator('#latexSource').boundingBox()).height).toBe(initialSourceHeight);
   await source(page).press('End');
   await page.locator('[data-group="greek"]').click();
   await page.locator('#symbolGrid').getByRole('button', {name: 'α', exact: true}).click();
@@ -684,6 +713,24 @@ test('current formula can be saved to Common and survives editor reload', async 
   expect(errors).toEqual([]);
 });
 
+for (const host of ['word', 'powerpoint']) test(`${host}: colored multiline favorite renders on first visual insertion and reopening`, async ({page}) => {
+  const latex = '\\textcolor{#ff0000}{\\displaylines{\\varphi(n)=n\\prod_{p\\mid n}\\left(1-\\frac{1}{p}\\right)\\\\\n\n\\mu(n)=\\begin{cases}1,&n=1\\\\\n\n(-1)^k,&n=p_1\\cdots p_k\\\\\n\n0,&p^2\\mid n\\end{cases}}}';
+  const errors = await open(page, latex, host, '#ff0000');
+  await page.locator('#currentFavoriteButton').click();
+  await page.evaluate(() => window.LaTeXSnipperEditor.init({...window.editorInit, latex: ''}));
+  await expect(visual(page)).toBeFocused();
+  await tile(page, '我的公式 1').click();
+  await expect.poll(() => visual(page).locator('[part="content"]').innerText()).toContain('φ');
+  expect(await submitted(page)).toBe(latex);
+  await page.reload();
+  await page.evaluate(() => window.LaTeXSnipperEditor.init({...window.editorInit, latex: ''}));
+  await tile(page, '我的公式 1').click();
+  await expect.poll(() => visual(page).locator('[part="content"]').innerText()).toContain('μ');
+  await expect(tile(page, '我的公式 1').locator('.tile-preview')).toContainText('μ');
+  expect(await submitted(page)).toBe(latex);
+  expect(errors).toEqual([]);
+});
+
 test('opening controls leaves selection to the user and preview has no redundant caption', async ({page}) => {
   const errors = await open(page, 'x+1');
   await expect(source(page)).not.toBeFocused();
@@ -731,16 +778,6 @@ test('symbol tiles render LaTeX and pack to their measured width', async ({page}
   });
   expect(compactGreekCount).toBeGreaterThanOrEqual(3);
   await page.screenshot({path: join(tmpdir(), 'latexsnipper-editor-compact-greek.png')});
-  const invalidGreek = await page.evaluate(async () => {
-    const base = 'https://latexsnipper-editor-shared.officeplugin.local/';
-    const [{findEntries, entryTemplate, templateParts}, {validateLatex}] = await Promise.all([
-      import(`${base}template-catalog.mjs`), import(`${base}vendor/mathlive.min.mjs`)]);
-    return findEntries('greek').flatMap(entry => {
-      const latex = templateParts(entryTemplate(entry)).map(part => part.hole ? '\\square' : part.text).join('');
-      return validateLatex(latex).length ? [entry.zh] : [];
-    });
-  });
-  expect(invalidGreek).toEqual([]);
   await page.locator('[data-group="topology"]').click();
   for (const name of ['开集', '闭包']) {
     const rendered = tile(page, name).locator('.tile-preview-content');
@@ -791,9 +828,14 @@ test('symbol tiles render LaTeX and pack to their measured width', async ({page}
   expect(chemistryRow).toBeGreaterThan(1);
   await page.screenshot({path: join(tmpdir(), 'latexsnipper-editor-adaptive-tiles.png')});
   await searchTile(page, 'Dirac operator');
-  await expect(tile(page, 'Dirac 算子').locator('.tile-preview-content')).toHaveText('Dirac 算子');
+  await expect(tile(page, 'Dirac 算子').locator('.tile-preview-content [class*="ML__"]')).not.toHaveCount(0);
+  for (const name of ['道路复合', '六项正合列']) {
+    await searchTile(page, name);
+    await expect(tile(page, name).locator('.tile-preview-content [class*="ML__"]')).not.toHaveCount(0);
+  }
+  await searchTile(page, 'Dirac operator');
   await page.evaluate(() => window.LaTeXSnipperEditor.init({...window.editorInit, locale: 'en'}));
-  await expect(tile(page, 'Dirac operator').locator('.tile-preview-content')).toHaveText('Dirac operator');
+  await expect(tile(page, 'Dirac operator').locator('.tile-preview-content [class*="ML__"]')).not.toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -1019,3 +1061,35 @@ test('keyboard entry into MathLive works while a late focus cannot steal a toolb
   expect(await submitted(page)).toBe('x+1');
   expect(errors).toEqual([]);
 });
+
+
+for (const host of ['word', 'powerpoint']) {
+  test(`${host} colored displaylines stay rendered after recolor and reload`, async ({page}) => {
+    const body = String.raw`\displaylines{\mu(n)=\begin{cases}1,&n=1\\
+(-1)^{k},&n=p_1\cdots p_{k}\\
+0,&p^2\mid n\end{cases}\\
+\varphi(n)=n\prod_{p\mid n}\left(1-\frac{1}{p}\right)}`;
+    const errors = await open(page, body, host, '#d52020');
+    const rendered = () => visual(page).evaluate(field => field.shadowRoot.querySelector('[part=content]')?.textContent);
+    await expect.poll(async () => await rendered()).toContain('1');
+    await expect(visual(page)).toHaveJSProperty('readOnly', false);
+    await page.locator('#color').fill('#c92222');
+    await expect.poll(async () => await rendered()).toContain('1');
+    await expect(visual(page)).toHaveJSProperty('readOnly', false);
+    await expect.poll(() => visual(page).evaluate(field => getComputedStyle(field.shadowRoot.querySelector('.ML__mathit')).color)).toBe('rgb(201, 34, 34)');
+    const saved = await source(page).innerText();
+    await page.reload();
+    // Loading the same saved source exercises a fresh MathLive parser.
+    await source(page).fill(saved);
+    await expect.poll(async () => await rendered()).toContain('1');
+    await expect(visual(page)).toHaveJSProperty('readOnly', false);
+    await expect.poll(() => source(page).innerText()).toBe(saved);
+    await visual(page).click();
+    await visual(page).press('Control+End');
+    await page.keyboard.type('+z');
+    await expect(source(page)).toContainText('+z');
+    expect((await source(page).innerText()).match(/\\textcolor\{#c92222\}/g)).toHaveLength(1);
+    await page.screenshot({path: join(tmpdir(), `latexsnipper-${host}-colored-displaylines.png`)});
+    expect(errors).toEqual([]);
+  });
+}
