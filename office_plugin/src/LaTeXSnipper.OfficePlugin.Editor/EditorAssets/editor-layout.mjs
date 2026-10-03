@@ -13,7 +13,6 @@ export function mountEditor() {
   document.body.setAttribute('theme', 'light');
   document.body.insertAdjacentHTML('afterbegin', `
     <header class="toolbar" aria-label="Editor tools">
-      <strong>LaTeX</strong>
       <div class="toolbar-group">
         <button id="undoButton" class="tool-icon" type="button" aria-keyshortcuts="Control+Z">${icons.undo}</button>
         <button id="redoButton" class="tool-icon" type="button" aria-keyshortcuts="Control+Y">${icons.redo}</button>

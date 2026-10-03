@@ -25,7 +25,6 @@ button:disabled { opacity: .45; cursor: default; }
   min-height: 52px; padding: 6px 12px; border-bottom: 1px solid var(--line);
   background: var(--panel); font-size: 13px;
 }
-.toolbar strong { margin-right: 8px; color: var(--text); font-size: 15px; letter-spacing: .02em; }
 .toolbar-group { display: flex; align-items: center; gap: 6px; padding-right: 8px; border-right: 1px solid var(--line); }
 .toolbar-group > button, .toolbar-popover-anchor > button, #previewToggle, .library-toggle { min-height: 32px; }
 .toolbar-popover-anchor, .size-picker { position: relative; }
