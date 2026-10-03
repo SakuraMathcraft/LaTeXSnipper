@@ -36,7 +36,10 @@ public sealed partial class PowerPointPluginController
                 }
                 string mathMl = await _mathJaxRenderer.ConvertTypographyToMathMlAsync(target.Metadata.Latex,
                     target.Metadata.DisplayMode, target.Metadata.Typography, cancellationToken);
-                await _powerPointAdapter.ReplaceWithMathTypeAsync(target, mathMl, cancellationToken);
+                byte[] native = MathTypeNativeEquation.Create(mathMl, target.Metadata.Typography.FontSizePoints);
+                byte[] compoundFile = MathTypeCompoundFile.Create(native);
+                OlePresentationResult presentation = await RenderOlePresentationAsync(target.Metadata, cancellationToken);
+                await _powerPointAdapter.ReplaceWithMathTypeAsync(target, compoundFile, presentation, cancellationToken);
                 converted++;
             }
             catch (OperationCanceledException) { throw; }
@@ -97,11 +100,12 @@ public sealed partial class PowerPointPluginController
                 {
                     if (entry.MathTypeTarget is MathTypeFormulaTarget mathType)
                     {
-                        string mathMl = await _powerPointAdapter.ReadMathTypeMathMlAsync(mathType, cancellationToken);
+                        MathTypeFormulaContent content = await _powerPointAdapter.ReadMathTypeAsync(mathType, cancellationToken);
                         var imported = new FormulaMetadata(
                             new FormulaIdentity(mathType.DocumentId, Guid.NewGuid().ToString("N")),
-                            mathMl, FormulaDisplayMode.Display, NumberingMode.None, string.Empty,
-                            RenderEngineKind.MathJaxSvg, FormulaMetadata.CurrentSchemaVersion, PowerPointPluginSettings.Load().Typography);
+                            content.MathMl, FormulaDisplayMode.Display, NumberingMode.None, string.Empty,
+                            RenderEngineKind.MathJaxSvg, FormulaMetadata.CurrentSchemaVersion,
+                            PowerPointPluginSettings.Load().Typography.WithFontSize(content.FontSizePoints));
                         OlePresentationResult presentation = await RenderOlePresentationAsync(imported, cancellationToken);
                         await _powerPointAdapter.ReplaceMathTypeWithOleAsync(mathType, imported, presentation, cancellationToken);
                         converted++;

@@ -41,7 +41,7 @@ internal sealed class FailingWordAdapter : RealProxy
                 && call.Args[0] is WordFormulaEditTarget target && target.Metadata.Identity.EquationId == _equationId)
                 throw new InvalidOperationException("Injected MathType conversion failure");
 
-            if (method.Name == nameof(IWordApplicationAdapter.ReadMathTypeMathMlAsync)
+            if (method.Name == nameof(IWordApplicationAdapter.ReadMathTypeAsync)
                 && call.Args[0] is LaTeXSnipper.OfficePlugin.Abstractions.MathTypeFormulaTarget mathType
                 && mathType.Location.ToString() == _equationId)
                 throw new InvalidOperationException("Injected MathType import failure");

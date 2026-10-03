@@ -22,11 +22,11 @@ public sealed class OfficeStaDispatcher : IDisposable
         _ = control.Handle;
     }
 
-    public Task<T> InvokeAsync<T>(Func<T> action, CancellationToken cancellationToken, bool defer = false)
+    public Task<T> InvokeAsync<T>(Func<T> action, CancellationToken cancellationToken)
     {
         if (disposed) throw new ObjectDisposedException(nameof(OfficeStaDispatcher));
         cancellationToken.ThrowIfCancellationRequested();
-        if (!defer && Thread.CurrentThread.ManagedThreadId == threadId) return Task.FromResult(action());
+        if (Thread.CurrentThread.ManagedThreadId == threadId) return Task.FromResult(action());
         var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         control.BeginInvoke(new Action(() =>
         {

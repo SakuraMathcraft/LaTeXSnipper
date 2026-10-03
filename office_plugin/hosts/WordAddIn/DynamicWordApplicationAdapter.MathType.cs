@@ -34,14 +34,12 @@ public sealed partial class DynamicWordApplicationAdapter
         throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
     }
 
-    public Task<string> ReadMathTypeMathMlAsync(MathTypeFormulaTarget target, CancellationToken cancellationToken)
+    public Task<MathTypeFormulaContent> ReadMathTypeAsync(MathTypeFormulaTarget target, CancellationToken cancellationToken)
         => _officeThread.InvokeAsync(() =>
         {
             dynamic shape = FindMathTypeFormula(target);
-            shape.OLEFormat.Activate();
-            object server = shape.OLEFormat.Object;
-            try { return MathTypeOleBridge.ReadAndCloseMathMl(server); }
-            finally { if (System.Runtime.InteropServices.Marshal.IsComObject(server)) System.Runtime.InteropServices.Marshal.ReleaseComObject(server); }
+            byte[] native = MathTypeWordPackage.ReadNative(Convert.ToString(shape.Range.WordOpenXML)!);
+            return new MathTypeFormulaContent(MathTypeNativeEquation.ReadMathMl(native), MathTypeNativeEquation.ReadFontSizePoints(native));
         }, cancellationToken);
 
     public Task ReplaceMathTypeWithOleAsync(MathTypeFormulaTarget target, FormulaMetadata metadata,
@@ -63,6 +61,7 @@ public sealed partial class DynamicWordApplicationAdapter
                     converted.LockAspectRatio = -1;
                     converted.Height = height;
                     SaveFormulaMetadata(metadata);
+                    cancellationToken.ThrowIfCancellationRequested();
                     FindMathTypeFormula(target).Delete();
                 }
                 catch
@@ -88,73 +87,72 @@ public sealed partial class DynamicWordApplicationAdapter
         }, cancellationToken);
     }
 
-    public Task ReplaceWithMathTypeAsync(WordFormulaEditTarget target, string mathMl, CancellationToken cancellationToken)
+    public Task ReplaceWithMathTypeAsync(WordFormulaEditTarget target, byte[] compoundFile, OlePresentationResult presentation, CancellationToken cancellationToken)
         => _officeThread.InvokeAsync(() =>
         {
             if (!target.IsOle || !IsFormulaEditTargetValid(target))
                 throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
             if (target.Metadata.NumberingMode != NumberingMode.None)
                 throw new InvalidOperationException(WordAddInText.Get("MathTypeNumberedUnsupported"));
-            MathTypeOleBridge.EnsureAvailable();
             using (UseDocument(target.Document))
             using (BeginUndoRecord())
             {
                 dynamic original = TryFindOleInlineShapeById(target.Metadata.Identity.EquationId)
                     ?? throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
-                float width = Convert.ToSingle(original.Width), height = Convert.ToSingle(original.Height);
-                string objectXml = CreateMathTypeObjectXml(mathMl, width, height);
                 cancellationToken.ThrowIfCancellationRequested();
                 dynamic insertion = original.Range.Duplicate;
                 insertion.Collapse(0);
-                int insertionStart = GetRangeStart(insertion);
+                float width = Convert.ToSingle(original.Width);
+                float height = Convert.ToSingle(original.Height);
+                string package = MathTypeWordPackage.Create(compoundFile, presentation, width, height);
+                string expected = MathTypeNativeEquation.ReadMathMl(MathTypeCompoundFile.ReadNative(compoundFile));
+                int originalCount = Convert.ToInt32(CurrentDocument.InlineShapes.Count);
+                int insertionStart = Convert.ToInt32(insertion.Start);
+                int documentEnd = Convert.ToInt32(CurrentDocument.Content.End);
                 dynamic? converted = null;
+                dynamic? inserted = null;
                 try
                 {
-                    // Insert an already saved native object: the SDK never updates
-                    // this document's placeholder or its cached scaling factors.
-                    insertion.InsertXML(objectXml);
-                    converted = FindMathTypeFormula(new MathTypeFormulaTarget(target.Document,
-                        target.Metadata.Identity.DocumentId, insertionStart));
+                    insertion.InsertXML(package);
+                    int insertedLength = Convert.ToInt32(CurrentDocument.Content.End) - documentEnd;
+                    inserted = CurrentDocument.Range(insertionStart, insertionStart + insertedLength);
+                    if (Convert.ToInt32(inserted.InlineShapes.Count) != 1)
+                        throw new InvalidOperationException("MathType insertion did not produce exactly one equation.");
+                    converted = inserted.InlineShapes.Item(1);
+                    dynamic trailing = CurrentDocument.Range(Convert.ToInt32(converted.Range.End), Convert.ToInt32(inserted.End));
+                    dynamic leading = CurrentDocument.Range(Convert.ToInt32(inserted.Start), Convert.ToInt32(converted.Range.Start));
+                    string trailingText = Convert.ToString((object?)trailing.Text) ?? string.Empty;
+                    string leadingText = Convert.ToString((object?)leading.Text) ?? string.Empty;
+                    if (trailingText.Trim('\r').Length != 0 || leadingText.Trim('\r').Length != 0)
+                        throw new InvalidOperationException("MathType insertion unexpectedly introduced surrounding text.");
+                    if (Convert.ToInt32(trailing.End) > Convert.ToInt32(trailing.Start)) trailing.Delete();
+                    if (Convert.ToInt32(leading.End) > Convert.ToInt32(leading.Start)) leading.Delete();
                     if (!MathTypeOleBridge.IsEquation((object)converted))
                         throw new InvalidOperationException(WordAddInText.Get("MathTypeNativeRequired"));
                     converted.AlternativeText = string.Empty;
-                    if (Math.Abs(Convert.ToSingle(converted.Width) - width) > Math.Max(0.5f, width * 0.01f)
-                        || Math.Abs(Convert.ToSingle(converted.Height) - height) > Math.Max(0.5f, height * 0.01f))
-                        throw new InvalidOperationException("MathType 对象未能恢复转换前的宽度和高度。");
-                    original = TryFindOleInlineShapeById(target.Metadata.Identity.EquationId)
-                        ?? throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
+                    string actual = MathTypeNativeEquation.ReadMathMl(MathTypeWordPackage.ReadNative(Convert.ToString(converted.Range.WordOpenXML)!));
+                    if (actual != expected || Convert.ToInt32(CurrentDocument.InlineShapes.Count) != originalCount + 1
+                        || Math.Abs(Convert.ToSingle(converted.Width) - width) > 0.1f
+                        || Math.Abs(Convert.ToSingle(converted.Height) - height) > 0.1f)
+                        throw new InvalidOperationException("MathType insertion content, count or dimensions failed validation.");
+                    cancellationToken.ThrowIfCancellationRequested();
                     original.Delete();
                 }
                 catch
                 {
-                    if (converted != null) converted.Delete();
+                    if (inserted != null)
+                    {
+                        if (Convert.ToInt32(inserted.End) > Convert.ToInt32(inserted.Start)) inserted.Delete();
+                    }
+                    else
+                    {
+                        int insertedLength = Convert.ToInt32(CurrentDocument.Content.End) - documentEnd;
+                        if (insertedLength > 0) CurrentDocument.Range(insertionStart, insertionStart + insertedLength).Delete();
+                    }
                     throw;
                 }
                 TryCom(() => converted.Range.Select());
             }
             return true;
         }, cancellationToken);
-
-    private string CreateMathTypeObjectXml(string mathMl, float width, float height)
-    {
-        dynamic scratch = _wordApplication.Documents.Add(Visible: false);
-        try
-        {
-            dynamic shape = scratch.InlineShapes.AddOLEObject(MathTypeOleBridge.ProgId);
-            object server = shape.OLEFormat.Object;
-            try { MathTypeOleBridge.WriteMathMl(server, mathMl); }
-            finally { if (System.Runtime.InteropServices.Marshal.IsComObject(server)) System.Runtime.InteropServices.Marshal.ReleaseComObject(server); }
-            string objectXml = Convert.ToString(shape.Range.WordOpenXML);
-            var xml = System.Xml.Linq.XDocument.Parse(objectXml);
-            System.Xml.Linq.XNamespace word = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
-            System.Xml.Linq.XNamespace vml = "urn:schemas-microsoft-com:vml";
-            var frame = xml.Descendants(word + "object").Single().Element(vml + "shape")
-                ?? throw new InvalidOperationException(WordAddInText.Get("MathTypeNativeRequired"));
-            // Persist each original dimension explicitly in points. Importing the
-            // complete native storage and frame avoids Word's late OLE resizing.
-            frame.SetAttributeValue("style", FormattableString.Invariant($"width:{width:R}pt;height:{height:R}pt"));
-            return xml.ToString(System.Xml.Linq.SaveOptions.DisableFormatting);
-        }
-        finally { scratch.Close(0); }
-    }
 }

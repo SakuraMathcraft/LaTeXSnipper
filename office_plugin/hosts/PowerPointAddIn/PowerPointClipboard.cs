@@ -9,18 +9,26 @@ using System.Xml.Linq;
 
 namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 
-internal static class PowerPointMathMlClipboard
+internal static class PowerPointClipboard
 {
     public static (int Start, int Length) PasteAtRange(dynamic range, string mathMl)
     {
         if (string.IsNullOrWhiteSpace(mathMl)) throw new ArgumentException("MathML 不能为空。", nameof(mathMl));
-        IDataObject? previous = SnapshotClipboard();
-        try
+        return WithSavedClipboard<(int Start, int Length)>(() =>
         {
             string normalized = CompactMathMl(mathMl);
             Clipboard.SetText(normalized, TextDataFormat.UnicodeText);
             dynamic pasted = range.Paste();
             return (Convert.ToInt32(pasted.Start), Convert.ToInt32(pasted.Length));
+        });
+    }
+
+    public static T WithSavedClipboard<T>(Func<T> action)
+    {
+        IDataObject? previous = SnapshotClipboard();
+        try
+        {
+            return action();
         }
         finally
         {

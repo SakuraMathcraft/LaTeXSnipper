@@ -35,7 +35,10 @@ public sealed partial class WordPluginController
                 }
                 string mathMl = await _mathJaxRenderer.ConvertTypographyToMathMlAsync(target.Metadata.Latex,
                     target.Metadata.DisplayMode, target.Metadata.Typography, cancellationToken);
-                await _wordAdapter.ReplaceWithMathTypeAsync(target, mathMl, cancellationToken);
+                byte[] native = MathTypeNativeEquation.Create(mathMl, target.Metadata.Typography.FontSizePoints);
+                byte[] compoundFile = MathTypeCompoundFile.Create(native);
+                OlePresentationResult presentation = await RenderOlePresentationAsync(target.Metadata, target.Metadata.Latex, cancellationToken);
+                await _wordAdapter.ReplaceWithMathTypeAsync(target, compoundFile, presentation, cancellationToken);
                 converted++;
             }
             catch (OperationCanceledException) { throw; }
@@ -144,11 +147,11 @@ public sealed partial class WordPluginController
                 {
                     if (entry.MathTypeTarget is MathTypeFormulaTarget mathType)
                     {
-                        string mathMl = await _wordAdapter.ReadMathTypeMathMlAsync(mathType, cancellationToken);
+                        MathTypeFormulaContent content = await _wordAdapter.ReadMathTypeAsync(mathType, cancellationToken);
                         var imported = new FormulaMetadata(
                             new FormulaIdentity(mathType.DocumentId, Guid.NewGuid().ToString("N")),
-                            mathMl, FormulaDisplayMode.Inline, NumberingMode.None, string.Empty,
-                            RenderEngineKind.MathJaxSvg, FormulaMetadata.CurrentSchemaVersion, _settingsLoader().Typography);
+                            content.MathMl, FormulaDisplayMode.Inline, NumberingMode.None, string.Empty,
+                            RenderEngineKind.MathJaxSvg, FormulaMetadata.CurrentSchemaVersion, _settingsLoader().Typography.WithFontSize(content.FontSizePoints));
                         PreparedWordFormula importedPrepared = await PrepareRenderedFormulaAsync(imported,
                             includeEquationOoxml: false, cancellationToken, FormulaInsertionBackend.Ole, reportProgress: false);
                         preparedBatch.Add((entry, importedPrepared));

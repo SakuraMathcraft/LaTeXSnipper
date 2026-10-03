@@ -129,7 +129,10 @@ test('source history includes visual edits; unfocused notifications cannot repla
   await page.locator('#mathfieldHost math-field').click();
   await page.locator('#mathfieldHost math-field').press('Control+y');
   expect(await submitted(page)).toBe('x+12');
-  await source(page).fill('newest');
+  await source(page).focus();
+  await source(page).press('Control+a');
+  await page.keyboard.insertText('newest');
+  await expect(source(page)).toHaveText('newest');
   await page.evaluate(() => { const mf = document.querySelector('#mathfieldHost math-field'); mf.setValue('stale', {silenceNotifications: true}); mf.dispatchEvent(new Event('input')); });
   expect(await submitted(page)).toBe('newest');
   expect(errors).toEqual([]);

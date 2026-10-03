@@ -40,7 +40,7 @@ Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 i
 ### Shared
 
 - Double-click editing and independent cross-document copies of LaTeXSnipper OLE formulas
-- Explicit conversion of unnumbered LaTeXSnipper OLE formulas to native MathType objects, using the installed MathType desktop SDK; multi-selection continues after individual failures and reports specific errors; MathType owns subsequent editing and layout
+- Explicit conversion of unnumbered LaTeXSnipper OLE formulas to native MathType objects; Word and PowerPoint share direct MTEF/CFB encoding and MathJax vector previews. Multi-selection continues after individual failures and reports specific errors; MathType owns subsequent native editing and layout
 - Reusable WebView2/MathLive formula editor
 - 18-category shared symbol and formula library
 - Chinese and English Ribbon, task pane, editor, settings, and help
@@ -49,6 +49,8 @@ Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 i
 ## Project Layout
 
 Desktop and Office share pinned MathJax 4.1.3 with independent resource profiles and asynchronous conversion. See [runtime maintenance and verification](../tools/mathjax/README.md) and the [current formula workflows and metadata](../docs/office_plugin_formula_workflows.md).
+
+Word and PowerPoint convert between LaTeXSnipper OLE and native MathType objects without activating MathType or calling its SDK. PowerPoint preserves the original display width, height, position and layer directly. Double-click editing of native MathType objects requires MathType. Conversion has not yet been verified in a clean Office environment without MathType.
 
 | Path | Role |
 |---|---|
@@ -64,6 +66,7 @@ Desktop and Office share pinned MathJax 4.1.3 with independent resource profiles
 | `tests/LaTeXSnipper.OfficePlugin.Typography.Tests` | Typography contracts, sizes, symbol assets, and OMML mapping |
 | `tests/LaTeXSnipper.OfficePlugin.WordParsingE2E` | Real-Word OMML/OLE parsing, formatting, conversion, and persistence |
 | `tests/LaTeXSnipper.OfficePlugin.PowerPointE2E` | Real-PowerPoint text insertion, shape round trips, and batch failure handling |
+| `tests/OfficeE2E` | Optional checks against an installed MathType editing server; excluded from product assemblies |
 | `installer/` | Inno Setup installer and release build entry point |
 | `tools/` | Build, installer, metadata, and Word parsing test entry points |
 | `hosts/OleFormulaObjectNative/` | Native C++ COM/OLE in-proc handler DLL registered as the Office formula object for 32-bit and 64-bit Office |
@@ -100,8 +103,14 @@ Build the installer or the managed solution and native handler first, then close
 
 ```powershell
 office_plugin\tools\Test-OfficeTypographyE2E.ps1
-# Include native MathType conversion and save/reopen checks (requires installed MathType):
+# Include native MathType conversion and save/reopen checks:
 office_plugin\tools\Test-OfficeTypographyE2E.ps1 -IncludeMathType
+# Word conversion checks only; native-edit verification additionally requires MathType:
+office_plugin\tools\Test-OfficeTypographyE2E.ps1 -HostScope Word -WordBackend Ole -WordMathTypeOnly
+office_plugin\tools\Test-OfficeTypographyE2E.ps1 -HostScope Word -WordBackend Ole -WordMathTypeOnly -WordMathTypeNativeEdit
+# PowerPoint conversion checks only; native-edit verification additionally requires MathType:
+office_plugin\tools\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint -PowerPointMode MathType
+office_plugin\tools\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint -PowerPointMode MathType -PowerPointMathTypeNativeEdit
 # Word OMML only, without temporary OLE registration:
 office_plugin\tools\Test-OfficeTypographyE2E.ps1 -HostScope Word -WordBackend Omml
 # PowerPoint batch failure and retry only, without OLE:

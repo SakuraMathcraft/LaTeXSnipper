@@ -11,8 +11,11 @@ param(
 
     [switch]$WordCopyOnly,
     [switch]$IncludeMathType,
+    [switch]$WordMathTypeOnly,
+    [switch]$WordMathTypeNativeEdit,
+    [switch]$PowerPointMathTypeNativeEdit,
 
-    [ValidateSet('Full', 'Batch', 'Copy', 'Gesture')]
+    [ValidateSet('Full', 'Batch', 'Copy', 'Gesture', 'MathType')]
     [string]$PowerPointMode = 'Full',
     [string]$OutputDirectory = (Join-Path $env:TEMP ('latexsnipper-office-' + [Guid]::NewGuid().ToString('N')))
 )
@@ -101,15 +104,18 @@ try {
             $wordArgs = @('--backend', $backend, '--output', (Join-Path $OutputDirectory "word-$backend.docx"))
             if ($WordCopyOnly) { $wordArgs += '--copy' }
             if ($IncludeMathType) { $wordArgs += '--mathtype' }
+            if ($WordMathTypeOnly) { $wordArgs += '--mathtype-only' }
+            if ($WordMathTypeNativeEdit) { $wordArgs += '--mathtype-native-edit' }
             & $wordTest @wordArgs | Tee-Object -FilePath (Join-Path $OutputDirectory "word-$backend.log")
             if ($LASTEXITCODE -ne 0) { throw "Word $backend E2E failed: $LASTEXITCODE" }
             Wait-OfficeExit 'WINWORD'
         }
     }
     if ($runPowerPoint) {
-        $mode = switch ($PowerPointMode) { 'Batch' { '--batch' } 'Copy' { '--copy' } 'Gesture' { '--gesture' } default { '--ole' } }
+        $mode = switch ($PowerPointMode) { 'Batch' { '--batch' } 'Copy' { '--copy' } 'Gesture' { '--gesture' } 'MathType' { '--mathtype-only' } default { '--ole' } }
         $pptArgs = @((Join-Path $OutputDirectory 'powerpoint.pptx'), $mode)
         if ($IncludeMathType -and $PowerPointMode -in @('Full', 'Copy')) { $pptArgs += '--mathtype' }
+        if ($PowerPointMathTypeNativeEdit) { $pptArgs += '--mathtype-native-edit' }
         & $pptTest @pptArgs | Tee-Object -FilePath (Join-Path $OutputDirectory 'powerpoint.log')
         if ($LASTEXITCODE -ne 0) { throw "PowerPoint E2E failed: $LASTEXITCODE" }
     }

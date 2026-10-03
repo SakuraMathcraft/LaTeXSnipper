@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 
 internal static class Program
@@ -7,9 +8,15 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
-        if (args.Length < 1 || args.Length > 3 || (args.Length >= 2 && args[1] != "--ole" && args[1] != "--batch" && args[1] != "--copy" && args[1] != "--gesture")
-            || (args.Length == 3 && ((args[1] != "--ole" && args[1] != "--copy") || args[2] != "--mathtype")))
-        { Console.Error.WriteLine("Usage: PowerPointE2E <output.pptx> [--ole [--mathtype]|--batch|--copy [--mathtype]|--gesture]"); return 2; }
+        string mode = args.Length >= 2 ? args[1] : "--ole";
+        bool includeMathType = mode == "--mathtype-only" || args.Skip(2).Contains("--mathtype");
+        bool nativeEdit = args.Skip(2).Contains("--mathtype-native-edit");
+        if (args.Length < 1 || args.Length > 4 || !new[] { "--ole", "--batch", "--copy", "--gesture", "--mathtype-only" }.Contains(mode)
+            || args.Skip(2).Any(a => a != "--mathtype" && a != "--mathtype-native-edit")
+            || args.Skip(2).Distinct().Count() != args.Skip(2).Count()
+            || includeMathType && mode != "--ole" && mode != "--copy" && mode != "--mathtype-only"
+            || nativeEdit && !includeMathType)
+        { Console.Error.WriteLine("Usage: PowerPointE2E <output.pptx> [--ole|--batch|--copy|--gesture|--mathtype-only] [--mathtype] [--mathtype-native-edit]"); return 2; }
         Application.EnableVisualStyles();
         System.Diagnostics.Trace.Listeners.Add(new System.Diagnostics.ConsoleTraceListener());
         int exitCode = 1;
@@ -20,8 +27,8 @@ internal static class Program
             try
             {
                 await PowerPointRoundTrip.RunAsync(Path.GetFullPath(args[0]),
-                    args.Length >= 2 && args[1] == "--ole", args.Length >= 2 && args[1] == "--batch", args.Length == 3,
-                    args.Length >= 2 && args[1] == "--copy", args.Length >= 2 && args[1] == "--gesture");
+                    mode == "--ole", mode == "--batch", includeMathType,
+                    mode == "--copy", mode == "--gesture", nativeEdit, mode == "--mathtype-only");
                 exitCode = 0;
             }
             catch (Exception error) { Console.Error.WriteLine(error); }

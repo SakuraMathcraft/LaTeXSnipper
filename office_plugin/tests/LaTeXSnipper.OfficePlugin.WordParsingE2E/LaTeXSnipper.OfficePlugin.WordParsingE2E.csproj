@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <Compile Include="../OfficeE2E/MathTypeNativeServer.cs" Link="MathTypeNativeServer.cs" />
     <ProjectReference Include="..\..\hosts\WordAddIn\LaTeXSnipper.OfficePlugin.WordAddIn.csproj" />
   </ItemGroup>
 

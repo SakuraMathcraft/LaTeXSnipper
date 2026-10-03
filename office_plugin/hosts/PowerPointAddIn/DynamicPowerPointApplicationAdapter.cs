@@ -757,7 +757,7 @@ public sealed partial class DynamicPowerPointApplicationAdapter : IPowerPointApp
             ActivateForEditingAsync(cancellationToken).GetAwaiter().GetResult();
             dynamic insertionRange = shape.TextFrame.TextRange.Characters(target.Start, 0);
             insertionRange.Select();
-            pasted = PowerPointMathMlClipboard.PasteAtRange(insertionRange, mathMl);
+            pasted = PowerPointClipboard.PasteAtRange(insertionRange, mathMl);
             if (pasted.Length <= 0)
                 throw new InvalidOperationException(PowerPointAddInText.Get("NativeEquationInsertFailed"));
             dynamic inserted = shape.TextFrame2.TextRange.Characters(pasted.Start, pasted.Length);

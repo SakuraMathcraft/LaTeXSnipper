@@ -56,11 +56,11 @@ public interface IWordApplicationAdapter
 
     Task<IReadOnlyList<WordFormulaEditTarget>> LoadSelectedFormulaTargetsAsync(CancellationToken cancellationToken);
 
-    Task ReplaceWithMathTypeAsync(WordFormulaEditTarget target, string mathMl, CancellationToken cancellationToken);
+    Task ReplaceWithMathTypeAsync(WordFormulaEditTarget target, byte[] compoundFile, OlePresentationResult presentation, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<WordFormulaEntry>> LoadConversionEntriesAsync(bool includeMathType, CancellationToken cancellationToken);
 
-    Task<string> ReadMathTypeMathMlAsync(MathTypeFormulaTarget target, CancellationToken cancellationToken);
+    Task<MathTypeFormulaContent> ReadMathTypeAsync(MathTypeFormulaTarget target, CancellationToken cancellationToken);
 
     Task ReplaceMathTypeWithOleAsync(MathTypeFormulaTarget target, FormulaMetadata metadata, OlePresentationResult presentation, CancellationToken cancellationToken);
 

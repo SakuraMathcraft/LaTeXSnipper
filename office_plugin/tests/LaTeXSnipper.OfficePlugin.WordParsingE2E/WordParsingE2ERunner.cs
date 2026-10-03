@@ -61,7 +61,8 @@ internal sealed class WordParsingE2ERunner
             Console.WriteLine("STAGE|Document created");
             if (_options.Backend == FormulaInsertionBackend.Ole)
             {
-                if (_options.IncludeMathType) await MathTypeRoundTrip.VerifyAsync((object)word, _options.OutputPath);
+                if (_options.IncludeMathType) await MathTypeRoundTrip.VerifyAsync((object)word, _options.OutputPath, _options.MathTypeNativeEdit);
+                if (_options.MathTypeOnly) return;
                 document.Activate();
                 await WordOleCopyRoundTrip.VerifyAsync((object)word, (object)document, _options.OutputPath);
                 if (_options.CopyOnly) return;

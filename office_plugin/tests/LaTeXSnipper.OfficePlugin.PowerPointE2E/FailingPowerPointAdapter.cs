@@ -2,6 +2,8 @@ using System;
 using System.Reflection;
 using System.Runtime.Remoting.Messaging;
 using System.Runtime.Remoting.Proxies;
+using System.Text.RegularExpressions;
+using System.Threading;
 using LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 
 internal sealed class FailingPowerPointAdapter : RealProxy
@@ -37,7 +39,7 @@ internal sealed class FailingPowerPointAdapter : RealProxy
                 && call.Args[0] is PowerPointFormulaEditTarget target && target.Metadata.Identity.EquationId == _equationId)
                 throw new InvalidOperationException("Injected MathType conversion failure");
 
-            if (method.Name == nameof(IPowerPointApplicationAdapter.ReadMathTypeMathMlAsync)
+            if (method.Name == nameof(IPowerPointApplicationAdapter.ReadMathTypeAsync)
                 && call.Args[0] is LaTeXSnipper.OfficePlugin.Abstractions.MathTypeFormulaTarget mathType
                 && mathType.Location.ToString() == _equationId)
                 throw new InvalidOperationException("Injected MathType import failure");
@@ -57,14 +59,22 @@ internal sealed class FailingPowerPointAdapter : RealProxy
 
 internal sealed class BatchStatusSink : IPowerPointStatusSink
 {
+    private CancellationTokenSource? batchCancellation;
     public PowerPointStatusKind Kind { get; private set; }
     public string Message { get; private set; } = string.Empty;
+
+    public void CancelAfterNextBatch(CancellationTokenSource cancellation) => batchCancellation = cancellation;
 
     public void Post(PowerPointStatusKind kind, string message)
     {
         Kind = kind;
         Message = message;
         Console.WriteLine("STATUS|" + kind + "|" + message);
+        if (batchCancellation != null && Regex.IsMatch(message, @"\d+\s*/\s*\d+", RegexOptions.CultureInvariant))
+        {
+            batchCancellation.Cancel();
+            batchCancellation = null;
+        }
     }
 
     public void SetBusy(bool busy) { }

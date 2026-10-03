@@ -16,7 +16,8 @@ internal static class PowerPointRoundTrip
 {
     private static readonly CancellationToken Token = CancellationToken.None;
 
-    public static async Task RunAsync(string output, bool includeOle, bool batchOnly = false, bool includeMathType = false, bool copyOnly = false, bool gestureOnly = false)
+    public static async Task RunAsync(string output, bool includeOle, bool batchOnly = false, bool includeMathType = false,
+        bool copyOnly = false, bool gestureOnly = false, bool mathTypeNativeEdit = false, bool mathTypeOnly = false)
     {
         if (Process.GetProcessesByName("POWERPNT").Length != 0)
             throw new InvalidOperationException("Close PowerPoint before running this isolated test.");
@@ -50,7 +51,8 @@ internal static class PowerPointRoundTrip
                 new AutomationApiClient(new AutomationApiOptions()), adapter, renderer,
                 new OlePresentationPipeline(new IOlePresentationRenderer[] { new EnhancedMetafilePresentationRenderer() }),
                 statusSink: new BatchStatusSink(), optionsProvider: options);
-            if (includeMathType) await MathTypeRoundTrip.VerifyAsync((object)app, (object)presentation, controller, renderer, output);
+            if (includeMathType) await MathTypeRoundTrip.VerifyAsync((object)app, (object)presentation, controller, renderer, output, mathTypeNativeEdit);
+            if (mathTypeOnly) return;
             var style = new FormulaTypography("mathjax-stix2", "Times New Roman", "SimSun",
                 FormulaMathStyle.BoldItalic, 15.5, "#123ABC");
             if (copyOnly || gestureOnly)

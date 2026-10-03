@@ -29,7 +29,9 @@ public sealed class OleFormulaContent
         dynamic shape = shapeObject;
         try
         {
-            string id = Convert.ToString(shape.OLEFormat.ProgID) ?? "";
+            dynamic? format = shape.OLEFormat;
+            if (format == null) return false;
+            string id = Convert.ToString(format.ProgID) ?? "";
             return string.Equals(id, ProgId, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(id, "LaTeXSnipper.Formula", StringComparison.OrdinalIgnoreCase);
         }

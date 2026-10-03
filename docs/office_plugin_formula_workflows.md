@@ -76,13 +76,17 @@ OLE / PNG 均要求完整 tags；复制时保留这些数据并重新绑定实�
 
 ## 转为 MathType
 
-独立的“转为 MathType”入口处理所选普通 LaTeXSnipper OLE；Word 带编号公式暂不纳入。需要本机安装提供桌面 SDK 的 MathType。转换开始前固定整个选区的目标，逐项执行并沿用统一命令互斥和超时兜底；单项失败保留原公式，继续其余项，最终报告成功、失败、跳过数量及首个具体错误。宿主读取、对象创建、MathType SDK 导入与保存均由适配器持有的调度句柄返回创建它的 Office STA 线程执行，不依赖异步续体的 `SynchronizationContext`。
+独立的“转为 MathType”入口处理所选普通 LaTeXSnipper OLE；Word 带编号公式暂不纳入。转换前固定选区目标，从后向前执行，沿用命令互斥、取消、超时及成功/失败/跳过统计。单项失败保留原公式并继续其余项。
 
-现有 MathJax 样式链路输出 MathML，宿主创建 `Equation.DSMT4` 对象，安装的 MathType SDK 导入 MathML并保存原生内容。导入前移除单侧定界符产生的空 `<mo/>`，避免 MathType SDK -9999；原源码与样式不变。Word 在隐藏的临时文档完成原生保存，将原宽、高以 pt 写入对象的 OOXML 显示框，再把完整原生存储与显示框一起插入目标文档，避免目标对象受到 SDK 保存后的尺寸缓存更新影响；临时文档立即关闭。PowerPoint 在原生保存返回后的下一次 STA 调度中分别恢复原宽、高，并保留位置（Office OLE 对象不支持旋转）。只有创建、导入、内容回读和尺寸恢复成功后才删除原 LaTeXSnipper 对象；失败移除新对象并保留原对象。
+Word 和 PowerPoint 共用 MathJax 样式链路生成 MathML 与 EMF，编码 MTEF v5、字号及颜色，回读验证后写入标准 `Equation.DSMT4` CFB，并生成 WMF 矢量预览。双向转换均不激活 MathType、不调用 SDK。尚须在未安装 MathType 的干净 Office 环境完成隔离验收。
 
-转换后由 MathType 原生内容管理公式，双击进入 MathType，排版和字体由 MathType 管理。插件不附带另一份原始源码或字体快照，也不从 MathType 内容推导近似源码。该出口不承诺任意 TeX 命令或字体方案的完全等价；MathType 回读 MathML 的表示也不能用于证明所有显示属性均可精确恢复。
+Word 的 WMF 预览、VML 显示框和原始尺寸使用同一组原 OLE 显示宽高。适配器在 Office STA 上用 `Range.InsertXML` 插入最小 Flat OPC，持有插入范围及返回的新对象，验证内容、数量和尺寸后删除原对象；失败或取消删除本项插入范围。
 
-“转为 OLE”同时接收 MathType 原生对象。转换前固定所选对象的位置，逐项读取当前 MathML（保存为单个完整、默认命名空间的 `<math>` 根节点），交给现有 MathJax 渲染与插件 OLE 创建链路。成功生成并保存新对象后删除 MathType 对象；读取或渲染失败保留原对象并继续。支持与 Word 公式 / PowerPoint PNG 混合多选，沿用现有批量统计、命令互斥和超时。新 OLE 的唯一源码是当前 MathML，字体使用当前插件默认设置及 MathML 中显式样式；不会恢复旧 LaTeX 或旧字体快照，MathType 导出未表达的样式无法精确保留。
+PowerPoint 将 CFB 与预览封装到单页 PPTX，在 Office STA 上打开隐藏的临时演示文稿，将对象复制到捕获的目标页并恢复原位置。原显示宽高由包内几何信息直接保留，同时保持原层次；验证对象身份、当前原生内容和几何后删除原公式，失败或取消移除新对象。复制过程暂存并恢复剪贴板，临时演示文稿随后关闭并清理。
+
+“转为 OLE”接收 MathType 原生对象及混合选择。Word 从对象对应的 Flat OPC/CFB 读取当前 `Equation Native`，PowerPoint 从当前演示文稿的临时保存副本按页序和 shape ID 定位 CFB。两者解码当前 MathML 与字号，使用 MathJax 渲染并持久化到插件 OLE。PowerPoint 保留实例显示宽高、位置和层次；Word 沿用高度和等比缩放语义。新 OLE 唯一源码为当前 MathML。
+
+转换后的对象由 MathType 原生内容管理；用户双击原生编辑仍须安装 MathType。默认字形、可表达的结构与样式是验收范围，任意数学字体方案不承诺字形完全相同。不支持的结构或局部字号会明确报错并保留原公式。
 
 ## 设置项影响边界
 
