@@ -94,7 +94,7 @@ public interface IWordApplicationAdapter
 
     bool HasCustomFormulaScale(FormulaMetadata metadata);
 
-    Task<IReadOnlyList<string>> DeleteSelectedFormulaAsync(CancellationToken cancellationToken);
+    Task DeleteSelectedFormulaAsync(CancellationToken cancellationToken);
 
     Task<WordRenumberResult> RenumberAutomaticFormulasAsync(CancellationToken cancellationToken);
 

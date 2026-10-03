@@ -457,67 +457,26 @@ public sealed partial class DynamicWordApplicationAdapter
             || Math.Abs(height / naturalHeight - 1) > 0.01;
     }
 
-    public Task<IReadOnlyList<string>> DeleteSelectedFormulaAsync(CancellationToken cancellationToken)
+    public Task DeleteSelectedFormulaAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var selectedFormulas = new List<SelectedWordFormula>(CollectSelectedFormulas());
         AddOleInlineShapesInsideSelection(selectedFormulas);
-        IReadOnlyList<object> selectedCommandControls = FindSelectedCommandControls();
-        IReadOnlyList<object> selectedReferenceFields = FindSelectedReferenceFields();
-        object? selectedPendingReference = FindSelectedPendingReferencePlaceholder();
-        if (selectedFormulas.Count == 0 &&
-            selectedCommandControls.Count == 0 &&
-            selectedReferenceFields.Count == 0 &&
-            selectedPendingReference == null)
+        if (selectedFormulas.Count == 0)
         {
             throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
         }
 
-        string[] deletedEquationIds = selectedFormulas
-            .Select(formula => formula.Metadata.Identity.EquationId)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-        var targets = new List<(int Start, int End, Action Delete)>();
-        var formulaDeleteIds = new HashSet<string>(StringComparer.Ordinal);
-        foreach (SelectedWordFormula selected in selectedFormulas)
-        {
-            formulaDeleteIds.Add(selected.Metadata.Identity.EquationId);
-            int start = GetFormulaStart(selected);
-            targets.Add((start, start, () => DeleteFormula(selected)));
-        }
-
-        foreach (object selected in selectedCommandControls)
-        {
-            dynamic control = selected;
-            int start = GetRangeStart(control.Range);
-            int end = GetRangeEnd(control.Range);
-            targets.Add((start, end, () => DeleteCommandControl(selected)));
-        }
-
-        foreach (object selected in selectedReferenceFields)
-        {
-            dynamic field = selected;
-            int start = GetRangeStart(field.Result);
-            int end = GetRangeEnd(field.Result);
-            targets.Add((start, end, () => DeleteReferenceField(selected)));
-        }
-
-        if (selectedPendingReference != null)
-        {
-            dynamic range = selectedPendingReference;
-            int start = GetRangeStart(range);
-            int end = GetRangeEnd(range);
-            targets.Add((start, end, () => DeletePendingReferencePlaceholder(selectedPendingReference)));
-        }
-
+        SelectedWordFormula[] targets = selectedFormulas.OrderByDescending(GetFormulaStart).ToArray();
         ExecuteWithScreenUpdatingSuspended(() =>
         {
-            foreach ((int _, int _, Action delete) in targets.OrderByDescending(target => target.Start))
+            foreach (SelectedWordFormula selected in targets)
             {
-                delete();
+                cancellationToken.ThrowIfCancellationRequested();
+                DeleteFormula(selected);
             }
         });
 
-        return Task.FromResult<IReadOnlyList<string>>(deletedEquationIds);
+        return Task.CompletedTask;
     }
 }
