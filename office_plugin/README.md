@@ -24,7 +24,7 @@ Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 i
 - Chapter/section-aware automatic numbering, references, boundaries, and Renumber All
 - In-place conversion between managed OLE and OMML formulas, plus explicit conversion of selected native Word OMML formulas to LaTeXSnipper OLE
 - Parsing of `$...$`, `\(...\)`, `$$...$$`, and `\[...\]` LaTeX in the selected range or main document body, including table cells
-- Selected formula style reset and document-wide natural-size restoration
+- Selected or document-wide reset to the configured formula style and natural size
 - Screenshot OCR via Automation API
 
 ### PowerPoint
@@ -33,14 +33,14 @@ Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 i
 - Native inline equations at a text-box caret, using MathJax MathML and optional host-size inheritance
 - Load, update, and delete managed formulas
 - In-place conversion of selected managed formulas between OLE and PNG
-- Selected formula style reset and presentation-wide natural-size restoration
+- Selected or presentation-wide reset to the configured formula style and natural size
 - User-resized formulas preserve their scale when updated
 - Screenshot OCR via Automation API
 
 ### Shared
 
 - Double-click editing and independent cross-document copies of LaTeXSnipper OLE formulas
-- Explicit conversion of unnumbered LaTeXSnipper OLE formulas to native MathType objects; Word and PowerPoint share direct MTEF/CFB encoding and MathJax vector previews. Multi-selection continues after individual failures and reports specific errors; MathType owns subsequent native editing and layout
+- Conversion between LaTeXSnipper OLE and native MathType objects without MathType installed; Word numbered formulas are excluded. MathType is required for native double-click editing
 - Reusable WebView2/MathLive formula editor
 - 18-category shared symbol and formula library
 - Chinese and English Ribbon, task pane, editor, settings, and help
