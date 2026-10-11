@@ -1,5 +1,5 @@
+from recognition.jobs import RecognitionJobCoordinator
 import time
-from typing import Any
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
@@ -15,7 +15,9 @@ class ExternalModelWorker(QObject):
     finished = pyqtSignal(object)
     failed = pyqtSignal(str)
 
-    def __init__(self, config: ExternalModelConfig, image, coordinator: Any | None = None):
+    def __init__(
+        self, coordinator: RecognitionJobCoordinator, config: ExternalModelConfig, image
+    ):
         super().__init__()
         self.config = config
         self.image = image
@@ -26,7 +28,7 @@ class ExternalModelWorker(QObject):
 
     def cancel(self):
         self._cancelled = True
-        if self.coordinator is not None and self._job_id:
+        if self._job_id:
             try:
                 self.coordinator.cancel(self._job_id, principal_id="desktop-ui")
             except Exception:
@@ -38,46 +40,43 @@ class ExternalModelWorker(QObject):
             if self._cancelled:
                 self.failed.emit(CANCELED_WORKER_MESSAGE)
                 return
-            if self.coordinator is None:
-                result = ExternalModelClient(self.config).predict(self.image)
-            else:
-                from recognition.jobs import JobSource, RecognitionItemInput
+            from recognition.jobs import JobSource, RecognitionItemInput
 
-                job = self.coordinator.submit(
-                    [RecognitionItemInput(image=self.image)],
-                    principal_id="desktop-ui",
-                    source=JobSource.UI,
-                    mode={
-                        "ocr_formula_v1": "formula",
-                        "ocr_text_v1": "text",
-                    }.get(self.config.prompt_template, "mixed"),
-                    timeout_seconds=self.config.normalized_timeout(),
-                    backend="external",
-                    external_config=self.config,
+            job = self.coordinator.submit(
+                [RecognitionItemInput(image=self.image)],
+                principal_id="desktop-ui",
+                source=JobSource.UI,
+                mode={
+                    "ocr_formula_v1": "formula",
+                    "ocr_text_v1": "text",
+                }.get(self.config.prompt_template, "mixed"),
+                timeout_seconds=self.config.normalized_timeout(),
+                backend="external",
+                external_config=self.config,
+            )
+            self._job_id = job["id"]
+            if self._cancelled:
+                self.coordinator.cancel(self._job_id, principal_id="desktop-ui")
+            snapshot = self.coordinator.wait(
+                job["id"], principal_id="desktop-ui", timeout=None
+            )
+            item = snapshot["items"][0]
+            if item["state"] != "completed":
+                error = item.get("error") or {}
+                raise RuntimeError(
+                    recognition_error_code_message(error.get("code"), "external_model")
                 )
-                self._job_id = job["id"]
-                if self._cancelled:
-                    self.coordinator.cancel(self._job_id, principal_id="desktop-ui")
-                snapshot = self.coordinator.wait(job["id"], principal_id="desktop-ui", timeout=None)
-                item = snapshot["items"][0]
-                if item["state"] != "completed":
-                    error = item.get("error") or {}
-                    raise RuntimeError(
-                        recognition_error_code_message(
-                            error.get("code"), "external_model"
-                        )
-                    )
-                from backend.external_model.schemas import ExternalModelResult
+            from backend.external_model.schemas import ExternalModelResult
 
-                text = str(item["text"])
-                output_mode = self.config.resolved_output_mode()
-                result = ExternalModelResult(
-                    text=text,
-                    latex=text if output_mode == "latex" else "",
-                    markdown=text if output_mode == "markdown" else "",
-                    provider=self.config.normalized_provider(),
-                    model_name=self.config.normalized_model_name(),
-                )
+            text = str(item["text"])
+            output_mode = self.config.resolved_output_mode()
+            result = ExternalModelResult(
+                text=text,
+                latex=text if output_mode == "latex" else "",
+                markdown=text if output_mode == "markdown" else "",
+                provider=self.config.normalized_provider(),
+                model_name=self.config.normalized_model_name(),
+            )
             self.elapsed = time.perf_counter() - t0
             self.finished.emit(result)
         except Exception as e:

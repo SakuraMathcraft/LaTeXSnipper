@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
 )
 from qfluentwidgets import FluentIcon, PushButton
 
-from preview.math_preview import dialog_theme_tokens, is_dark_ui
+from ui.theme_tokens import dialog_theme_tokens, is_dark_ui
 from runtime.app_paths import resource_path
 
 

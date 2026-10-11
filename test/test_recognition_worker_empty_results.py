@@ -38,53 +38,6 @@ class _TextEmptyResultWrapper:
         }
 
 
-def test_prediction_worker_routes_blank_formula_result_to_failure_signal() -> None:
-    worker = PredictionWorker(_EmptyResultWrapper(), Image.new("RGB", (32, 16), "white"), "mathcraft")
-    finished: list[str] = []
-    failed: list[str] = []
-
-    worker.finished.connect(finished.append)
-    worker.failed.connect(failed.append)
-    worker.run()
-
-    assert finished == []
-    assert failed == ["未识别到公式内容"]
-
-
-def test_prediction_worker_routes_blank_text_result_to_failure_signal() -> None:
-    worker = PredictionWorker(
-        _TextEmptyResultWrapper(),
-        Image.new("RGB", (32, 16), "white"),
-        "mathcraft_text",
-    )
-    finished: list[str] = []
-    failed: list[str] = []
-
-    worker.finished.connect(finished.append)
-    worker.failed.connect(failed.append)
-    worker.run()
-
-    assert finished == []
-    assert failed == ["未识别到文本内容"]
-
-
-def test_prediction_worker_routes_blank_mixed_result_to_failure_signal() -> None:
-    worker = PredictionWorker(
-        _MixedEmptyResultWrapper(),
-        Image.new("RGB", (32, 16), "white"),
-        "mathcraft_mixed",
-    )
-    finished: list[str] = []
-    failed: list[str] = []
-
-    worker.finished.connect(finished.append)
-    worker.failed.connect(failed.append)
-    worker.run()
-
-    assert finished == []
-    assert failed == ["未检测到可识别内容"]
-
-
 @pytest.mark.parametrize(
     ("wrapper", "model_name", "expected"),
     (
@@ -96,10 +49,9 @@ def test_prediction_worker_routes_blank_mixed_result_to_failure_signal() -> None
 def test_coordinator_preserves_empty_result_classification(wrapper, model_name: str, expected: str) -> None:
     coordinator = RecognitionJobCoordinator(wrapper)
     worker = PredictionWorker(
-        wrapper,
+        coordinator,
         Image.new("RGB", (32, 16), "white"),
         model_name,
-        coordinator,
     )
     finished: list[str] = []
     failed: list[str] = []
@@ -112,3 +64,33 @@ def test_coordinator_preserves_empty_result_classification(wrapper, model_name: 
 
     assert finished == []
     assert failed == [expected]
+
+
+def test_cancel_during_submission_is_delivered_before_wait():
+    from types import SimpleNamespace
+    from recognition.error_messages import CANCELED_WORKER_MESSAGE
+
+    canceled = []
+    finished = []
+    failed = []
+
+    def submit(*args, **kwargs):
+        worker.cancel()
+        return {"id": "job-1"}
+
+    def wait(*args, **kwargs):
+        assert canceled == [("job-1", "desktop-ui")]
+        return {"state": "canceled"}
+
+    coordinator = SimpleNamespace(
+        submit=submit,
+        cancel=lambda job_id, *, principal_id: canceled.append((job_id, principal_id)),
+        wait=wait,
+    )
+    worker = PredictionWorker(coordinator, Image.new("RGB", (32, 16), "white"), "mathcraft")
+    worker.finished.connect(finished.append)
+    worker.failed.connect(failed.append)
+    worker.run()
+
+    assert finished == []
+    assert failed == [CANCELED_WORKER_MESSAGE]

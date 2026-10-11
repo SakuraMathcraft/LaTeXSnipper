@@ -13,7 +13,7 @@ from qfluentwidgets import ProgressBar
 
 from recognition.external_pdf_worker import ExternalModelPdfWorker
 from ui.notifications import show_user_notice
-from preview.math_preview import is_dark_ui
+from ui.theme_tokens import is_dark_ui
 from recognition.model_policy import EXTERNAL_MODEL, resolve_document_recognition_model
 from ui.pdf_options_dialog import prompt_pdf_output_options
 from ui.pdf_result_window import PdfResultWindow
@@ -180,27 +180,11 @@ class PdfRecognitionControllerMixin:
                     if fmt_key == "markdown"
                     else "ocr_document_latex_v1"
                 )
-            self.pdf_predict_worker = ExternalModelPdfWorker(
-                config,
-                str(path),
-                page_indices,
-                fmt_key,
-                dpi,
-                doc_mode,
-                coordinator=getattr(self, "recognition_coordinator", None),
-            )
+            self.pdf_predict_worker = ExternalModelPdfWorker(self.recognition_coordinator, config, str(path), page_indices, fmt_key, dpi, doc_mode)
         else:
             if dpi is None:
                 raise RuntimeError(tr("内置 PDF 识别缺少渲染 DPI"))
-            self.pdf_predict_worker = PdfPredictWorker(
-                self.model,
-                str(path),
-                page_indices,
-                recognition_model,
-                fmt_key,
-                dpi,
-                coordinator=getattr(self, "recognition_coordinator", None),
-            )
+            self.pdf_predict_worker = PdfPredictWorker(self.recognition_coordinator, str(path), page_indices, recognition_model, fmt_key, dpi)
         self.pdf_predict_worker.moveToThread(self.pdf_predict_thread)
 
         progress_text = (

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from recognition.jobs import RecognitionJobCoordinator
+
 from localization.manager import translate as tr
 
 import time
@@ -26,13 +28,12 @@ from qfluentwidgets import (
     isDarkTheme,
 )
 
-from backend.external_model import ExternalModelClient
 from recognition.error_messages import (
     recognition_error_code_message,
     recognition_failure_user_message,
 )
 from backend.external_model.prompts import build_math_document_prompt
-from .editor_widgets import HandwritingPlainTextEdit
+from editor.source_editor import SourceEditor
 from .ink_canvas import InkCanvas
 from .latex_preview import (
     build_handwriting_preview_html,
@@ -55,14 +56,12 @@ try:
 except Exception:  # pragma: no cover
     PreviewWebView = None
 
-PreviewPlainTextEdit = HandwritingPlainTextEdit
-
 
 class _HandwritingDocumentLayoutWorker(QObject):
     finished = pyqtSignal(str)
     failed = pyqtSignal(str)
 
-    def __init__(self, config, image, coordinator=None):
+    def __init__(self, coordinator: RecognitionJobCoordinator, config, image):
         super().__init__()
         self.config = config
         self.image = image
@@ -72,7 +71,7 @@ class _HandwritingDocumentLayoutWorker(QObject):
 
     def cancel(self) -> None:
         self._cancelled = True
-        if self.coordinator is not None and self._job_id:
+        if self._job_id:
             try:
                 self.coordinator.cancel(
                     self._job_id, principal_id="desktop-handwriting-layout"
@@ -88,41 +87,37 @@ class _HandwritingDocumentLayoutWorker(QObject):
             from .recognizer import qimage_to_pil
 
             pil_img = qimage_to_pil(self.image)
-            if self.coordinator is None:
-                result = ExternalModelClient(self.config).predict(pil_img)
-                text = result.best_text("text").strip()
-            else:
-                from recognition.image_input import validated_rgb_image
-                from recognition.jobs import JobSource, RecognitionItemInput
+            from recognition.image_input import validated_rgb_image
+            from recognition.jobs import JobSource, RecognitionItemInput
 
-                job = self.coordinator.submit(
-                    [RecognitionItemInput(image=validated_rgb_image(pil_img))],
+            job = self.coordinator.submit(
+                [RecognitionItemInput(image=validated_rgb_image(pil_img))],
+                principal_id="desktop-handwriting-layout",
+                source=JobSource.HANDWRITING,
+                mode="mixed",
+                timeout_seconds=self.config.normalized_timeout(),
+                input_type="handwriting_canvas",
+                backend="external",
+                external_config=self.config,
+            )
+            self._job_id = job["id"]
+            if self._cancelled:
+                self.coordinator.cancel(
+                    self._job_id,
                     principal_id="desktop-handwriting-layout",
-                    source=JobSource.HANDWRITING,
-                    mode="mixed",
-                    timeout_seconds=self.config.normalized_timeout(),
-                    input_type="handwriting_canvas",
-                    backend="external",
-                    external_config=self.config,
                 )
-                self._job_id = job["id"]
-                if self._cancelled:
-                    self.coordinator.cancel(
-                        self._job_id,
-                        principal_id="desktop-handwriting-layout",
+            snapshot = self.coordinator.wait(
+                job["id"], principal_id="desktop-handwriting-layout", timeout=None
+            )
+            item = snapshot["items"][0]
+            if item["state"] != "completed":
+                error = item.get("error") or {}
+                raise RuntimeError(
+                    recognition_error_code_message(
+                        error.get("code"), "external_model"
                     )
-                snapshot = self.coordinator.wait(
-                    job["id"], principal_id="desktop-handwriting-layout", timeout=None
                 )
-                item = snapshot["items"][0]
-                if item["state"] != "completed":
-                    error = item.get("error") or {}
-                    raise RuntimeError(
-                        recognition_error_code_message(
-                            error.get("code"), "external_model"
-                        )
-                    )
-                text = str(item["text"]).strip()
+            text = str(item["text"]).strip()
             if not text:
                 self.failed.emit(tr("自动排版结果为空"))
                 return
@@ -265,7 +260,7 @@ class HandwritingWindow(QWidget):
         result_header.addWidget(self.result_title)
         result_header.addStretch(1)
         result_layout.addLayout(result_header)
-        self.result_editor = PreviewPlainTextEdit(self)
+        self.result_editor = SourceEditor(self)
         self.result_editor.setPlaceholderText(
             tr("手写识别结果会显示在这里，可直接手动修正。")
         )
@@ -777,13 +772,7 @@ class HandwritingWindow(QWidget):
         self._recognize_pending = False
         self.status_label.setText(tr("识别中"))
         self._recognize_thread = QThread()
-        self._recognize_worker = HandwritingRecognitionWorker(
-            self.model,
-            export.image,
-            model_name=active_model,
-            external_config=external_config,
-            coordinator=getattr(self.owner, "recognition_coordinator", None),
-        )
+        self._recognize_worker = HandwritingRecognitionWorker(self.owner.recognition_coordinator, export.image, model_name=active_model, external_config=external_config)
         thread = self._recognize_thread
         worker = self._recognize_worker
         worker.moveToThread(thread)
@@ -977,11 +966,7 @@ class HandwritingWindow(QWidget):
         )
         self.status_label.setText(tr("自动排版中"))
         self._layout_thread = QThread()
-        self._layout_worker = _HandwritingDocumentLayoutWorker(
-            runtime_cfg,
-            export.image,
-            coordinator=getattr(self.owner, "recognition_coordinator", None),
-        )
+        self._layout_worker = _HandwritingDocumentLayoutWorker(self.owner.recognition_coordinator, runtime_cfg, export.image)
         worker = self._layout_worker
         thread = self._layout_thread
         worker.moveToThread(thread)
@@ -999,7 +984,7 @@ class HandwritingWindow(QWidget):
     def _open_document_preview(self, doc_text: str) -> None:
         if self._document_preview_window is None:
             from preview.document.window import (
-                HandwritingDocumentPreviewWindow as DocumentPreviewWindow,
+                DocumentPreviewWindow,
             )
 
             self._document_preview_window = DocumentPreviewWindow()

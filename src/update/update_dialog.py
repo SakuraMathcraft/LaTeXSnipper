@@ -20,14 +20,6 @@ from PyQt6.QtWidgets import (
 )
 from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition, PushButton, ProgressBar, IndeterminateProgressBar
 
-from update.dialog_helpers import (
-    _clear_global,
-    _hidden_subprocess_kwargs,
-    _set_update_dialog,
-    _show_existing_update_dialog,
-    _update_dialog_theme,
-    question_close_only,
-)
 from update.github_release_client import _fetch_release, _session
 from update.installer_cache import (
     _clear_installer_meta,
@@ -55,6 +47,8 @@ from update.release_types import (
     _normalize_sha256,
 )
 from update.remote_image_browser import RemoteImageBrowser
+from update.dialog_helpers import _clear_global, _set_update_dialog, _show_existing_update_dialog, _update_dialog_theme, question_close_only
+from runtime.processes import hidden_subprocess_kwargs
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
@@ -416,7 +410,7 @@ a{{color:{theme["accent"]};}}
         except Exception:
             logger.exception("无法创建更新安装器启动任务，尝试直接启动")
             try:
-                subprocess.Popen([path], close_fds=True, **_hidden_subprocess_kwargs())
+                subprocess.Popen([path], close_fds=True, **hidden_subprocess_kwargs())
             except Exception as launch_error:
                 logger.exception("更新安装器启动失败")
                 InfoBar.error(

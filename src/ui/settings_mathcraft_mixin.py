@@ -8,11 +8,8 @@ from localization.manager import translate as tr
 from runtime.dependency_runtime import iter_python_candidates
 from runtime.dependency_python import clean_path_value, normalize_deps_base_dir
 from runtime.native_runtime import isolated_python_code
-from ui.settings_dialog_helpers import (
-    _existing_non_launcher_pyexe_from_env,
-    _hidden_subprocess_kwargs,
-    _mathcraft_code_roots,
-)
+from ui.settings_dialog_helpers import _existing_non_launcher_pyexe_from_env, _mathcraft_code_roots
+from runtime.processes import hidden_subprocess_kwargs
 
 
 class SettingsMathCraftMixin:
@@ -41,7 +38,7 @@ class SettingsMathCraftMixin:
                 capture_output=True,
                 text=True,
                 timeout=6,
-                **_hidden_subprocess_kwargs(),
+                **hidden_subprocess_kwargs(),
             )
             raw = (res.stdout or "").strip()
             if raw:

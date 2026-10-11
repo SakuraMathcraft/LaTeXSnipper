@@ -31,9 +31,9 @@ from runtime.hotkey_config import normalize_hotkey_or_default
 from runtime.webengine_runtime import ensure_webengine_loaded, get_webengine_view_class
 from recognition.jobs import RecognitionJobCoordinator
 from ui.favorites_window import FavoritesWindow
-from ui.automation_api_controller import AutomationApiController
-from ui.theme_controller import normalize_theme_mode
-from ui.onboarding_controller import OnboardingController
+from ui.controllers.automation_api import AutomationApiController
+from ui.controllers.theme import normalize_theme_mode
+from ui.controllers.onboarding import OnboardingController
 from ui.window_helpers import (
     select_existing_directory_with_icon as _select_existing_directory_with_icon,
 )

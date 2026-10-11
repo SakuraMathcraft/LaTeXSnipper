@@ -18,7 +18,7 @@ from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition
 
 from exporting.formula_export import export_format_label, is_export_format_available
 from preview.content_preview import build_mixed_content_html
-from preview.math_preview import dialog_theme_tokens, is_dark_ui
+from ui.theme_tokens import dialog_theme_tokens, is_dark_ui
 from runtime.content_types import normalize_content_type
 from runtime.hotkey_config import display_hotkey, normalize_hotkey_or_default
 from runtime.webengine_runtime import ensure_webengine_loaded

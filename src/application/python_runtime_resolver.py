@@ -14,6 +14,7 @@ from localization.manager import install_application_translators, translate as t
 from runtime.dependency_runtime import (
     DEPENDENCY_PYTHON_DIRNAME,
     find_system_python3,
+    iter_python_candidates,
     system_python_unavailable_reason,
 )
 from runtime.app_paths import (
@@ -24,13 +25,15 @@ from runtime.app_paths import (
 )
 from runtime.dependency_python import (
     clean_path_value,
+    dependency_root_from_python,
     normalize_deps_base_dir as _normalize_install_base_dir,
 )
-from ui.theme_controller import apply_theme_mode, read_theme_mode_from_config
+from ui.controllers.theme import apply_theme_mode, read_theme_mode_from_config
 from ui.window_helpers import (
     apply_app_window_icon as _apply_app_window_icon,
     select_existing_directory_with_icon as _select_existing_directory_with_icon,
 )
+from runtime.processes import hidden_subprocess_kwargs
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
@@ -41,20 +44,8 @@ def _app_state_dir() -> Path:
     return app_state_dir()
 
 
-def _get_app_root() -> Path:
-    return APP_DIR
-
-
 def _is_packaged_mode() -> bool:
     return is_packaged_mode()
-
-
-def _project_root() -> Path:
-    return APP_DIR.parent if APP_DIR.name.lower() == "src" else APP_DIR
-
-
-def _developer_deps_dir() -> Path:
-    return _project_root() / "tools" / "deps"
 
 
 def _initial_deps_dir() -> Path:
@@ -70,7 +61,7 @@ def _initial_deps_dir() -> Path:
     current_dev_base = _current_dev_install_base_dir()
     if current_dev_base is not None:
         return current_dev_base
-    return _developer_deps_dir()
+    return app_state_dir() / "deps"
 
 
 def _same_exe(a: str, b: str) -> bool:
@@ -115,69 +106,16 @@ def _python_candidate_usable(pyexe: Path) -> bool:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=10,
-            **_win_subprocess_kwargs(),
+            **hidden_subprocess_kwargs(),
         )
         return proc.returncode == 0
     except Exception:
         return False
 
 
-def _iter_install_base_python_candidates(base_dir: Path) -> list[Path]:
-    """Return likely python.exe candidates inside a selected dependency base directory."""
-    base_dir = Path(base_dir)
-    # Common candidates for both Windows and Linux
-    candidates = [
-        base_dir / "python.exe",
-        base_dir / "Scripts" / "python.exe",
-        base_dir / DEPENDENCY_PYTHON_DIRNAME / "python.exe",
-        base_dir / DEPENDENCY_PYTHON_DIRNAME / "Scripts" / "python.exe",
-        base_dir / "python_full" / "python.exe",
-        base_dir / "venv" / "Scripts" / "python.exe",
-        base_dir / ".venv" / "Scripts" / "python.exe",
-    ]
-    # Linux-specific candidates (python3, venv/bin/python3)
-    if os.name != "nt":
-        candidates.extend(
-            [
-                base_dir / "python3",
-                base_dir / "bin" / "python3",
-                base_dir / DEPENDENCY_PYTHON_DIRNAME / "bin" / "python3",
-                base_dir / "venv" / "bin" / "python3",
-                base_dir / ".venv" / "bin" / "python3",
-            ]
-        )
-    try:
-        for child in base_dir.iterdir():
-            if not child.is_dir():
-                continue
-            name = child.name.lower()
-            if name in {"venv", ".venv", "python_full"} or name.startswith("python"):
-                candidates.extend(
-                    [
-                        child / "python.exe",
-                        child / "Scripts" / "python.exe",
-                    ]
-                )
-    except Exception:
-        pass
-
-    seen: set[str] = set()
-    ordered: list[Path] = []
-    for candidate in candidates:
-        try:
-            key = str(candidate.resolve()).lower()
-        except Exception:
-            key = str(candidate).lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        ordered.append(candidate)
-    return ordered
-
-
 def _find_install_base_python(base_dir: Path) -> Path | None:
     """Reuse any existing python.exe inside the dependency directory."""
-    for candidate in _iter_install_base_python_candidates(base_dir):
+    for candidate in iter_python_candidates(base_dir):
         try:
             if candidate.exists() and _python_candidate_usable(candidate):
                 return candidate
@@ -187,34 +125,13 @@ def _find_install_base_python(base_dir: Path) -> Path | None:
 
 
 def _current_dev_install_base_dir() -> Path | None:
+    """Use the source launcher's environment without requiring a directory name."""
     if _is_packaged_mode():
         return None
-    try:
-        exe_path = Path(sys.executable).resolve()
-        exe_name = exe_path.name.lower()
-        parent_name = exe_path.parent.name.lower()
-        if exe_name == "python.exe":
-            if parent_name == "deps":
-                base = exe_path.parent
-                if base.exists():
-                    return base
-            if exe_path.parent.parent.name.lower() == "deps" and (
-                parent_name.startswith("python")
-                or parent_name in {"venv", ".venv", "python_full", "scripts"}
-            ):
-                base = exe_path.parent.parent
-                if base.exists():
-                    return base
-    except Exception:
-        pass
-    try:
-        base = _developer_deps_dir().resolve()
-        pyexe = _find_install_base_python(base)
-        if pyexe is not None and _same_exe(str(pyexe), sys.executable):
-            return base
-    except Exception:
-        pass
-    return None
+    executable = Path(sys.executable).resolve()
+    if not executable.is_file():
+        return None
+    return dependency_root_from_python(executable)
 
 
 def _read_install_base_dir() -> Path | None:
@@ -632,7 +549,7 @@ def _relaunch_with(pyexe: str):
     argv = [pyexe, str(Path(__file__).resolve().parents[1] / "main.py"), *sys.argv[1:]]
     logger.debug(f"使用私有解释器重启: {pyexe}")
     try:
-        proc = subprocess.Popen(argv, env=env, **_win_subprocess_kwargs())
+        proc = subprocess.Popen(argv, env=env, **hidden_subprocess_kwargs())
     except Exception as e:
         logger.error("启动子进程失败: %s", e)
         sys.exit(6)
@@ -646,37 +563,6 @@ def _norm_path(s: str | None) -> str | None:
     return s.strip().strip('"').strip("'").strip()
 
 
-def _win_subprocess_flags() -> int:
-    """Return Windows subprocess flags for background tasks."""
-    if os.name != "nt":
-        return 0
-    return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
-
-
-def _win_startupinfo():
-    """Return hidden Windows startup info for console subprocesses."""
-    if os.name != "nt":
-        return None
-    try:
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = subprocess.SW_HIDE
-        return startupinfo
-    except Exception:
-        return None
-
-
-def _win_subprocess_kwargs() -> dict:
-    """Return Windows subprocess options that suppress transient console windows."""
-    if os.name != "nt":
-        return {}
-    kwargs = {"creationflags": _win_subprocess_flags()}
-    startupinfo = _win_startupinfo()
-    if startupinfo is not None:
-        kwargs["startupinfo"] = startupinfo
-    return kwargs
-
-
 def _clean_bad_env():
     """Remove or repair invalid LATEXSNIPPER_PYEXE values."""
     val = clean_path_value(os.environ.get("LATEXSNIPPER_PYEXE"))
@@ -687,46 +573,16 @@ def _clean_bad_env():
         os.environ["LATEXSNIPPER_PYEXE"] = p
 
 
-def _has_dependency_runtime_modules(pyexe: str) -> bool:
-    """Check whether an existing dependency interpreter can run app-managed packages."""
-    try:
-        import subprocess
-
-        code = (
-            "import encodings, ssl, sys, urllib.request; "
-            "assert any(type(h).__name__ == 'HTTPSHandler' "
-            "for h in urllib.request.build_opener().handlers); "
-            "print(sys.version_info[:2], ssl.OPENSSL_VERSION)"
-        )
-        r = subprocess.run(
-            [pyexe, "-c", code],
-            capture_output=True,
-            text=True,
-            timeout=20,
-            **_win_subprocess_kwargs(),
-        )
-        return r.returncode == 0
-    except Exception:
-        return False
-
-
 def _find_full_python(base_dir: Path) -> str | None:
     """Reuse an existing dependency Python or a supported system Python."""
     candidate = _find_install_base_python(base_dir)
     if candidate is not None:
-        try:
-            if candidate.exists() and _has_dependency_runtime_modules(str(candidate)):
-                return str(candidate)
-        except Exception:
-            pass
-        logger.debug(f"忽略不支持依赖运行时的 Python: {candidate}")
+        return str(candidate)
     if getattr(sys, "frozen", False):
         return None
 
     system_python = find_system_python3()
-    if system_python is not None and _has_dependency_runtime_modules(
-        str(system_python)
-    ):
+    if system_python is not None and _python_candidate_usable(system_python):
         return str(system_python)
     return None
 

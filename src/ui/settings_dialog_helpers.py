@@ -1,5 +1,4 @@
 import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -33,26 +32,6 @@ def _select_open_file_with_icon(parent, title: str, initial_path: str, filter_: 
     selected = dlg.selectedFiles()
     chosen_filter = dlg.selectedNameFilter()
     return (selected[0] if selected else ""), chosen_filter
-
-
-def _subprocess_creationflags() -> int:
-    if os.name != "nt":
-        return 0
-    return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
-
-
-def _hidden_subprocess_kwargs() -> dict:
-    if os.name != "nt":
-        return {}
-    kwargs = {"creationflags": _subprocess_creationflags()}
-    try:
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = subprocess.SW_HIDE
-        kwargs["startupinfo"] = startupinfo
-    except Exception:
-        pass
-    return kwargs
 
 
 def _existing_non_launcher_pyexe_from_env() -> str:

@@ -9,12 +9,8 @@ from PyQt6.QtCore import QEvent, QTimer
 from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QTextEdit, QVBoxLayout
 from qfluentwidgets import BodyLabel
 
-from preview.math_preview import (
-    build_math_html,
-    dialog_theme_tokens,
-    get_mathjax_base_url,
-    is_dark_ui,
-)
+from preview.math_preview import build_math_html, get_mathjax_base_url
+from ui.theme_tokens import dialog_theme_tokens, is_dark_ui
 from ui.window_helpers import apply_no_minimize_window_flags
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")

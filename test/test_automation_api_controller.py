@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-from ui.automation_api_controller import AutomationApiController
+from ui.controllers.automation_api import AutomationApiController
 
 
 def test_automation_api_start_and_stop_operations_are_serialized() -> None:

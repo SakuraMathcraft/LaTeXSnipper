@@ -22,7 +22,7 @@ from integration.automation.contracts import AutomationLimits
 from runtime.private_files import restrict_file_to_current_user
 from recognition.jobs import JobSource, RecognitionItemInput
 from recognition.jobs import RecognitionJobCoordinator
-from ui.automation_api_controller import automation_api_operation_error_message
+from ui.controllers.automation_api import automation_api_operation_error_message
 
 
 def _request(server, method: str, path: str, *, body: bytes | None = None, headers=None):

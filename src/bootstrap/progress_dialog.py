@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+from ui.theme_tokens import is_dark_ui
 from localization.manager import translate as tr
 
 from PyQt6.QtCore import QEvent
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
-    QApplication,
     QDialog,
     QHBoxLayout,
     QLabel,
@@ -81,16 +81,9 @@ class InstallProgressDialog(QDialog):
         else:
             super().reject()
 
-    @staticmethod
-    def _is_dark_ui() -> bool:
-        app = QApplication.instance()
-        if app is None:
-            return False
-        color = app.palette().window().color()
-        return (color.red() + color.green() + color.blue()) / 3.0 < 128
 
     def _apply_theme_styles(self, *, force: bool = False) -> None:
-        dark = self._is_dark_ui()
+        dark = is_dark_ui()
         if not force and self._theme_is_dark_cached == dark:
             return
         self._theme_is_dark_cached = dark

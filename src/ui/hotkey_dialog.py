@@ -11,7 +11,7 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QDialog, QLabel, QLineEdit, QSizePolicy, QVBoxLayout
 from qfluentwidgets import FluentIcon, PushButton
 
-from preview.math_preview import dialog_theme_tokens, is_dark_ui
+from ui.theme_tokens import dialog_theme_tokens, is_dark_ui
 from runtime.hotkey_config import hotkey_help_text
 from ui.window_helpers import apply_close_only_window_flags
 

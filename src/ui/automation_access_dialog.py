@@ -36,7 +36,7 @@ from integration.automation import (
     AutomationApiSettings,
     AutomationApiSettingsError,
 )
-from ui.automation_api_controller import (
+from ui.controllers.automation_api import (
     AUTOMATION_API_ACCESS_SCOPE_KEY,
     AUTOMATION_API_ALLOWED_ORIGINS_KEY,
     AUTOMATION_API_BIND_ADDRESS_KEY,

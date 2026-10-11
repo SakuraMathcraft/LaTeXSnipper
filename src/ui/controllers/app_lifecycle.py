@@ -13,7 +13,7 @@ from qfluentwidgets import InfoBar, InfoBarPosition
 
 from platform_services import ApplicationMenuHandlers
 from runtime.runtime_logging import cleanup_runtime_log_session
-from ui.runtime_log_controller import apply_runtime_log_window_preference
+from ui.controllers.runtime_log import apply_runtime_log_window_preference
 from runtime.single_instance import (
     release_single_instance_lock as _release_single_instance_lock,
 )

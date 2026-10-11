@@ -12,7 +12,7 @@ from localization.manager import current_ui_language, translate as tr
 from runtime.hotkey_config import display_hotkey
 from ui.onboarding_steps import tour_steps
 from ui.onboarding_view import TourSurface
-from ui.runtime_log_controller import show_runtime_log_window
+from ui.controllers.runtime_log import show_runtime_log_window
 from update.release_types import _RELEASES_PAGE
 
 AUTO_SHOW_KEY = "onboarding_auto_show"

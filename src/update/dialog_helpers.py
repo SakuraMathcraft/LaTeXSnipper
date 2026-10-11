@@ -1,38 +1,24 @@
 import os
-import subprocess
-import sys
+from ui.theme_tokens import is_dark_ui
+from runtime.app_paths import resource_path
 from typing import Optional
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
-
-
-def _resource_path(relative_path: str) -> str:
-    if hasattr(sys, "_MEIPASS"):
-        return os.path.join(sys._MEIPASS, relative_path)
-    return os.path.join(os.path.abspath("."), relative_path)
+from PyQt6.QtWidgets import QDialog, QMessageBox
 
 
 def _apply_app_window_icon(win) -> None:
     try:
         from PyQt6.QtGui import QIcon
-        icon_path = _resource_path("assets/icon.ico")
+        icon_path = resource_path("assets/icon.ico")
         if icon_path and os.path.exists(icon_path):
             win.setWindowIcon(QIcon(icon_path))
     except Exception:
         pass
 
 
-def _is_dark_ui() -> bool:
-    app = QApplication.instance()
-    if app is None:
-        return False
-    c = app.palette().window().color()
-    return ((c.red() + c.green() + c.blue()) / 3.0) < 128
-
-
 def _update_dialog_theme() -> dict:
-    if _is_dark_ui():
+    if is_dark_ui():
         return {
             "dialog_bg": "#1b1f27",
             "text": "#e7ebf0",
@@ -57,23 +43,6 @@ def _update_dialog_theme() -> dict:
         "warn_border": "#f5c182",
         "warn_text": "#d35400",
     }
-
-
-def _hidden_subprocess_kwargs() -> dict:
-    if os.name != "nt":
-        return {}
-    kwargs = {
-        "creationflags": int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
-    }
-    try:
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = 0
-        kwargs["startupinfo"] = startupinfo
-    except Exception:
-        pass
-    return kwargs
-
 
 
 _UPDATE_DIALOG: Optional[QDialog] = None

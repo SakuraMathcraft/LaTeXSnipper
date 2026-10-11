@@ -12,7 +12,7 @@ from bootstrap.deps_context import (
     PIP_INSTALL_SUPPRESS_ARGS,
     flags,
     pip_ready_event,
-    safe_run,
+    start_process,
     subprocess_lock,
 )
 from bootstrap.deps_pip_runner import PipInstallRunner
@@ -790,7 +790,7 @@ def _pip_install(pyexe, pkg, stop_event, log_q, use_mirror=False, flags=0, pause
         proc_setter=proc_setter,
         pip_ready_event=pip_ready_event,
         suppress_args=PIP_INSTALL_SUPPRESS_ARGS,
-        safe_run=safe_run,
+        start_process=start_process,
         subprocess_lock=subprocess_lock,
         onnxruntime_gpu_policy=onnxruntime_gpu_policy,
         cleanup_orphan_onnxruntime_namespace=_cleanup_orphan_onnxruntime_namespace,

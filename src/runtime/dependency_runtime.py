@@ -8,6 +8,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from shutil import which
+from runtime.processes import hidden_subprocess_kwargs
 
 
 DEPENDENCY_PYTHON_DIRNAME = "python"
@@ -51,20 +52,6 @@ def _supported_system_python_check() -> str:
         "import sys, venv; "
         f"raise SystemExit(0 if ({min_major}, {min_minor}) <= sys.version_info < ({max_major}, {max_minor}) else 1)"
     )
-
-
-def _hidden_subprocess_kwargs() -> dict:
-    if os.name != "nt":
-        return {}
-    kwargs = {"creationflags": int(getattr(subprocess, "CREATE_NO_WINDOW", 0))}
-    try:
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = subprocess.SW_HIDE
-        kwargs["startupinfo"] = startupinfo
-    except Exception:
-        pass
-    return kwargs
 
 
 def _linux_site_packages(pyexe: Path) -> Path | None:
@@ -174,7 +161,7 @@ def _system_python3_score(pyexe: Path) -> int:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=10,
-            **_hidden_subprocess_kwargs(),
+            **hidden_subprocess_kwargs(),
         )
         if proc.returncode != 0:
             return 0
@@ -184,7 +171,7 @@ def _system_python3_score(pyexe: Path) -> int:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=10,
-            **_hidden_subprocess_kwargs(),
+            **hidden_subprocess_kwargs(),
         )
         return 2 if ensurepip_proc.returncode == 0 else 0
     except Exception:
@@ -381,7 +368,7 @@ def _python_candidate_version(pyexe: Path) -> tuple[int, int, int] | None:
             encoding="utf-8",
             errors="replace",
             timeout=10,
-            **_hidden_subprocess_kwargs(),
+            **hidden_subprocess_kwargs(),
         )
         if proc.returncode != 0:
             return None
@@ -407,7 +394,7 @@ def is_usable_python(pyexe: Path) -> bool:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=10,
-            **_hidden_subprocess_kwargs(),
+            **hidden_subprocess_kwargs(),
         )
         return proc.returncode == 0
     except Exception:

@@ -22,14 +22,8 @@ from runtime.dependency_python import clean_path_value, find_dependency_python
 from runtime.native_runtime import isolated_python_code
 from runtime.exception_diagnostics import format_exception_diagnostics
 from backend.mathcraft.diagnostics import classify_mathcraft_failure
-from backend.mathcraft.process_environment import (
-    _worker_code_roots,
-    _worker_path_value,
-    _failed_warmup_component_details,
-    _bundled_mathcraft_models_dir,
-    _hidden_subprocess_kwargs,
-    _same_path,
-)
+from backend.mathcraft.process_environment import _worker_code_roots, _worker_path_value, _failed_warmup_component_details, _bundled_mathcraft_models_dir, _same_path
+from runtime.processes import hidden_subprocess_kwargs
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
@@ -369,7 +363,7 @@ class ModelWrapper(QObject):
                     encoding="utf-8",
                     errors="replace",
                     env=self._build_subprocess_env(),
-                    **_hidden_subprocess_kwargs(),
+                    **hidden_subprocess_kwargs(),
                 )
                 self._worker = proc
                 self._start_worker_stderr_pump(proc)

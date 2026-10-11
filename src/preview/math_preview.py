@@ -8,9 +8,9 @@ import sys
 
 from localization.manager import translate as tr
 from PyQt6.QtCore import QUrl
-from PyQt6.QtWidgets import QApplication
 
 from rendering.mathjax_runtime import cdn_roots, loader_script
+from ui.theme_tokens import is_dark_ui
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
@@ -22,22 +22,6 @@ MATHJAX_CDN_URL_BACKUP = cdn_roots()[1] + "/startup.js"
 def configure_math_preview_runtime(app_dir: Path | str | None) -> None:
     global APP_DIR
     APP_DIR = Path(app_dir) if app_dir else None
-
-
-def is_dark_ui() -> bool:
-    try:
-        import qfluentwidgets as qfw
-
-        fn = getattr(qfw, "isDarkTheme", None)
-        if callable(fn):
-            return bool(fn())
-    except Exception:
-        pass
-    app = QApplication.instance()
-    if app is None:
-        return False
-    c = app.palette().window().color()
-    return ((c.red() + c.green() + c.blue()) / 3.0) < 128
 
 
 def preview_theme_tokens() -> dict:
@@ -99,42 +83,6 @@ def preview_theme_tokens() -> dict:
         "scrollbar_track": "#f0f0f0",
         "scrollbar_thumb": "#b8b8b8",
         "scrollbar_thumb_hover": "#969696",
-    }
-
-
-def formula_label_theme_tokens() -> dict:
-    if is_dark_ui():
-        return {
-            "text": "#d7dee9",
-            "tooltip_bg": "#27303b",
-            "tooltip_text": "#eef3f8",
-            "tooltip_border": "#4d5a6b",
-        }
-    return {
-        "text": "#333333",
-        "tooltip_bg": "#ffffff",
-        "tooltip_text": "#1f2328",
-        "tooltip_border": "#cfd6df",
-    }
-
-
-def dialog_theme_tokens() -> dict:
-    if is_dark_ui():
-        return {
-            "window_bg": "#1b1f27",
-            "panel_bg": "#232934",
-            "text": "#e7ebf0",
-            "muted": "#a9b3bf",
-            "border": "#465162",
-            "accent": "#8ec5ff",
-        }
-    return {
-        "window_bg": "#ffffff",
-        "panel_bg": "#f7f9fc",
-        "text": "#222222",
-        "muted": "#666666",
-        "border": "#d0d7de",
-        "accent": "#1976d2",
     }
 
 

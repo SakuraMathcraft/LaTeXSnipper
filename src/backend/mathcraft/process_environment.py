@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-import subprocess
 import sys
 from typing import Any
 
@@ -171,26 +170,6 @@ def _bundled_mathcraft_models_dir() -> Path | None:
         except Exception:
             continue
     return None
-
-
-def _subprocess_creationflags() -> int:
-    if os.name != "nt":
-        return 0
-    return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
-
-
-def _hidden_subprocess_kwargs() -> dict:
-    if os.name != "nt":
-        return {}
-    kwargs = {"creationflags": _subprocess_creationflags()}
-    try:
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = subprocess.SW_HIDE
-        kwargs["startupinfo"] = startupinfo
-    except Exception:
-        pass
-    return kwargs
 
 
 def _same_path(left: str | Path | None, right: str | Path | None) -> bool:

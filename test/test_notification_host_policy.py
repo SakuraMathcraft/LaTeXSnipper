@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import ui.hotkey_controller as hotkey_module
-import ui.predict_result_controller as result_module
-from ui.model_runtime_controller import ModelRuntimeControllerMixin
-from ui.predict_result_controller import PredictResultControllerMixin
+import ui.controllers.hotkey as hotkey_module
+import ui.controllers.predict_result as result_module
+from ui.controllers.model_runtime import ModelRuntimeControllerMixin
+from ui.controllers.predict_result import PredictResultControllerMixin
 
 
 def test_external_model_guidance_targets_settings_after_opening() -> None:

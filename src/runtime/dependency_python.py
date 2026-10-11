@@ -67,10 +67,6 @@ def _existing_file(path: str | Path | None) -> str:
     return ""
 
 
-def _project_root() -> Path:
-    return Path(__file__).resolve().parents[2]
-
-
 def resolve_dependency_python(
     configured_base_dirs: Iterable[str | Path | None] = (),
     *,
@@ -80,12 +76,8 @@ def resolve_dependency_python(
     if env_py:
         return env_py
 
-    bases: list[str | Path | None] = []
-    bases.extend(configured_base_dirs)
-    bases.extend((
-        os.environ.get("LATEXSNIPPER_INSTALL_BASE_DIR"),
-        _project_root() / "tools" / "deps",
-    ))
+    bases: list[str | Path | None] = list(configured_base_dirs)
+    bases.append(os.environ.get("LATEXSNIPPER_INSTALL_BASE_DIR"))
     for base in bases:
         pyexe = find_dependency_python(base)
         if pyexe is not None:

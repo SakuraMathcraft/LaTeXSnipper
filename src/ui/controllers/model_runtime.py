@@ -16,7 +16,7 @@ from backend.external_model import load_config_from_mapping
 from backend.mathcraft.diagnostics import classify_mathcraft_failure
 from recognition.error_messages import translate_mathcraft_diagnostic
 from runtime.dependency_python import resolve_dependency_python
-from ui.theme_controller import normalize_theme_mode
+from ui.controllers.theme import normalize_theme_mode
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 

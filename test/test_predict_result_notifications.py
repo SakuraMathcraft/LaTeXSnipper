@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ui.predict_result_controller import (
+from ui.controllers.predict_result import (
     RECOGNITION_FAILURE_TRAY_COOLDOWN_SECONDS,
     PredictResultControllerMixin,
 )

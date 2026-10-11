@@ -102,14 +102,14 @@ def test_system_python_unavailable_reason_reports_missing_venv(tmp_path, monkeyp
 
 
 def test_venv_setup_returns_specific_system_python_reason(tmp_path, monkeypatch):
-    from bootstrap import deps_entry
+    from bootstrap import python_setup
 
     expected = "检测到系统 Python 3.14.2，但版本不在支持范围 >=3.10,<3.14 内。"
     logs = []
-    monkeypatch.setattr(deps_entry, "_find_system_python3", lambda: None)
-    monkeypatch.setattr(deps_entry, "_system_python_unavailable_text", lambda: expected)
+    monkeypatch.setattr(python_setup, "_find_system_python3", lambda: None)
+    monkeypatch.setattr(python_setup, "system_python_unavailable_text", lambda: expected)
 
-    ok, reason = deps_entry._setup_python_venv_from_system(tmp_path / "venv", log_fn=logs.append)
+    ok, reason = python_setup.create_dependency_venv(tmp_path / "venv", log_fn=logs.append)
 
     assert ok is False
     assert reason == expected

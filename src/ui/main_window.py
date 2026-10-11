@@ -4,24 +4,24 @@ from PyQt6.QtCore import QTimer, pyqtSignal
 from PyQt6.QtWidgets import QMainWindow
 from qfluentwidgets import PrimaryPushButton
 
-from capture.capture_controller import CaptureControllerMixin
-from preview.preview_controller import PreviewControllerMixin
+from ui.controllers.capture import CaptureControllerMixin
+from ui.controllers.preview import PreviewControllerMixin
 from ui.controllers.pdf import PdfRecognitionControllerMixin
 from recognition.image_input import image_from_qpixmap
 from ui.controllers.recognition import RecognitionControllerMixin
-from ui.app_lifecycle_controller import AppLifecycleMixin
-from ui.editor_actions_controller import EditorActionsControllerMixin
-from ui.file_drop import FileDropMixin
-from ui.history_controller import HistoryControllerMixin
-from ui.hotkey_controller import HotkeyControllerMixin
-from ui.main_window_setup import MainWindowSetupMixin
+from ui.controllers.app_lifecycle import AppLifecycleMixin
+from ui.controllers.editor_actions import EditorActionsControllerMixin
+from ui.controllers.file_drop import FileDropMixin
+from ui.controllers.history import HistoryControllerMixin
+from ui.controllers.hotkey import HotkeyControllerMixin
+from ui.main_window_layout import MainWindowSetupMixin
 from ui.menu_helpers import action_btn_style as _action_btn_style
-from ui.model_runtime_controller import ModelRuntimeControllerMixin
-from ui.predict_result_controller import PredictResultControllerMixin
-from ui.status_controller import StatusControllerMixin
-from ui.theme_controller import ThemeControllerMixin
-from ui.tray_controller import TrayControllerMixin
-from ui.window_openers import WindowOpenersMixin
+from ui.controllers.model_runtime import ModelRuntimeControllerMixin
+from ui.controllers.predict_result import PredictResultControllerMixin
+from ui.controllers.status import StatusControllerMixin
+from ui.controllers.theme import ThemeControllerMixin
+from ui.controllers.tray import TrayControllerMixin
+from ui.controllers.windows import WindowOpenersMixin
 
 
 class MainWindow(

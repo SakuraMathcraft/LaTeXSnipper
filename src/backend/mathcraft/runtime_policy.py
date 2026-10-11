@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+from runtime.processes import hidden_subprocess_kwargs
 
 
 CUDA11_ORT_INDEX_URL = (
@@ -245,7 +246,7 @@ def python_version_for_executable(pyexe: str | Path | None = None) -> tuple[int,
             encoding="utf-8",
             errors="replace",
             timeout=5,
-            **_hidden_subprocess_kwargs(),
+            **hidden_subprocess_kwargs(),
         )
         text = (result.stdout or "").strip().splitlines()[-1:]
         if text:
@@ -299,7 +300,7 @@ def _detect_nvcc_cuda_version() -> CudaRuntimeInfo:
             encoding="utf-8",
             errors="replace",
             timeout=3,
-            **_hidden_subprocess_kwargs(),
+            **hidden_subprocess_kwargs(),
         )
     except Exception:
         return CudaRuntimeInfo(source="nvcc")
@@ -353,26 +354,6 @@ def _exact_req(family: str, name: str) -> DllRequirement:
 
 def _wildcard_req(family: str, pattern: str) -> DllRequirement:
     return DllRequirement(family=family, display_name=pattern, patterns=(pattern,))
-
-
-def _subprocess_creationflags() -> int:
-    if os.name != "nt":
-        return 0
-    return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
-
-
-def _hidden_subprocess_kwargs() -> dict:
-    if os.name != "nt":
-        return {}
-    kwargs = {"creationflags": _subprocess_creationflags()}
-    try:
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = subprocess.SW_HIDE
-        kwargs["startupinfo"] = startupinfo
-    except Exception:
-        pass
-    return kwargs
 
 
 def _quote_cmd_arg(arg: str) -> str:

@@ -8,6 +8,7 @@ import threading
 from pathlib import Path
 
 from bootstrap.deps_pip_runner import configure_pip_runner
+from runtime.processes import hidden_subprocess_kwargs
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
@@ -28,21 +29,7 @@ def was_last_ensure_deps_force_enter():
 subprocess_lock = threading.Lock()
 
 
-def _hidden_subprocess_kwargs() -> dict:
-    if sys.platform != "win32":
-        return {}
-    kwargs = {"creationflags": int(getattr(subprocess, "CREATE_NO_WINDOW", 0))}
-    try:
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = subprocess.SW_HIDE
-        kwargs["startupinfo"] = startupinfo
-    except Exception:
-        pass
-    return kwargs
-
-
-def safe_run(cmd, cwd=None, shell=False, timeout=None, **popen_kwargs):
+def start_process(cmd, cwd=None, shell=False, timeout=None, **popen_kwargs):
     """Start a subprocess and return the Popen object without eagerly reading stdout."""
     logger.debug("执行命令: %s", ' '.join(cmd))
 
@@ -58,7 +45,7 @@ def safe_run(cmd, cwd=None, shell=False, timeout=None, **popen_kwargs):
     popen_kwargs.setdefault("text", True)
     popen_kwargs.setdefault("encoding", "utf-8")
     popen_kwargs.setdefault("errors", "replace")
-    for key, value in _hidden_subprocess_kwargs().items():
+    for key, value in hidden_subprocess_kwargs().items():
         popen_kwargs.setdefault(key, value)
 
 
@@ -98,7 +85,7 @@ pip_ready_event = threading.Event()
 
 PIP_INSTALL_SUPPRESS_ARGS = ["--no-warn-script-location"]
 configure_pip_runner(
-    safe_run=safe_run,
+    start_process=start_process,
     subprocess_lock=subprocess_lock,
     suppress_args=PIP_INSTALL_SUPPRESS_ARGS,
 )

@@ -21,8 +21,7 @@ def test_existing_dependency_python_does_not_require_ensurepip(monkeypatch, tmp_
     pyexe.parent.mkdir(parents=True)
     pyexe.write_text("", encoding="utf-8")
 
-    monkeypatch.setattr(resolver, "_find_install_base_python", lambda _base: pyexe)
-    monkeypatch.setattr(resolver, "_win_subprocess_kwargs", lambda: {})
+    monkeypatch.setattr(resolver, "hidden_subprocess_kwargs", lambda: {})
 
     commands: list[str] = []
 
@@ -54,3 +53,16 @@ def test_private_interpreter_relaunches_application(monkeypatch):
     argv, kwargs = calls[0]
     assert argv == [sys.executable, str(SRC / "main.py"), "--example"]
     assert kwargs["env"]["LATEXSNIPPER_RESTART"] == "1"
+
+
+def test_source_launch_accepts_arbitrarily_named_virtual_environment(monkeypatch, tmp_path):
+    from application import python_runtime_resolver as resolver
+
+    environment = tmp_path / "my-ocr-environment"
+    pyexe = environment / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+    pyexe.parent.mkdir(parents=True)
+    pyexe.touch()
+    monkeypatch.setattr(sys, "executable", str(pyexe))
+    monkeypatch.setattr(resolver, "_is_packaged_mode", lambda: False)
+
+    assert resolver.resolve_install_base_dir() == environment

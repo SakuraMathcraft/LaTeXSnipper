@@ -11,7 +11,7 @@ for _path in (_ROOT_DIR, _SRC_DIR):
         sys.path.insert(0, str(_path))
 
 from runtime.runtime_logging import init_app_logging  # noqa: E402
-from ui.runtime_log_controller import apply_runtime_log_window_preference  # noqa: E402
+from ui.controllers.runtime_log import apply_runtime_log_window_preference  # noqa: E402
 from runtime.std_streams import ensure_std_streams  # noqa: E402
 
 ensure_std_streams()

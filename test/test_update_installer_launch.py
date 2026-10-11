@@ -14,7 +14,7 @@ def test_windows_installer_waiter_does_not_spawn_a_console(tmp_path: Path) -> No
         patch("update.installer_launch.tempfile.gettempdir", return_value=str(tmp_path)),
         patch("update.installer_launch.os.getpid", return_value=4321),
         patch("update.installer_launch.subprocess.Popen") as popen,
-        patch("update.installer_launch._hidden_subprocess_kwargs", return_value={"creationflags": 1}),
+        patch("update.installer_launch.hidden_subprocess_kwargs", return_value={"creationflags": 1}),
     ):
         _schedule_windows_installer(str(installer))
 

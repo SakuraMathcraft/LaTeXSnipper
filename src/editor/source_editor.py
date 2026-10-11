@@ -3,11 +3,11 @@ from __future__ import annotations
 from PyQt6.QtCore import QRect, QSize, Qt
 from PyQt6.QtGui import QColor, QFontMetrics, QTextFormat, QWheelEvent
 from PyQt6.QtWidgets import QPlainTextEdit, QTextEdit, QWidget
-from qfluentwidgets import isDarkTheme
+from ui.theme_tokens import is_dark_ui
 
 
 class _LineNumberArea(QWidget):
-    def __init__(self, editor: "HandwritingPlainTextEdit", parent=None):
+    def __init__(self, editor: "SourceEditor", parent=None):
         super().__init__(parent or editor)
         self.editor = editor
 
@@ -18,8 +18,8 @@ class _LineNumberArea(QWidget):
         self.editor.paint_line_number_area(event)
 
 
-class HandwritingPlainTextEdit(QPlainTextEdit):
-    """Lightweight plain-text editor with line numbers for the handwriting panel."""
+class SourceEditor(QPlainTextEdit):
+    """Source editor with line numbers, current-line highlighting and wheel zoom."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -52,31 +52,41 @@ class HandwritingPlainTextEdit(QPlainTextEdit):
         if dy:
             self._line_number_area.scroll(0, dy)
         else:
-            self._line_number_area.update(0, rect.y(), self._line_number_area.width(), rect.height())
+            self._line_number_area.update(
+                0, rect.y(), self._line_number_area.width(), rect.height()
+            )
         if rect.contains(self.viewport().rect()):
             self._update_line_number_area_width(0)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         cr = self.contentsRect()
-        self._line_number_area.setGeometry(QRect(cr.left(), cr.top(), self.line_number_area_width(), cr.height()))
+        self._line_number_area.setGeometry(
+            QRect(cr.left(), cr.top(), self.line_number_area_width(), cr.height())
+        )
 
     def paint_line_number_area(self, event) -> None:
         from PyQt6.QtGui import QPainter
 
         painter = QPainter(self._line_number_area)
-        dark = bool(isDarkTheme())
+        dark = is_dark_ui()
         painter.fillRect(event.rect(), QColor("#1a2029" if dark else "#f3f4f6"))
         block = self.firstVisibleBlock()
         block_number = block.blockNumber()
-        top = int(round(self.blockBoundingGeometry(block).translated(self.contentOffset()).top()))
+        top = int(
+            round(
+                self.blockBoundingGeometry(block).translated(self.contentOffset()).top()
+            )
+        )
         bottom = top + int(round(self.blockBoundingRect(block).height()))
         current_line = self.textCursor().blockNumber()
         text_color = QColor("#7f8a99" if dark else "#8b95a5")
         active_color = QColor("#d7dee8" if dark else "#334155")
         while block.isValid() and top <= event.rect().bottom():
             if block.isVisible() and bottom >= event.rect().top():
-                painter.setPen(active_color if block_number == current_line else text_color)
+                painter.setPen(
+                    active_color if block_number == current_line else text_color
+                )
                 painter.drawText(
                     0,
                     top,
@@ -94,8 +104,10 @@ class HandwritingPlainTextEdit(QPlainTextEdit):
         extra = []
         if not self.isReadOnly():
             selection = QTextEdit.ExtraSelection()
-            dark = bool(isDarkTheme())
-            selection.format.setBackground(QColor(74, 144, 226, 92) if dark else QColor(66, 133, 244, 72))
+            dark = is_dark_ui()
+            selection.format.setBackground(
+                QColor(74, 144, 226, 92) if dark else QColor(66, 133, 244, 72)
+            )
             selection.format.setProperty(QTextFormat.Property.FullWidthSelection, True)
             selection.cursor = self.textCursor()
             selection.cursor.clearSelection()

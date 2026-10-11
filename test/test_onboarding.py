@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
 )
 import pytest
 
-from ui.onboarding_controller import AUTO_SHOW_KEY, OnboardingController
+from ui.controllers.onboarding import AUTO_SHOW_KEY, OnboardingController
 
 
 class Config:
@@ -215,7 +215,7 @@ def test_spotlights_align_with_nested_widgets_after_move_and_resize(host, origin
 def test_combined_support_opens_readme_for_current_ui_language(
     host, monkeypatch, language, page, fragment
 ):
-    import ui.onboarding_controller as controller
+    import ui.controllers.onboarding as controller
 
     opened = []
     monkeypatch.setattr(controller, "current_ui_language", lambda: language)

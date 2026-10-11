@@ -1,4 +1,5 @@
 import logging
+from ui.theme_tokens import is_dark_ui
 from localization.manager import translate as tr
 import json
 import os
@@ -112,28 +113,22 @@ def _build_layers_ui(
     )
     from qfluentwidgets import PushButton, FluentIcon, ComboBox
 
-    def _is_dark_ui() -> bool:
-        app = QApplication.instance()
-        if app is None:
-            return False
-        c = app.palette().window().color()
-        return ((c.red() + c.green() + c.blue()) / 3.0) < 128
 
     _sync_deps_fluent_theme()
 
     theme = {
-        "dialog_bg": "#1b1f27" if _is_dark_ui() else "#ffffff",
-        "text": "#e7ebf0" if _is_dark_ui() else "#222222",
-        "muted": "#a9b3bf" if _is_dark_ui() else "#555555",
-        "input_bg": "#232934" if _is_dark_ui() else "#ffffff",
-        "border": "#465162" if _is_dark_ui() else "#d0d7de",
-        "warn": "#ff8a80" if _is_dark_ui() else "#c62828",
-        "ok": "#7bd88f" if _is_dark_ui() else "#2e7d32",
-        "hint": "#d9b36c" if _is_dark_ui() else "#856404",
-        "accent": "#8ec5ff" if _is_dark_ui() else "#1976d2",
-        "accent_hover": "#63b3ff" if _is_dark_ui() else "#0f62c9",
-        "btn_bg": "#2b3440" if _is_dark_ui() else "#f8fbff",
-        "btn_hover": "#344151" if _is_dark_ui() else "#eef6ff",
+        "dialog_bg": "#1b1f27" if is_dark_ui() else "#ffffff",
+        "text": "#e7ebf0" if is_dark_ui() else "#222222",
+        "muted": "#a9b3bf" if is_dark_ui() else "#555555",
+        "input_bg": "#232934" if is_dark_ui() else "#ffffff",
+        "border": "#465162" if is_dark_ui() else "#d0d7de",
+        "warn": "#ff8a80" if is_dark_ui() else "#c62828",
+        "ok": "#7bd88f" if is_dark_ui() else "#2e7d32",
+        "hint": "#d9b36c" if is_dark_ui() else "#856404",
+        "accent": "#8ec5ff" if is_dark_ui() else "#1976d2",
+        "accent_hover": "#63b3ff" if is_dark_ui() else "#0f62c9",
+        "btn_bg": "#2b3440" if is_dark_ui() else "#f8fbff",
+        "btn_hover": "#344151" if is_dark_ui() else "#eef6ff",
     }
 
     def _style_layer_checkbox(cb, warn_text=False):
@@ -174,8 +169,8 @@ def _build_layers_ui(
 
     def _style_installed_layer_label(cb):
         _style_layer_checkbox(cb)
-        fill = "#3a4350" if _is_dark_ui() else "#d8dee6"
-        border = "#556170" if _is_dark_ui() else "#c0c7d0"
+        fill = "#3a4350" if is_dark_ui() else "#d8dee6"
+        border = "#556170" if is_dark_ui() else "#c0c7d0"
         cb.setStyleSheet(
             f"QCheckBox {{ color: {theme['muted']}; font-size: 13px; spacing: 3px; padding-left: 3px; }}"
             "QCheckBox:disabled { color: " + theme["muted"] + "; }"

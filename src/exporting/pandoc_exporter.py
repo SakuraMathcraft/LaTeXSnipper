@@ -17,6 +17,7 @@ from exporting.formula_format_helpers import normalize_latex_for_export
 from rendering.mathjax_runtime import cdn_roots, loader_script
 from localization.manager import mark_for_translation
 from runtime.pandoc_runtime import load_configured_pandoc_path, save_configured_pandoc_path
+from runtime.processes import hidden_subprocess_kwargs
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
@@ -117,7 +118,7 @@ def check_pandoc_available(*, force: bool = False) -> bool:
             stderr=subprocess.STDOUT,
             text=True,
             timeout=10,
-            **_hidden_subprocess_kwargs(),
+            **hidden_subprocess_kwargs(),
         )
         first_line = ver_output.splitlines()[0] if ver_output else ""
         _pandoc_version_cache = first_line.strip()
@@ -140,20 +141,6 @@ def _subprocess_flags() -> int:
     if os.name != "nt":
         return 0
     return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
-
-
-def _hidden_subprocess_kwargs() -> dict:
-    if os.name != "nt":
-        return {}
-    kwargs = {"creationflags": _subprocess_flags()}
-    try:
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = subprocess.SW_HIDE
-        kwargs["startupinfo"] = startupinfo
-    except Exception:
-        pass
-    return kwargs
 
 
 def _wrap_formula_in_document(latex: str) -> str:

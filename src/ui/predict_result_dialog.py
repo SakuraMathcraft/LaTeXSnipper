@@ -16,11 +16,8 @@ from qfluentwidgets import (
     PushButton,
 )
 
-from preview.math_preview import (
-    build_math_html,
-    dialog_theme_tokens,
-    get_mathjax_base_url,
-)
+from preview.math_preview import build_math_html, get_mathjax_base_url
+from ui.theme_tokens import dialog_theme_tokens
 from runtime.content_types import normalize_content_type
 from ui.window_helpers import apply_no_minimize_window_flags
 

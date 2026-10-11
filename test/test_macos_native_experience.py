@@ -51,9 +51,9 @@ def test_dependency_failure_guidance_is_concise_and_platform_neutral() -> None:
 
 
 def test_dependency_failure_dialog_is_localized() -> None:
-    from bootstrap import deps_entry
+    from bootstrap import python_setup
 
-    title, message = deps_entry._install_failure_dialog_copy()
+    title, message = python_setup.install_failure_dialog_copy()
 
     assert title == "依赖安装未完成"
     assert "Some dependencies failed" not in message
@@ -61,11 +61,11 @@ def test_dependency_failure_dialog_is_localized() -> None:
 
 
 def test_macos_dependency_failure_log_line_is_localized(monkeypatch) -> None:
-    from bootstrap import deps_entry
+    from bootstrap import python_setup
 
-    monkeypatch.setattr(deps_entry.sys, "platform", "darwin")
+    monkeypatch.setattr(python_setup.sys, "platform", "darwin")
 
-    text = deps_entry._install_failure_log_line()
+    text = python_setup.install_failure_log_line()
 
     assert "Install has failures" not in text
     assert "依赖安装未完成" in text

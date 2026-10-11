@@ -7,7 +7,7 @@ from pathlib import Path
 from PyQt6.QtWidgets import QApplication
 
 from localization.manager import translate as tr
-from update.dialog_helpers import _hidden_subprocess_kwargs
+from runtime.processes import hidden_subprocess_kwargs
 
 
 def _schedule_windows_installer(path: str) -> None:
@@ -34,7 +34,7 @@ def _schedule_windows_installer(path: str) -> None:
     subprocess.Popen(
         ["wscript.exe", "//B", "//NoLogo", str(script)],
         close_fds=True,
-        **_hidden_subprocess_kwargs(),
+        **hidden_subprocess_kwargs(),
     )
 
 
@@ -50,7 +50,6 @@ def _prepare_app_for_update_exit() -> None:
                 break
         except Exception:
             continue
-
 
 
 def _read_signature_status(path: str) -> str:
@@ -71,7 +70,7 @@ def _read_signature_status(path: str) -> str:
             timeout=20,
             encoding="utf-8",
             errors="replace",
-            **_hidden_subprocess_kwargs(),
+            **hidden_subprocess_kwargs(),
         )
         raw = (proc.stdout or "").strip()
         if not raw:

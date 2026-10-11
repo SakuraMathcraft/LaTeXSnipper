@@ -12,14 +12,14 @@ from contextlib import nullcontext
 from pathlib import Path
 from typing import Callable
 
-_safe_run: Callable | None = None
+_start_process: Callable | None = None
 _subprocess_lock = None
 _suppress_args: list[str] = ["--no-warn-script-location"]
 
 
-def configure_pip_runner(*, safe_run: Callable, subprocess_lock, suppress_args: list[str]) -> None:
-    global _safe_run, _subprocess_lock, _suppress_args
-    _safe_run = safe_run
+def configure_pip_runner(*, start_process: Callable, subprocess_lock, suppress_args: list[str]) -> None:
+    global _start_process, _subprocess_lock, _suppress_args
+    _start_process = start_process
     _subprocess_lock = subprocess_lock
     _suppress_args = list(suppress_args or [])
 
@@ -29,8 +29,8 @@ def _lock_context(lock=None):
     return effective_lock if effective_lock is not None else nullcontext()
 
 
-def _effective_safe_run(safe_run: Callable | None = None) -> Callable | None:
-    return safe_run if safe_run is not None else _safe_run
+def _effective_start_process(start_process: Callable | None = None) -> Callable | None:
+    return start_process if start_process is not None else _start_process
 
 
 def _pip_env(pyexe) -> dict:
@@ -56,8 +56,8 @@ def _hidden_startupinfo():
         return None
 
 
-def _spawn_process(args, *, env: dict, flags=0, safe_run: Callable | None = None, subprocess_lock=None):
-    runner = _effective_safe_run(safe_run)
+def _spawn_process(args, *, env: dict, flags=0, start_process: Callable | None = None, subprocess_lock=None):
+    runner = _effective_start_process(start_process)
     startupinfo = _hidden_startupinfo()
     with _lock_context(subprocess_lock):
         if runner is not None:
@@ -140,7 +140,7 @@ def run_logged_pip_command(
     use_mirror=False,
     proc_setter=None,
     timeout=1200,
-    safe_run: Callable | None = None,
+    start_process: Callable | None = None,
     subprocess_lock=None,
 ):
     proc = None
@@ -154,7 +154,7 @@ def run_logged_pip_command(
             args,
             env=_pip_env(pyexe),
             flags=flags,
-            safe_run=safe_run,
+            start_process=start_process,
             subprocess_lock=subprocess_lock,
         )
         _set_proc(proc_setter, proc)
@@ -191,7 +191,7 @@ def maybe_recover_antlr_wheel_failure(
     flags=0,
     proc_setter=None,
     suppress_args: list[str] | None = None,
-    safe_run: Callable | None = None,
+    start_process: Callable | None = None,
     subprocess_lock=None,
 ) -> bool:
     lower = str(output or "").lower()
@@ -215,7 +215,7 @@ def maybe_recover_antlr_wheel_failure(
         use_mirror=use_mirror,
         proc_setter=proc_setter,
         timeout=900,
-        safe_run=safe_run,
+        start_process=start_process,
         subprocess_lock=subprocess_lock,
     )
     if not ok_tools:
@@ -231,7 +231,7 @@ def maybe_recover_antlr_wheel_failure(
         use_mirror=use_mirror,
         proc_setter=proc_setter,
         timeout=900,
-        safe_run=safe_run,
+        start_process=start_process,
         subprocess_lock=subprocess_lock,
     )
     if not ok_antlr:
@@ -258,7 +258,7 @@ class PipInstallRunner:
         proc_setter=None,
         pip_ready_event=None,
         suppress_args: list[str] | None = None,
-        safe_run: Callable | None = None,
+        start_process: Callable | None = None,
         subprocess_lock=None,
         onnxruntime_gpu_policy: Callable | None = None,
         cleanup_orphan_onnxruntime_namespace: Callable | None = None,
@@ -274,7 +274,7 @@ class PipInstallRunner:
         self.proc_setter = proc_setter
         self.pip_ready_event = pip_ready_event
         self.suppress_args = list(suppress_args or _suppress_args)
-        self.safe_run = _effective_safe_run(safe_run)
+        self.start_process = _effective_start_process(start_process)
         self.subprocess_lock = subprocess_lock if subprocess_lock is not None else _subprocess_lock
         self.onnxruntime_gpu_policy = onnxruntime_gpu_policy
         self.cleanup_orphan_onnxruntime_namespace = cleanup_orphan_onnxruntime_namespace
@@ -351,7 +351,7 @@ class PipInstallRunner:
             flags=self.flags,
             proc_setter=self.proc_setter,
             suppress_args=self.suppress_args,
-            safe_run=self.safe_run,
+            start_process=self.start_process,
             subprocess_lock=self.subprocess_lock,
         )
 
@@ -398,7 +398,7 @@ class PipInstallRunner:
                     args,
                     env=env,
                     flags=self.flags,
-                    safe_run=self.safe_run,
+                    start_process=self.start_process,
                     subprocess_lock=self.subprocess_lock,
                 )
                 self._set_proc(proc)

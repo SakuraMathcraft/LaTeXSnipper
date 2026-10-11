@@ -1,5 +1,5 @@
+from recognition.jobs import RecognitionJobCoordinator
 import time
-from typing import Any
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
@@ -22,13 +22,13 @@ class ExternalModelPdfWorker(QObject):
 
     def __init__(
         self,
+        coordinator: RecognitionJobCoordinator,
         config: ExternalModelConfig,
         pdf_path: str,
         page_indices: list[int],
         output_format: str,
         dpi: int | None = 200,
         document_mode: str = "document",
-        coordinator: Any | None = None,
     ):
         super().__init__()
         self.config = config
@@ -36,7 +36,9 @@ class ExternalModelPdfWorker(QObject):
         self.page_indices = [int(index) for index in page_indices if int(index) >= 0]
         self.output_format = output_format
         self.dpi = int(dpi) if dpi is not None else None
-        self.document_mode = str(document_mode or "document").strip().lower() or "document"
+        self.document_mode = (
+            str(document_mode or "document").strip().lower() or "document"
+        )
         self._cancelled = False
         self.elapsed = None
         self.structured_result = None
@@ -46,14 +48,13 @@ class ExternalModelPdfWorker(QObject):
         self._cancelled = True
 
     def run(self):
-        if self.coordinator is not None:
-            try:
-                self.coordinator.run_external_operation(self._run_uncoordinated)
-            except Exception:
-                self.failed.emit(
-                    recognition_error_code_message("upstream_error", "external_model")
-                )
-            return
+        try:
+            self.coordinator.run_external_operation(self._run_uncoordinated)
+        except Exception:
+            self.failed.emit(
+                recognition_error_code_message("upstream_error", "external_model")
+            )
+        return
         self._run_uncoordinated()
 
     def _run_uncoordinated(self):
@@ -75,16 +76,22 @@ class ExternalModelPdfWorker(QObject):
                 page_end = max(page_indices)
                 total = page_end - page_start + 1
                 asset_store = PdfAssetStore(task_id="latest", overwrite_existing=True)
-                pipeline = ExternalDocumentPipeline(self.config, self.output_format, "parse", asset_store=asset_store)
+                pipeline = ExternalDocumentPipeline(
+                    self.config, self.output_format, "parse", asset_store=asset_store
+                )
                 self.progress.emit(0, total)
-                result = MineruClient(self.config).parse_pdf(self.pdf_path, page_start, page_end)
+                result = MineruClient(self.config).parse_pdf(
+                    self.pdf_path, page_start, page_end
+                )
                 if self._cancelled or QThread.currentThread().isInterruptionRequested():
                     asset_store.cleanup()
                     _set_elapsed()
                     self.failed.emit(CANCELED_WORKER_MESSAGE)
                     return
                 page_result = pipeline.process_result(result, page_start + 1)
-                content = pipeline.compose_document([page_result] if page_result else [])
+                content = pipeline.compose_document(
+                    [page_result] if page_result else []
+                )
                 self.structured_result = pipeline.build_structured_result()
                 if not content.strip():
                     asset_store.cleanup()
@@ -135,7 +142,9 @@ class ExternalModelPdfWorker(QObject):
             if self.document_mode == "parse"
             else None
         )
-        pipeline = ExternalDocumentPipeline(self.config, self.output_format, self.document_mode, asset_store=asset_store)
+        pipeline = ExternalDocumentPipeline(
+            self.config, self.output_format, self.document_mode, asset_store=asset_store
+        )
         page_count = doc.page_count or 1
         page_indices = [index for index in self.page_indices if 0 <= index < page_count]
         if not page_indices:
@@ -153,8 +162,12 @@ class ExternalModelPdfWorker(QObject):
                 page = doc.load_page(page_index)
                 render_dpi = max(self.dpi, 72)
                 pix = page.get_pixmap(dpi=render_dpi, alpha=False)
-                image = validated_rgb_image(Image.frombytes("RGB", (pix.width, pix.height), pix.samples))
-                page_result = pipeline.process_page(image, page_index + 1, self.config.prompt_template)
+                image = validated_rgb_image(
+                    Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+                )
+                page_result = pipeline.process_page(
+                    image, page_index + 1, self.config.prompt_template
+                )
                 if page_result:
                     results.append(page_result)
                 self.progress.emit(progress_index + 1, total)

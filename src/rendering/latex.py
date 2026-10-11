@@ -9,6 +9,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Protocol
+from runtime.processes import hidden_subprocess_kwargs
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
@@ -60,22 +61,6 @@ class RenderMessage:
         return dict(self.parameters)
 
 
-def _hidden_subprocess_kwargs() -> dict:
-    if os.name != "nt":
-        return {}
-    kwargs = {
-        "creationflags": int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
-    }
-    try:
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = 0
-        kwargs["startupinfo"] = startupinfo
-    except Exception:
-        pass
-    return kwargs
-
-
 def _is_command_available(command: str) -> bool:
     try:
         result = subprocess.run(
@@ -83,7 +68,7 @@ def _is_command_available(command: str) -> bool:
             capture_output=True,
             timeout=3,
             text=True,
-            **_hidden_subprocess_kwargs(),
+            **hidden_subprocess_kwargs(),
         )
         return result.returncode == 0
     except Exception:
@@ -336,7 +321,7 @@ def compile_tex_document_detailed(
             encoding="utf-8",
             errors="replace",
             cwd=str(output_path),
-            **_hidden_subprocess_kwargs(),
+            **hidden_subprocess_kwargs(),
         )
         file_log_text = _read_compile_log_file(log_file)
         log_text = _merge_compile_logs(result.stdout, result.stderr, file_log_text)
@@ -428,7 +413,7 @@ def synctex_edit_from_pdf(
             encoding="utf-8",
             errors="replace",
             cwd=str(target_pdf.parent),
-            **_hidden_subprocess_kwargs(),
+            **hidden_subprocess_kwargs(),
         )
     except Exception as exc:
         return None, None, RenderMessage.create("synctex.query_failed", error=exc)
@@ -503,7 +488,7 @@ def synctex_view_from_source(
             encoding="utf-8",
             errors="replace",
             cwd=str(target_pdf.parent),
-            **_hidden_subprocess_kwargs(),
+            **hidden_subprocess_kwargs(),
         )
     except Exception as exc:
         return None, None, None, None, None, RenderMessage.create(
@@ -561,7 +546,7 @@ class LaTeXRenderer:
                     [cmd, "--version"],
                     capture_output=True,
                     timeout=3,
-                    **_hidden_subprocess_kwargs(),
+                    **hidden_subprocess_kwargs(),
                 )
                 if result.returncode == 0:
                     full_path = shutil.which(cmd)
@@ -601,7 +586,7 @@ class LaTeXRenderer:
                     capture_output=True,
                     timeout=10,
                     text=True,
-                    **_hidden_subprocess_kwargs(),
+                    **hidden_subprocess_kwargs(),
                 )
                 if compile_result.returncode != 0:
                     logger.error("LaTeX 编译失败")
@@ -613,7 +598,7 @@ class LaTeXRenderer:
                         ["pdftocairo", "-svg", str(pdf_file), str(svg_file)],
                         capture_output=True,
                         timeout=10,
-                        **_hidden_subprocess_kwargs(),
+                        **hidden_subprocess_kwargs(),
                     )
                     if pdftocairo_result.returncode == 0 and svg_file.exists():
                         svg_content = svg_file.read_text(encoding="utf-8")

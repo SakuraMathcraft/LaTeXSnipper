@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from editor.source_search import SourceSearchController
+
 from localization.manager import translate as tr
 
 import shutil
@@ -10,8 +12,6 @@ from types import SimpleNamespace
 from PyQt6.QtCore import (
     QEvent,
     QObject,
-    QRect,
-    QSize,
     QThread,
     QTimer,
     QUrl,
@@ -22,14 +22,10 @@ from PyQt6.QtCore import (
 )
 from PyQt6.QtGui import (
     QAction,
-    QColor,
-    QFontMetrics,
     QIcon,
     QKeySequence,
     QShortcut,
     QTextCursor,
-    QTextDocument,
-    QTextFormat,
     QWheelEvent,
 )
 from PyQt6.QtWidgets import (
@@ -42,7 +38,6 @@ from PyQt6.QtWidgets import (
     QMenu,
     QPlainTextEdit,
     QSplitter,
-    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -64,6 +59,7 @@ from runtime.app_paths import app_temp_dir, resource_path
 
 from .messages import render_message_text
 from .tex_utils import WRAP_ENVIRONMENTS, validate_tex_document, wrap_tex_document
+from editor.source_editor import SourceEditor
 
 try:
     from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -74,113 +70,6 @@ try:
     from PyQt6.QtWebChannel import QWebChannel
 except Exception:  # pragma: no cover
     QWebChannel = None
-
-
-class _LineNumberArea(QWidget):
-    def __init__(self, editor, parent=None):
-        super().__init__(parent or editor)
-        self.editor = editor
-
-    def sizeHint(self):
-        return QSize(self.editor.line_number_area_width(), 0)
-
-    def paintEvent(self, event) -> None:
-        self.editor.paint_line_number_area(event)
-
-
-class SlowZoomPlainTextEdit(QPlainTextEdit):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._line_number_area = _LineNumberArea(self)
-        self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
-        self.blockCountChanged.connect(self._update_line_number_area_width)
-        self.updateRequest.connect(self._update_line_number_area)
-        self.cursorPositionChanged.connect(self._highlight_current_line)
-        self._update_line_number_area_width(0)
-        self._highlight_current_line()
-
-    def wheelEvent(self, event: QWheelEvent) -> None:
-        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            delta = event.angleDelta().y()
-            if delta:
-                self.zoomIn(1 if delta > 0 else -1)
-                event.accept()
-                self._update_line_number_area_width(0)
-                return
-        super().wheelEvent(event)
-
-    def line_number_area_width(self) -> int:
-        digits = max(2, len(str(max(1, self.blockCount()))))
-        return 12 + QFontMetrics(self.font()).horizontalAdvance("9") * digits
-
-    def _update_line_number_area_width(self, _count: int) -> None:
-        self.setViewportMargins(self.line_number_area_width(), 0, 0, 0)
-
-    def _update_line_number_area(self, rect, dy: int) -> None:
-        if dy:
-            self._line_number_area.scroll(0, dy)
-        else:
-            self._line_number_area.update(
-                0, rect.y(), self._line_number_area.width(), rect.height()
-            )
-        if rect.contains(self.viewport().rect()):
-            self._update_line_number_area_width(0)
-
-    def resizeEvent(self, event) -> None:
-        super().resizeEvent(event)
-        cr = self.contentsRect()
-        self._line_number_area.setGeometry(
-            QRect(cr.left(), cr.top(), self.line_number_area_width(), cr.height())
-        )
-
-    def paint_line_number_area(self, event) -> None:
-        from PyQt6.QtGui import QPainter
-
-        painter = QPainter(self._line_number_area)
-        dark = bool(isDarkTheme())
-        painter.fillRect(event.rect(), QColor("#1a2029" if dark else "#f3f4f6"))
-        block = self.firstVisibleBlock()
-        block_number = block.blockNumber()
-        top = int(
-            round(
-                self.blockBoundingGeometry(block).translated(self.contentOffset()).top()
-            )
-        )
-        bottom = top + int(round(self.blockBoundingRect(block).height()))
-        current_line = self.textCursor().blockNumber()
-        text_color = QColor("#7f8a99" if dark else "#8b95a5")
-        active_color = QColor("#d7dee8" if dark else "#334155")
-        while block.isValid() and top <= event.rect().bottom():
-            if block.isVisible() and bottom >= event.rect().top():
-                painter.setPen(
-                    active_color if block_number == current_line else text_color
-                )
-                painter.drawText(
-                    0,
-                    top,
-                    self._line_number_area.width() - 6,
-                    self.fontMetrics().height(),
-                    int(Qt.AlignmentFlag.AlignRight),
-                    str(block_number + 1),
-                )
-            block = block.next()
-            block_number += 1
-            top = bottom
-            bottom = top + int(round(self.blockBoundingRect(block).height()))
-
-    def _highlight_current_line(self) -> None:
-        extra = []
-        if not self.isReadOnly():
-            selection = QTextEdit.ExtraSelection()
-            dark = bool(isDarkTheme())
-            selection.format.setBackground(
-                QColor(74, 144, 226, 92) if dark else QColor(66, 133, 244, 72)
-            )
-            selection.format.setProperty(QTextFormat.Property.FullWidthSelection, True)
-            selection.cursor = self.textCursor()
-            selection.cursor.clearSelection()
-            extra.append(selection)
-        self.setExtraSelections(extra)
 
 
 if QWebEngineView is not None:
@@ -232,7 +121,7 @@ class _MathLivePreviewBridge(WorkbenchBridge):
         self.preferredHeightChanged.emit(max(120, min(value, 560)))
 
 
-class HandwritingDocumentPreviewWindow(QDialog):
+class DocumentPreviewWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle(tr("自动排版"))
@@ -409,7 +298,7 @@ class HandwritingDocumentPreviewWindow(QDialog):
         editor_content_layout = QVBoxLayout(editor_content)
         editor_content_layout.setContentsMargins(0, 0, 0, 0)
         editor_content_layout.setSpacing(0)
-        self.editor = SlowZoomPlainTextEdit(editor_content)
+        self.editor = SourceEditor(editor_content)
         self.editor.setPlaceholderText(
             tr("自动排版后的 TeX 文档会显示在这里，可直接编辑。")
         )
@@ -603,14 +492,21 @@ class HandwritingDocumentPreviewWindow(QDialog):
         self.export_btn.clicked.connect(self._export_tex)
         self.close_btn.clicked.connect(self.close)
         self.editor.textChanged.connect(self._on_editor_text_changed)
-        self.editor_search_input.textChanged.connect(self._update_editor_search_status)
-        self.editor_search_input.returnPressed.connect(self._find_next_in_editor)
-        self.editor_search_prev_btn.clicked.connect(self._find_previous_in_editor)
-        self.editor_search_next_btn.clicked.connect(self._find_next_in_editor)
-        self.editor_search_close_btn.clicked.connect(self._hide_editor_search_bar)
+        self.source_search = SourceSearchController(
+            self,
+            editor=self.editor,
+            bar=self.editor_search_bar,
+            input_field=self.editor_search_input,
+            status_label=self.editor_search_status_label,
+        )
+        self.editor_search_input.textChanged.connect(self.source_search.refresh)
+        self.editor_search_input.returnPressed.connect(self.source_search.find_next)
+        self.editor_search_prev_btn.clicked.connect(self.source_search.find_previous)
+        self.editor_search_next_btn.clicked.connect(self.source_search.find_next)
+        self.editor_search_close_btn.clicked.connect(self.source_search.hide)
         self._editor_search_toggle_shortcut = QShortcut(QKeySequence("Alt+F"), self)
         self._editor_search_toggle_shortcut.activated.connect(
-            self._handle_editor_search_toggle_shortcut
+            self.source_search.handle_toggle_shortcut
         )
         self._editor_search_next_shortcut = QShortcut(
             QKeySequence("F3"), self.editor_search_bar
@@ -619,7 +515,7 @@ class HandwritingDocumentPreviewWindow(QDialog):
             Qt.ShortcutContext.WidgetWithChildrenShortcut
         )
         self._editor_search_next_shortcut.activated.connect(
-            self._handle_editor_search_next_shortcut
+            self.source_search.handle_next_shortcut
         )
         self._editor_search_prev_shortcut = QShortcut(
             QKeySequence("Shift+F3"), self.editor_search_bar
@@ -628,7 +524,7 @@ class HandwritingDocumentPreviewWindow(QDialog):
             Qt.ShortcutContext.WidgetWithChildrenShortcut
         )
         self._editor_search_prev_shortcut.activated.connect(
-            self._handle_editor_search_prev_shortcut
+            self.source_search.handle_previous_shortcut
         )
         self._editor_search_close_shortcut = QShortcut(
             QKeySequence("Esc"), self.editor_search_bar
@@ -637,7 +533,7 @@ class HandwritingDocumentPreviewWindow(QDialog):
             Qt.ShortcutContext.WidgetWithChildrenShortcut
         )
         self._editor_search_close_shortcut.activated.connect(
-            self._handle_editor_search_close_shortcut
+            self.source_search.handle_close_shortcut
         )
         self._apply_preview_theme()
         self._rebuild_pdf_backend_view(show_feedback=False)
@@ -662,111 +558,8 @@ class HandwritingDocumentPreviewWindow(QDialog):
     def _on_editor_text_changed(self) -> None:
         self._update_compile_button_state()
         if self.editor_search_bar.isVisible():
-            self._update_editor_search_status()
+            self.source_search.refresh()
 
-    def _search_shortcut_window_active(self) -> bool:
-        app = QApplication.instance()
-        if app is None or not self.isVisible():
-            return False
-        active_window = app.activeWindow()
-        focus = app.focusWidget()
-        return (
-            active_window is self
-            or focus is self
-            or (focus is not None and self.isAncestorOf(focus))
-        )
-
-    def _handle_editor_search_toggle_shortcut(self) -> None:
-        if self._search_shortcut_window_active():
-            self._toggle_editor_search_bar()
-
-    def _toggle_editor_search_bar(self) -> None:
-        if self.editor_search_bar.isVisible():
-            self._hide_editor_search_bar()
-        else:
-            self._show_editor_search_bar()
-
-    def _show_editor_search_bar(self) -> None:
-        selected = self.editor.textCursor().selectedText().replace("\u2029", "")
-        self.editor_search_bar.setVisible(True)
-        if selected:
-            self.editor_search_input.setText(selected)
-        self.editor_search_input.setFocus()
-        self.editor_search_input.selectAll()
-        self._update_editor_search_status()
-
-    def _hide_editor_search_bar(self) -> None:
-        if not self.editor_search_bar.isVisible():
-            return
-        self.editor_search_bar.setVisible(False)
-        self.editor_search_status_label.setText("")
-        self.editor.setFocus()
-
-    def _handle_editor_search_close_shortcut(self) -> None:
-        if self.editor_search_bar.isVisible() and self._search_shortcut_window_active():
-            self._hide_editor_search_bar()
-
-    def _handle_editor_search_next_shortcut(self) -> None:
-        if self.editor_search_bar.isVisible() and self._search_shortcut_window_active():
-            self._find_next_in_editor()
-
-    def _handle_editor_search_prev_shortcut(self) -> None:
-        if self.editor_search_bar.isVisible() and self._search_shortcut_window_active():
-            self._find_previous_in_editor()
-
-    def _count_editor_search_matches(self, needle: str) -> int:
-        text = str(needle or "").strip()
-        if not text:
-            return 0
-        document = self.editor.document()
-        cursor = document.find(text)
-        count = 0
-        while not cursor.isNull():
-            count += 1
-            cursor = document.find(text, cursor)
-        return count
-
-    def _update_editor_search_status(self) -> None:
-        text = str(self.editor_search_input.text() or "").strip()
-        if not text:
-            self.editor_search_status_label.setText("")
-            return
-        count = self._count_editor_search_matches(text)
-        self.editor_search_status_label.setText(
-            tr("{count} 项").format(count=count) if count else tr("未找到")
-        )
-
-    def _find_in_editor(self, backward: bool = False) -> None:
-        needle = str(self.editor_search_input.text() or "").strip()
-        if not needle:
-            self.editor_search_status_label.setText("")
-            return
-        flags = (
-            QTextDocument.FindFlag.FindBackward
-            if backward
-            else QTextDocument.FindFlag(0)
-        )
-        found = self.editor.find(needle, flags)
-        if not found:
-            cursor = self.editor.textCursor()
-            cursor.movePosition(
-                QTextCursor.MoveOperation.End
-                if backward
-                else QTextCursor.MoveOperation.Start
-            )
-            self.editor.setTextCursor(cursor)
-            found = self.editor.find(needle, flags)
-        self.editor_search_status_label.setText(
-            tr("{count} 项").format(count=self._count_editor_search_matches(needle))
-            if found
-            else tr("未找到")
-        )
-
-    def _find_next_in_editor(self) -> None:
-        self._find_in_editor(backward=False)
-
-    def _find_previous_in_editor(self) -> None:
-        self._find_in_editor(backward=True)
 
     def _insert_snippet_into_editor(self, key: str) -> None:
         insert_snippet_into_editor(self.editor, key)

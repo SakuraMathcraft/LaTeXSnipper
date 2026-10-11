@@ -191,12 +191,7 @@ class RecognitionControllerMixin:
         self.set_model_status(tr("识别中..."))
 
         self.predict_thread = QThread()
-        self.predict_worker = PredictionWorker(
-            self.model,
-            img,
-            active_model,
-            coordinator=getattr(self, "recognition_coordinator", None),
-        )
+        self.predict_worker = PredictionWorker(self.recognition_coordinator, img, active_model)
         self.predict_worker.moveToThread(self.predict_thread)
 
         def _cleanup():
@@ -236,11 +231,7 @@ class RecognitionControllerMixin:
         self._predict_busy = True
         self.set_model_status(tr("外部模型识别中..."))
         self.predict_thread = QThread()
-        self.predict_worker = ExternalModelWorker(
-            config,
-            img,
-            coordinator=getattr(self, "recognition_coordinator", None),
-        )
+        self.predict_worker = ExternalModelWorker(self.recognition_coordinator, config, img)
         self.predict_worker.moveToThread(self.predict_thread)
 
         def _cleanup():

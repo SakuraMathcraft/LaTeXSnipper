@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import QApplication
 
 from application.dependency_controller import dependencies_ready, ensure_deps
 from localization.manager import translate as tr
-from ui.runtime_log_controller import apply_runtime_log_window_preference
+from ui.controllers.runtime_log import apply_runtime_log_window_preference
 from ui.startup_splash import (
     finish_startup_splash,
     startup_deps_resume_message,
@@ -20,7 +20,7 @@ from ui.startup_splash import (
     update_startup_splash,
 )
 from runtime.std_streams import ensure_std_streams
-from ui.theme_controller import apply_theme_mode, read_theme_mode_from_config
+from ui.controllers.theme import apply_theme_mode, read_theme_mode_from_config
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
