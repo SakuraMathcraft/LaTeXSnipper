@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 LINUX_SCREENSHOT_TOOLS: dict[str, dict] = {
     "maim": {
@@ -184,15 +187,15 @@ def _try_screenshot_cmd(
     except subprocess.CalledProcessError as exc:
         tool_name = cmd_template[0] if cmd_template else "screenshot tool"
         detail = str(exc.stderr or "").strip().replace("\n", " ")
-        print(f"[WARN] 截图工具 {tool_name} 返回 {exc.returncode}: {detail[:500]}")
+        logger.warning("截图工具 %s 返回 %s: %s", tool_name, exc.returncode, detail[:500])
         return None
     except subprocess.TimeoutExpired:
         tool_name = cmd_template[0] if cmd_template else "screenshot tool"
-        print(f"[WARN] 截图工具 {tool_name} 超时（15 秒）")
+        logger.warning("截图工具 %s 超时（15 秒）", tool_name)
         return None
     except Exception as exc:
         tool_name = cmd_template[0] if cmd_template else "screenshot tool"
-        print(f"[WARN] 截图工具 {tool_name} 启动失败: {exc}")
+        logger.warning("截图工具 %s 启动失败: %s", tool_name, exc)
         return None
     finally:
         if tmp_path:

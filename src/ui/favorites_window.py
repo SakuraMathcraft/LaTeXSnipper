@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from localization.manager import translate as tr
 
 import json
@@ -37,6 +38,8 @@ from ui.window_helpers import (
     show_normal_window,
     show_formula_rename_dialog,
 )
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 DEFAULT_FAVORITES_NAME = "favorites.json"
 
@@ -490,7 +493,7 @@ class FavoritesWindow(QMainWindow):
                             for k, v in types.items()
                         }
             except Exception as e:
-                print(f"[WARN] 收藏夹加载失败: {e}")
+                logger.warning("收藏夹加载失败: %s", e)
         self.refresh_list()
 
     def save_favorites(self):
@@ -498,7 +501,7 @@ class FavoritesWindow(QMainWindow):
             with open(self.file_path, "w", encoding="utf-8") as f:
                 json.dump(self._favorites_data(), f, ensure_ascii=False, indent=2)
         except Exception as e:
-            print(f"[WARN] 收藏夹保存失败: {e}")
+            logger.warning("收藏夹保存失败: %s", e)
 
     def _clear_all_favorites(self):
         """Clear all favorites."""

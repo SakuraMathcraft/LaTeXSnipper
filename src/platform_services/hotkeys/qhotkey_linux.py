@@ -6,10 +6,13 @@ compositor-specific protocols. Falls back gracefully on failure.
 
 from __future__ import annotations
 
+import logging
 from typing import Optional, Union
 
 from PyQt6.QtCore import QObject, pyqtSignal, Qt
 from PyQt6.QtGui import QKeySequence
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 class LinuxHotkey(QObject):
@@ -43,7 +46,7 @@ class LinuxHotkey(QObject):
             self._pynput_available = True
         except ImportError as e:
             self._pynput_keyboard = None
-            print(f"[WARN] pynput 导入失败，已禁用全局快捷键: {e}")
+            logger.warning("pynput 导入失败，已禁用全局快捷键: %s", e)
 
     def setShortcut(self, seq: QKeySequence) -> None:
         self._seq_obj = seq
@@ -111,7 +114,7 @@ class LinuxHotkey(QObject):
         self.unregister()
 
         if not self._pynput_available:
-            print("[WARN] pynput 不可用，已禁用全局快捷键")
+            logger.warning("pynput 不可用，已禁用全局快捷键")
             return
 
         mods, key = self._parse(self._seq_str)
@@ -126,9 +129,9 @@ class LinuxHotkey(QObject):
             )
             self._listener.start()
             self._registered = True
-            print(f"[DEBUG] 全局快捷键已注册: combo={combo} pynput")
+            logger.debug("全局快捷键已注册: combo=%s pynput", combo)
         except Exception as e:
-            print(f"[WARN] pynput 全局快捷键注册失败: {e}")
+            logger.warning("pynput 全局快捷键注册失败: %s", e)
             self._listener = None
 
     def unregister(self) -> None:
@@ -137,7 +140,7 @@ class LinuxHotkey(QObject):
             try:
                 self._listener.stop()
             except Exception as e:
-                print(f"[WARN] pynput 全局快捷键停止失败: {e}")
+                logger.warning("pynput 全局快捷键停止失败: %s", e)
             self._listener = None
 
     def is_registered(self) -> bool:

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import json
 from pathlib import Path
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 def load_json(path: Path, default):
@@ -21,7 +24,7 @@ def save_json(path: Path, data, log_q=None) -> None:
         Path(path).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as e:
         msg = f"[WARN] 写入依赖状态文件失败: {e}"
-        print(msg)
+        logger.warning("写入依赖状态文件失败: %s", e)
         if log_q:
             log_q.put(msg)
 
@@ -72,7 +75,7 @@ def sanitize_state_layers(
         save_json(state_path, payload)
         dropped = sorted(set(raw_installed + raw_failed) - set(installed + failed))
         if dropped:
-            print(f"[DEBUG] 已忽略并移除废弃或未知依赖: {', '.join(dropped)}")
+            logger.debug("已忽略并移除废弃或未知依赖: %s", ', '.join(dropped))
 
     return payload
 

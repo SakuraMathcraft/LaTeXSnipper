@@ -1,3 +1,4 @@
+import logging
 from localization.manager import translate as tr
 import os
 import queue
@@ -59,6 +60,8 @@ from runtime.dependency_python import (
     normalize_deps_base_dir as _normalize_deps_base_dir,
 )
 
+logger = logging.getLogger(f"latexsnipper.{__name__}")
+
 
 def _ensure_pip(main_python: Path) -> bool:
     """Ensure pip is available for the target interpreter."""
@@ -73,7 +76,7 @@ def _ensure_pip(main_python: Path) -> bool:
             os.name == "nt" and name.startswith("python") and name.endswith(".exe")
         ) or (os.name != "nt" and (name.startswith("python") or "python" in name))
         if not is_python_exe:
-            print(f"[DEBUG] 当前可执行文件不是 Python，跳过 pip 初始化: {main_python}")
+            logger.debug("当前可执行文件不是 Python，跳过 pip 初始化: %s", main_python)
             return False
     except Exception:
         pass
@@ -153,7 +156,7 @@ def _ensure_pip(main_python: Path) -> bool:
             creationflags=flags,
         )
         if res.returncode != 0:
-            print(f"[WARN] pip 工具链升级失败: {res.stdout[-1000:]}")
+            logger.warning("pip 工具链升级失败: %s", res.stdout[-1000:])
             return False
         return True
 
@@ -171,7 +174,7 @@ def _ensure_pip(main_python: Path) -> bool:
             pip_version = None
 
     if pip_version is None:
-        print("[ERR] pip 不可用，且当前 Python 无法通过 ensurepip 初始化 pip。")
+        logger.error("pip 不可用，且当前 Python 无法通过 ensurepip 初始化 pip。")
         return False
 
     needs_upgrade = (
@@ -433,7 +436,7 @@ def ensure_deps(
         try:
             before_show_ui()
         except Exception as e:
-            print(f"[DEBUG] 显示依赖管理前的回调失败: {e}")
+            logger.debug("显示依赖管理前的回调失败: %s", e)
 
     def _notify_after_force_enter():
         if not callable(after_force_enter):
@@ -445,7 +448,7 @@ def ensure_deps(
             except Exception:
                 pass
         except Exception as e:
-            print(f"[DEBUG] 跳过依赖后的回调失败: {e}")
+            logger.debug("跳过依赖后的回调失败: %s", e)
 
     current_pyexe = Path(sys.executable)
     current_site = _site_packages_root(current_pyexe)
@@ -482,7 +485,7 @@ def ensure_deps(
                     ),
                 )
             except Exception:
-                print("[WARN] 缺少可复用 Python 环境，不能跳过安装直接进入。")
+                logger.warning("缺少可复用 Python 环境，不能跳过安装直接进入。")
             return False
         set_last_ensure_deps_force_enter(True)
         _notify_after_force_enter()
@@ -491,8 +494,8 @@ def ensure_deps(
                 tr("警告"), tr("缺失依赖，程序将跳过安装并进入，部分功能可能不可用。")
             )
         except Exception:
-            print("[WARN] 缺失依赖，程序将跳过安装并进入，部分功能可能不可用。")
-        print("[DEBUG] 用户确认跳过依赖安装")
+            logger.warning("缺失依赖，程序将跳过安装并进入，部分功能可能不可用。")
+        logger.debug("用户确认跳过依赖安装")
         return True
 
     is_frozen = getattr(sys, "frozen", False)
@@ -545,7 +548,7 @@ def ensure_deps(
         if not state_path.exists():
             _save_json(state_path, {"installed_layers": []})
     except Exception as e:
-        print(f"[WARN] 预初始化 pip 失败: {e}")
+        logger.warning("预初始化 pip 失败: %s", e)
 
     def _apply_runtime_context(active_pyexe: Path) -> None:
         if active_pyexe is not None:
@@ -609,12 +612,11 @@ def ensure_deps(
             return _deps_ready(installed["layers"])
 
         if reason:
-            print(f"[DEBUG] 触发已安装依赖复验: {reason}")
-        print("[DEBUG] 正在验证已安装依赖")
+            logger.debug("触发已安装依赖复验: %s", reason)
+        logger.debug("正在验证已安装依赖")
         verified = _verify_installed_layers(
             str(pyexe),
             claimed,
-            log_fn=lambda m: print(m),
         )
         failed = [layer for layer in claimed if layer not in verified]
         payload = {"installed_layers": verified}
@@ -626,7 +628,7 @@ def ensure_deps(
         installed["layers"] = verified
         missing_layers = _missing_required_layers(installed["layers"])
         if failed:
-            print(f"[WARN] 复验失败层: {', '.join(failed)}")
+            logger.warning("复验失败层: %s", ', '.join(failed))
         return _deps_ready(installed["layers"])
 
     def _switch_deps_context(target_deps_dir: str) -> tuple[list[str], bool]:
@@ -702,10 +704,10 @@ def ensure_deps(
             if plan.force_enter:
                 set_last_ensure_deps_force_enter(True)
                 _notify_after_force_enter()
-                print("[DEBUG] 用户选择跳过依赖安装")
+                logger.debug("用户选择跳过依赖安装")
                 return True
             if plan.action == "enter":
-                print("[DEBUG] 用户选择直接进入主程序")
+                logger.debug("用户选择直接进入主程序")
                 return True
             if plan.layers:
                 failed_claims = {
@@ -727,14 +729,12 @@ def ensure_deps(
                             "skip_download_already_have"
                         )
                     ):
-                        print("[WARN] 复验后关键层不完整，返回依赖管理。")
+                        logger.warning("复验后关键层不完整，返回依赖管理。")
                         continue
-                    print("[DEBUG] 所选依赖已存在，跳过下载")
+                    logger.debug("所选依赖已存在，跳过下载")
                     return True
 
-            print(
-                f"[DEBUG] 依赖下载源: {'清华镜像' if use_mirror else '官方 PyPI'} ({mirror_source})"
-            )
+            logger.debug("依赖下载源: %s (%s)", '清华镜像' if use_mirror else '官方 PyPI', mirror_source)
             py_root = deps_path / DEPENDENCY_PYTHON_DIRNAME
             need_install = bool(chosen_layers)
 
@@ -777,7 +777,7 @@ def ensure_deps(
                         default_button=QMessageBox.StandardButton.No,
                     )
                     if r != QMessageBox.StandardButton.Yes:
-                        print("[DEBUG] 用户取消 GPU 推理后端安装")
+                        logger.debug("用户取消 GPU 推理后端安装")
                         always_show_ui = True
                         continue
 
@@ -785,7 +785,7 @@ def ensure_deps(
                     layer in chosen_layers for layer in MATHCRAFT_RUNTIME_LAYERS
                 ):
                     chosen_layers = list(chosen_layers) + ["MATHCRAFT_CPU"]
-                    print("[DEBUG] 未指定推理后端，自动使用 CPU 推理后端")
+                    logger.debug("未指定推理后端，自动使用 CPU 推理后端")
 
                 if (not init_python_required) and (not pip_ready_event.is_set()):
                     try:
@@ -1058,7 +1058,7 @@ def ensure_deps(
                         if hasattr(dlg, "refresh_ui"):
                             dlg.refresh_ui()
                     except Exception as e:
-                        print(f"[DEBUG] 刷新依赖管理失败: {e}")
+                        logger.debug("刷新依赖管理失败: %s", e)
 
                 def on_install_done(success: bool):
                     if completion_state["install_done_handled"]:
@@ -1275,7 +1275,7 @@ def ensure_deps(
                         worker.stop()
                         worker.wait(5000)
                     except Exception as e:
-                        print(f"[WARN] 关闭事件清理异常: {e}")
+                        logger.warning("关闭事件清理异常: %s", e)
                     finally:
                         event.accept()
 

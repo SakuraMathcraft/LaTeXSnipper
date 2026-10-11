@@ -21,6 +21,8 @@ from update.release_types import (
     _stable_tag_key,
 )
 
+logger = logging.getLogger(f"latexsnipper.{__name__}")
+
 _session = requests.Session()
 _session.headers.update({
     "User-Agent": "LaTeXSnipper-Updater/1.0 (+https://github.com/SakuraMathcraft/LaTeXSnipper)"
@@ -107,9 +109,9 @@ def _configure_tls_verify():
         # Set envs for child requests/urllib callers in this process.
         os.environ["REQUESTS_CA_BUNDLE"] = ca_path
         os.environ["SSL_CERT_FILE"] = ca_path
-        logging.getLogger(__name__).debug("更新检查 TLS CA bundle: %s", ca_path)
+        logger.debug("更新检查 TLS CA bundle: %s", ca_path)
     else:
-        logging.getLogger(__name__).warning("未找到 TLS CA bundle，更新检查可能因 HTTPS 验证失败")
+        logger.warning("未找到 TLS CA bundle，更新检查可能因 HTTPS 验证失败")
 
 
 def _attach_auth_headers(h: dict):

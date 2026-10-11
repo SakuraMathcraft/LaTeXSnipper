@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 
@@ -36,6 +37,8 @@ from ui.onboarding_controller import OnboardingController
 from ui.window_helpers import (
     select_existing_directory_with_icon as _select_existing_directory_with_icon,
 )
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 DEFAULT_HISTORY_NAME = "history.json"
 PLATFORM_DISABLE_GLOBAL_HOTKEY = False
@@ -324,9 +327,7 @@ class MainWindowSetupMixin:
             try:
                 pg = self.preview_view.page()
                 pg.renderProcessTerminated.connect(
-                    lambda status, code: print(
-                        f"[WARN] WebEngine 渲染进程终止 status={status} code={code}"
-                    )
+                    lambda status, code: logger.warning("WebEngine 渲染进程终止 status=%s code=%s", status, code)
                 )
             except Exception:
                 pass

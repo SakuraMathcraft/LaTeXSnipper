@@ -25,6 +25,8 @@ from application.app_runner import run_application  # noqa: E402
 from application.bootstrap import bootstrap_application  # noqa: E402
 from ui.main_window import MainWindow  # noqa: E402
 
+logger = logging.getLogger(f"latexsnipper.{__name__}")
+
 
 def main() -> int:
     try:
@@ -32,7 +34,7 @@ def main() -> int:
         apply_runtime_log_window_preference(force=False)
         return run_application(MainWindow)
     except Exception:
-        logging.exception("LaTeXSnipper 启动失败")
+        logger.exception("LaTeXSnipper 启动失败")
         raise
 
 

@@ -3,22 +3,22 @@
   <context>
     <name>LaTeXSnipper</name>
     <message>
-      <location filename="../../../src/bootstrap/deps_entry.py" line="237" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="240" />
       <source>  python.org：安装 Python 3.10-3.13，并勾选 Add python.exe to PATH</source>
       <translation>  python.org: Install Python 3.10-3.13 and select Add python.exe to PATH</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_entry.py" line="248" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="251" />
       <source>  python.org：安装最新版 macOS Python 3 安装包</source>
       <translation>  python.org: Install the latest macOS Python 3 package</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_entry.py" line="249" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="252" />
       <source>  安装后请重新打开 LaTeXSnipper。</source>
       <translation>  Reopen LaTeXSnipper after installation.</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_entry.py" line="241" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="244" />
       <source>  安装后请重新打开 LaTeXSnipper，再点击下载/安装。</source>
       <translation>  Reopen LaTeXSnipper after installation, then click Download/Install.</translation>
     </message>
@@ -29,7 +29,7 @@
       <translation>% TODO: Complete the document body</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="201" />
+      <location filename="../../../src/update/update_dialog.py" line="203" />
       <source>(无变更日志)</source>
       <translation>(No changelog)</translation>
     </message>
@@ -102,7 +102,7 @@
       <translation>Automation API configuration unchanged</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="370" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="373" />
       <source>CDN MathJax</source>
       <translation>CDN MathJax</translation>
     </message>
@@ -158,12 +158,12 @@
       <translation>GPU not detected</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="238" />
+      <location filename="../../../src/update/update_dialog.py" line="240" />
       <source>GitHub API 本次返回了空发布列表，但这不代表项目没有发布版本。</source>
       <translation>The GitHub API returned an empty release list, but this does not mean the project has no releases.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/github_release_client.py" line="170" />
+      <location filename="../../../src/update/github_release_client.py" line="172" />
       <location filename="../../../src/update/release_types.py" line="82" />
       <source>GitHub API 请求受限，请稍后重试或设置 GITHUB_TOKEN。</source>
       <translation>GitHub API requests are restricted. Try again later or set GITHUB_TOKEN.</translation>
@@ -174,27 +174,27 @@
       <translation>GitHub API returned HTTP {code}. Try again later.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/github_release_client.py" line="178" />
+      <location filename="../../../src/update/github_release_client.py" line="180" />
       <source>GitHub Releases 响应格式异常。</source>
       <translation>The GitHub Releases response format is invalid.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/github_release_client.py" line="193" />
+      <location filename="../../../src/update/github_release_client.py" line="195" />
       <source>GitHub 暂时没有返回发布列表，请稍后重试或打开发布页查看。</source>
       <translation>GitHub temporarily returned no releases. Try again later or open the releases page.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/github_release_client.py" line="151" />
+      <location filename="../../../src/update/github_release_client.py" line="153" />
       <source>GitHub 限频: 剩余=0 重置≈{reset}</source>
       <translation>GitHub rate limit: remaining=0, resets around {reset}</translation>
     </message>
     <message>
-      <location filename="../../../src/update/github_release_client.py" line="165" />
+      <location filename="../../../src/update/github_release_client.py" line="167" />
       <source>GitHub 限频: 剩余={remaining} 重置≈{reset}</source>
       <translation>GitHub rate limit: remaining={remaining}, resets around {reset}</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/smart_preview.py" line="180" />
+      <location filename="../../../src/preview/smart_preview.py" line="183" />
       <source>HTML 构建失败</source>
       <translation>HTML build failed</translation>
     </message>
@@ -249,7 +249,7 @@
       <translation>LaTeX has been copied to the clipboard.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="264" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="267" />
       <source>LaTeX 环境已就绪</source>
       <translation>The LaTeX environment is ready</translation>
     </message>
@@ -259,7 +259,7 @@
       <translation>LaTeX Result</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="236" />
+      <location filename="../../../src/ui/main_window_setup.py" line="239" />
       <source>LaTeX 编辑器</source>
       <translation>LaTeX Editor</translation>
     </message>
@@ -269,12 +269,12 @@
       <translation>LaTeX path:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="86" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="89" />
       <source>LaTeX 路径未配置</source>
       <translation>LaTeX path not configured</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="56" />
+      <location filename="../../../src/ui/main_window_setup.py" line="59" />
       <source>LaTeXSnipper</source>
       <translation>LaTeXSnipper</translation>
     </message>
@@ -284,22 +284,22 @@
       <translation>LaTeXSnipper - Capture shortcut: {hotkey} | {display}</translation>
     </message>
     <message>
-      <location filename="../../../src/application/bootstrap.py" line="76" />
+      <location filename="../../../src/application/bootstrap.py" line="78" />
       <source>LaTeXSnipper 已在运行。</source>
       <translation>LaTeXSnipper is already running.</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="105" />
+      <location filename="../../../src/capture/overlay.py" line="108" />
       <source>LaTeXSnipper 截图识别</source>
       <translation>LaTeXSnipper Capture</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="91" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="94" />
       <source>LaTeXSnipper 打包可执行文件 ({path})</source>
       <translation>LaTeXSnipper packaged executable ({path})</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="113" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="116" />
       <source>LaTeXSnipper 无法获得当前运行副本的屏幕录制权限。
 
 当前授权对象：{target}
@@ -341,7 +341,7 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>Markdown inline</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="261" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="264" />
       <source>MathCraft OCR 已就绪</source>
       <translation>MathCraft OCR is ready</translation>
     </message>
@@ -396,7 +396,7 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>MathCraft OCR warm-up failed. Open the runtime log for details.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="142" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="145" />
       <source>MathCraft OCR 预热完成，可直接识别</source>
       <translation>MathCraft OCR warm-up completed and is ready to recognize</translation>
     </message>
@@ -406,17 +406,17 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>Incomplete MathCraft dependencies</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="337" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="340" />
       <source>MathCraft 公式识别</source>
       <translation>MathCraft Formula Recognition</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="339" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="342" />
       <source>MathCraft 混合识别</source>
       <translation>MathCraft Mixed Recognition</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="338" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="341" />
       <source>MathCraft 纯文字识别</source>
       <translation>MathCraft Text Recognition</translation>
     </message>
@@ -431,7 +431,7 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>Failed to copy MathJSON: {message}</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/smart_preview.py" line="28" />
+      <location filename="../../../src/preview/smart_preview.py" line="31" />
       <source>MathJax 资源是否存在</source>
       <translation>Whether MathJax resources exist</translation>
     </message>
@@ -456,7 +456,7 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>The MinerU parsing task failed. Check the model configuration and service log.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/pdf.py" line="120" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="123" />
       <source>PDF 共 {total} 页，输入识别页码或范围：</source>
       <translation>The PDF has {total} pages. Enter a page or page range:</translation>
     </message>
@@ -468,7 +468,7 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
     <message>
       <location filename="../../../src/recognition/external_pdf_worker.py" line="130" />
       <location filename="../../../src/recognition/workers.py" line="175" />
-      <location filename="../../../src/ui/controllers/pdf.py" line="112" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="115" />
       <source>PDF 打开失败: {error}</source>
       <translation>Failed to open PDF: {error}</translation>
     </message>
@@ -478,12 +478,12 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>PDF files (*.pdf)</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/pdf.py" line="65" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="68" />
       <source>PDF 文件 (*.pdf);;所有文件 (*.*)</source>
       <translation>PDF files (*.pdf);;All files (*.*)</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/pdf.py" line="77" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="80" />
       <source>PDF 文件不存在: {path}</source>
       <translation>PDF file not found: {path}</translation>
     </message>
@@ -503,12 +503,12 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>PDF Rendering Resolution</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="241" />
+      <location filename="../../../src/ui/main_window_setup.py" line="244" />
       <source>PDF 识别</source>
       <translation>PDF</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/pdf.py" line="358" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="361" />
       <source>PDF 识别完成</source>
       <translation>PDF recognition completed</translation>
     </message>
@@ -565,18 +565,18 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>Poppler (high quality)</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/smart_preview.py" line="30" />
+      <location filename="../../../src/preview/smart_preview.py" line="33" />
       <source>PyQt6 WebEngine 是否正常工作</source>
       <translation>Whether PyQt6 WebEngine is working</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_entry.py" line="336" />
-      <location filename="../../../src/bootstrap/deps_entry.py" line="400" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="339" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="403" />
       <source>Python 依赖环境初始化已取消</source>
       <translation>Python dependency environment initialization was canceled</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="612" />
+      <location filename="../../../src/capture/overlay.py" line="613" />
       <source>Shift 切换格式</source>
       <translation>Shift to switch format</translation>
     </message>
@@ -676,7 +676,7 @@ Current content:
       <translation>WebEngine is unavailable; the formula preview cannot be displayed.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="350" />
+      <location filename="../../../src/ui/main_window_setup.py" line="351" />
       <source>WebEngine 未加载，无法渲染公式预览。
 请确保已安装 PyQtWebEngine。</source>
       <translation>WebEngine is unavailable, so the formula preview cannot be rendered.
@@ -688,7 +688,7 @@ Make sure PyQtWebEngine is installed.</translation>
       <translation>WebEngine is unavailable; the preview cannot be rendered.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/edit_formula_dialog.py" line="57" />
+      <location filename="../../../src/ui/edit_formula_dialog.py" line="60" />
       <source>WebEngine 未加载，无法预览</source>
       <translation>WebEngine is unavailable; preview is disabled.</translation>
     </message>
@@ -713,12 +713,12 @@ Make sure PyQtWebEngine is installed.</translation>
       <translation>pip initialization failed</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_entry.py" line="363" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="366" />
       <source>venv 创建异常: {error}</source>
       <translation>venv creation error: {error}</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_entry.py" line="360" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="363" />
       <source>venv 创建超时（{timeout} 秒）</source>
       <translation>venv creation timed out ({timeout} seconds)</translation>
     </message>
@@ -728,14 +728,14 @@ Make sure PyQtWebEngine is installed.</translation>
       <translation>{backend} is not enabled</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/predict_result_controller.py" line="403" />
+      <location filename="../../../src/ui/predict_result_controller.py" line="406" />
       <source>{content}
 可使用快捷键 {hotkey} 重试。</source>
       <translation>{content}
 Retry with the {hotkey} shortcut.</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="767" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="770" />
       <source>{count} 个项目清理失败。
 
 示例：{path}
@@ -767,22 +767,22 @@ Example: {path}
       <translation>{images};;All files (*.*)</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="473" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="476" />
       <source>{layer}卸载失败，请查看日志。</source>
       <translation>Failed to uninstall {layer}. Review the log.</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="458" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="461" />
       <source>{layer}已卸载。</source>
       <translation>{layer} was uninstalled.</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="389" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="392" />
       <source>{layer}（已安装）</source>
       <translation>{layer} (installed)</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="381" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="384" />
       <source>{layer}（需要修复）</source>
       <translation>{layer} (repair required)</translation>
     </message>
@@ -792,7 +792,7 @@ Example: {path}
       <translation>{message}; the previous PDF preview has been preserved.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="295" />
+      <location filename="../../../src/update/update_dialog.py" line="297" />
       <source>{message}；建议稍后重试或设置 GITHUB_TOKEN。</source>
       <translation>{message}; try again later or set GITHUB_TOKEN.</translation>
     </message>
@@ -835,7 +835,7 @@ Example: {path}
       <translation>⚪ Detecting compute mode...</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="283" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="286" />
       <source>✓ 已验证</source>
       <translation>✓ Verified</translation>
     </message>
@@ -902,65 +902,65 @@ Example: {path}
       <translation>Subscript  (Shift+_)</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="620" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="623" />
       <source>下载</source>
       <translation>Download</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="481" />
+      <location filename="../../../src/update/update_dialog.py" line="483" />
       <source>下载失败</source>
       <translation>Download failed</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="479" />
+      <location filename="../../../src/update/update_dialog.py" line="481" />
       <source>下载失败：{message}</source>
       <translation>Download failed: {message}</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="392" />
+      <location filename="../../../src/update/update_dialog.py" line="394" />
       <source>下载完成: {path}</source>
       <translation>Download complete: {path}</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="429" />
+      <location filename="../../../src/update/update_dialog.py" line="431" />
       <source>下载完成，正在退出程序并启动安装器...</source>
       <translation>Download completed. Exiting and launching the installer...</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="464" />
+      <location filename="../../../src/update/update_dialog.py" line="466" />
       <source>下载已暂停</source>
       <translation>Download paused</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="462" />
+      <location filename="../../../src/update/update_dialog.py" line="464" />
       <source>下载已暂停，可稍后继续下载。</source>
       <translation>Download paused. You can resume it later.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="122" />
-      <location filename="../../../src/update/update_dialog.py" line="322" />
+      <location filename="../../../src/update/update_dialog.py" line="124" />
+      <location filename="../../../src/update/update_dialog.py" line="324" />
       <source>下载并安装</source>
       <translation>Download and Install</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="359" />
-      <location filename="../../../src/update/update_dialog.py" line="379" />
       <location filename="../../../src/update/update_dialog.py" line="361" />
+      <location filename="../../../src/update/update_dialog.py" line="381" />
+      <location filename="../../../src/update/update_dialog.py" line="363" />
       <source>下载校验失败</source>
       <translation>Download verification failed</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="377" />
+      <location filename="../../../src/update/update_dialog.py" line="379" />
       <source>下载校验失败：安装包 SHA256 与线上发布信息不一致</source>
       <translation>Download verification failed: the package SHA256 does not match the online release information</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="551" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="554" />
       <source>下载源:</source>
       <translation>Download source:</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="551" />
+      <location filename="../../../src/update/update_dialog.py" line="553" />
       <source>下载链接已复制到剪贴板。</source>
       <translation>The download link has been copied to the clipboard.</translation>
     </message>
@@ -970,13 +970,13 @@ Example: {path}
       <translation>No preset</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_entry.py" line="479" />
-      <location filename="../../../src/bootstrap/deps_ui.py" line="827" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="482" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="830" />
       <source>不可进入</source>
       <translation>Cannot continue</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="673" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="676" />
       <source>不可进入(先初始化)</source>
       <translation>Cannot continue (initialize first)</translation>
     </message>
@@ -996,12 +996,12 @@ Example: {path}
       <translation>The main environment terminal is already running.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/app_lifecycle_controller.py" line="328" />
+      <location filename="../../../src/ui/app_lifecycle_controller.py" line="331" />
       <source>主窗口已关闭，可通过 Dock 或菜单栏重新打开</source>
       <translation>The main window is closed. Reopen it from the Dock or menu bar.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/window_openers.py" line="160" />
+      <location filename="../../../src/ui/window_openers.py" line="163" />
       <source>主窗口已显示</source>
       <translation>Main window shown</translation>
     </message>
@@ -1016,12 +1016,12 @@ Example: {path}
       <translation>Recognition is running in the main window; waiting...</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/window_openers.py" line="53" />
+      <location filename="../../../src/ui/window_openers.py" line="56" />
       <source>主编辑器为空，没有可载入的公式</source>
       <translation>The main editor is empty; there is no formula to load</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/window_openers.py" line="58" />
+      <location filename="../../../src/ui/window_openers.py" line="61" />
       <source>主编辑器内容已载入数学工作台</source>
       <translation>Main editor content loaded into the math workspace</translation>
     </message>
@@ -1072,7 +1072,7 @@ Example: {path}
       <translation>The following dependencies are not working: {layers}. Review the log.</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="323" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="326" />
       <source>以下依赖需要修复：</source>
       <translation>The following dependencies need repair:</translation>
     </message>
@@ -1092,17 +1092,17 @@ Example: {path}
       <translation>Dependency download completed. Verifying...</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="526" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="529" />
       <source>依赖安装/加载路径:</source>
       <translation>Dependency install/load path:</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_entry.py" line="290" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="293" />
       <source>依赖安装未完成</source>
       <translation>Dependency Installation Incomplete</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="232" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="235" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="379" />
       <source>依赖管理</source>
       <translation>Dependency Management</translation>
@@ -1192,13 +1192,13 @@ Restart and open Dependency Management now?
       <translation>Apply a preset first, replace it with the actual model name, and then test the connection. After the connection succeeds, test screenshot or image recognition before PDF. If PDF results are unstable, adjust the DPI first.</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="333" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="332" />
       <source>全选</source>
       <translation>Select All</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/smart_preview.py" line="203" />
-      <location filename="../../../src/ui/favorites_window.py" line="398" />
+      <location filename="../../../src/preview/smart_preview.py" line="206" />
+      <location filename="../../../src/ui/favorites_window.py" line="401" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="100" />
       <source>公式</source>
       <translation>Formula</translation>
@@ -1209,27 +1209,27 @@ Restart and open Dependency Management now?
       <translation>Formula OCR</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="309" />
+      <location filename="../../../src/ui/favorites_window.py" line="312" />
       <source>公式命名</source>
       <translation>Name Formula</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="279" />
+      <location filename="../../../src/ui/favorites_window.py" line="282" />
       <source>公式已在历史中</source>
       <translation>The formula is already in history</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="65" />
+      <location filename="../../../src/ui/favorites_window.py" line="68" />
       <source>公式收藏夹</source>
       <translation>Formula Favorites</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/math_preview.py" line="356" />
+      <location filename="../../../src/preview/math_preview.py" line="353" />
       <source>公式渲染出错</source>
       <translation>Formula rendering error</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/smart_preview.py" line="24" />
+      <location filename="../../../src/preview/smart_preview.py" line="27" />
       <source>公式渲染失败</source>
       <translation>Formula rendering failed</translation>
     </message>
@@ -1244,8 +1244,8 @@ Restart and open Dependency Management now?
       <translation>Formula preview:</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="281" />
-      <location filename="../../../src/ui/app_lifecycle_controller.py" line="93" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="280" />
+      <location filename="../../../src/ui/app_lifecycle_controller.py" line="96" />
       <source>关于 LaTeXSnipper</source>
       <translation>About LaTeXSnipper</translation>
     </message>
@@ -1255,12 +1255,12 @@ Restart and open Dependency Management now?
       <translation>Getting the model ready</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="439" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="442" />
       <location filename="../../../src/preview/document/window.py" line="578" />
       <location filename="../../../src/ui/pdf_result_window.py" line="74" />
       <location filename="../../../src/ui/runtime_log_dialog.py" line="54" />
       <location filename="../../../src/ui/settings_external_help.py" line="104" />
-      <location filename="../../../src/update/update_dialog.py" line="126" />
+      <location filename="../../../src/update/update_dialog.py" line="128" />
       <source>关闭</source>
       <translation>Close</translation>
     </message>
@@ -1276,13 +1276,13 @@ Restart and open Dependency Management now?
       <translation>Close Search</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="322" />
-      <location filename="../../../src/ui/favorites_window.py" line="103" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="321" />
+      <location filename="../../../src/ui/favorites_window.py" line="106" />
       <source>关闭窗口</source>
       <translation>Close Window</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/app_lifecycle_controller.py" line="307" />
+      <location filename="../../../src/ui/app_lifecycle_controller.py" line="310" />
       <source>关闭窗口将完全退出 LaTeXSnipper，是否确认？</source>
       <translation>Closing this window will quit LaTeXSnipper completely. Continue?</translation>
     </message>
@@ -1292,13 +1292,13 @@ Restart and open Dependency Management now?
       <translation>Close Editor</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="666" />
+      <location filename="../../../src/update/update_dialog.py" line="668" />
       <source>关闭该窗口会暂停下载，是否继续？</source>
       <translation>Closing this window will pause the download. Continue?</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/history_controller.py" line="192" />
-      <location filename="../../../src/ui/history_controller.py" line="207" />
+      <location filename="../../../src/ui/history_controller.py" line="195" />
+      <location filename="../../../src/ui/history_controller.py" line="210" />
       <source>内容不存在</source>
       <translation>Content Not Found</translation>
     </message>
@@ -1309,7 +1309,7 @@ Restart and open Dependency Management now?
       <translation>Content is empty</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/smart_preview.py" line="232" />
+      <location filename="../../../src/preview/smart_preview.py" line="235" />
       <source>内容块渲染失败: {error}</source>
       <translation>Content block rendering failed: {error}</translation>
     </message>
@@ -1319,7 +1319,7 @@ Restart and open Dependency Management now?
       <translation>Built-in MathCraft OCR for formulas, mixed content, text, and PDF documents.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/pdf.py" line="191" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="194" />
       <source>内置 PDF 识别缺少渲染 DPI</source>
       <translation>The built-in PDF recognizer requires a rendering DPI</translation>
     </message>
@@ -1329,7 +1329,7 @@ Restart and open Dependency Management now?
       <translation>Built-in model</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="632" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="635" />
       <source>内置识别依赖未完整安装</source>
       <translation>Built-in recognition dependencies are incomplete</translation>
     </message>
@@ -1339,7 +1339,7 @@ Restart and open Dependency Management now?
       <translation>Internal images must use RGB format.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/predict_result_controller.py" line="498" />
+      <location filename="../../../src/ui/predict_result_controller.py" line="501" />
       <source>写入历史失败：{error}</source>
       <translation>Failed to write history: {error}</translation>
     </message>
@@ -1355,8 +1355,8 @@ Restart and open Dependency Management now?
       <translation>Your preview will appear here after you write</translation>
     </message>
     <message>
-      <location filename="../../../src/application/bootstrap.py" line="105" />
-      <location filename="../../../src/application/bootstrap.py" line="193" />
+      <location filename="../../../src/application/bootstrap.py" line="107" />
+      <location filename="../../../src/application/bootstrap.py" line="195" />
       <source>准备运行环境...</source>
       <translation>Preparing runtime environment...</translation>
     </message>
@@ -1381,7 +1381,7 @@ Restart and open Dependency Management now?
       <translation>Fraction arithmetic</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="377" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="380" />
       <source>切换成功</source>
       <translation>Switched successfully</translation>
     </message>
@@ -1397,23 +1397,23 @@ Restart and open Dependency Management now?
       <translation>Initialization failed</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="124" />
+      <location filename="../../../src/ui/main_window_setup.py" line="127" />
       <source>初始化识别与预览...</source>
       <translation>Initializing recognition and preview...</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="268" />
-      <location filename="../../../src/ui/history_controller.py" line="48" />
+      <location filename="../../../src/ui/favorites_window.py" line="271" />
+      <location filename="../../../src/ui/history_controller.py" line="51" />
       <source>删除</source>
       <translation>Delete</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="406" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="409" />
       <source>删除确认</source>
       <translation>Confirm Removal</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="206" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="209" />
       <source>删除该依赖层</source>
       <translation>Remove this dependency layer</translation>
     </message>
@@ -1434,10 +1434,10 @@ Restart and open Dependency Management now?
       <translation>Load Failed</translation>
     </message>
     <message>
-      <location filename="../../../src/application/app_runner.py" line="36" />
-      <location filename="../../../src/application/app_runner.py" line="50" />
-      <location filename="../../../src/application/app_runner.py" line="71" />
-      <location filename="../../../src/ui/startup_splash.py" line="236" />
+      <location filename="../../../src/application/app_runner.py" line="39" />
+      <location filename="../../../src/application/app_runner.py" line="53" />
+      <location filename="../../../src/application/app_runner.py" line="74" />
+      <location filename="../../../src/ui/startup_splash.py" line="239" />
       <source>加载界面组件...</source>
       <translation>Loading interface components...</translation>
     </message>
@@ -1472,12 +1472,12 @@ Restart and open Dependency Management now?
       <translation>Select Ollama as the protocol, set Base URL to http://127.0.0.1:11434, enter qwen2.5vl:7b, glm-ocr, or the actual pulled model name, and leave API Key empty.</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="434" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="437" />
       <source>卸载进度</source>
       <translation>Removal Progress</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="186" />
+      <location filename="../../../src/ui/main_window_setup.py" line="189" />
       <source>历史记录</source>
       <translation>History</translation>
     </message>
@@ -1492,13 +1492,13 @@ Restart and open Dependency Management now?
       <translation>Report an issue</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="271" />
+      <location filename="../../../src/update/update_dialog.py" line="273" />
       <source>发现新版本: {latest} (当前 {current})</source>
       <translation>New version available: {latest} (current: {current})</translation>
     </message>
     <message>
       <location filename="../../../src/ui/automation_access_dialog.py" line="219" />
-      <location filename="../../../src/ui/controllers/pdf.py" line="209" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="212" />
       <location filename="../../../src/ui/settings_environment_mixin.py" line="149" />
       <location filename="../../../src/ui/settings_environment_mixin.py" line="248" />
       <location filename="../../../src/ui/window_helpers.py" line="157" />
@@ -1506,17 +1506,17 @@ Restart and open Dependency Management now?
       <translation>Cancel</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="117" />
+      <location filename="../../../src/update/update_dialog.py" line="119" />
       <source>变更日志 / 诊断输出...</source>
       <translation>Changelog / diagnostic output...</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="116" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="119" />
       <source>可执行文件 (pdflatex xelatex);;所有文件 (*)</source>
       <translation>Executables (pdflatex xelatex);;All files (*)</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="118" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="121" />
       <source>可执行文件 (pdflatex.exe xelatex.exe);;所有文件 (*.*)</source>
       <translation>Executables (pdflatex.exe xelatex.exe);;All files (*.*)</translation>
     </message>
@@ -1541,8 +1541,8 @@ Restart and open Dependency Management now?
       <translation>Show the runtime log window after startup</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="427" />
-      <location filename="../../../src/update/update_dialog.py" line="421" />
+      <location filename="../../../src/update/update_dialog.py" line="429" />
+      <location filename="../../../src/update/update_dialog.py" line="423" />
       <source>启动安装器失败</source>
       <translation>Failed to start installer</translation>
     </message>
@@ -1557,7 +1557,7 @@ Restart and open Dependency Management now?
       <translation>Failed to enable: {message}</translation>
     </message>
     <message>
-      <location filename="../../../src/update/github_release_client.py" line="177" />
+      <location filename="../../../src/update/github_release_client.py" line="179" />
       <source>响应格式不是 release 列表</source>
       <translation>The response is not a release list</translation>
     </message>
@@ -1568,7 +1568,7 @@ Restart and open Dependency Management now?
       <translation>Factor</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/predict_result_controller.py" line="112" />
+      <location filename="../../../src/ui/predict_result_controller.py" line="115" />
       <source>固定为小窗口并保持置顶，再点一次恢复可调整大小</source>
       <translation>Pin as a compact always-on-top window; click again to restore resizable mode</translation>
     </message>
@@ -1623,7 +1623,7 @@ Restart and open Dependency Management now?
       <translation>The image file exceeds the size limit.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="239" />
+      <location filename="../../../src/ui/main_window_setup.py" line="242" />
       <source>图片识别</source>
       <translation>Image</translation>
     </message>
@@ -1634,7 +1634,7 @@ Restart and open Dependency Management now?
       <translation>Lasso Correction</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="273" />
+      <location filename="../../../src/ui/main_window_setup.py" line="276" />
       <source>在此输入 LaTeX 公式，下方将实时渲染...</source>
       <translation>Enter a LaTeX formula here for a live preview below...</translation>
     </message>
@@ -1651,13 +1651,13 @@ Restart and open Dependency Management now?
     <message>
       <location filename="../../../src/editor/workbench_window.py" line="89" />
       <location filename="../../../src/editor/workbench_window.py" line="153" />
-      <location filename="../../../src/platform_services/macos_provider.py" line="329" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="328" />
       <location filename="../../../src/preview/document/window.py" line="575" />
       <location filename="../../../src/preview/document/window.py" line="984" />
-      <location filename="../../../src/ui/favorites_window.py" line="253" />
-      <location filename="../../../src/ui/history_controller.py" line="38" />
+      <location filename="../../../src/ui/favorites_window.py" line="256" />
+      <location filename="../../../src/ui/history_controller.py" line="41" />
       <location filename="../../../src/ui/history_panel.py" line="139" />
-      <location filename="../../../src/ui/main_window_setup.py" line="249" />
+      <location filename="../../../src/ui/main_window_setup.py" line="252" />
       <location filename="../../../src/ui/pdf_result_window.py" line="72" />
       <source>复制</source>
       <translation>Copy</translation>
@@ -1688,8 +1688,8 @@ Restart and open Dependency Management now?
       <location filename="../../../src/ui/editor_actions_controller.py" line="50" />
       <location filename="../../../src/ui/formula_export_menu.py" line="164" />
       <location filename="../../../src/ui/formula_export_menu.py" line="178" />
-      <location filename="../../../src/ui/history_controller.py" line="202" />
-      <location filename="../../../src/update/update_dialog.py" line="558" />
+      <location filename="../../../src/ui/history_controller.py" line="205" />
+      <location filename="../../../src/update/update_dialog.py" line="560" />
       <source>复制失败</source>
       <translation>Copy Failed</translation>
     </message>
@@ -1699,7 +1699,7 @@ Restart and open Dependency Management now?
       <translation>Copy failed: {error}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/predict_result_controller.py" line="488" />
+      <location filename="../../../src/ui/predict_result_controller.py" line="491" />
       <source>复制失败：{error}</source>
       <translation>Copy failed: {error}</translation>
     </message>
@@ -1709,7 +1709,7 @@ Restart and open Dependency Management now?
       <translation>Copy access key</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="124" />
+      <location filename="../../../src/update/update_dialog.py" line="126" />
       <source>复制链接</source>
       <translation>Copy Link</translation>
     </message>
@@ -1719,7 +1719,7 @@ Restart and open Dependency Management now?
       <translation>Theme:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="340" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="343" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="82" />
       <source>外部模型</source>
       <translation>External model</translation>
@@ -1750,7 +1750,7 @@ Restart and open Dependency Management now?
       <translation>The external model generated an editable TeX document.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="112" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="115" />
       <source>外部模型已配置</source>
       <translation>External model configured</translation>
     </message>
@@ -1769,13 +1769,13 @@ Restart and open Dependency Management now?
       <location filename="../../../src/handwriting/handwriting_window.py" line="771" />
       <location filename="../../../src/handwriting/handwriting_window.py" line="772" />
       <location filename="../../../src/handwriting/recognizer.py" line="75" />
-      <location filename="../../../src/ui/model_runtime_controller.py" line="113" />
-      <location filename="../../../src/ui/model_runtime_controller.py" line="117" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="116" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="120" />
       <source>外部模型未配置</source>
       <translation>External model is not configured</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/pdf.py" line="93" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="96" />
       <source>外部模型未配置，请先完成必要配置。</source>
       <translation>Configure the external model before continuing.</translation>
     </message>
@@ -1805,8 +1805,8 @@ Restart and open Dependency Management now?
       <translation>Polynomial expansion</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/pdf.py" line="394" />
-      <location filename="../../../src/ui/predict_result_controller.py" line="464" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="397" />
+      <location filename="../../../src/ui/predict_result_controller.py" line="467" />
       <source>失败</source>
       <translation>Failed</translation>
     </message>
@@ -1816,7 +1816,7 @@ Restart and open Dependency Management now?
       <translation>If LaTeXSnipper helps you, consider supporting the project.</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="109" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="112" />
       <source>如果是从 DMG 或 Downloads 直接打开，请先将 LaTeXSnipper.app 移到 /Applications，并确保授权的是当前运行的同一副本。
 
 </source>
@@ -1840,17 +1840,17 @@ Restart and open Dependency Management now?
       <translation>Secure tunnel (recommended)</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="380" />
+      <location filename="../../../src/update/update_dialog.py" line="382" />
       <source>安装包 SHA256 与线上发布信息不一致，请重新下载。</source>
       <translation>The installer SHA256 does not match the release metadata. Download it again.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="345" />
+      <location filename="../../../src/update/update_dialog.py" line="347" />
       <source>安装包不存在</source>
       <translation>Installer not found</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="586" />
+      <location filename="../../../src/update/update_dialog.py" line="588" />
       <source>安装包已存在</source>
       <translation>Installer already exists</translation>
     </message>
@@ -1865,12 +1865,12 @@ Restart and open Dependency Management now?
       <translation>Installation complete</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="320" />
+      <location filename="../../../src/update/update_dialog.py" line="322" />
       <source>安装已下载</source>
       <translation>Installer Downloaded</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="402" />
+      <location filename="../../../src/update/update_dialog.py" line="404" />
       <source>安装已取消，更新包保留在本地</source>
       <translation>Installation canceled; the update package remains on this device</translation>
     </message>
@@ -1881,14 +1881,14 @@ Restart and open Dependency Management now?
     </message>
     <message>
       <location filename="../../../src/bootstrap/deps_entry.py" line="1042" />
-      <location filename="../../../src/bootstrap/deps_ui.py" line="450" />
-      <location filename="../../../src/ui/controllers/pdf.py" line="357" />
-      <location filename="../../../src/ui/predict_result_controller.py" line="303" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="453" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="360" />
+      <location filename="../../../src/ui/predict_result_controller.py" line="306" />
       <source>完成</source>
       <translation>Done</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="555" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="558" />
       <source>官方 PyPI</source>
       <translation>Official PyPI</translation>
     </message>
@@ -1898,7 +1898,7 @@ Restart and open Dependency Management now?
       <translation>Definite integral</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="280" />
+      <location filename="../../../src/ui/main_window_setup.py" line="283" />
       <source>实时渲染预览</source>
       <translation>Live Preview</translation>
     </message>
@@ -1908,7 +1908,7 @@ Restart and open Dependency Management now?
       <translation>Live Preview</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/edit_formula_dialog.py" line="38" />
+      <location filename="../../../src/ui/edit_formula_dialog.py" line="41" />
       <source>实时预览:</source>
       <translation>Live preview:</translation>
     </message>
@@ -1923,7 +1923,7 @@ Restart and open Dependency Management now?
       <translation>Key updated</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="251" />
+      <location filename="../../../src/ui/main_window_setup.py" line="254" />
       <location filename="../../../src/ui/predict_result_dialog.py" line="185" />
       <source>导出</source>
       <translation>Export</translation>
@@ -1955,8 +1955,8 @@ Restart and open Dependency Management now?
       <translation>Export as {format}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="255" />
-      <location filename="../../../src/ui/history_controller.py" line="41" />
+      <location filename="../../../src/ui/favorites_window.py" line="258" />
+      <location filename="../../../src/ui/history_controller.py" line="44" />
       <source>导出为...</source>
       <translation>Export As...</translation>
     </message>
@@ -1968,7 +1968,7 @@ Restart and open Dependency Management now?
     </message>
     <message>
       <location filename="../../../src/ui/editor_actions_controller.py" line="95" />
-      <location filename="../../../src/ui/favorites_window.py" line="467" />
+      <location filename="../../../src/ui/favorites_window.py" line="470" />
       <location filename="../../../src/ui/formula_export_menu.py" line="80" />
       <source>导出失败: {error}</source>
       <translation>Export failed: {error}</translation>
@@ -1980,7 +1980,7 @@ Restart and open Dependency Management now?
       <translation>Export successful</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="82" />
+      <location filename="../../../src/ui/favorites_window.py" line="85" />
       <source>导出收藏夹</source>
       <translation>Export Favorites</translation>
     </message>
@@ -2012,17 +2012,17 @@ Restart and open Dependency Management now?
       <translation>Display {index}: {name} ({width}x{height} @ {x},{y})</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="810" />
+      <location filename="../../../src/capture/overlay.py" line="811" />
       <source>屏幕 {number}</source>
       <translation>Screen {number}</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="807" />
+      <location filename="../../../src/capture/overlay.py" line="808" />
       <source>屏幕 {number}（{name}）</source>
       <translation>Screen {number} ({name})</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="979" />
+      <location filename="../../../src/capture/overlay.py" line="980" />
       <source>屏幕录制权限已通过预检，但 Qt 和 screencapture 截图接口没有返回图像。这不是 OCR 识别失败；请检查截图区域、显示器连接和应用日志后重试。</source>
       <translation>Screen-recording permission passed the preflight check, but neither Qt nor screencapture returned an image. This is not an OCR failure; check the capture area, display connection, and application log, then try again.</translation>
     </message>
@@ -2037,7 +2037,7 @@ Restart and open Dependency Management now?
       <translation>Workspace</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/window_openers.py" line="69" />
+      <location filename="../../../src/ui/window_openers.py" line="72" />
       <source>工作台内容已回填到主编辑器</source>
       <translation>Workspace content written back to the main editor</translation>
     </message>
@@ -2052,12 +2052,12 @@ Restart and open Dependency Management now?
       <translation>Workflow</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="395" />
+      <location filename="../../../src/update/update_dialog.py" line="397" />
       <source>已下载到 {path}，SHA256 已生成</source>
       <translation>Downloaded to {path}; SHA256 generated</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="328" />
+      <location filename="../../../src/update/update_dialog.py" line="330" />
       <source>已下载更新包：{name}
 
 SHA256:
@@ -2092,7 +2092,7 @@ Launch the installer now?</translation>
       <translation>The current recognition task was stopped. Capture again or switch recognition type and retry.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/window_openers.py" line="72" />
+      <location filename="../../../src/ui/window_openers.py" line="75" />
       <source>已写回</source>
       <translation>Written back</translation>
     </message>
@@ -2107,12 +2107,12 @@ Launch the installer now?</translation>
       <translation>Switched to {backend}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="345" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="348" />
       <source>已切换到 {mode}</source>
       <translation>Switched to {mode}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="378" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="381" />
       <source>已切换到: {mode}</source>
       <translation>Switched to: {mode}</translation>
     </message>
@@ -2122,40 +2122,40 @@ Launch the installer now?</translation>
       <translation>Switched to Auto</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="87" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="90" />
       <source>已切换引擎。请点击“自动检测”或手动选择路径，再点“验证路径”。</source>
       <translation>The engine was switched. Select Auto Detect or choose a path manually, then select Validate Path.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="390" />
-      <location filename="../../../src/ui/history_controller.py" line="298" />
-      <location filename="../../../src/ui/history_controller.py" line="217" />
+      <location filename="../../../src/ui/favorites_window.py" line="393" />
+      <location filename="../../../src/ui/history_controller.py" line="301" />
+      <location filename="../../../src/ui/history_controller.py" line="220" />
       <source>已删除</source>
       <translation>Deleted</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/history_controller.py" line="272" />
+      <location filename="../../../src/ui/history_controller.py" line="275" />
       <source>已加入历史</source>
       <translation>Added to history</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="562" />
+      <location filename="../../../src/ui/favorites_window.py" line="565" />
       <source>已加入收藏</source>
       <translation>Added to favorites</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="161" />
-      <location filename="../../../src/ui/model_runtime_controller.py" line="253" />
-      <location filename="../../../src/ui/model_runtime_controller.py" line="371" />
-      <location filename="../../../src/ui/model_runtime_controller.py" line="382" />
-      <location filename="../../../src/ui/model_runtime_controller.py" line="331" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="164" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="256" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="374" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="385" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="334" />
       <location filename="../../../src/ui/status_controller.py" line="48" />
       <source>已加载</source>
       <translation>Loaded</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="240" />
-      <location filename="../../../src/ui/history_controller.py" line="235" />
+      <location filename="../../../src/ui/favorites_window.py" line="243" />
+      <location filename="../../../src/ui/history_controller.py" line="238" />
       <source>已加载到编辑器</source>
       <translation>Loaded into editor</translation>
     </message>
@@ -2173,13 +2173,13 @@ Launch the installer now?</translation>
       <location filename="../../../src/handwriting/handwriting_window.py" line="86" />
       <location filename="../../../src/handwriting/recognizer.py" line="68" />
       <location filename="../../../src/recognition/error_messages.py" line="11" />
-      <location filename="../../../src/ui/controllers/pdf.py" line="324" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="327" />
       <location filename="../../../src/ui/controllers/recognition.py" line="119" />
       <source>已取消</source>
       <translation>Canceled</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="404" />
+      <location filename="../../../src/update/update_dialog.py" line="406" />
       <source>已取消安装</source>
       <translation>Installation canceled</translation>
     </message>
@@ -2195,12 +2195,12 @@ Launch the installer now?</translation>
       <translation>Capture canceled</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/history_controller.py" line="94" />
+      <location filename="../../../src/ui/history_controller.py" line="97" />
       <source>已命名: {name}</source>
       <translation>Named: {name}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="320" />
+      <location filename="../../../src/ui/favorites_window.py" line="323" />
       <source>已命名为: {name}</source>
       <translation>Named: {name}</translation>
     </message>
@@ -2210,16 +2210,16 @@ Launch the installer now?</translation>
       <translation>Recommended settings were applied. Verify the model name against your local service.</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="587" />
+      <location filename="../../../src/capture/overlay.py" line="588" />
       <location filename="../../../src/handwriting/handwriting_window.py" line="927" />
       <location filename="../../../src/preview/document/window.py" line="1547" />
       <location filename="../../../src/ui/automation_access_dialog.py" line="360" />
       <location filename="../../../src/ui/editor_actions_controller.py" line="42" />
       <location filename="../../../src/ui/editor_actions_controller.py" line="48" />
-      <location filename="../../../src/ui/history_controller.py" line="196" />
-      <location filename="../../../src/ui/history_controller.py" line="200" />
+      <location filename="../../../src/ui/history_controller.py" line="199" />
+      <location filename="../../../src/ui/history_controller.py" line="203" />
       <location filename="../../../src/ui/runtime_log_dialog.py" line="107" />
-      <location filename="../../../src/update/update_dialog.py" line="550" />
+      <location filename="../../../src/update/update_dialog.py" line="552" />
       <source>已复制</source>
       <translation>Copied</translation>
     </message>
@@ -2243,7 +2243,7 @@ Launch the installer now?</translation>
       <translation>Copied in {format} format</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="296" />
+      <location filename="../../../src/ui/favorites_window.py" line="299" />
       <source>已复制到剪贴板</source>
       <translation>Copied to clipboard</translation>
     </message>
@@ -2253,7 +2253,7 @@ Launch the installer now?</translation>
       <translation>Document copied</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="544" />
+      <location filename="../../../src/ui/favorites_window.py" line="547" />
       <source>已存在</source>
       <translation>Already exists</translation>
     </message>
@@ -2263,7 +2263,7 @@ Launch the installer now?</translation>
       <translation>Exported {format} to {path}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="469" />
+      <location filename="../../../src/ui/favorites_window.py" line="472" />
       <source>已导出收藏夹: {path}</source>
       <translation>Favorites exported to: {path}</translation>
     </message>
@@ -2310,7 +2310,7 @@ Launch the installer now?</translation>
       <translation>Undone</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="244" />
+      <location filename="../../../src/update/update_dialog.py" line="246" />
       <source>已改用本地缓存的发布信息。</source>
       <translation>Using cached release information.</translation>
     </message>
@@ -2322,19 +2322,19 @@ Launch the installer now?</translation>
     <message>
       <location filename="../../../src/handwriting/handwriting_window.py" line="819" />
       <location filename="../../../src/handwriting/handwriting_window.py" line="1013" />
-      <location filename="../../../src/ui/favorites_window.py" line="379" />
-      <location filename="../../../src/ui/history_controller.py" line="143" />
+      <location filename="../../../src/ui/favorites_window.py" line="382" />
+      <location filename="../../../src/ui/history_controller.py" line="146" />
       <source>已更新</source>
       <translation>Updated</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/hotkey_controller.py" line="131" />
+      <location filename="../../../src/ui/hotkey_controller.py" line="134" />
       <source>已更新为 {hotkey}</source>
       <translation>Updated to {hotkey}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/app_lifecycle_controller.py" line="340" />
-      <location filename="../../../src/ui/app_lifecycle_controller.py" line="299" />
+      <location filename="../../../src/ui/app_lifecycle_controller.py" line="343" />
+      <location filename="../../../src/ui/app_lifecycle_controller.py" line="302" />
       <source>已最小化到系统托盘</source>
       <translation>Minimized to the system tray</translation>
     </message>
@@ -2356,7 +2356,7 @@ Launch the installer now?</translation>
       <translation>Cleaned {count} items. App settings were preserved; restart and download dependencies as needed.</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="795" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="798" />
       <source>已清理 {count} 个项目；设置已保留，请按需重新下载依赖。</source>
       <translation>Cleaned {count} items. Settings were preserved; download dependencies as needed.</translation>
     </message>
@@ -2367,12 +2367,12 @@ Launch the installer now?</translation>
       <translation>Cleared</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/history_controller.py" line="348" />
+      <location filename="../../../src/ui/history_controller.py" line="351" />
       <source>已清空历史</source>
       <translation>History cleared</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="534" />
+      <location filename="../../../src/ui/favorites_window.py" line="537" />
       <source>已清空收藏夹</source>
       <translation>Favorites cleared</translation>
     </message>
@@ -2382,8 +2382,8 @@ Launch the installer now?</translation>
       <translation>Preview cleared</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="327" />
-      <location filename="../../../src/ui/history_controller.py" line="94" />
+      <location filename="../../../src/ui/favorites_window.py" line="330" />
+      <location filename="../../../src/ui/history_controller.py" line="97" />
       <source>已清除名称</source>
       <translation>Name cleared</translation>
     </message>
@@ -2393,12 +2393,12 @@ Launch the installer now?</translation>
       <translation>Generated</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/predict_result_controller.py" line="504" />
+      <location filename="../../../src/ui/predict_result_controller.py" line="507" />
       <source>已确认并复制到剪贴板</source>
       <translation>Confirmed and copied to clipboard</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="277" />
+      <location filename="../../../src/update/update_dialog.py" line="279" />
       <source>已经是最新版本: {version}</source>
       <translation>Already up to date: {version}</translation>
     </message>
@@ -2418,7 +2418,7 @@ Launch the installer now?</translation>
       <translation>Navigated to source</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/window_openers.py" line="58" />
+      <location filename="../../../src/ui/window_openers.py" line="61" />
       <source>已载入</source>
       <translation>Loaded</translation>
     </message>
@@ -2433,7 +2433,7 @@ Launch the installer now?</translation>
       <translation>Redone</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="300" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="303" />
       <source>已验证编译器: {compiler}
 路径: {path}</source>
       <translation>Validated compiler: {compiler}
@@ -2455,7 +2455,7 @@ Path: {path}</translation>
       <translation>Apply preset</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="258" />
+      <location filename="../../../src/update/update_dialog.py" line="260" />
       <source>建议：检查网络、代理或 DNS；也可以直接打开发布页。</source>
       <translation>Suggestion: check the network, proxy, or DNS, or open the releases page directly.</translation>
     </message>
@@ -2475,7 +2475,7 @@ Path: {path}</translation>
       <translation>Take the tour</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="313" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="312" />
       <source>开始截图识别</source>
       <translation>Start Capture</translation>
     </message>
@@ -2525,14 +2525,14 @@ Path: {path}</translation>
       <translation>The dependency environment has no pip and ensurepip could not initialize it. Choose another dependency directory or a working Python environment.</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="828" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="831" />
       <source>当前依赖目录尚未检测到可复用的 Python 环境。
 请先点击“下载”初始化依赖环境后再进入主程序。</source>
       <translation>No reusable Python environment was found in the dependency directory.
 Select Download to initialize it before entering the main app.</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_entry.py" line="480" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="483" />
       <source>当前依赖目录尚未检测到可复用的 Python 环境，请先初始化依赖环境。</source>
       <translation>No reusable Python environment was found in the dependency directory. Initialize it first.</translation>
     </message>
@@ -2582,7 +2582,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>A recognition task is already running. Please wait.</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="96" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="99" />
       <source>当前开发启动进程 (Python: {path}；以系统设置中实际显示的 Python、Terminal、iTerm 或 VS Code 为准)</source>
       <translation>Current development launch process (Python: {path}; use the Python, Terminal, iTerm, or VS Code entry actually shown in System Settings)</translation>
     </message>
@@ -2592,7 +2592,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Current hotkey: {hotkey}</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="817" />
+      <location filename="../../../src/capture/overlay.py" line="818" />
       <source>当前截图模式固定为{target}，但你框选的是{actual}。请在托盘菜单选择“识别屏幕 &gt; {actual}”，或切换为“自动”后再截图。</source>
       <translation>Capture is fixed to {target}, but the selection is on {actual}. Choose “Recognition Screen &gt; {actual}” from the tray menu, or switch to Auto and capture again.</translation>
     </message>
@@ -2621,13 +2621,13 @@ Select Download to initialize it before entering the main app.</translation>
       <location filename="../../../src/handwriting/handwriting_window.py" line="922" />
       <location filename="../../../src/preview/document/window.py" line="1538" />
       <location filename="../../../src/preview/document/window.py" line="1565" />
-      <location filename="../../../src/ui/window_openers.py" line="64" />
-      <location filename="../../../src/ui/window_openers.py" line="53" />
+      <location filename="../../../src/ui/window_openers.py" line="67" />
+      <location filename="../../../src/ui/window_openers.py" line="56" />
       <source>当前无内容</source>
       <translation>No Content</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/history_controller.py" line="306" />
+      <location filename="../../../src/ui/history_controller.py" line="309" />
       <source>当前无历史记录，点击会提示</source>
       <translation>No history is available; clicking will show a notice</translation>
     </message>
@@ -2637,7 +2637,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Current model: {model} | Status: {status}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/history_controller.py" line="326" />
+      <location filename="../../../src/ui/history_controller.py" line="329" />
       <source>当前没有历史记录可清空</source>
       <translation>There is no history to clear</translation>
     </message>
@@ -2657,17 +2657,17 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Current source</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="95" />
+      <location filename="../../../src/update/update_dialog.py" line="97" />
       <source>当前版本: {version}</source>
       <translation>Current version: {version}</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="573" />
+      <location filename="../../../src/update/update_dialog.py" line="575" />
       <source>当前版本仅提供网页链接，请手动下载。</source>
       <translation>This release only provides a web link. Download it manually.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="281" />
+      <location filename="../../../src/update/update_dialog.py" line="283" />
       <source>当前版本高于线上稳定版本: {latest} (当前 {current})</source>
       <translation>Current version is newer than the stable release: {latest} (current: {current})</translation>
     </message>
@@ -2727,8 +2727,8 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>The current preview does not support navigation to PDF coordinates.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="384" />
-      <location filename="../../../src/ui/model_runtime_controller.py" line="333" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="387" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="336" />
       <location filename="../../../src/ui/status_controller.py" line="45" />
       <location filename="../../../src/ui/status_controller.py" line="54" />
       <source>待识别时加载</source>
@@ -2751,27 +2751,27 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Quick Insert</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="213" />
+      <location filename="../../../src/ui/main_window_setup.py" line="216" />
       <source>快捷键</source>
       <translation>Shortcut</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/hotkey_controller.py" line="130" />
+      <location filename="../../../src/ui/hotkey_controller.py" line="133" />
       <source>快捷键已更新</source>
       <translation>Hotkey updated</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/hotkey_controller.py" line="101" />
+      <location filename="../../../src/ui/hotkey_controller.py" line="104" />
       <source>快捷键格式错误</source>
       <translation>Invalid hotkey format</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/hotkey_controller.py" line="115" />
+      <location filename="../../../src/ui/hotkey_controller.py" line="118" />
       <source>快捷键注册失败</source>
       <translation>Hotkey registration failed</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="176" />
+      <location filename="../../../src/ui/main_window_setup.py" line="179" />
       <source>快速入门</source>
       <translation>Quick start</translation>
     </message>
@@ -2786,7 +2786,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>I understand that remote devices can submit images to this computer and confirm that the connection is secure</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/app_lifecycle_controller.py" line="94" />
+      <location filename="../../../src/ui/app_lifecycle_controller.py" line="97" />
       <source>截图、识别、手写、编辑与导出数学内容。</source>
       <translation>Capture, recognize, handwrite, edit, and export mathematical content.</translation>
     </message>
@@ -2811,7 +2811,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Capture permission was denied</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="171" />
+      <location filename="../../../src/ui/main_window_setup.py" line="174" />
       <source>截图识别</source>
       <translation>Capture &amp; Recognize</translation>
     </message>
@@ -2835,7 +2835,7 @@ Select Download to initialize it before entering the main app.</translation>
     <message>
       <location filename="../../../src/handwriting/handwriting_window.py" line="165" />
       <location filename="../../../src/handwriting/handwriting_window.py" line="190" />
-      <location filename="../../../src/ui/main_window_setup.py" line="253" />
+      <location filename="../../../src/ui/main_window_setup.py" line="256" />
       <source>手写识别</source>
       <translation>Handwriting</translation>
     </message>
@@ -2850,7 +2850,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Handwriting recognition results appear here and can be corrected manually.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/window_openers.py" line="85" />
+      <location filename="../../../src/ui/window_openers.py" line="88" />
       <source>手写识别结果已写入主编辑器</source>
       <translation>Handwriting result written to the main editor</translation>
     </message>
@@ -2902,7 +2902,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Open Editor</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="123" />
+      <location filename="../../../src/update/update_dialog.py" line="125" />
       <source>打开链接</source>
       <translation>Open Link</translation>
     </message>
@@ -2912,7 +2912,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Operation Failed</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="255" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="258" />
       <source>找不到 LaTeX 可执行文件</source>
       <translation>LaTeX executable not found</translation>
     </message>
@@ -2927,7 +2927,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Selected display</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="589" />
+      <location filename="../../../src/capture/overlay.py" line="590" />
       <source>按 C 复制色值</source>
       <translation>Press C to copy color</translation>
     </message>
@@ -3018,18 +3018,18 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Recommended preset:</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="869" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="872" />
       <location filename="../../../src/editor/workbench_window.py" line="302" />
-      <location filename="../../../src/ui/controllers/pdf.py" line="81" />
-      <location filename="../../../src/ui/controllers/pdf.py" line="93" />
-      <location filename="../../../src/ui/controllers/pdf.py" line="375" />
-      <location filename="../../../src/ui/controllers/pdf.py" line="149" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="84" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="96" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="378" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="152" />
       <location filename="../../../src/ui/controllers/recognition.py" line="289" />
       <location filename="../../../src/ui/controllers/recognition.py" line="51" />
       <location filename="../../../src/ui/controllers/recognition.py" line="58" />
-      <location filename="../../../src/ui/favorites_window.py" line="508" />
-      <location filename="../../../src/ui/history_controller.py" line="325" />
-      <location filename="../../../src/ui/hotkey_controller.py" line="68" />
+      <location filename="../../../src/ui/favorites_window.py" line="511" />
+      <location filename="../../../src/ui/history_controller.py" line="328" />
+      <location filename="../../../src/ui/hotkey_controller.py" line="71" />
       <location filename="../../../src/ui/pdf_result_window.py" line="133" />
       <location filename="../../../src/ui/status_controller.py" line="97" />
       <source>提示</source>
@@ -3097,12 +3097,12 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Supports Ollama, OpenAI-compatible services, and MinerU Local. For online services, verify authentication, model name, quota, and service terms.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="245" />
+      <location filename="../../../src/ui/main_window_setup.py" line="248" />
       <source>支持格式: </source>
       <translation>Supported formats: </translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="248" />
+      <location filename="../../../src/ui/main_window_setup.py" line="251" />
       <source>支持格式: PDF</source>
       <translation>Supported format: PDF</translation>
     </message>
@@ -3112,17 +3112,17 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Mouse and pen input are supported. Hold the right mouse button to pan the canvas.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/history_controller.py" line="39" />
+      <location filename="../../../src/ui/history_controller.py" line="42" />
       <source>收藏</source>
       <translation>Favorite</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="214" />
+      <location filename="../../../src/ui/main_window_setup.py" line="217" />
       <source>收藏夹</source>
       <translation>Favorites</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="509" />
+      <location filename="../../../src/ui/favorites_window.py" line="512" />
       <source>收藏夹已经是空的</source>
       <translation>Favorites is already empty</translation>
     </message>
@@ -3139,29 +3139,29 @@ Select Download to initialize it before entering the main app.</translation>
     </message>
     <message>
       <location filename="../../../src/editor/workbench_window.py" line="54" />
-      <location filename="../../../src/ui/main_window_setup.py" line="255" />
+      <location filename="../../../src/ui/main_window_setup.py" line="258" />
       <source>数学工作台</source>
       <translation>Math Workspace</translation>
     </message>
     <message>
       <location filename="../../../src/editor/workbench_bridge.py" line="73" />
-      <location filename="../../../src/ui/window_openers.py" line="64" />
+      <location filename="../../../src/ui/window_openers.py" line="67" />
       <source>数学工作台为空，没有可写回的内容</source>
       <translation>The math workspace is empty; there is nothing to write back</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/window_openers.py" line="72" />
+      <location filename="../../../src/ui/window_openers.py" line="75" />
       <source>数学工作台内容已写回主编辑器</source>
       <translation>Math workspace content written back to the main editor</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="312" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="311" />
       <source>文件</source>
       <translation>File</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/smart_preview.py" line="204" />
-      <location filename="../../../src/ui/favorites_window.py" line="399" />
+      <location filename="../../../src/preview/smart_preview.py" line="207" />
+      <location filename="../../../src/ui/favorites_window.py" line="402" />
       <source>文字</source>
       <translation>Text</translation>
     </message>
@@ -3191,7 +3191,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>No formula</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="572" />
+      <location filename="../../../src/update/update_dialog.py" line="574" />
       <source>无可下载资产</source>
       <translation>No downloadable asset</translation>
     </message>
@@ -3201,17 +3201,17 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>No available backend</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="316" />
+      <location filename="../../../src/update/update_dialog.py" line="318" />
       <source>无安装包</source>
       <translation>No Installer</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_entry.py" line="406" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="409" />
       <source>无法初始化 pip</source>
       <translation>Unable to initialize pip</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/file_drop.py" line="101" />
+      <location filename="../../../src/ui/file_drop.py" line="104" />
       <source>无法处理拖入文件</source>
       <translation>Unable to process dropped file</translation>
     </message>
@@ -3231,18 +3231,18 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Unable to update the Automation API configuration.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="275" />
+      <location filename="../../../src/ui/favorites_window.py" line="278" />
       <source>无法添加到历史</source>
       <translation>Unable to add to history</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="250" />
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="310" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="253" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="313" />
       <source>无法用该路径渲染公式，请检查安装</source>
       <translation>Unable to render a formula with this path. Check the installation.</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="984" />
+      <location filename="../../../src/capture/overlay.py" line="985" />
       <source>无法确认当前进程的屏幕录制权限，且截图接口没有返回图像。请检查应用日志，并在系统设置中确认授权的是当前运行副本后重试。</source>
       <translation>The current process permission could not be confirmed and the capture APIs returned no image. Check the application log and confirm in system settings that the currently running copy is authorized, then try again.</translation>
     </message>
@@ -3299,7 +3299,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Infinite series</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="804" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="807" />
       <location filename="../../../src/ui/settings_environment_mixin.py" line="274" />
       <source>无需清理</source>
       <translation>Nothing to clean</translation>
@@ -3325,12 +3325,12 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Yes</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="318" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="317" />
       <source>显示主窗口</source>
       <translation>Show Main Window</translation>
     </message>
     <message>
-      <location filename="../../../src/application/app_runner.py" line="38" />
+      <location filename="../../../src/application/app_runner.py" line="41" />
       <source>显示主窗口...</source>
       <translation>Showing main window...</translation>
     </message>
@@ -3347,22 +3347,22 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Pause Download</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="226" />
+      <location filename="../../../src/update/update_dialog.py" line="228" />
       <source>暂时无法确认更新：{message}</source>
       <translation>Unable to check for updates: {message}</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="229" />
+      <location filename="../../../src/update/update_dialog.py" line="231" />
       <source>暂时无法获取更新信息。可稍后重试，或直接打开 GitHub Releases 页面查看。</source>
       <translation>Unable to retrieve update information. Try again later or open the GitHub Releases page directly.</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="525" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="528" />
       <source>更改后重新检测依赖</source>
       <translation>Recheck dependencies after changing the path</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="523" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="526" />
       <source>更改路径</source>
       <translation>Change Path</translation>
     </message>
@@ -3372,27 +3372,27 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Updating; waiting for the current recognition task to finish...</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="439" />
+      <location filename="../../../src/update/update_dialog.py" line="441" />
       <source>更新包</source>
       <translation>Update package</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="465" />
+      <location filename="../../../src/update/update_dialog.py" line="467" />
       <source>更新包已保留，下次打开可继续下载。</source>
       <translation>The update package was retained and can resume next time.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="405" />
+      <location filename="../../../src/update/update_dialog.py" line="407" />
       <source>更新包已保留：{path}</source>
       <translation>The update package was retained: {path}</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="394" />
+      <location filename="../../../src/update/update_dialog.py" line="396" />
       <source>更新已下载</source>
       <translation>Update downloaded</translation>
     </message>
     <message>
-      <location filename="../../../src/update/github_release_client.py" line="160" />
+      <location filename="../../../src/update/github_release_client.py" line="162" />
       <source>更新缓存失效，请重新检查。</source>
       <translation>The update cache is stale. Check again.</translation>
     </message>
@@ -3403,13 +3403,13 @@ Select Download to initialize it before entering the main app.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/history_panel.py" line="32" />
-      <location filename="../../../src/ui/main_window_setup.py" line="191" />
+      <location filename="../../../src/ui/main_window_setup.py" line="194" />
       <source>最新在前</source>
       <translation>Newest first</translation>
     </message>
     <message>
       <location filename="../../../src/ui/history_panel.py" line="35" />
-      <location filename="../../../src/ui/main_window_setup.py" line="191" />
+      <location filename="../../../src/ui/main_window_setup.py" line="194" />
       <source>最早在前</source>
       <translation>Oldest first</translation>
     </message>
@@ -3424,8 +3424,8 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>No recognition task was created.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="62" />
-      <location filename="../../../src/ui/main_window_setup.py" line="138" />
+      <location filename="../../../src/ui/main_window_setup.py" line="65" />
+      <location filename="../../../src/ui/main_window_setup.py" line="141" />
       <source>未加载</source>
       <translation>Not loaded</translation>
     </message>
@@ -3446,15 +3446,15 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Source location not found</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="279" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="282" />
       <source>未就绪</source>
       <translation>Not Ready</translation>
     </message>
     <message>
       <location filename="../../../src/preview/document/window.py" line="736" />
       <location filename="../../../src/preview/document/window.py" line="762" />
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="185" />
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="186" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="188" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="189" />
       <source>未找到</source>
       <translation>Not Found</translation>
     </message>
@@ -3464,7 +3464,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>The MathCraft OCR package was not found. Check that the app files are complete.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="346" />
+      <location filename="../../../src/update/update_dialog.py" line="348" />
       <source>未找到下载完成的安装包：{path}</source>
       <translation>The downloaded installer was not found: {path}</translation>
     </message>
@@ -3509,7 +3509,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Not verified (not a Windows installer)</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="209" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="212" />
       <source>未检测到 LaTeX。
 
 {detail}</source>
@@ -3523,18 +3523,18 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>No NVIDIA GPU was detected. Installing onnxruntime-gpu may not enable CUDAExecutionProvider. Continue?</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="318" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="321" />
       <source>未检测到依赖环境，请点击“下载”进行初始化。</source>
       <translation>No dependency environment was detected. Click “Download” to initialize it.</translation>
     </message>
     <message>
       <location filename="../../../src/recognition/error_messages.py" line="22" />
-      <location filename="../../../src/ui/predict_result_controller.py" line="449" />
+      <location filename="../../../src/ui/predict_result_controller.py" line="452" />
       <source>未检测到可识别内容</source>
       <translation>No recognizable content detected</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_entry.py" line="281" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="284" />
       <source>未检测到可运行的系统 Python；需要 Python {version_range} 并提供 venv/ensurepip。</source>
       <translation>No runnable system Python was found. Python {version_range} with venv/ensurepip is required.</translation>
     </message>
@@ -3550,7 +3550,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Not generated</translation>
     </message>
     <message>
-      <location filename="../../../src/update/github_release_client.py" line="125" />
+      <location filename="../../../src/update/github_release_client.py" line="127" />
       <source>未知</source>
       <translation>Unknown</translation>
     </message>
@@ -3581,13 +3581,13 @@ Select Download to initialize it before entering the main app.</translation>
     </message>
     <message>
       <location filename="../../../src/recognition/error_messages.py" line="23" />
-      <location filename="../../../src/ui/predict_result_controller.py" line="447" />
+      <location filename="../../../src/ui/predict_result_controller.py" line="450" />
       <source>未识别到公式内容</source>
       <translation>No formula content recognized</translation>
     </message>
     <message>
       <location filename="../../../src/recognition/error_messages.py" line="24" />
-      <location filename="../../../src/ui/predict_result_controller.py" line="448" />
+      <location filename="../../../src/ui/predict_result_controller.py" line="451" />
       <source>未识别到文本内容</source>
       <translation>No text content recognized</translation>
     </message>
@@ -3602,7 +3602,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>No preset selected</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="369" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="372" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="251" />
       <source>本地 MathJax</source>
       <translation>Local MathJax</translation>
@@ -3623,14 +3623,14 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>This cleanup action is available only on macOS.</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="1109" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="1112" />
       <location filename="../../../src/capture/capture_controller.py" line="48" />
       <location filename="../../../src/ui/notifications.py" line="10" />
       <source>权限不足</source>
       <translation>Insufficient Permissions</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="254" />
+      <location filename="../../../src/update/update_dialog.py" line="256" />
       <source>来源</source>
       <translation>Source</translation>
     </message>
@@ -3640,7 +3640,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Limit</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="178" />
+      <location filename="../../../src/ui/main_window_setup.py" line="181" />
       <source>查看快速入门</source>
       <translation>View quick start</translation>
     </message>
@@ -3670,20 +3670,20 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Square root  (sqrt)</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/hotkey_controller.py" line="102" />
+      <location filename="../../../src/ui/hotkey_controller.py" line="105" />
       <source>格式必须为 {format}</source>
       <translation>The format must be {format}</translation>
     </message>
     <message>
-      <location filename="../../../src/application/app_runner.py" line="75" />
-      <location filename="../../../src/application/app_runner.py" line="58" />
-      <location filename="../../../src/application/bootstrap.py" line="167" />
+      <location filename="../../../src/application/app_runner.py" line="78" />
+      <location filename="../../../src/application/app_runner.py" line="61" />
+      <location filename="../../../src/application/bootstrap.py" line="169" />
       <source>检查依赖...</source>
       <translation>Checking dependencies...</translation>
     </message>
     <message>
       <location filename="../../../src/ui/settings_layout_builder.py" line="309" />
-      <location filename="../../../src/update/update_dialog.py" line="67" />
+      <location filename="../../../src/update/update_dialog.py" line="69" />
       <source>检查更新</source>
       <translation>Check for Updates</translation>
     </message>
@@ -3693,12 +3693,12 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Updates:</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/smart_preview.py" line="26" />
+      <location filename="../../../src/preview/smart_preview.py" line="29" />
       <source>检查项:</source>
       <translation>Checks:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="131" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="134" />
       <source>检测中...</source>
       <translation>Detecting...</translation>
     </message>
@@ -3708,12 +3708,12 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>MathCraft model weights are missing or incomplete. Completing them automatically.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="587" />
+      <location filename="../../../src/update/update_dialog.py" line="589" />
       <source>检测到已存在安装包，是否继续重新下载并覆盖？</source>
       <translation>An installer already exists. Download again and overwrite it?</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="105" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="108" />
       <source>检测到当前副本位于 DMG 或 App Translocation 临时位置。请先将 LaTeXSnipper.app 移到 /Applications，再从该位置重新打开并授权。
 
 </source>
@@ -3737,22 +3737,22 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>A QQuickWidget in this window is incompatible with OpenGL magnifier compositing. Switched to the CPU magnifier automatically.</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_entry.py" line="276" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="279" />
       <source>检测到系统 Python {version}（{path}），但版本不在支持范围 {version_range} 内，无法创建依赖环境。</source>
       <translation>System Python {version} ({path}) is outside the supported range {version_range}, so the dependency environment cannot be created.</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_entry.py" line="271" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="274" />
       <source>检测到系统 Python {version}（{path}），版本位于支持范围 {version_range} 内，但缺少 venv/ensurepip，无法创建依赖环境。</source>
       <translation>System Python {version} ({path}) is within the supported range {version_range}, but venv/ensurepip is unavailable, so the dependency environment cannot be created.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="208" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="211" />
       <source>检测失败</source>
       <translation>Detection failed</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="204" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="207" />
       <source>检测成功</source>
       <translation>Detection successful</translation>
     </message>
@@ -3763,10 +3763,10 @@ Select Download to initialize it before entering the main app.</translation>
     </message>
     <message>
       <location filename="../../../src/capture/capture_controller.py" line="29" />
-      <location filename="../../../src/ui/controllers/pdf.py" line="87" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="90" />
       <location filename="../../../src/ui/controllers/recognition.py" line="162" />
       <location filename="../../../src/ui/controllers/recognition.py" line="301" />
-      <location filename="../../../src/ui/window_openers.py" line="101" />
+      <location filename="../../../src/ui/window_openers.py" line="104" />
       <source>模型未初始化</source>
       <translation>Model is not initialized</translation>
     </message>
@@ -3806,7 +3806,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Model warm-up failed: {message}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="260" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="263" />
       <source>模型预热完成</source>
       <translation>Model warm-up complete</translation>
     </message>
@@ -3816,7 +3816,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Model warm-up incomplete</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="344" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="347" />
       <source>模式切换成功</source>
       <translation>Mode switched</translation>
     </message>
@@ -3841,17 +3841,17 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Welcome. Make working with formulas simpler.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="444" />
+      <location filename="../../../src/update/update_dialog.py" line="446" />
       <source>正在下载 {name} ({percent}% , {current}/{total} 字节)</source>
       <translation>Downloading {name} ({percent}%, {current}/{total} bytes)</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="449" />
+      <location filename="../../../src/update/update_dialog.py" line="451" />
       <source>正在下载 {name}...</source>
       <translation>Downloading {name}...</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="601" />
+      <location filename="../../../src/update/update_dialog.py" line="603" />
       <source>正在下载更新包...</source>
       <translation>Downloading update package...</translation>
     </message>
@@ -3871,12 +3871,12 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Preparing Pandoc...</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_entry.py" line="390" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="393" />
       <source>正在初始化 Python 依赖环境...</source>
       <translation>Initializing the Python dependency environment...</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_entry.py" line="404" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="407" />
       <source>正在初始化 pip 工具链...</source>
       <translation>Initializing the pip toolchain...</translation>
     </message>
@@ -3886,17 +3886,17 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Loading the math workspace...</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="436" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="439" />
       <source>正在卸载{layer}，请不要关闭此窗口...</source>
       <translation>Uninstalling {layer}. Do not close this window...</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/pdf.py" line="316" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="319" />
       <source>正在取消识别...</source>
       <translation>Canceling recognition...</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/startup_splash.py" line="85" />
+      <location filename="../../../src/ui/startup_splash.py" line="88" />
       <source>正在启动...</source>
       <translation>Starting...</translation>
     </message>
@@ -3928,18 +3928,18 @@ Select Download to initialize it before entering the main app.</translation>
 </translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="97" />
-      <location filename="../../../src/update/update_dialog.py" line="513" />
+      <location filename="../../../src/update/update_dialog.py" line="99" />
+      <location filename="../../../src/update/update_dialog.py" line="515" />
       <source>正在联网获取最新版本信息，请保持与 GitHub 的连接畅通...</source>
       <translation>Fetching the latest release information. Keep the connection to GitHub available...</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="516" />
+      <location filename="../../../src/update/update_dialog.py" line="518" />
       <source>正在获取...</source>
       <translation>Fetching...</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/pdf.py" line="204" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="207" />
       <source>正在解析 PDF 文档结构...</source>
       <translation>Parsing PDF document structure...</translation>
     </message>
@@ -3951,7 +3951,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Recognizing</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/pdf.py" line="206" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="209" />
       <source>正在识别 PDF...</source>
       <translation>Recognizing PDF...</translation>
     </message>
@@ -3961,11 +3961,11 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Recognition is in progress. Please wait.</translation>
     </message>
     <message>
-      <location filename="../../../src/application/app_runner.py" line="90" />
-      <location filename="../../../src/ui/startup_splash.py" line="216" />
-      <location filename="../../../src/ui/startup_splash.py" line="225" />
-      <location filename="../../../src/ui/startup_splash.py" line="235" />
-      <location filename="../../../src/ui/startup_splash.py" line="215" />
+      <location filename="../../../src/application/app_runner.py" line="93" />
+      <location filename="../../../src/ui/startup_splash.py" line="219" />
+      <location filename="../../../src/ui/startup_splash.py" line="228" />
+      <location filename="../../../src/ui/startup_splash.py" line="238" />
+      <location filename="../../../src/ui/startup_splash.py" line="218" />
       <source>正在跳过依赖安装并进入主程序...</source>
       <translation>Skipping dependency installation and opening the application...</translation>
     </message>
@@ -3995,7 +3995,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Solve</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="805" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="808" />
       <location filename="../../../src/ui/settings_environment_mixin.py" line="274" />
       <source>没有发现已下载的本机依赖、缓存或日志。</source>
       <translation>No downloaded local dependencies, cache, or logs were found.</translation>
@@ -4092,14 +4092,14 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Dark</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/smart_preview.py" line="205" />
-      <location filename="../../../src/ui/favorites_window.py" line="400" />
+      <location filename="../../../src/preview/smart_preview.py" line="208" />
+      <location filename="../../../src/ui/favorites_window.py" line="403" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="101" />
       <source>混合</source>
       <translation>Mixed</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/smart_preview.py" line="284" />
+      <location filename="../../../src/preview/smart_preview.py" line="287" />
       <source>混合内容渲染失败: {error}</source>
       <translation>Mixed-content rendering failed: {error}</translation>
     </message>
@@ -4109,12 +4109,12 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Mixed-content preview:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="264" />
+      <location filename="../../../src/ui/favorites_window.py" line="267" />
       <source>添加到历史</source>
       <translation>Add to History</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="556" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="559" />
       <source>清华镜像</source>
       <translation>Tsinghua Mirror</translation>
     </message>
@@ -4139,22 +4139,22 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Cleanup unavailable</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="794" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="797" />
       <location filename="../../../src/ui/settings_environment_mixin.py" line="266" />
       <source>清理完成</source>
       <translation>Cleanup complete</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="1109" />
-      <location filename="../../../src/bootstrap/deps_ui.py" line="766" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="1112" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="769" />
       <location filename="../../../src/ui/notifications.py" line="10" />
       <location filename="../../../src/ui/settings_environment_mixin.py" line="257" />
       <source>清理未完成</source>
       <translation>Cleanup incomplete</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="539" />
-      <location filename="../../../src/bootstrap/deps_ui.py" line="748" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="542" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="751" />
       <location filename="../../../src/ui/settings_environment_mixin.py" line="238" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="398" />
       <source>清理本机依赖与缓存</source>
@@ -4162,22 +4162,22 @@ Select Download to initialize it before entering the main app.</translation>
     </message>
     <message>
       <location filename="../../../src/handwriting/handwriting_window.py" line="206" />
-      <location filename="../../../src/ui/main_window_setup.py" line="212" />
+      <location filename="../../../src/ui/main_window_setup.py" line="215" />
       <source>清空</source>
       <translation>Clear</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/history_controller.py" line="302" />
+      <location filename="../../../src/ui/history_controller.py" line="305" />
       <source>清空历史记录</source>
       <translation>Clear History</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/history_controller.py" line="304" />
+      <location filename="../../../src/ui/history_controller.py" line="307" />
       <source>清空所有历史记录</source>
       <translation>Clear all history</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="86" />
+      <location filename="../../../src/ui/favorites_window.py" line="89" />
       <source>清空收藏夹</source>
       <translation>Clear Favorites</translation>
     </message>
@@ -4187,7 +4187,7 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Clear View</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="283" />
+      <location filename="../../../src/ui/main_window_setup.py" line="286" />
       <source>清空预览</source>
       <translation>Clear Preview</translation>
     </message>
@@ -4202,12 +4202,12 @@ Select Download to initialize it before entering the main app.</translation>
       <translation>Source line {line}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/theme_controller.py" line="203" />
+      <location filename="../../../src/ui/theme_controller.py" line="206" />
       <source>点击加载到编辑器并渲染</source>
       <translation>Click to load into the editor and render</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="89" />
+      <location filename="../../../src/update/update_dialog.py" line="91" />
       <source>版本更新</source>
       <translation>Version Update</translation>
     </message>
@@ -4285,7 +4285,7 @@ Use the system Python to initialize this directory and continue installing depen
       <translation>OK</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="407" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="410" />
       <source>确定要删除“{layer}”及其所有依赖包吗？
 
 确认后将打开卸载进度窗口。</source>
@@ -4294,54 +4294,54 @@ Use the system Python to initialize this directory and continue installing depen
 The uninstall progress window will open after confirmation.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/history_controller.py" line="335" />
+      <location filename="../../../src/ui/history_controller.py" line="338" />
       <source>确定要清空所有 {count} 条历史记录吗？</source>
       <translation>Clear all {count} history entries?</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="519" />
+      <location filename="../../../src/ui/favorites_window.py" line="522" />
       <source>确定要清空所有 {count} 条收藏吗？</source>
       <translation>Clear all {count} favorites?</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="894" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="897" />
       <source>确定要退出依赖管理并关闭程序吗？</source>
       <translation>Exit Dependency Management and close the app?</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="518" />
-      <location filename="../../../src/ui/history_controller.py" line="334" />
+      <location filename="../../../src/ui/favorites_window.py" line="521" />
+      <location filename="../../../src/ui/history_controller.py" line="337" />
       <source>确认</source>
       <translation>Confirm</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="665" />
+      <location filename="../../../src/update/update_dialog.py" line="667" />
       <source>确认关闭</source>
       <translation>Confirm Close</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="335" />
+      <location filename="../../../src/update/update_dialog.py" line="337" />
       <source>确认安装更新</source>
       <translation>Confirm Update Installation</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/predict_result_controller.py" line="100" />
+      <location filename="../../../src/ui/predict_result_controller.py" line="103" />
       <source>确认或修改公式：</source>
       <translation>Confirm or edit formula:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/predict_result_controller.py" line="102" />
-      <location filename="../../../src/ui/predict_result_controller.py" line="104" />
+      <location filename="../../../src/ui/predict_result_controller.py" line="105" />
+      <location filename="../../../src/ui/predict_result_controller.py" line="107" />
       <source>确认或修改内容：</source>
       <translation>Confirm or edit content:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/predict_result_controller.py" line="101" />
+      <location filename="../../../src/ui/predict_result_controller.py" line="104" />
       <source>确认或修改文本：</source>
       <translation>Confirm or edit text:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/app_lifecycle_controller.py" line="306" />
+      <location filename="../../../src/ui/app_lifecycle_controller.py" line="309" />
       <source>确认退出</source>
       <translation>Confirm Exit</translation>
     </message>
@@ -4376,13 +4376,13 @@ The uninstall progress window will open after confirmation.</translation>
       <translation>Integral  (int)</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="543" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="546" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="402" />
       <source>移除本机下载的依赖、缓存和日志；默认保留应用设置</source>
       <translation>Remove locally downloaded dependencies, caches, and logs while keeping app settings by default</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="541" />
+      <location filename="../../../src/ui/favorites_window.py" line="544" />
       <source>空公式，忽略</source>
       <translation>Empty formula ignored</translation>
     </message>
@@ -4402,13 +4402,13 @@ The uninstall progress window will open after confirmation.</translation>
       <translation>Simplified Chinese</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="349" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="348" />
       <location filename="../../../src/preview/document/window.py" line="985" />
       <source>粘贴</source>
       <translation>Paste</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_entry.py" line="348" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="351" />
       <source>系统 Python {python} 创建 venv 失败</source>
       <translation>System Python {python} failed to create the venv</translation>
     </message>
@@ -4450,7 +4450,7 @@ The uninstall progress window will open after confirmation.</translation>
     </message>
     <message>
       <location filename="../../../src/bootstrap/deps_entry.py" line="979" />
-      <location filename="../../../src/update/update_dialog.py" line="318" />
+      <location filename="../../../src/update/update_dialog.py" line="320" />
       <source>继续下载</source>
       <translation>Resume Download</translation>
     </message>
@@ -4460,7 +4460,7 @@ The uninstall progress window will open after confirmation.</translation>
       <translation>Continue tour</translation>
     </message>
     <message>
-      <location filename="../../../src/update/github_release_client.py" line="159" />
+      <location filename="../../../src/update/github_release_client.py" line="161" />
       <source>缓存已过期，请重新检查</source>
       <translation>The cache has expired. Check again.</translation>
     </message>
@@ -4520,10 +4520,10 @@ The uninstall progress window will open after confirmation.</translation>
       <translation>Compile Preview PDF</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="327" />
-      <location filename="../../../src/ui/edit_formula_dialog.py" line="23" />
-      <location filename="../../../src/ui/favorites_window.py" line="267" />
-      <location filename="../../../src/ui/history_controller.py" line="37" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="326" />
+      <location filename="../../../src/ui/edit_formula_dialog.py" line="26" />
+      <location filename="../../../src/ui/favorites_window.py" line="270" />
+      <location filename="../../../src/ui/history_controller.py" line="40" />
       <source>编辑</source>
       <translation>Edit</translation>
     </message>
@@ -4550,7 +4550,7 @@ The uninstall progress window will open after confirmation.</translation>
       <translation>Zoom Out</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_entry.py" line="491" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="494" />
       <source>缺失依赖，程序将跳过安装并进入，部分功能可能不可用。</source>
       <translation>Dependencies are missing. The app will continue without installing them, and some features may be unavailable.</translation>
     </message>
@@ -4571,7 +4571,7 @@ The uninstall progress window will open after confirmation.</translation>
       <translation>Missing PyMuPDF dependency: {error}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/pdf.py" line="100" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="103" />
       <source>缺少 PyMuPDF 依赖: {error}
 请在依赖环境中安装 pymupdf。</source>
       <translation>PyMuPDF is missing: {error}
@@ -4660,13 +4660,13 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Automatic layout returned no content</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="198" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="201" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="289" />
       <source>自动检测</source>
       <translation>Auto-detect</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="368" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="371" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="250" />
       <source>自动检测（推荐）</source>
       <translation>Auto-detect (recommended)</translation>
@@ -4692,7 +4692,7 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Erase only the stroke segments inside a freeform selection for local rewriting</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="183" />
+      <location filename="../../../src/update/update_dialog.py" line="185" />
       <source>获取超时，可重新检查。</source>
       <translation>The request timed out. Try checking again.</translation>
     </message>
@@ -4707,7 +4707,7 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Display math \[...\]</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_entry.py" line="491" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="494" />
       <source>警告</source>
       <translation>Warning</translation>
     </message>
@@ -4727,13 +4727,13 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Make it your own</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/main_window_setup.py" line="215" />
+      <location filename="../../../src/ui/main_window_setup.py" line="218" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="45" />
       <source>设置</source>
       <translation>Settings</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="286" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="285" />
       <source>设置...</source>
       <translation>Settings...</translation>
     </message>
@@ -4779,7 +4779,7 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Recognizing</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/pdf.py" line="169" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="172" />
       <location filename="../../../src/ui/controllers/recognition.py" line="191" />
       <source>识别中...</source>
       <translation>Recognizing...</translation>
@@ -4796,8 +4796,8 @@ Install pymupdf in the dependency environment.</translation>
     </message>
     <message>
       <location filename="../../../src/handwriting/handwriting_window.py" line="825" />
-      <location filename="../../../src/ui/predict_result_controller.py" line="421" />
-      <location filename="../../../src/ui/predict_result_controller.py" line="402" />
+      <location filename="../../../src/ui/predict_result_controller.py" line="424" />
+      <location filename="../../../src/ui/predict_result_controller.py" line="405" />
       <source>识别失败</source>
       <translation>Recognition failed</translation>
     </message>
@@ -4812,7 +4812,7 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Recognition failed. Retry; if the issue persists, review the runtime log.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/predict_result_controller.py" line="304" />
+      <location filename="../../../src/ui/predict_result_controller.py" line="307" />
       <source>识别完成</source>
       <translation>Recognition completed</translation>
     </message>
@@ -4860,9 +4860,9 @@ Install pymupdf in the dependency environment.</translation>
     <message>
       <location filename="../../../src/handwriting/recognizer.py" line="144" />
       <location filename="../../../src/recognition/error_messages.py" line="12" />
-      <location filename="../../../src/ui/controllers/pdf.py" line="375" />
-      <location filename="../../../src/ui/predict_result_controller.py" line="317" />
-      <location filename="../../../src/ui/predict_result_controller.py" line="476" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="378" />
+      <location filename="../../../src/ui/predict_result_controller.py" line="320" />
+      <location filename="../../../src/ui/predict_result_controller.py" line="479" />
       <location filename="../../../src/ui/predict_result_dialog.py" line="191" />
       <source>识别结果为空</source>
       <translation>The recognition result is empty</translation>
@@ -4888,12 +4888,12 @@ Install pymupdf in the dependency environment.</translation>
       <translation>This API or model does not support image input. Use a vision-capable model or service.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/file_drop.py" line="138" />
+      <location filename="../../../src/ui/file_drop.py" line="141" />
       <source>请一次只拖入一个图片或 PDF 文件。</source>
       <translation>Drop one image or PDF file at a time.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/hotkey_controller.py" line="69" />
+      <location filename="../../../src/ui/hotkey_controller.py" line="72" />
       <source>请先关闭当前对话框，再执行截图识别</source>
       <translation>Close the current dialog before starting capture recognition.</translation>
     </message>
@@ -4929,12 +4929,12 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Select LaTeX + pdflatex or LaTeX + xelatex in Settings first.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="107" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="110" />
       <source>请先在设置页填写 Base URL 和 MinerU Local 解析接口路径。</source>
       <translation>Enter the Base URL and MinerU Local parsing endpoint in Settings first.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_runtime_controller.py" line="108" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="111" />
       <source>请先在设置页填写 Base URL 和模型名。</source>
       <translation>Enter the Base URL and model name in Settings first.</translation>
     </message>
@@ -4976,18 +4976,18 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Recognize or edit the LaTeX manually before inserting.</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_entry.py" line="230" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="233" />
       <source>请安装带 venv/pip 支持的 Python（{version_range}）后重试。</source>
       <translation>Install Python with venv/pip support ({version_range}) and try again.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/file_drop.py" line="155" />
-      <location filename="../../../src/ui/file_drop.py" line="143" />
+      <location filename="../../../src/ui/file_drop.py" line="158" />
+      <location filename="../../../src/ui/file_drop.py" line="146" />
       <source>请拖入单个图片或 PDF 文件。支持图片格式：{formats}。</source>
       <translation>Drop a single image or PDF file. Supported image formats: {formats}.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/pdf.py" line="81" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="84" />
       <source>请拖入或选择 PDF 文件。</source>
       <translation>Drop or select a PDF file.</translation>
     </message>
@@ -4997,12 +4997,12 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Drop or select an image file. Supported formats: {formats}.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/hotkey_controller.py" line="116" />
+      <location filename="../../../src/ui/hotkey_controller.py" line="119" />
       <source>请更换其他 {format} 组合后重试</source>
       <translation>Choose another {format} combination and retry</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/math_preview.py" line="358" />
+      <location filename="../../../src/preview/math_preview.py" line="355" />
       <source>请检查 MathJax 资源是否正确打包</source>
       <translation>Check that MathJax resources are packaged correctly</translation>
     </message>
@@ -5022,17 +5022,17 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Wait for the current handwriting recognition to finish before automatic formatting.</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="870" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="873" />
       <source>请至少选择一个依赖层进行下载。</source>
       <translation>Select at least one dependency layer to download.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="229" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="232" />
       <source>请输入 LaTeX 路径或点击自动检测</source>
       <translation>Enter a LaTeX path or select Auto Detect</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/pdf.py" line="32" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="35" />
       <source>请输入页码或页码范围。</source>
       <translation>Enter a page number or page range.</translation>
     </message>
@@ -5047,7 +5047,7 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Select a recommended preset before applying it.</translation>
     </message>
     <message>
-      <location filename="../../../src/application/python_runtime_resolver.py" line="288" />
+      <location filename="../../../src/application/python_runtime_resolver.py" line="290" />
       <source>请选择依赖安装目录</source>
       <translation>Select a dependency installation directory</translation>
     </message>
@@ -5057,17 +5057,17 @@ Install pymupdf in the dependency environment.</translation>
       <translation>Select an export format:</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/smart_preview.py" line="29" />
+      <location filename="../../../src/preview/smart_preview.py" line="32" />
       <source>资源路径是否正确</source>
       <translation>Whether resource paths are correct</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/pdf.py" line="44" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="47" />
       <source>起始页不能大于结束页。</source>
       <translation>The first page cannot be greater than the last page.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="187" />
+      <location filename="../../../src/update/update_dialog.py" line="189" />
       <source>超出设定: connect={connect}s read={read}s
 可点“重新检查”再次发起。</source>
       <translation>Timed out: connect={connect}s read={read}s
@@ -5091,12 +5091,12 @@ Click “Check Again” to retry.</translation>
       <translation>Follow system</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="229" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="232" />
       <source>路径为空</source>
       <translation>Path is empty</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="254" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="257" />
       <source>路径无效</source>
       <translation>Invalid Path</translation>
     </message>
@@ -5122,8 +5122,8 @@ Click “Check Again” to retry.</translation>
       <translation>Skip</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="678" />
-      <location filename="../../../src/bootstrap/deps_ui.py" line="920" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="681" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="923" />
       <source>跳过安装并进入</source>
       <translation>Skip Installation and Continue</translation>
     </message>
@@ -5139,8 +5139,8 @@ Click “Check Again” to retry.</translation>
       <translation>Load Failed</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="310" />
-      <location filename="../../../src/ui/history_controller.py" line="61" />
+      <location filename="../../../src/ui/favorites_window.py" line="313" />
+      <location filename="../../../src/ui/history_controller.py" line="64" />
       <location filename="../../../src/ui/window_helpers.py" line="144" />
       <source>输入公式名称：</source>
       <translation>Enter a formula name:</translation>
@@ -5171,7 +5171,7 @@ Click “Check Again” to retry.</translation>
       <translation>Return code: {code}</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="749" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="752" />
       <location filename="../../../src/ui/settings_environment_mixin.py" line="239" />
       <source>这会移除 LaTeXSnipper 在本机下载的依赖、缓存和日志。
 应用本身和设置会保留；下次使用内置识别时可能需要重新下载依赖。
@@ -5194,9 +5194,9 @@ Continue?</translation>
       <translation>Errors, warnings, and raw output from the latest compilation appear here.</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="622" />
-      <location filename="../../../src/bootstrap/deps_ui.py" line="678" />
-      <location filename="../../../src/bootstrap/deps_ui.py" line="917" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="625" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="681" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="920" />
       <source>进入</source>
       <translation>Continue</translation>
     </message>
@@ -5292,7 +5292,7 @@ Continue?</translation>
       <translation>Exit</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="306" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="305" />
       <source>退出 LaTeXSnipper</source>
       <translation>Quit LaTeXSnipper</translation>
     </message>
@@ -5322,12 +5322,12 @@ Continue?</translation>
       <translation>Exit quick start?</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="893" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="896" />
       <source>退出确认</source>
       <translation>Confirm Exit</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="625" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="628" />
       <source>退出程序</source>
       <translation>Exit Application</translation>
     </message>
@@ -5374,18 +5374,18 @@ Continue?</translation>
       <translation>Select HTTPS Certificate</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/pdf.py" line="63" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="66" />
       <source>选择 PDF 文件</source>
       <translation>Select PDF File</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="113" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="116" />
       <source>选择 pdflatex 或 xelatex 可执行文件</source>
       <translation>Select a pdflatex or xelatex executable</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_entry.py" line="461" />
-      <location filename="../../../src/bootstrap/deps_ui.py" line="688" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="464" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="691" />
       <source>选择依赖安装/加载目录</source>
       <translation>Select Dependency Install/Load Directory</translation>
     </message>
@@ -5395,7 +5395,7 @@ Continue?</translation>
       <translation>Select Image</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="454" />
+      <location filename="../../../src/ui/favorites_window.py" line="457" />
       <source>选择收藏夹导出文件夹</source>
       <translation>Select Favorites Export Folder</translation>
     </message>
@@ -5405,17 +5405,17 @@ Continue?</translation>
       <translation>Recognition model:</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="349" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="352" />
       <source>选择需要安装的功能层:</source>
       <translation>Select feature layers to install:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/pdf.py" line="118" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="121" />
       <source>选择页码</source>
       <translation>Select Page</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_entry.py" line="291" />
+      <location filename="../../../src/bootstrap/deps_entry.py" line="294" />
       <source>部分依赖安装失败，请查看日志后重试。</source>
       <translation>Some dependencies failed to install. Check the log and try again.</translation>
     </message>
@@ -5466,19 +5466,19 @@ Continue?</translation>
       <translation>Restart and Open</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/favorites_window.py" line="266" />
-      <location filename="../../../src/ui/history_controller.py" line="47" />
+      <location filename="../../../src/ui/favorites_window.py" line="269" />
+      <location filename="../../../src/ui/history_controller.py" line="50" />
       <source>重命名</source>
       <translation>Rename</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/history_controller.py" line="60" />
+      <location filename="../../../src/ui/history_controller.py" line="63" />
       <location filename="../../../src/ui/window_helpers.py" line="138" />
       <source>重命名公式</source>
       <translation>Rename Formula</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="324" />
+      <location filename="../../../src/update/update_dialog.py" line="326" />
       <source>重新下载</source>
       <translation>Download Again</translation>
     </message>
@@ -5488,7 +5488,7 @@ Continue?</translation>
       <translation>Restart LaTeXSnipper to apply the language change.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="125" />
+      <location filename="../../../src/update/update_dialog.py" line="127" />
       <source>重新检查</source>
       <translation>Check Again</translation>
     </message>
@@ -5498,12 +5498,12 @@ Continue?</translation>
       <translation>Regenerate access key</translation>
     </message>
     <message>
-      <location filename="../../../src/bootstrap/deps_ui.py" line="1109" />
+      <location filename="../../../src/bootstrap/deps_ui.py" line="1112" />
       <location filename="../../../src/capture/capture_controller.py" line="29" />
-      <location filename="../../../src/ui/controllers/pdf.py" line="77" />
-      <location filename="../../../src/ui/controllers/pdf.py" line="87" />
-      <location filename="../../../src/ui/controllers/pdf.py" line="99" />
-      <location filename="../../../src/ui/controllers/pdf.py" line="112" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="80" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="90" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="102" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="115" />
       <location filename="../../../src/ui/controllers/recognition.py" line="162" />
       <location filename="../../../src/ui/controllers/recognition.py" line="165" />
       <location filename="../../../src/ui/controllers/recognition.py" line="223" />
@@ -5519,23 +5519,23 @@ Continue?</translation>
     </message>
     <message>
       <location filename="../../../src/preview/document/window.py" line="1725" />
-      <location filename="../../../src/preview/smart_preview.py" line="25" />
-      <location filename="../../../src/preview/smart_preview.py" line="181" />
+      <location filename="../../../src/preview/smart_preview.py" line="28" />
+      <location filename="../../../src/preview/smart_preview.py" line="184" />
       <source>错误:</source>
       <translation>Error:</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/math_preview.py" line="357" />
+      <location filename="../../../src/preview/math_preview.py" line="354" />
       <source>错误信息:</source>
       <translation>Error details:</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="294" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="293" />
       <source>隐藏 LaTeXSnipper</source>
       <translation>Hide LaTeXSnipper</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="299" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="298" />
       <source>隐藏其他窗口</source>
       <translation>Hide Others</translation>
     </message>
@@ -5550,31 +5550,31 @@ Continue?</translation>
       <translation>To view it again, click “Quick start” in the main window.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/pdf.py" line="46" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="49" />
       <source>页码不能超过 PDF 总页数 {total}。</source>
       <translation>The page number cannot exceed the PDF page count ({total}).</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/pdf.py" line="42" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="45" />
       <source>页码必须从 1 开始。</source>
       <translation>Page numbers must start at 1.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/pdf.py" line="40" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="43" />
       <source>页码范围只能包含数字和连字符。</source>
       <translation>A page range may contain only numbers and a hyphen.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/pdf.py" line="35" />
+      <location filename="../../../src/ui/controllers/pdf.py" line="38" />
       <source>页码范围格式应为 3 或 3-7。</source>
       <translation>Use 3 or 3-7 as the page-range format.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/controllers/recognition.py" line="171" />
-      <location filename="../../../src/ui/model_runtime_controller.py" line="185" />
-      <location filename="../../../src/ui/model_runtime_controller.py" line="170" />
-      <location filename="../../../src/ui/model_runtime_controller.py" line="375" />
-      <location filename="../../../src/ui/model_runtime_controller.py" line="373" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="188" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="173" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="378" />
+      <location filename="../../../src/ui/model_runtime_controller.py" line="376" />
       <source>预热中</source>
       <translation>Warming up</translation>
     </message>
@@ -5589,31 +5589,31 @@ Continue?</translation>
       <translation>The first warm-up may download or initialize model weights and can take longer on a slow connection.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="242" />
-      <location filename="../../../src/update/update_dialog.py" line="354" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="245" />
+      <location filename="../../../src/update/update_dialog.py" line="356" />
       <source>验证中...</source>
       <translation>Validating...</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="267" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="270" />
       <source>验证出错</source>
       <translation>Validation Error</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="249" />
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="309" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="252" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="312" />
       <source>验证失败</source>
       <translation>Validation failed</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="299" />
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="263" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="302" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="266" />
       <source>验证成功</source>
       <translation>Validation successful</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="106" />
-      <location filename="../../../src/ui/settings_latex_mixin.py" line="305" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="109" />
+      <location filename="../../../src/ui/settings_latex_mixin.py" line="308" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="292" />
       <source>验证路径</source>
       <translation>Validate Path</translation>
@@ -5629,7 +5629,7 @@ Continue?</translation>
       <translation>Advanced settings:</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="290" />
+      <location filename="../../../src/update/update_dialog.py" line="292" />
       <source>（GitHub 限频）</source>
       <translation>(GitHub rate limit)</translation>
     </message>

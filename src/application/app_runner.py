@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import multiprocessing
 import os
 import sys
@@ -20,6 +21,8 @@ from ui.startup_splash import (
 )
 from runtime.std_streams import ensure_std_streams
 from ui.theme_controller import apply_theme_mode, read_theme_mode_from_config
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 def _apply_startup_theme() -> None:
@@ -42,7 +45,7 @@ def _create_window(main_window_cls, splash):
         0, lambda: apply_runtime_log_window_preference(force=False)
     )
     finish_startup_splash(splash, win)
-    print("[INFO] 应用界面已就绪")
+    logger.info("应用界面已就绪")
     return win
 
 

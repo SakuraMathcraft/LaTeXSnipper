@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from localization.manager import translate as tr
 
 import json
@@ -12,6 +13,8 @@ from PyQt6.QtWidgets import QApplication, QLabel, QWidget
 from preview.math_preview import formula_label_theme_tokens, is_dark_ui
 from runtime.app_paths import app_config_path
 from ui.runtime_log_controller import refresh_runtime_log_dialog_theme
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 def apply_theme(mode: str = "AUTO") -> bool:
@@ -32,7 +35,7 @@ def apply_theme(mode: str = "AUTO") -> bool:
             ss.setTheme(theme)
             return True
     except Exception as e:
-        print(f"[WARN] 应用主题失败: {e}")
+        logger.warning("应用主题失败: %s", e)
         return False
 
 

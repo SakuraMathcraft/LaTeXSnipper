@@ -18,7 +18,7 @@ from rendering.mathjax_runtime import cdn_roots, loader_script
 from localization.manager import mark_for_translation
 from runtime.pandoc_runtime import load_configured_pandoc_path, save_configured_pandoc_path
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 class PandocNotAvailable(RuntimeError):

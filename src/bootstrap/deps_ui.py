@@ -1,3 +1,4 @@
+import logging
 from localization.manager import translate as tr
 import json
 import os
@@ -37,6 +38,8 @@ from runtime.dependency_python import (
     normalize_deps_base_dir as _normalize_deps_base_dir,
 )
 
+logger = logging.getLogger(f"latexsnipper.{__name__}")
+
 
 def activate_dependency_dialog(dlg) -> None:
     """Make dependency management visible before entering its event loop."""
@@ -44,7 +47,7 @@ def activate_dependency_dialog(dlg) -> None:
         dlg.setWindowFlag(Qt.WindowType.Window, True)
         dlg.setWindowModality(Qt.WindowModality.ApplicationModal)
     except Exception as e:
-        print(f"[DEBUG] 设置依赖管理窗口属性失败: {e}")
+        logger.debug("设置依赖管理窗口属性失败: %s", e)
 
     def _raise_dialog() -> None:
         try:
@@ -59,7 +62,7 @@ def activate_dependency_dialog(dlg) -> None:
         except RuntimeError:
             pass
         except Exception as e:
-            print(f"[DEBUG] 激活依赖管理窗口失败: {e}")
+            logger.debug("激活依赖管理窗口失败: %s", e)
 
     _raise_dialog()
     QTimer.singleShot(0, _raise_dialog)
@@ -277,15 +280,15 @@ def _build_layers_ui(
         failed_layers = []
         if claimed_layers and pyexe and os.path.exists(pyexe):
             verified_in_ui = True
-            print("[DEBUG] 正在验证已安装依赖")
+            logger.debug("正在验证已安装依赖")
             for layer in claimed_layers:
                 ok, err = _verify_layer_runtime(pyexe, layer, timeout=30)
                 if ok:
                     verified_layers.append(layer)
-                    print(f"[DEBUG] {layer_display_name(layer)}验证通过")
+                    logger.debug("%s验证通过", layer_display_name(layer))
                 else:
                     failed_layers.append((layer, err))
-                    print(format_layer_verify_failure(layer, err))
+                    logger.error("%s", format_layer_verify_failure(layer, err))
             installed_layers["layers"] = verified_layers
             if failed_layers:
                 failed_layer_names = [layer for layer, _ in failed_layers]
@@ -298,9 +301,9 @@ def _build_layers_ui(
                     labels = "、".join(
                         layer_display_name(layer) for layer, _ in failed_layers
                     )
-                    print(f"[WARN] 已从依赖状态中移除验证失败项：{labels}")
+                    logger.warning("已从依赖状态中移除验证失败项：%s", labels)
             except Exception as e:
-                print(f"[WARN] 更新状态文件失败: {e}")
+                logger.warning("更新状态文件失败: %s", e)
         else:
             installed_layers["layers"] = claimed_layers
 
@@ -734,9 +737,9 @@ def _build_layers_ui(
                 os.environ["LATEXSNIPPER_INSTALL_BASE_DIR"] = normalized
                 if active_pyexe and Path(active_pyexe).exists():
                     os.environ["LATEXSNIPPER_PYEXE"] = str(active_pyexe)
-                print(f"[DEBUG] 依赖路径已保存: {normalized}")
+                logger.debug("依赖路径已保存: %s", normalized)
             except Exception as e:
-                print(f"[ERR] 保存配置失败: {e}")
+                logger.error("保存配置失败: %s", e)
 
     btn_path.clicked.connect(choose_path)
 
@@ -834,7 +837,7 @@ def _build_layers_ui(
             return
 
         if sel:
-            print(f"[DEBUG] 已选择依赖: {', '.join(sel)}")
+            logger.debug("已选择依赖: %s", ', '.join(sel))
         required = {"BASIC", "CORE"}
         missing = [
             required_layer
@@ -929,7 +932,7 @@ def _build_layers_ui(
             py_ready_local = bool(_find_existing_python(Path(current_dir)))
             _set_environment_notice(py_ready_local, failed_layer_names)
         except Exception as e:
-            print(f"[WARN] 刷新依赖管理失败: {e}")
+            logger.warning("刷新依赖管理失败: %s", e)
 
     dlg.refresh_ui = refresh_ui
 
@@ -952,7 +955,7 @@ def _build_layers_ui(
                 if callable(release_lock):
                     release_lock()
             except Exception as e:
-                print(f"[WARN] 退出前释放程序锁失败: {e}")
+                logger.warning("退出前释放程序锁失败: %s", e)
             try:
                 dlg.done(QDialog.DialogCode.Rejected)
             except Exception:

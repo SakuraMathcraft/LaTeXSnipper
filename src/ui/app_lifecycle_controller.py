@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 
@@ -16,6 +17,8 @@ from ui.runtime_log_controller import apply_runtime_log_window_preference
 from runtime.single_instance import (
     release_single_instance_lock as _release_single_instance_lock,
 )
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 class _MacApplicationQuitFilter(QObject):
@@ -85,7 +88,7 @@ class AppLifecycleMixin:
         try:
             return bool(self._handle_clipboard_image_paste())
         except Exception as exc:
-            print(f"[WARN] macOS 图片粘贴处理失败: {exc}")
+            logger.warning("macOS 图片粘贴处理失败: %s", exc)
             return False
 
     def _show_about_dialog(self):
@@ -123,7 +126,7 @@ class AppLifecycleMixin:
             os.environ["LATEXSNIPPER_SHOW_RUNTIME_LOG"] = "1" if enabled else "0"
             apply_runtime_log_window_preference(force=False)
         except Exception as e:
-            print(f"[WARN] 应用运行日志窗口设置失败: {e}")
+            logger.warning("应用运行日志窗口设置失败: %s", e)
 
     def prepare_restart(self):
         """Called by settings restart flow: close heavy resources and release app lock early."""
@@ -155,18 +158,18 @@ class AppLifecycleMixin:
         try:
             self.save_history()
         except Exception as e:
-            print(f"[WARN] 保存历史失败: {e}")
+            logger.warning("保存历史失败: %s", e)
 
         try:
             if hasattr(self, "favorites_window") and self.favorites_window:
                 self.favorites_window.save_favorites()
         except Exception as e:
-            print(f"[WARN] 保存收藏夹失败: {e}")
+            logger.warning("保存收藏夹失败: %s", e)
 
         try:
             self.cfg.save()
         except Exception as e:
-            print(f"[WARN] 保存配置失败: {e}")
+            logger.warning("保存配置失败: %s", e)
 
         try:
             if getattr(self, "hotkey_provider", None):
@@ -266,7 +269,7 @@ class AppLifecycleMixin:
                 pass
         self._preview_render_thread = None
         self._preview_render_worker = None
-        print("[INFO] LaTeXSnipper 已退出")
+        logger.info("LaTeXSnipper 已退出")
         try:
             cleanup_runtime_log_session()
         except Exception:

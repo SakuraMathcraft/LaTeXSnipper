@@ -2,7 +2,8 @@ from __future__ import annotations
 
 # ruff: noqa: E402
 
-import logging
+import re
+import pytest
 import os
 from pathlib import Path
 import subprocess
@@ -15,46 +16,55 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from runtime.log_record import PERSISTENT_LOG_LEVEL, parse_print_log_record
 from runtime.log_lifecycle import cleanup_stale_fallback_logs, rotate_before_append
 
 
-def test_print_log_prefix_is_converted_without_duplication() -> None:
-    assert PERSISTENT_LOG_LEVEL == logging.INFO
-    assert parse_print_log_record("[DEBUG] 诊断") == (logging.DEBUG, "诊断")
-    assert parse_print_log_record("[INFO] 已启动") == (logging.INFO, "已启动")
-    assert parse_print_log_record(" [WARN] 连接失败") == (logging.WARNING, "连接失败")
-    assert parse_print_log_record("[ERR] 安装失败") == (logging.ERROR, "安装失败")
-    assert parse_print_log_record("普通消息") == (logging.INFO, "普通消息")
-
-
-def test_persistent_log_excludes_debug_and_strips_prefixes(tmp_path: Path) -> None:
+@pytest.mark.parametrize("packaged", [False, True])
+def test_application_log_routes_levels_formats_and_tracebacks(tmp_path: Path, packaged: bool) -> None:
     code = """
 import logging
 from pathlib import Path
 import sys
 sys.path.insert(0, sys.argv[2])
 import runtime.runtime_logging as runtime_logging
+from runtime.std_streams import ensure_std_streams
 
+if sys.argv[3] == "True":
+    sys.frozen = True
+    sys.stdout = sys.stderr = sys.__stdout__ = sys.__stderr__ = None
+ensure_std_streams()
 target = Path(sys.argv[1])
 runtime_logging.app_log_dir = lambda: target
-runtime_logging.app_state_dir = lambda: target / "state"
 runtime_logging.runtime_log_path().write_text("previous-session", encoding="utf-8")
+runtime_logging.init_app_logging()
 runtime_logging.init_app_logging()
 assert runtime_logging.runtime_log_path().read_text(encoding="utf-8") == "previous-session"
 runtime_logging.start_runtime_log_session()
 runtime_logging.start_runtime_log_session()
-print("[DEBUG] debug-only")
-print("[INFO] ready")
-logging.info("logging-record")
+logger = logging.getLogger("latexsnipper.test")
+logger.debug("debug-only")
+logger.info("ready")
+logger.warning("warning-record")
+logging.getLogger("thirdparty").debug("thirdparty-debug")
+logging.getLogger("thirdparty").info("thirdparty-info")
+try:
+    raise ValueError("diagnostic failure")
+except ValueError:
+    logger.exception("exception-record")
+print("stdout-record", flush=True)
 sys.stderr.write("stderr-record\\n")
 assert "ready" in runtime_logging.runtime_log_path().read_text(encoding="utf-8")
+sys.stdout.flush()
+sys.stderr.flush()
+runtime_logging.cleanup_runtime_log_session()
+runtime_logging.cleanup_runtime_log_session()
+logger.info("after-session")
 logging.shutdown()
 """
     env = os.environ.copy()
     env["PYTHONPATH"] = os.pathsep.join(filter(None, (str(SRC), env.get("PYTHONPATH", ""))))
     result = subprocess.run(
-        [sys.executable, "-c", code, str(tmp_path), str(SRC)],
+        [sys.executable, "-c", code, str(tmp_path), str(SRC), str(packaged)],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -65,17 +75,29 @@ logging.shutdown()
     )
 
     assert result.returncode == 0, result.stderr
-    text = (tmp_path / "app.log").read_text(encoding="utf-8")
-    assert "debug-only" not in text
-    assert "[INFO] [INFO] ready" not in text
-    assert text.count("ready") == 1
+    persistent = (tmp_path / "app.log").read_text(encoding="utf-8")
     session = (tmp_path / "runtime-session.log").read_text(encoding="utf-8")
+    assert re.search(r"^\[\d{4}-\d{2}-\d{2} [^\]]+\] \[INFO\] ready$", persistent, re.MULTILINE)
+    assert "[DEBUG] debug-only" in session
+    assert "debug-only" not in persistent
+    assert "thirdparty-debug" not in session
+    assert "thirdparty-debug" not in persistent
     assert "previous-session" not in session
-    assert session.count("LaTeXSnipper 启动 pid=") == 1
-    assert text.count("LaTeXSnipper 启动 pid=") == 1
-    assert session.count("ready") == 1
-    assert session.count("logging-record") == 1
-    assert "stderr-record" in session
+    for message in ("ready", "warning-record", "thirdparty-info", "exception-record", "LaTeXSnipper 启动 pid="):
+        assert session.count(message) == 1
+        assert persistent.count(message) == 1
+    assert "[INFO] ready\n" in session
+    assert "[WARNING] warning-record\n" in session
+    assert "[ERROR] exception-record\nTraceback" in session
+    assert "ValueError: diagnostic failure" in session
+    assert "ValueError: diagnostic failure" in persistent
+    for message in ("stdout-record", "stderr-record"):
+        assert message in session
+        assert message not in persistent
+    assert "after-session" in persistent
+    assert "after-session" not in session
+    if not packaged:
+        assert result.stdout.count("[INFO] ready") == 1
 
 
 def test_plain_log_rotation_is_bounded(tmp_path: Path) -> None:

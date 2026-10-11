@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sys
 
 import pytest
@@ -36,9 +37,8 @@ def test_arbitrary_index_error_is_not_diagnosed_as_corrupt_weights():
 
 
 @pytest.mark.parametrize("component_failure", [False, True])
-def test_warmup_persists_remote_traceback(component_failure, monkeypatch, capsys):
+def test_warmup_persists_remote_traceback(component_failure, monkeypatch, caplog):
     wrapper = ModelWrapper(auto_warmup=False)
-    capsys.readouterr()
     trace = "Traceback (most recent call last):\n  worker_specific_frame\nValueError: 中文异常"
 
     def request(*args, **kwargs):
@@ -58,8 +58,8 @@ def test_warmup_persists_remote_traceback(component_failure, monkeypatch, capsys
 
     monkeypatch.setattr(wrapper, "_send_worker_request", request)
     assert wrapper._lazy_load_mathcraft() is False
-    output = capsys.readouterr().out
-    assert "[ERR] MathCraft OCR 预热失败" in output
+    output = caplog.text
+    assert "MathCraft OCR 预热失败" in output
     assert trace in output
 
 
@@ -71,7 +71,8 @@ def _script_worker(monkeypatch, script):
     return wrapper
 
 
-def test_worker_exit_drains_stderr_and_reports_exit_code(monkeypatch, capsys):
+def test_worker_exit_drains_stderr_and_reports_exit_code(monkeypatch, caplog):
+    caplog.set_level(logging.INFO, logger="latexsnipper.backend.mathcraft.model")
     wrapper = _script_worker(
         monkeypatch,
         "import sys; sys.stdin.readline(); "
@@ -81,11 +82,12 @@ def test_worker_exit_drains_stderr_and_reports_exit_code(monkeypatch, capsys):
         wrapper._send_worker_request({"action": "warmup"})
     assert "exit_code=7 (0x00000007)" in str(caught.value)
     assert "final diagnostic: 中文" in str(caught.value)
-    assert "final diagnostic: 中文" in capsys.readouterr().out
+    assert "final diagnostic: 中文" in caplog.text
     assert wrapper._worker is None
 
 
-def test_worker_error_response_keeps_native_stderr_in_log(monkeypatch, capsys):
+def test_worker_error_response_keeps_native_stderr_in_log(monkeypatch, caplog):
+    caplog.set_level(logging.INFO, logger="latexsnipper.backend.mathcraft.model")
     wrapper = _script_worker(
         monkeypatch,
         "import sys,json; sys.stdin.readline(); "
@@ -99,7 +101,7 @@ def test_worker_error_response_keeps_native_stderr_in_log(monkeypatch, capsys):
         assert caught.value.remote_traceback == "remote frame"
     finally:
         wrapper._stop_mathcraft_worker()
-    assert "native diagnostic" in capsys.readouterr().out
+    assert "native diagnostic" in caplog.text
 
 
 def test_timeout_preserves_stderr_and_terminates_worker(monkeypatch):

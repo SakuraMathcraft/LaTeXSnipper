@@ -1,5 +1,6 @@
 # pyright: reportUnusedImport=false
 
+import logging
 import os
 import subprocess
 import sys
@@ -7,6 +8,8 @@ import threading
 from pathlib import Path
 
 from bootstrap.deps_pip_runner import configure_pip_runner
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 os.environ["PYTHONUTF8"] = "1"
 
@@ -41,7 +44,7 @@ def _hidden_subprocess_kwargs() -> dict:
 
 def safe_run(cmd, cwd=None, shell=False, timeout=None, **popen_kwargs):
     """Start a subprocess and return the Popen object without eagerly reading stdout."""
-    print(f"[DEBUG] 执行命令: {' '.join(cmd)}")
+    logger.debug("执行命令: %s", ' '.join(cmd))
 
     env = popen_kwargs.get("env")
     if env is None:

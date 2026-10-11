@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 
 from localization.manager import translate as tr
@@ -17,6 +18,8 @@ from runtime.hotkey_config import (
 from ui.hotkey_dialog import create_hotkey_dialog, localized_hotkey_help_text
 from ui.window_helpers import show_normal_window
 
+logger = logging.getLogger(f"latexsnipper.{__name__}")
+
 
 class HotkeyControllerMixin:
     def register_hotkey(self, seq: str):
@@ -25,7 +28,7 @@ class HotkeyControllerMixin:
         try:
             self.hotkey_provider.register(seq)
         except Exception as e:
-            print(f"[WARN] 全局快捷键注册失败: {e}")
+            logger.warning("全局快捷键注册失败: %s", e)
 
     def _blocking_window(self):
         app = QApplication.instance()

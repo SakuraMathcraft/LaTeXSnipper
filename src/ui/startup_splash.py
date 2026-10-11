@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 
 from PyQt6.QtCore import QRect, Qt
@@ -10,6 +11,8 @@ from PyQt6.QtWidgets import QApplication, QLabel, QWidget
 
 from localization.manager import translate as tr
 from runtime.app_paths import resource_path
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 _STARTUP_SPLASH = None
 _FORCE_ENTERED = False
@@ -124,7 +127,7 @@ def create_startup_splash(app):
         app.processEvents()
         return splash
     except Exception as e:
-        print(f"[WARN] 启动画面初始化失败: {e}")
+        logger.warning("启动画面初始化失败: %s", e)
         return None
 
 

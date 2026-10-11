@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 import sys
 
@@ -10,6 +11,8 @@ from PyQt6.QtCore import QUrl
 from PyQt6.QtWidgets import QApplication
 
 from rendering.mathjax_runtime import cdn_roots, loader_script
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 APP_DIR: Path | None = None
 
@@ -252,7 +255,7 @@ def _current_render_mode() -> str:
 
         return get_document_render_mode()
     except Exception as exc:
-        print(f"[WARN] 获取渲染模式失败: {exc}")
+        logger.warning("获取渲染模式失败: %s", exc)
     return "auto"
 
 
@@ -288,19 +291,16 @@ def get_mathjax_base_url() -> QUrl:
         runtime_dir = actual_app_dir / "assets" / "MathJax"
         tex_chtml = runtime_dir / "startup.js"
         if not tex_chtml.exists():
-            print(f"[WARN] MathJax 文件缺失: {tex_chtml}")
+            logger.warning("MathJax 文件缺失: %s", tex_chtml)
 
         url = QUrl.fromLocalFile(str(runtime_dir) + "/")
         url_str = url.toString()
         if not url_str.startswith("file:///"):
-            print(f"[ERR] URL 格式异常，应以 file:/// 开头: {url_str}")
+            logger.error("URL 格式异常，应以 file:/// 开头: %s", url_str)
 
         return url
     except Exception as exc:
-        print(f"[ERR] 获取 MathJax 地址失败: {exc}")
-        import traceback
-
-        traceback.print_exc()
+        logger.exception("获取 MathJax 地址失败: %s", exc)
         return QUrl.fromLocalFile("/")
 
 
@@ -348,10 +348,7 @@ def build_math_html(
             html = html.replace(key, value)
         return html
     except Exception as exc:
-        print(f"[ERR] 构建公式预览页面失败: {exc}")
-        import traceback
-
-        traceback.print_exc()
+        logger.exception("构建公式预览页面失败: %s", exc)
         tokens = preview_theme_tokens()
         title = tr("公式渲染出错")
         error_label = tr("错误信息:")

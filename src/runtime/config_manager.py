@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import json
 import os
 import tempfile
@@ -9,6 +10,8 @@ from pathlib import Path
 
 from runtime.app_paths import app_config_path, app_state_dir
 from runtime.private_files import ensure_private_directory
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 class ConfigManager:
@@ -55,7 +58,7 @@ class ConfigManager:
         except Exception as exc:
             if temp_path is not None:
                 temp_path.unlink(missing_ok=True)
-            print(f"[WARN] 配置保存失败: {exc}")
+            logger.warning("配置保存失败: %s", exc)
 
 
 def default_user_data_file(file_name: str) -> Path:

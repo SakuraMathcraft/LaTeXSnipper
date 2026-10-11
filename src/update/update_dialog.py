@@ -56,6 +56,8 @@ from update.release_types import (
 )
 from update.remote_image_browser import RemoteImageBrowser
 
+logger = logging.getLogger(f"latexsnipper.{__name__}")
+
 
 def check_update_dialog(parent=None):
     existing = _show_existing_update_dialog()
@@ -213,7 +215,7 @@ a{{color:{theme["accent"]};}}
 
     def on_result(info, err, diag):
         if diag:
-            logging.getLogger(__name__).debug("更新检查诊断: %s", diag)
+            logger.debug("更新检查诊断: %s", diag)
         if state["aborted"] or state["done"] or (not dlg.isVisible()):
             return
         state["done"] = True
@@ -350,12 +352,12 @@ a{{color:{theme["accent"]};}}
             )
             return
         ext = Path(path).suffix.lower()
-        logging.info("更新包下载完成，开始校验：%s", Path(path).name)
+        logger.info("更新包下载完成，开始校验：%s", Path(path).name)
         lbl_status.setText(tr("验证中..."))
         try:
             sha256_hex = _compute_file_sha256(path)
         except OSError as error:
-            logging.exception("更新包读取失败，无法计算 SHA256")
+            logger.exception("更新包读取失败，无法计算 SHA256")
             lbl_status.setText(tr("下载校验失败"))
             InfoBar.error(
                 title=tr("下载校验失败"),
@@ -383,9 +385,9 @@ a{{color:{theme["accent"]};}}
                 position=InfoBarPosition.TOP,
             )
             return
-        logging.info("更新包 SHA256 校验通过：%s", Path(path).name)
+        logger.info("更新包 SHA256 校验通过：%s", Path(path).name)
         signature_status = _read_signature_status(path)
-        logging.info("更新包签名检查完成：%s", signature_status)
+        logger.info("更新包签名检查完成：%s", signature_status)
         if isinstance(info, ReleaseInfo):
             _save_installer_meta(info, path, sha256_hex)
         if os.name != "nt" or not getattr(sys, "frozen", False) or ext != ".exe":
@@ -410,13 +412,13 @@ a{{color:{theme["accent"]};}}
             return
         try:
             _schedule_windows_installer(path)
-            logging.info("更新安装器启动任务已创建：%s", Path(path).name)
+            logger.info("更新安装器启动任务已创建：%s", Path(path).name)
         except Exception:
-            logging.exception("无法创建更新安装器启动任务，尝试直接启动")
+            logger.exception("无法创建更新安装器启动任务，尝试直接启动")
             try:
                 subprocess.Popen([path], close_fds=True, **_hidden_subprocess_kwargs())
             except Exception as launch_error:
-                logging.exception("更新安装器启动失败")
+                logger.exception("更新安装器启动失败")
                 InfoBar.error(
                     title=tr("启动安装器失败"),
                     content=_brief_error_message(launch_error),

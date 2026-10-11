@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections import deque
 import json
 import os
@@ -29,6 +30,8 @@ from backend.mathcraft.process_environment import (
     _hidden_subprocess_kwargs,
     _same_path,
 )
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 os.environ.setdefault("ORT_DISABLE_AZURE", "1")
@@ -160,7 +163,7 @@ def get_deps_python() -> str:
     if configured_py is not None:
         return str(configured_py)
     if getattr(sys, "frozen", False):
-        print("[WARN] 打包模式未配置依赖解释器，改用当前运行时")
+        logger.warning("打包模式未配置依赖解释器，改用当前运行时")
     return sys.executable
 
 
@@ -226,18 +229,15 @@ class ModelWrapper(QObject):
         self._stderr_thread: threading.Thread | None = None
         self._cache_events_seen: set[str] = set()
 
-        self._emit(f"[DEBUG] MathCraft OCR 后端偏好: {self._provider}")
-        self._emit(f"[DEBUG] MathCraft OCR 依赖解释器: {get_deps_python()}")
+        self._emit(f"MathCraft OCR 后端偏好: {self._provider}", level=logging.DEBUG)
+        self._emit(f"MathCraft OCR 依赖解释器: {get_deps_python()}", level=logging.DEBUG)
         if auto_warmup:
             self._lazy_load_mathcraft()
 
-    def _emit(self, msg: str) -> None:
+    def _emit(self, msg: str, *, level: int = logging.INFO) -> None:
+        logger.log(level, "%s", msg)
         try:
-            print(msg, flush=True)
-        except Exception:
-            pass
-        try:
-            self.status_signal.emit(msg)
+            self.status_signal.emit(f"[{logging.getLevelName(level)}] {msg}")
         except Exception:
             pass
 
@@ -301,7 +301,7 @@ class ModelWrapper(QObject):
         if not event or event in self._cache_events_seen:
             return
         self._cache_events_seen.add(event)
-        print(f"[DEBUG] MathCraft model cache: {event}")
+        logger.debug("MathCraft model cache: %s", event)
         try:
             self.status_signal.emit(f"[INFO] MathCraft model cache: {event}")
         except Exception:
@@ -325,9 +325,9 @@ class ModelWrapper(QObject):
                     if line.startswith(prefix):
                         self._emit_cache_event_once(line[len(prefix):].strip())
                     else:
-                        print(f"[INFO] MathCraft worker stderr pid={proc.pid}: {line}", flush=True)
+                        logger.info("MathCraft worker stderr pid=%s: %s", proc.pid, line)
             except (OSError, ValueError) as exc:
-                print(f"[WARN] MathCraft worker stderr read failed: {exc}", flush=True)
+                logger.warning("MathCraft worker stderr read failed: %s", exc)
 
         self._stderr_thread = threading.Thread(target=_pump, daemon=True)
         self._stderr_thread.start()
@@ -376,7 +376,7 @@ class ModelWrapper(QObject):
                 return True
             except Exception as exc:
                 self._set_error(str(exc))
-                self._emit(f"[ERR] MathCraft OCR 运行进程启动失败:\n{format_exception_diagnostics(exc)}")
+                self._emit(f"MathCraft OCR 运行进程启动失败:\n{format_exception_diagnostics(exc)}", level=logging.ERROR)
                 self._worker = None
                 return False
 
@@ -465,11 +465,11 @@ class ModelWrapper(QObject):
                 proc.kill()
                 proc.wait(timeout=1)
         except (OSError, subprocess.TimeoutExpired) as exc:
-            self._emit(f"[WARN] MathCraft worker cleanup pid={proc.pid}: {exc}")
+            self._emit(f"MathCraft worker cleanup pid={proc.pid}: {exc}", level=logging.WARNING)
         if self._stderr_thread is not None:
             self._stderr_thread.join(timeout=1)
             if self._stderr_thread.is_alive():
-                self._emit(f"[WARN] MathCraft worker stderr drain incomplete pid={proc.pid}")
+                self._emit(f"MathCraft worker stderr drain incomplete pid={proc.pid}", level=logging.WARNING)
             self._stderr_thread = None
         self._ready = False
         self._ready_modes.clear()
@@ -523,15 +523,16 @@ class ModelWrapper(QObject):
             self._ready_modes.add(mode)
             self._clear_error()
             self._emit(
-                "[INFO] MathCraft OCR 已就绪"
+                "MathCraft OCR 已就绪"
                 f"{f'（实际后端: {active_provider}）' if active_provider else ''}"
             )
             return True
         except Exception as exc:
             info = self._set_error(str(exc))
             self._emit(
-                f"[ERR] MathCraft OCR 预热失败 code={info['code']} profile={mode}\n"
-                f"{info['log_message']}\n{format_exception_diagnostics(exc)}"
+                f"MathCraft OCR 预热失败 code={info['code']} profile={mode}\n"
+                f"{info['log_message']}\n{format_exception_diagnostics(exc)}",
+                level=logging.ERROR,
             )
             return False
 

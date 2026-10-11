@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import html as html_module
 import re
 from collections.abc import Callable
@@ -14,6 +15,8 @@ from preview.math_preview import (
     preview_theme_tokens,
 )
 from runtime.content_types import normalize_content_type
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 FormulaRenderer = Callable[[str], str]
@@ -227,7 +230,7 @@ def render_content_block(
 </div>'''
         return result
     except Exception as exc:
-        print(f"[WARN] 预览内容块渲染失败: {exc}")
+        logger.warning("预览内容块渲染失败: %s", exc)
         tokens = preview_theme_tokens()
         error_msg = tr("内容块渲染失败: {error}").format(error=exc)
         return (
@@ -280,6 +283,6 @@ def render_mixed_content(content: str) -> str:
 
         return "".join(result_parts)
     except Exception as exc:
-        print(f"[WARN] 混合内容渲染失败: {exc}")
+        logger.warning("混合内容渲染失败: %s", exc)
         message = tr("混合内容渲染失败: {error}").format(error=exc)
         return f'<div style="color: red;">{html_module.escape(message)}</div>'

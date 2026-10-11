@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import atexit
-import builtins
 import io
 import logging
 import os
@@ -17,12 +16,9 @@ from runtime.log_lifecycle import (
     APP_LOG_MAX_BYTES,
     cleanup_stale_fallback_logs,
 )
-from runtime.log_record import PERSISTENT_LOG_LEVEL, parse_print_log_record
 
 APP_LOG_FILE: Path | None = None
 
-_ORIGINAL_PRINT = None
-_PRINT_BRIDGE_INSTALLED = False
 _RUNTIME_SESSION_HANDLER = None
 _APP_LOGGING_INITIALIZED = False
 _RUNTIME_LOG_PATH = None
@@ -30,6 +26,8 @@ _RUNTIME_LOG_FH_OUT = None
 _RUNTIME_LOG_FH_ERR = None
 _RUNTIME_LOG_RESET_DONE = False
 _RUNTIME_LOG_CLEANUP_HOOKED = False
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 def _configure_utf8_stdio() -> None:
@@ -154,7 +152,7 @@ class TeeWriter(io.TextIOBase):
 
 def init_app_logging() -> Path:
     """Initialize application logging and route output to the runtime log."""
-    global APP_LOG_FILE, _RUNTIME_SESSION_HANDLER, _APP_LOGGING_INITIALIZED
+    global APP_LOG_FILE, _APP_LOGGING_INITIALIZED
     _configure_utf8_stdio()
     log_dir = Path(app_log_dir())
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -166,6 +164,7 @@ def init_app_logging() -> Path:
 
     root = logging.getLogger()
     root.setLevel(logging.INFO)
+    logging.getLogger("latexsnipper").setLevel(logging.DEBUG)
 
     has_file = any(
         isinstance(h, RotatingFileHandler)
@@ -175,7 +174,7 @@ def init_app_logging() -> Path:
     has_stream = any(isinstance(h, logging.StreamHandler) and not isinstance(h, RotatingFileHandler) for h in root.handlers)
 
     fmt = logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s")
-    file_handler = None
+    startup_warning = None
     active_log_path = log_path
     if not has_file:
         try:
@@ -194,65 +193,30 @@ def init_app_logging() -> Path:
                     backupCount=APP_LOG_BACKUP_COUNT,
                     encoding="utf-8",
                 )
-                try:
-                    if sys.__stderr__ and not getattr(sys.__stderr__, "closed", False):
-                        sys.__stderr__.write(f"[WARN] app.log 被占用，已切换到 {active_log_path}: {e}\n")
-                except Exception:
-                    pass
+                startup_warning = f"app.log 被占用，已切换到 {active_log_path}: {e}"
             except Exception as fallback_error:
                 fh = None
-                try:
-                    if sys.__stderr__ and not getattr(sys.__stderr__, "closed", False):
-                        sys.__stderr__.write(f"[WARN] 无法初始化文件日志，继续仅使用控制台日志: {fallback_error}\n")
-                except Exception:
-                    pass
+                startup_warning = f"无法初始化文件日志，继续仅使用控制台日志: {fallback_error}"
         if fh is not None:
             fh.setFormatter(fmt)
-            fh.setLevel(PERSISTENT_LOG_LEVEL)
+            fh.setLevel(logging.INFO)
             root.addHandler(fh)
-            file_handler = fh
     else:
         for h in root.handlers:
             if isinstance(h, RotatingFileHandler) and os.path.abspath(getattr(h, "baseFilename", "")) == os.path.abspath(str(log_path)):
-                file_handler = h
-                file_handler.setLevel(PERSISTENT_LOG_LEVEL)
+                h.setLevel(logging.INFO)
                 active_log_path = Path(getattr(h, "baseFilename", str(log_path)))
                 break
     if not has_stream:
-        sh = logging.StreamHandler(sys.__stdout__)
-        sh.setFormatter(fmt)
+        sh = logging.StreamHandler(sys.stdout)
+        sh.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
+        sh.setLevel(logging.DEBUG)
         root.addHandler(sh)
-
-    global _ORIGINAL_PRINT, _PRINT_BRIDGE_INSTALLED
-    if (not _PRINT_BRIDGE_INSTALLED) and (file_handler is not None):
-        _ORIGINAL_PRINT = builtins.print
-
-        bridge_logger = logging.getLogger("runtime.print")
-        bridge_logger.setLevel(logging.DEBUG)
-        bridge_logger.propagate = False
-        if not any(h is file_handler for h in bridge_logger.handlers):
-            bridge_logger.addHandler(file_handler)
-
-        def _print_bridge(*args, **kwargs):
-            _ORIGINAL_PRINT(*args, **kwargs)
-            try:
-                target = kwargs.get("file", None)
-                if target not in (None, sys.stdout, sys.stderr, sys.__stdout__, sys.__stderr__):
-                    return
-                sep = kwargs.get("sep", " ")
-                msg = sep.join(str(a) for a in args).rstrip("\r\n")
-                if msg:
-                    level, clean_message = parse_print_log_record(msg)
-                    if clean_message:
-                        bridge_logger.log(level, clean_message)
-            except Exception:
-                pass
-
-        builtins.print = _print_bridge
-        _PRINT_BRIDGE_INSTALLED = True
 
     APP_LOG_FILE = active_log_path
     _APP_LOGGING_INITIALIZED = True
+    if startup_warning:
+        logger.warning("%s", startup_warning)
     return active_log_path
 
 
@@ -263,10 +227,11 @@ def start_runtime_log_session() -> None:
         return
     hook_runtime_log_streams(tee=not getattr(sys, "frozen", False))
     handler = logging.StreamHandler(_RUNTIME_LOG_FH_OUT)
-    handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s"))
+    handler.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
+    handler.setLevel(logging.DEBUG)
     logging.getLogger().addHandler(handler)
     _RUNTIME_SESSION_HANDLER = handler
-    logging.info("LaTeXSnipper 启动 pid=%s", os.getpid())
+    logger.info("LaTeXSnipper 启动 pid=%s", os.getpid())
 
 
 def runtime_log_path() -> Path:
@@ -281,6 +246,11 @@ def runtime_log_path() -> Path:
 
 def cleanup_runtime_log_session():
     global _RUNTIME_LOG_FH_OUT, _RUNTIME_LOG_FH_ERR, _RUNTIME_SESSION_HANDLER
+    if _RUNTIME_SESSION_HANDLER is not None:
+        logging.getLogger().removeHandler(_RUNTIME_SESSION_HANDLER)
+        _RUNTIME_SESSION_HANDLER.flush()
+        _RUNTIME_SESSION_HANDLER.close()
+        _RUNTIME_SESSION_HANDLER = None
     try:
         if isinstance(sys.stdout, TeeWriter) or sys.stdout is _RUNTIME_LOG_FH_OUT:
             sys.stdout = sys.__stdout__
@@ -300,24 +270,6 @@ def cleanup_runtime_log_session():
             except Exception:
                 pass
         globals()[fh_name] = None
-    try:
-        if _RUNTIME_SESSION_HANDLER is not None:
-            root = logging.getLogger()
-            try:
-                root.removeHandler(_RUNTIME_SESSION_HANDLER)
-            except Exception:
-                pass
-            try:
-                _RUNTIME_SESSION_HANDLER.flush()
-            except Exception:
-                pass
-            try:
-                _RUNTIME_SESSION_HANDLER.close()
-            except Exception:
-                pass
-    except Exception:
-        pass
-    _RUNTIME_SESSION_HANDLER = None
 
 
 def ensure_runtime_log_cleanup_hook():

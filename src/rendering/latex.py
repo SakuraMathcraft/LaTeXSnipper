@@ -1,5 +1,6 @@
 """LaTeX rendering helpers for pdflatex, xelatex, and MathJax fallback modes."""
 
+import logging
 import subprocess
 import tempfile
 import shutil
@@ -8,6 +9,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Protocol
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 LATEX_RENDER_MODE_KEY = "latex_render_mode"
 LATEX_EXECUTABLE_PATH_KEY = "latex_executable_path"
@@ -547,7 +550,7 @@ class LaTeXRenderer:
             self.latex_cmd = self._detect_latex()
 
         if self.latex_cmd and not Path(self.latex_cmd).exists():
-            print(f"[WARN] LaTeX 路径不存在: {self.latex_cmd}")
+            logger.warning("LaTeX 路径不存在: %s", self.latex_cmd)
             self.latex_cmd = None
 
     def _detect_latex(self) -> Optional[str]:
@@ -562,7 +565,7 @@ class LaTeXRenderer:
                 )
                 if result.returncode == 0:
                     full_path = shutil.which(cmd)
-                    print(f"[DEBUG] 检测到 LaTeX 命令 {cmd}: {full_path}")
+                    logger.debug("检测到 LaTeX 命令 %s: %s", cmd, full_path)
                     return full_path
             except Exception:
                 pass
@@ -576,7 +579,7 @@ class LaTeXRenderer:
     def render_to_svg(self, latex_code: str) -> Optional[str]:
         """Render a LaTeX formula to SVG, returning None on failure."""
         if not self.is_available():
-            print("[DEBUG] LaTeX 不可用，跳过 SVG 渲染")
+            logger.debug("LaTeX 不可用，跳过 SVG 渲染")
             return None
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
@@ -601,8 +604,8 @@ class LaTeXRenderer:
                     **_hidden_subprocess_kwargs(),
                 )
                 if compile_result.returncode != 0:
-                    print("[ERR] LaTeX 编译失败")
-                    print(f"[DEBUG] LaTeX 编译输出:\n{compile_result.stdout}")
+                    logger.error("LaTeX 编译失败")
+                    logger.debug("LaTeX 编译输出:\n%s", compile_result.stdout)
                     return None
 
                 try:
@@ -614,15 +617,15 @@ class LaTeXRenderer:
                     )
                     if pdftocairo_result.returncode == 0 and svg_file.exists():
                         svg_content = svg_file.read_text(encoding="utf-8")
-                        print(f"[DEBUG] LaTeX 已渲染 SVG: {len(svg_content)} bytes")
+                        logger.debug("LaTeX 已渲染 SVG: %s bytes", len(svg_content))
                         return self._enlarge_svg(svg_content, scale=1.6)
                 except FileNotFoundError:
-                    print("[WARN] 未找到 pdftocairo，无法将 PDF 转换为 SVG")
+                    logger.warning("未找到 pdftocairo，无法将 PDF 转换为 SVG")
                     return None
         except subprocess.TimeoutExpired:
-            print("[ERR] LaTeX 编译超时")
+            logger.error("LaTeX 编译超时")
         except Exception as e:
-            print(f"[ERR] LaTeX 渲染失败: {e}")
+            logger.error("LaTeX 渲染失败: %s", e)
         return None
 
     def _enlarge_svg(self, svg_content: str, scale: float = 2.0) -> str:

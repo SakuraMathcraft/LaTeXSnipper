@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from localization.manager import translate as tr
 
 import threading
@@ -16,6 +17,8 @@ from backend.mathcraft.diagnostics import classify_mathcraft_failure
 from recognition.error_messages import translate_mathcraft_diagnostic
 from runtime.dependency_python import resolve_dependency_python
 from ui.theme_controller import normalize_theme_mode
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 class ModelRuntimeControllerMixin:
@@ -52,9 +55,9 @@ class ModelRuntimeControllerMixin:
                     self.cfg.set(key, default)
                     changed = True
             if changed:
-                print("[DEBUG] 已校正当前模型配置")
+                logger.debug("已校正当前模型配置")
         except Exception as e:
-            print(f"[WARN] 模型配置校验失败: {e}")
+            logger.warning("模型配置校验失败: %s", e)
 
     def _get_preferred_model_for_predict(self) -> str:
         desired = (self.cfg.get("desired_model", "mathcraft") or "mathcraft").lower()
@@ -224,7 +227,7 @@ class ModelRuntimeControllerMixin:
                 }
                 self._model_warmup_result_signal.emit()
             except RuntimeError as e:
-                print(f"[DEBUG] 退出期间忽略模型预热回调: {e}")
+                logger.debug("退出期间忽略模型预热回调: %s", e)
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -452,6 +455,6 @@ class ModelRuntimeControllerMixin:
         except Exception:
             pass
         try:
-            print(f"[INFO] MathCraft OCR 运行进程已重启: {reason}")
+            logger.info("MathCraft OCR 运行进程已重启: %s", reason)
         except Exception:
             pass

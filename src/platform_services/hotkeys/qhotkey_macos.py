@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import ctypes
 import ctypes.util
 from typing import Any, Optional, Union
 
 from PyQt6.QtCore import QObject, QTimer, Qt, pyqtSignal
 from PyQt6.QtGui import QKeySequence
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 _EVENT_CLASS_KEYBOARD = 0x6B657962  # b"keyb"
 _EVENT_HOTKEY_PRESSED = 5
@@ -271,15 +274,15 @@ class MacHotkey(QObject):
         self._hotkey_id = hotkey_id
         self._hotkey_ref = hotkey_ref
         self._registered = True
-        print(f"[DEBUG] 全局快捷键已注册: id={self._hotkey_id} seq={self._seq_str} macOS")
+        logger.debug("全局快捷键已注册: id=%s seq=%s macOS", self._hotkey_id, self._seq_str)
 
     def unregister(self) -> None:
         if self._registered and self._hotkey_ref.value and self._carbon is not None:
             try:
                 self._carbon.UnregisterEventHotKey(self._hotkey_ref)
-                print(f"[DEBUG] 全局快捷键已注销: id={self._hotkey_id} macOS")
+                logger.debug("全局快捷键已注销: id=%s macOS", self._hotkey_id)
             except Exception as exc:
-                print(f"[WARN] macOS 全局快捷键注销失败: {exc}")
+                logger.warning("macOS 全局快捷键注销失败: %s", exc)
         self._registered = False
         self._hotkey_ref = ctypes.c_void_p()
         self._hotkey_id = None
@@ -292,7 +295,7 @@ class MacHotkey(QObject):
             try:
                 self._carbon.RemoveEventHandler(self._handler_ref)
             except Exception as exc:
-                print(f"[WARN] macOS 全局快捷键事件清理失败: {exc}")
+                logger.warning("macOS 全局快捷键事件清理失败: %s", exc)
         self._handler_ref = ctypes.c_void_p()
         self._handler_proc = None
 

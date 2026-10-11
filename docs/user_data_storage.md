@@ -14,6 +14,13 @@ and temporary files. Keep new app-managed writes under the shared helpers in
 
 ## Persistent App State
 
+Application diagnostics use Python's standard `logging` API. `app.log` stores
+`INFO` and higher levels as `[date time] [LEVEL] message` with bounded rotation.
+`runtime-session.log` is reset after the instance lock is acquired and includes
+application `DEBUG` diagnostics as `[LEVEL] message`. It also captures raw
+third-party stdout/stderr. The runtime log window only reads this session file;
+opening or closing the window does not activate or stop logging.
+
 | Data | Path under app state | Owner |
 |---|---|---|
 | Main settings | `LaTeXSnipper_config.json` | Unified application settings, including dependency root, recognition backends, external models, Automation API, theme, rendering, export, and window behavior |

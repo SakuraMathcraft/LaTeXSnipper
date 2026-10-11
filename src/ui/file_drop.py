@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from localization.manager import translate as tr
@@ -10,6 +11,8 @@ from qfluentwidgets import InfoBar, InfoBarPosition
 
 from recognition.image_contracts import SUPPORTED_IMAGE_EXTENSIONS
 from recognition.image_input import image_from_qimage
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 class FileDropMixin:
@@ -105,7 +108,7 @@ class FileDropMixin:
                 position=InfoBarPosition.TOP,
             )
         except Exception as exc:
-            print(f"[WARN] 无法显示拖入文件提示: {exc}")
+            logger.warning("无法显示拖入文件提示: %s", exc)
 
     def _enable_file_drop_target(self, widget) -> None:
         if widget is None:

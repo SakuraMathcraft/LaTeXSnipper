@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import queue
 import secrets
 import threading
@@ -27,6 +28,8 @@ from recognition.jobs.models import (
     utc_now_iso,
 )
 from recognition.jobs.executors import ExternalRecognitionExecutor
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 _MODE_TO_MODEL = {"formula": "mathcraft", "text": "mathcraft_text", "mixed": "mathcraft_mixed"}
@@ -490,7 +493,7 @@ class RecognitionJobCoordinator:
         if provider:
             context = f"{context} provider={provider}"
         diagnostics = format_exception_diagnostics(exc)
-        print(f"[ERR] 识别执行异常 {context}\n{diagnostics}", flush=True)
+        logger.error("识别执行异常 %s\n%s", context, diagnostics)
 
     @staticmethod
     def _safe_execution_error(backend: str, exc: Exception) -> tuple[str, str]:

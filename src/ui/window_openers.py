@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from localization.manager import translate as tr
 
 import threading
@@ -14,6 +15,8 @@ from recognition.model_policy import (
 from runtime.content_types import FORMULA_CONTENT_TYPE, content_type_for_external_output
 from ui.settings_window import SettingsWindow
 from ui.window_helpers import show_normal_window
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 class WindowOpenersMixin:
@@ -133,7 +136,7 @@ class WindowOpenersMixin:
                 self.model._lazy_load_mathcraft(handwriting_model)
             except Exception as exc:
                 try:
-                    print(f"[WARN] 手写识别 MathCraft 预热失败: {exc}", flush=True)
+                    logger.warning("手写识别 MathCraft 预热失败: %s", exc)
                 except Exception:
                     pass
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from localization.manager import translate as tr
 
 from PyQt6.QtCore import QEvent, QTimer
@@ -15,6 +16,8 @@ from preview.math_preview import (
     is_dark_ui,
 )
 from ui.window_helpers import apply_no_minimize_window_flags
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 class EditFormulaDialog(QDialog):
@@ -120,7 +123,7 @@ class EditFormulaDialog(QDialog):
             html, base_url = self._build_preview_payload(latex)
             self.preview_view.setHtml(html, base_url)
         except Exception as exc:
-            print(f"[WARN] 重命名公式预览渲染失败: {exc}")
+            logger.warning("重命名公式预览渲染失败: %s", exc)
 
     def closeEvent(self, event):
         try:

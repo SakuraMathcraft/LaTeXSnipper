@@ -9,6 +9,8 @@ from pathlib import Path
 
 from runtime.dependency_python import clean_path_value
 
+logger = logging.getLogger(f"latexsnipper.{__name__}")
+
 
 def configure_default_webengine_profile() -> None:
     """Apply MathJax-friendly WebEngine settings after QApplication exists."""
@@ -22,23 +24,13 @@ def configure_default_webengine_profile() -> None:
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
     except Exception as e:
-        print(f"[WARN] QWebEngine 配置失败: {e}")
+        logger.warning("QWebEngine 配置失败: %s", e)
 
 
 def log_webengine_diagnostics(stage: str, err: Exception | None = None, app_dir: Path | None = None) -> None:
     """Output diagnostics for packaged WebEngine failures."""
-    if err is None and not logging.getLogger("webengine").isEnabledFor(logging.DEBUG):
+    if err is None and not logger.isEnabledFor(logging.DEBUG):
         return
-    try:
-        logger = logging.getLogger("webengine")
-        log_debug = logger.debug
-        log_warn = logger.warning
-    except Exception:
-        def log_debug(message: str) -> None:
-            print(f"[DEBUG] {message}")
-
-        def log_warn(message: str) -> None:
-            print(f"[WARN] {message}")
 
     def _fmt(path: Path | None) -> str:
         try:
@@ -46,13 +38,13 @@ def log_webengine_diagnostics(stage: str, err: Exception | None = None, app_dir:
         except Exception:
             return "<invalid>"
 
-    log_debug(f"WebEngine 诊断阶段: {stage}")
+    logger.debug(f"WebEngine 诊断阶段: {stage}")
     if err is not None:
-        log_warn(f"WebEngine 异常: {err}")
+        logger.warning(f"WebEngine 异常: {err}")
 
-    log_debug(f"WebEngine frozen={getattr(sys, 'frozen', False)} _MEIPASS={getattr(sys, '_MEIPASS', None)}")
-    log_debug(f"WebEngine executable={sys.executable}")
-    log_debug(f"WebEngine APP_DIR={_fmt(app_dir)}")
+    logger.debug(f"WebEngine frozen={getattr(sys, 'frozen', False)} _MEIPASS={getattr(sys, '_MEIPASS', None)}")
+    logger.debug(f"WebEngine executable={sys.executable}")
+    logger.debug(f"WebEngine APP_DIR={_fmt(app_dir)}")
 
     exe_name = "QtWebEngineProcess.exe" if os.name == "nt" else "QtWebEngineProcess"
     candidates = []
@@ -81,9 +73,9 @@ def log_webengine_diagnostics(stage: str, err: Exception | None = None, app_dir:
         candidates = []
 
     found = next((p for p in candidates if p.exists()), None)
-    log_debug(f"WebEngine QtWebEngineProcess found={_fmt(found)}")
+    logger.debug(f"WebEngine QtWebEngineProcess found={_fmt(found)}")
     if not found and candidates:
-        log_warn(f"未找到 QtWebEngineProcess，候选路径: {', '.join(_fmt(p) for p in candidates)}")
+        logger.warning(f"未找到 QtWebEngineProcess，候选路径: {', '.join(_fmt(p) for p in candidates)}")
 
     resource_dirs = []
     try:
@@ -109,7 +101,7 @@ def log_webengine_diagnostics(stage: str, err: Exception | None = None, app_dir:
             continue
         missing = [f for f in required if not (rdir / f).exists()]
         present_opt = [f for f in optional if (rdir / f).exists()]
-        log_debug(f"WebEngine resources_dir={_fmt(rdir)} missing={missing or '<none>'} optional={present_opt or '<none>'}")
+        logger.debug(f"WebEngine resources_dir={_fmt(rdir)} missing={missing or '<none>'} optional={present_opt or '<none>'}")
 
     locale_dirs = []
     try:
@@ -133,7 +125,7 @@ def log_webengine_diagnostics(stage: str, err: Exception | None = None, app_dir:
             pak_count = len(list(ldir.glob("*.pak")))
         except Exception:
             pak_count = 0
-        log_debug(f"WebEngine locales_dir={_fmt(ldir)} pak_count={pak_count}")
+        logger.debug(f"WebEngine locales_dir={_fmt(ldir)} pak_count={pak_count}")
 
 
 _QWEBENGINE_VIEW = None
@@ -148,10 +140,7 @@ def load_webengine_view(app_dir: Path | None = None):
         log_webengine_diagnostics("import-ok", app_dir=app_dir)
         return QWebEngineView
     except Exception as e:
-        print(f"[WARN] WebEngine 未就绪: {e}")
-        import traceback
-
-        traceback.print_exc()
+        logger.warning("WebEngine 未就绪: %s", e, exc_info=True)
         log_webengine_diagnostics("import-failed", e, app_dir=app_dir)
         return None
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from localization.manager import translate as tr
 
 import pyperclip
@@ -24,6 +25,8 @@ from ui.window_helpers import (
     exec_close_only_message_box as _exec_close_only_message_box,
     show_formula_rename_dialog as _show_formula_rename_dialog,
 )
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 MAX_HISTORY = 200
 
@@ -133,7 +136,7 @@ class HistoryControllerMixin:
             try:
                 self.save_history()
             except Exception as e:
-                print("[WARN] 保存历史失败:", e)
+                logger.warning("保存历史失败: %s", e)
 
         for i, (formula, label, content_type) in enumerate(self._rendered_formulas):
             if formula == old_latex:
@@ -277,7 +280,7 @@ class HistoryControllerMixin:
                 self.history_file
             )
         except Exception as e:
-            print(f"[WARN] 加载历史失败: {e}")
+            logger.warning("加载历史失败: %s", e)
             self.history = []
         self.rebuild_history_ui()
 
@@ -316,7 +319,7 @@ class HistoryControllerMixin:
                 self._formula_types,
             )
         except Exception as e:
-            print(f"[WARN] 保存历史失败: {e}")
+            logger.warning("保存历史失败: %s", e)
 
     def clear_history(self):
 

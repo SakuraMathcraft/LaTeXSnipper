@@ -1,3 +1,4 @@
+import logging
 import json
 import os
 import re
@@ -19,6 +20,8 @@ from runtime.dependency_runtime import site_packages_root as _site_packages_root
 from bootstrap.deps_layer_specs import _diagnose_install_failure, layer_display_name
 from runtime.app_paths import app_config_path
 from runtime.native_runtime import isolated_python_code
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 RUNTIME_SUPPORT_SPECS = {
@@ -66,7 +69,7 @@ def tail_dependency_log_text(text: object, limit: int = VERIFY_LOG_DETAIL_LIMIT)
 
 def format_layer_verify_failure(layer: str, err: object, *, limit: int = VERIFY_LOG_DETAIL_LIMIT) -> str:
     detail = tail_dependency_log_text(err, limit=limit) or "验证失败，但没有可用错误输出。"
-    return f"[ERR] {layer_display_name(layer)}验证失败:\n{detail}"
+    return f"{layer_display_name(layer)}验证失败:\n{detail}"
 
 
 RUNTIME_IMPORT_CHECKS = {
@@ -509,20 +512,18 @@ def onnxruntime_verify_failure_guidance(expect_gpu: bool, detail: str = "") -> l
     return lines
 
 
-def _verify_installed_layers(pyexe: str, claimed_layers: list, log_fn=None) -> list:
+def _verify_installed_layers(pyexe: str, claimed_layers: list) -> list:
     """Verify all installed layers and return the layers that pass."""
     verified = []
     for layer in claimed_layers:
         ok, err = _verify_layer_runtime(pyexe, layer)
         if ok:
             verified.append(layer)
-            if log_fn:
-                log_fn(f"[INFO] {layer_display_name(layer)}验证通过")
+            logger.info("%s验证通过", layer_display_name(layer))
         else:
-            if log_fn:
-                log_fn(format_layer_verify_failure(layer, err))
-                for diag_line in _layer_verify_failure_diagnostics(layer):
-                    log_fn(f"[DEBUG] {diag_line}")
+            logger.error("%s", format_layer_verify_failure(layer, err))
+            for diag_line in _layer_verify_failure_diagnostics(layer):
+                logger.debug("%s", diag_line)
     return verified
 
 
@@ -733,7 +734,7 @@ def _current_installed(pyexe):
             if isinstance(data, dict):
                 return {str(k).lower(): str(v) for k, v in data.items()}
         except Exception as e:
-            print(f"[WARN] importlib.metadata 回退失败: {e}")
+            logger.warning("importlib.metadata 回退失败: %s", e)
         return {}
 
     try:
@@ -741,7 +742,7 @@ def _current_installed(pyexe):
             subprocess.check_call([str(pyexe), "-m", "pip", "--version"],
                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
     except Exception as e:
-        print(f"[WARN] pip 不可用，使用元数据回退: {e}")
+        logger.warning("pip 不可用，使用元数据回退: %s", e)
         return _installed_via_metadata()
     try:
         with subprocess_lock:
@@ -765,13 +766,13 @@ def _current_installed(pyexe):
                 raise
         result = {d["name"].lower(): d["version"] for d in data}
         if not result:
-            print("[WARN] pip list 返回 0 个包，使用元数据回退二次确认。")
+            logger.warning("pip list 返回 0 个包，使用元数据回退二次确认。")
             metadata_installed = _installed_via_metadata()
             if metadata_installed:
                 return metadata_installed
         return result
     except Exception as e:
-        print(f"[WARN] 获取已安装包列表失败，使用元数据回退: {e}")
+        logger.warning("获取已安装包列表失败，使用元数据回退: %s", e)
         return _installed_via_metadata()
 
 

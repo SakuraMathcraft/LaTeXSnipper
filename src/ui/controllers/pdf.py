@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from localization.manager import translate as tr
 
 from pathlib import Path
@@ -22,6 +23,8 @@ from ui.window_helpers import (
     select_save_file_with_icon as _select_save_file_with_icon,
 )
 from recognition.workers import PdfPredictWorker
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 def parse_pdf_page_range(text: str, total_pages: int) -> tuple[int, int]:
@@ -359,9 +362,9 @@ class PdfRecognitionControllerMixin:
         self._release_pdf_progress()
         elapsed = self.pdf_predict_worker.elapsed
         if elapsed is not None:
-            print(f"[INFO] PDF 识别完成 model={used} time={elapsed:.2f}s")
+            logger.info("PDF 识别完成 model=%s time=%ss", used, f'{elapsed:.2f}')
         else:
-            print(f"[INFO] PDF 识别完成 model={used}")
+            logger.info("PDF 识别完成 model=%s", used)
         fmt_key = self._pdf_output_format or "markdown"
         style_key = self._pdf_doc_style or "document"
         structured_result = getattr(
@@ -386,7 +389,7 @@ class PdfRecognitionControllerMixin:
         self._release_pdf_progress()
         if self._is_user_cancelled_recognition_error(msg):
             try:
-                print(f"[DEBUG] PDF 识别已中断: {msg}")
+                logger.debug("PDF 识别已中断: %s", msg)
             except Exception:
                 pass
             self._show_recognition_cancelled_infobar()
@@ -400,9 +403,9 @@ class PdfRecognitionControllerMixin:
             used = self.pdf_predict_worker.model_name
         elapsed = self.pdf_predict_worker.elapsed
         if elapsed is not None:
-            print(f"[ERR] PDF 识别失败 model={used} time={elapsed:.2f}s err={msg}")
+            logger.error("PDF 识别失败 model=%s time=%ss err=%s", used, f'{elapsed:.2f}', msg)
         else:
-            print(f"[ERR] PDF 识别失败 model={used} err={msg}")
+            logger.error("PDF 识别失败 model=%s err=%s", used, msg)
 
         content = self._recognition_failure_content(
             msg, worker_attr="pdf_predict_worker"

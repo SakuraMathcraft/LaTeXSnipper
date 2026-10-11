@@ -42,6 +42,8 @@ from ui.startup_splash import (
 )
 from runtime.webengine_runtime import configure_default_webengine_profile
 
+logger = logging.getLogger(f"latexsnipper.{__name__}")
+
 
 @dataclass(frozen=True)
 class BootstrapContext:
@@ -79,7 +81,7 @@ def _show_already_running_message(app: QApplication) -> None:
             msg.setWindowIcon(icon)
         msg.exec()
     except Exception:
-        print("[INFO] 检测到已有实例，本次启动已取消")
+        logger.info("检测到已有实例，本次启动已取消")
 
 
 def _ensure_single_instance(app: QApplication) -> None:
@@ -105,7 +107,7 @@ def _prepare_python_runtime(install_base_dir: Path) -> tuple[Path, str]:
     ensure_startup_splash(tr("准备运行环境..."))
     target_py = ensure_full_python_or_prompt(base_dir)
     if not target_py:
-        print("[ERR] 未找到可用的完整依赖环境 Python。")
+        logger.error("未找到可用的完整依赖环境 Python。")
         raise SystemExit(2)
 
     os.environ["LATEXSNIPPER_PYEXE"] = target_py
@@ -119,7 +121,7 @@ def _prepare_python_runtime(install_base_dir: Path) -> tuple[Path, str]:
         if not _same_exe(sys.executable, target_py):
             _relaunch_with(target_py)
     elif _in_ide():
-        logging.getLogger(__name__).debug("IDE 中运行，保持当前解释器并使用私有依赖路径")
+        logger.debug("IDE 中运行，保持当前解释器并使用私有依赖路径")
 
     return base_dir, target_py
 
@@ -145,7 +147,7 @@ def _prepare_python_runtime_for_dependency_management(
     os.environ.pop("PYTHONPATH", None)
     os.environ.pop("MATHCRAFT_HOME", None)
 
-    logging.getLogger(__name__).debug("依赖管理模式：等待用户选择后准备 Python 环境")
+    logger.debug("依赖管理模式：等待用户选择后准备 Python 环境")
     return base_dir, target_py
 
 
@@ -161,7 +163,7 @@ def _bootstrap_dependencies(base_dir: Path, target_py: str) -> None:
         os.environ.get("LATEXSNIPPER_OPEN_DEPENDENCY_MANAGEMENT", "") == "1"
     )
     if open_dependency_management:
-        logging.getLogger(__name__).debug("依赖管理模式：统一验证依赖")
+        logger.debug("依赖管理模式：统一验证依赖")
         return
 
     ensure_startup_splash(tr("检查依赖..."))
@@ -177,7 +179,7 @@ def _bootstrap_dependencies(base_dir: Path, target_py: str) -> None:
         if not ok:
             raise SystemExit(0)
     except Exception as e:
-        print(f"[WARN] 依赖管理启动失败: {e}")
+        logger.warning("依赖管理启动失败: %s", e)
         raise SystemExit(1) from e
 
 
@@ -194,12 +196,12 @@ def bootstrap_application() -> BootstrapContext:
     _ensure_src_path()
     configure_default_webengine_profile()
 
-    logging.getLogger(__name__).debug(f"应用根目录: {APP_DIR}")
-    logging.getLogger(__name__).debug(f"打包模式: {_is_packaged_mode()}")
+    logger.debug(f"应用根目录: {APP_DIR}")
+    logger.debug(f"打包模式: {_is_packaged_mode()}")
 
     deps_dir = _initial_deps_dir()
     deps_dir.mkdir(parents=True, exist_ok=True)
-    logging.getLogger(__name__).debug(f"依赖目录: {deps_dir}")
+    logger.debug(f"依赖目录: {deps_dir}")
 
     install_base_dir = resolve_install_base_dir()
     open_dependency_management = (
@@ -218,7 +220,7 @@ def bootstrap_application() -> BootstrapContext:
 
     for var in ("PYTHONHOME", "PYTHONPATH", "MATHCRAFT_HOME"):
         if var in os.environ:
-            logging.getLogger(__name__).debug(f"清除环境变量 {var}")
+            logger.debug(f"清除环境变量 {var}")
             os.environ.pop(var)
 
     _BOOTSTRAP_CONTEXT = BootstrapContext(

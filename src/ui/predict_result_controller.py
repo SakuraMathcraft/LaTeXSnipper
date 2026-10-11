@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from localization.manager import translate as tr
 
 import ctypes
@@ -23,6 +24,8 @@ from runtime.hotkey_config import display_hotkey, normalize_hotkey_or_default
 from runtime.webengine_runtime import ensure_webengine_loaded
 from ui.predict_result_dialog import show_predict_result_dialog
 from ui.window_helpers import show_normal_window
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 RECOGNITION_FAILURE_TRAY_COOLDOWN_SECONDS = 10.0
 
@@ -303,9 +306,9 @@ class PredictResultControllerMixin:
         self.set_model_status(tr("完成"))
         self.set_action_status(tr("识别完成"), auto_clear_ms=3000)
         if elapsed is not None:
-            print(f"[INFO] 识别完成 model={model_name} time={elapsed:.2f}s")
+            logger.info("识别完成 model=%s time=%ss", model_name, f'{elapsed:.2f}')
         else:
-            print(f"[INFO] 识别完成 model={model_name}")
+            logger.info("识别完成 model=%s", model_name)
         self.show_confirm_dialog(content, normalize_content_type(content_type))
 
     def show_confirm_dialog(self, recognized_content: str, content_type: str):
@@ -425,7 +428,7 @@ class PredictResultControllerMixin:
                 position=InfoBarPosition.TOP,
             )
         except Exception as exc:
-            print(f"[WARN] 无法显示识别失败提示: {exc}")
+            logger.warning("无法显示识别失败提示: %s", exc)
 
     def on_predict_fail(
         self,
@@ -456,16 +459,16 @@ class PredictResultControllerMixin:
             coordinator.fail_next_result(content, code=code)
         if canceled:
             try:
-                print(f"[DEBUG] 识别已中断: {msg}")
+                logger.debug("识别已中断: %s", msg)
             except Exception:
                 pass
             self._show_recognition_cancelled_infobar()
             return
         self.set_model_status(tr("失败"))
         if elapsed is not None:
-            print(f"[ERR] 识别失败 model={model_name} time={elapsed:.2f}s err={msg}")
+            logger.error("识别失败 model=%s time=%ss err=%s", model_name, f'{elapsed:.2f}', msg)
         else:
-            print(f"[ERR] 识别失败 model={model_name} err={msg}")
+            logger.error("识别失败 model=%s err=%s", model_name, msg)
         self._show_recognition_failure_notice(content)
 
     def accept_recognition_result(self, dialog, te: QTextEdit):

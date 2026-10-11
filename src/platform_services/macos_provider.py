@@ -5,6 +5,7 @@ Provides hotkey, screenshot, and system integration using Qt and native macOS AP
 
 from __future__ import annotations
 
+import logging
 import ctypes
 import subprocess
 import sys
@@ -24,6 +25,8 @@ from platform_services.protocols import (
     TrayMenuHandlers,
 )
 from platform_services.hotkeys import QHotkey
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 class MacOSHotkeyProvider(QObject):
@@ -134,7 +137,7 @@ class MacOSScreenshotProvider:
             fn.restype = ctypes.c_bool
             return bool(fn())
         except Exception as exc:
-            print(f"[WARN] macOS 屏幕录制权限预检不可用: {exc}")
+            logger.warning("macOS 屏幕录制权限预检不可用: %s", exc)
             return None
 
     def _request_screen_capture_access(self) -> bool | None:
@@ -147,7 +150,7 @@ class MacOSScreenshotProvider:
             fn.restype = ctypes.c_bool
             return bool(fn())
         except Exception as exc:
-            print(f"[WARN] macOS 屏幕录制权限请求不可用: {exc}")
+            logger.warning("macOS 屏幕录制权限请求不可用: %s", exc)
             return None
 
     def request_permission(self) -> PermissionResult:
@@ -155,7 +158,7 @@ class MacOSScreenshotProvider:
         # target is the active app bundle in packaged mode and the launch process
         # in source mode, not merely the product name shown to the user.
         if self._screen_capture_restart_required:
-            print("[INFO] macOS 屏幕录制权限状态已变化，需要重启后再截图")
+            logger.info("macOS 屏幕录制权限状态已变化，需要重启后再截图")
             return self._permission_result(
                 PermissionState.DENIED,
                 self._screen_capture_denial_message(),
@@ -163,9 +166,7 @@ class MacOSScreenshotProvider:
 
         target, temporary_copy = self._screen_capture_permission_target()
         allowed = self._preflight_screen_capture_access()
-        print(
-            f"[DEBUG] macOS 屏幕录制权限预检: result={allowed!r} target={target} temporary_copy={temporary_copy}"
-        )
+        logger.debug("macOS 屏幕录制权限预检: result=%s target=%s temporary_copy=%s", repr(allowed), target, temporary_copy)
         if allowed is True:
             return self._permission_result(
                 PermissionState.ALLOWED, "macos-screen-recording-allowed"
@@ -178,11 +179,9 @@ class MacOSScreenshotProvider:
         if not self._screen_capture_prompted:
             self._screen_capture_prompted = True
             self._screen_capture_restart_required = True
-            print("[INFO] 通过 CoreGraphics 请求 macOS 屏幕录制权限")
+            logger.info("通过 CoreGraphics 请求 macOS 屏幕录制权限")
             requested = self._request_screen_capture_access()
-            print(
-                f"[INFO] macOS 屏幕录制权限请求结果: {requested!r}，需要重启应用后再截图"
-            )
+            logger.info("macOS 屏幕录制权限请求结果: %s，需要重启应用后再截图", repr(requested))
 
         return self._permission_result(
             PermissionState.DENIED,
@@ -201,7 +200,7 @@ class MacOSScreenshotProvider:
                 ]
             )
         except Exception as exc:
-            print(f"[WARN] 打开 macOS 隐私设置失败: {exc}")
+            logger.warning("打开 macOS 隐私设置失败: %s", exc)
 
     def create_overlay(self, cfg: ScreenshotConfig) -> ScreenCaptureOverlay:
         overlay = ScreenCaptureOverlay(
@@ -359,7 +358,7 @@ class MacOSSystemProvider:
                 if image_paste_handler():
                     return
             except Exception as exc:
-                print(f"[WARN] macOS 图片粘贴处理失败: {exc}")
+                logger.warning("macOS 图片粘贴处理失败: %s", exc)
         self._trigger_focused_widget_method("paste")
 
     def _trigger_focused_widget_method(self, method_name: str) -> None:
@@ -388,4 +387,4 @@ class MacOSSystemProvider:
         try:
             subprocess.Popen(["osascript", "-e", script])
         except Exception as exc:
-            print(f"[DEBUG] macOS 隐藏其他应用失败: {exc}")
+            logger.debug("macOS 隐藏其他应用失败: %s", exc)

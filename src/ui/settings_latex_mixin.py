@@ -1,3 +1,4 @@
+import logging
 from localization.manager import translate as tr
 import os
 import shutil
@@ -10,6 +11,8 @@ from rendering.latex import (
     update_latex_settings,
 )
 from ui.settings_dialog_helpers import _select_open_file_with_icon
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 class SettingsLatexMixin:
@@ -63,7 +66,7 @@ class SettingsLatexMixin:
                         self.latex_path_input.setText(detected_path)
                         update_latex_settings(executable_path=detected_path)
         except Exception as e:
-            print(f"[WARN] 初始化渲染引擎失败: {e}")
+            logger.warning("初始化渲染引擎失败: %s", e)
 
     def _on_render_engine_changed(self, index: int):
         """Handle render-engine changes immediately without heavy validation on the UI thread."""
@@ -71,7 +74,7 @@ class SettingsLatexMixin:
             return
         # Read the engine data from _render_modes.
         if index < 0 or index >= len(self._render_modes):
-            print(f"[WARN] 渲染引擎索引无效: {index}")
+            logger.warning("渲染引擎索引无效: %s", index)
             return
         engine = self._render_modes[index]
         # Show or hide LaTeX options.
@@ -97,7 +100,7 @@ class SettingsLatexMixin:
             if latex_path:
                 self.latex_path_input.setText(latex_path)
         except Exception as e:
-            print(f"[WARN] 加载 LaTeX 设置失败: {e}")
+            logger.warning("加载 LaTeX 设置失败: %s", e)
 
     def _on_latex_path_changed(self):
         """Handle LaTeX path changes by clearing validation state."""
@@ -219,7 +222,7 @@ class SettingsLatexMixin:
                 mode = self._render_modes[idx]
             update_latex_settings(render_mode=mode, executable_path=latex_path)
         except Exception as e:
-            print(f"[WARN] 保存 LaTeX 设置失败: {e}")
+            logger.warning("保存 LaTeX 设置失败: %s", e)
 
     def _test_latex_path(self):
         """Test the LaTeX path asynchronously to avoid blocking the UI thread."""
@@ -254,7 +257,7 @@ class SettingsLatexMixin:
                     title = tr("路径无效")
                     message = tr("找不到 LaTeX 可执行文件")
                 else:
-                    print(f"[DEBUG] 测试 LaTeX 路径: {path_value}")
+                    logger.debug("测试 LaTeX 路径: %s", path_value)
                     test_svg = renderer.render_to_svg(
                         r"\frac{1}{2} + \frac{1}{3} = \frac{5}{6}"
                     )
@@ -263,7 +266,7 @@ class SettingsLatexMixin:
                         title = tr("验证成功")
                         message = tr("LaTeX 环境已就绪")
             except Exception as e:
-                print(f"[ERR] LaTeX 验证失败: {e}")
+                logger.error("LaTeX 验证失败: %s", e)
                 title = tr("验证出错")
                 message = str(e)[:100]
             self.latex_path_test_done.emit(
@@ -357,8 +360,8 @@ class SettingsLatexMixin:
                     parent=self,
                 )
         except Exception as e:
-            print(f"[WARN] 显示通知失败: {e}")
-            print(f"[DEBUG] {title}: {message}")
+            logger.warning("显示通知失败: %s", e)
+            logger.debug("%s: %s", title, message)
 
     def _save_render_mode(self, engine: str):
         """Save the render-engine selection."""
@@ -378,4 +381,4 @@ class SettingsLatexMixin:
                     tr("已切换到: {mode}").format(mode=mode_names[engine]),
                 )
         except Exception as e:
-            print(f"[ERR] 保存渲染模式失败: {e}")
+            logger.error("保存渲染模式失败: %s", e)
