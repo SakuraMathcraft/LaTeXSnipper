@@ -332,7 +332,7 @@ class RecognitionJobCoordinator:
             self._active_image_memory = 0
 
     def _interrupt_mathcraft_worker(self) -> None:
-        stop_worker = getattr(self._predictor, "_stop_mathcraft_worker", None)
+        stop_worker = getattr(self._predictor, "stop", None)
         if callable(stop_worker):
             try:
                 stop_worker()

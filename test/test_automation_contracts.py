@@ -95,7 +95,7 @@ def test_cancel_interrupts_a_running_mathcraft_worker() -> None:
             self.release.wait(2)
             return {"text": model_name}
 
-        def _stop_mathcraft_worker(self) -> None:
+        def stop(self) -> None:
             self.interruptions += 1
             self.release.set()
 

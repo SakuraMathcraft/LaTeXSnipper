@@ -1,18 +1,24 @@
-"""Theme helpers and MainWindow theme mixin."""
+"""ThemeController and related helpers."""
 
 from __future__ import annotations
 
-import logging
-from localization.manager import translate as tr
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from runtime.config_manager import ConfigManager
+    from ui.controllers.preview import PreviewController
+    from ui.controllers.windows import WindowController
+    from ui.main_window import MainWindow
 import json
+import logging
 
-from PyQt6.QtCore import QEvent
+from PyQt6.QtCore import QEvent, QObject, QTimer
 from PyQt6.QtWidgets import QApplication, QLabel, QWidget
 
-from ui.theme_tokens import formula_label_theme_tokens, is_dark_ui
+from localization.manager import translate as tr
 from runtime.app_paths import app_config_path
 from ui.controllers.runtime_log import refresh_runtime_log_dialog_theme
+from ui.theme_tokens import formula_label_theme_tokens, is_dark_ui
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
@@ -21,6 +27,7 @@ def apply_theme(mode: str = "AUTO") -> bool:
     """Apply the QFluentWidgets theme safely even if QConfig has been destroyed."""
     try:
         import importlib
+
         import qfluentwidgets.common.config as cfg
         import qfluentwidgets.common.style_sheet as ss
 
@@ -46,11 +53,7 @@ def normalize_theme_mode(value: str | None) -> str:
 
 def apply_theme_mode(mode: str | None) -> bool:
     normalized = normalize_theme_mode(mode)
-    map_mode = {
-        "light": "LIGHT",
-        "dark": "DARK",
-        "auto": "AUTO",
-    }
+    map_mode = {"light": "LIGHT", "dark": "DARK", "auto": "AUTO"}
     return apply_theme(map_mode.get(normalized, "AUTO"))
 
 
@@ -69,33 +72,43 @@ def read_theme_mode_from_config() -> str:
 
 def main_theme_tokens() -> dict:
     if is_dark_ui():
-        return {
-            "title": "#8ec5ff",
-            "muted": "#95a0af",
-        }
-    return {
-        "title": "#1976d2",
-        "muted": "#888888",
-    }
+        return {"title": "#8ec5ff", "muted": "#95a0af"}
+    return {"title": "#1976d2", "muted": "#888888"}
 
 
 def history_row_theme_tokens() -> dict:
     if is_dark_ui():
-        return {
-            "index": "#8ec5ff",
-            "name": "#ffb74d",
-        }
-    return {
-        "index": "#1976d2",
-        "name": "#f57c00",
-    }
+        return {"index": "#8ec5ff", "name": "#ffb74d"}
+    return {"index": "#1976d2", "name": "#f57c00"}
 
 
-class ThemeControllerMixin:
+class ThemeController(QObject):
+    def __init__(
+        self,
+        view: MainWindow,
+        cfg: ConfigManager,
+        preview: PreviewController,
+        windows: WindowController,
+    ):
+        super().__init__(view)
+        self.view = view
+        self.cfg = cfg
+        self.preview = preview
+        self.windows = windows
+        self._theme_is_dark_cached = None
+        self._auto_theme_sync_in_progress = False
+        self._theme_mode = normalize_theme_mode(cfg.get("theme_mode", "auto"))
+        self._auto_theme_refresh_timer = QTimer(self)
+        self._auto_theme_refresh_timer.setSingleShot(True)
+        self._auto_theme_refresh_timer.setInterval(160)
+        self._auto_theme_refresh_timer.timeout.connect(
+            self._on_auto_theme_refresh_timeout
+        )
+
     def _main_theme_tokens(self) -> dict:
         return main_theme_tokens()
 
-    def _apply_theme_styles(self, force: bool = False):
+    def apply_styles(self, force: bool = False):
         dark = is_dark_ui()
         if not force and self._theme_is_dark_cached is dark:
             return
@@ -105,29 +118,32 @@ class ThemeControllerMixin:
             f"font-size: 14px; font-weight: 500; color: {t['title']}; padding: 4px 0;"
         )
         try:
-            if hasattr(self, "history_title_label"):
-                self.history_title_label.setStyleSheet(title_style)
-            if hasattr(self, "editor_title_label"):
-                self.editor_title_label.setStyleSheet(title_style)
-            if hasattr(self, "preview_title_label"):
-                self.preview_title_label.setStyleSheet(title_style)
-            if hasattr(self, "preview_fallback_label") and self.preview_fallback_label:
-                self.preview_fallback_label.setStyleSheet(
+            if hasattr(self.view, "history_title_label"):
+                self.view.history_title_label.setStyleSheet(title_style)
+            if hasattr(self.view, "editor_title_label"):
+                self.view.editor_title_label.setStyleSheet(title_style)
+            if hasattr(self.view, "preview_title_label"):
+                self.view.preview_title_label.setStyleSheet(title_style)
+            if (
+                hasattr(self.view, "preview_fallback_label")
+                and self.view.preview_fallback_label
+            ):
+                self.view.preview_fallback_label.setStyleSheet(
                     f"color: {t['muted']}; padding: 20px;"
                 )
         except Exception:
             pass
         try:
             if (
-                self.settings_window
-                and self.settings_window.isVisible()
-                and hasattr(self.settings_window, "apply_theme_styles")
+                self.windows.settings_window
+                and self.windows.settings_window.isVisible()
+                and hasattr(self.windows.settings_window, "apply_theme_styles")
             ):
-                self.settings_window.apply_theme_styles(force=True)
+                self.windows.settings_window.apply_theme_styles(force=True)
         except Exception:
             pass
         try:
-            self._refresh_preview()
+            self.preview.refresh()
         except Exception:
             pass
         try:
@@ -159,11 +175,11 @@ class ThemeControllerMixin:
                 app = QApplication.instance()
                 if app is not None:
                     c = app.palette().window().color()
-                    dark_by_palette = ((c.red() + c.green() + c.blue()) / 3.0) < 128
+                    dark_by_palette = (c.red() + c.green() + c.blue()) / 3.0 < 128
             except Exception:
                 dark_by_palette = is_dark_ui()
             apply_theme("DARK" if dark_by_palette else "LIGHT")
-            self._apply_theme_styles(force=True)
+            self.apply_styles(force=True)
             for attr in (
                 "settings_window",
                 "workbench_window",
@@ -171,7 +187,7 @@ class ThemeControllerMixin:
                 "handwriting_window",
             ):
                 try:
-                    win = getattr(self, attr, None)
+                    win = getattr(self.windows, attr, None)
                     if win and win.isVisible() and hasattr(win, "apply_theme_styles"):
                         win.apply_theme_styles(force=True)
                 except Exception:
@@ -183,8 +199,7 @@ class ThemeControllerMixin:
         finally:
             self._auto_theme_sync_in_progress = False
 
-    def event(self, e):
-        result = super().event(e)
+    def handle_event(self, e):
         try:
             if e.type() in (
                 QEvent.Type.StyleChange,
@@ -194,12 +209,11 @@ class ThemeControllerMixin:
                 if getattr(self, "_theme_mode", "auto") == "auto":
                     self._schedule_auto_theme_refresh()
                 else:
-                    self._apply_theme_styles()
+                    self.apply_styles()
         except Exception:
             pass
-        return result
 
-    def _apply_formula_label_theme(self, lbl: QLabel):
+    def style_formula_label(self, lbl: QLabel):
         if lbl is None:
             return
         t = formula_label_theme_tokens()
@@ -209,20 +223,18 @@ class ThemeControllerMixin:
     def _history_row_theme_tokens(self) -> dict:
         return history_row_theme_tokens()
 
-    def _apply_history_row_theme(self, row: QWidget):
+    def style_history_row(self, row: QWidget):
         if row is None:
             return
         content_lbl = getattr(row, "_content_label", None)
         if isinstance(content_lbl, QLabel):
-            self._apply_formula_label_theme(content_lbl)
-
+            self.style_formula_label(content_lbl)
         t = self._history_row_theme_tokens()
         index_lbl = getattr(row, "_index_label", None)
         if isinstance(index_lbl, QLabel):
             index_lbl.setStyleSheet(
                 f"color: {t['index']}; font-weight: bold; font-size: 11px;"
             )
-
         name_lbl = getattr(row, "_name_label", None)
         if isinstance(name_lbl, QLabel):
             name_lbl.setStyleSheet(
@@ -230,16 +242,16 @@ class ThemeControllerMixin:
             )
 
     def _refresh_history_rows_theme(self):
-        if not hasattr(self, "history_layout"):
+        if not hasattr(self.view, "history_layout"):
             return
-        row_count = max(0, self.history_layout.count() - 1)
+        row_count = max(0, self.view.history_layout.count() - 1)
         for i in range(row_count):
-            item = self.history_layout.itemAt(i)
+            item = self.view.history_layout.itemAt(i)
             row = item.widget() if item else None
             if isinstance(row, QWidget):
-                self._apply_history_row_theme(row)
+                self.style_history_row(row)
 
-    def apply_app_theme_mode(self, mode: str | None, refresh_preview: bool = True):
+    def apply_mode(self, mode: str | None, refresh_preview: bool = True):
         normalized = normalize_theme_mode(mode)
         self._theme_mode = normalized
         try:
@@ -248,15 +260,15 @@ class ThemeControllerMixin:
             pass
         apply_theme_mode(normalized)
         try:
-            self._apply_theme_styles(force=True)
+            self.apply_styles(force=True)
         except Exception:
             pass
         try:
             if (
-                getattr(self, "workbench_window", None)
-                and self.workbench_window.isVisible()
+                getattr(self.windows, "workbench_window", None)
+                and self.windows.workbench_window.isVisible()
             ):
-                self.workbench_window.apply_theme_styles(force=True)
+                self.windows.workbench_window.apply_theme_styles(force=True)
         except Exception:
             pass
         try:
@@ -265,6 +277,9 @@ class ThemeControllerMixin:
             pass
         if refresh_preview:
             try:
-                self._refresh_preview()
+                self.preview.refresh()
             except Exception:
                 pass
+
+    def shutdown(self):
+        self._auto_theme_refresh_timer.stop()

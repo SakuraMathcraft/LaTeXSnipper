@@ -1,22 +1,33 @@
-"""Application lifecycle controller mixin for the main window."""
+"""AppLifecycleController and related helpers."""
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from platform_services.protocols import ISystemProvider
+    from ui.controllers.capture import CaptureController
+    from ui.controllers.file_drop import FileInputController
+    from ui.controllers.tray import TrayController
+    from ui.controllers.windows import WindowController
+    from ui.main_window import MainWindow
 import logging
 import os
 import sys
 
-from localization.manager import translate as tr
 from PyQt6.QtCore import QCoreApplication, QEvent, QObject, QTimer
 from PyQt6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 from qfluentwidgets import InfoBar, InfoBarPosition
 
+from localization.manager import translate as tr
 from platform_services import ApplicationMenuHandlers
 from runtime.runtime_logging import cleanup_runtime_log_session
-from ui.controllers.runtime_log import apply_runtime_log_window_preference
 from runtime.single_instance import (
     release_single_instance_lock as _release_single_instance_lock,
 )
+from ui.controllers.runtime_log import apply_runtime_log_window_preference
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
@@ -31,7 +42,7 @@ class _MacApplicationQuitFilter(QObject):
             window = self._window
             try:
                 window._force_exit = True
-                window._graceful_shutdown()
+                window.shutdown()
             except Exception:
                 pass
         elif (
@@ -45,14 +56,38 @@ class _MacApplicationQuitFilter(QObject):
         return False
 
 
-class AppLifecycleMixin:
+class AppLifecycleController(QObject):
+    def __init__(
+        self,
+        view: MainWindow,
+        capture: CaptureController,
+        file_input: FileInputController,
+        system_provider: ISystemProvider,
+        tray: TrayController,
+        windows: WindowController,
+        shutdown_actions: tuple[Callable[[], None], ...],
+    ):
+        super().__init__(view)
+        self.view = view
+        self.capture = capture
+        self.file_input = file_input
+        self.system_provider = system_provider
+        self.tray = tray
+        self.windows = windows
+        self.shutdown_actions = shutdown_actions
+        self._force_exit = False
+        self._shutdown_done = False
+        self._mac_quit_filter = None
+        self._dock_close_notice_shown = False
+        self._tray_msg_shown = False
+
     def install_platform_lifecycle_hooks(self):
         if sys.platform != "darwin":
             return
         app = QCoreApplication.instance()
         if app is None or getattr(self, "_mac_quit_filter", None) is not None:
             return
-        self._mac_quit_filter = _MacApplicationQuitFilter(self)
+        self._mac_quit_filter = _MacApplicationQuitFilter(self.view)
         app.installEventFilter(self._mac_quit_filter)
         self._install_macos_application_menu()
 
@@ -65,18 +100,18 @@ class AppLifecycleMixin:
             return
         handlers = ApplicationMenuHandlers(
             on_about=self._show_about_dialog,
-            on_preferences=self.open_settings,
-            on_capture=self.start_capture,
-            on_show_window=self.show_window,
+            on_preferences=self.windows.open_settings,
+            on_capture=self.capture.start_capture,
+            on_show_window=self.windows.show_window,
             on_close_window=self._close_active_window,
             on_quit=self.truly_exit,
             on_paste=self._handle_latex_editor_image_paste,
         )
-        installer(self, handlers)
+        installer(self.view, handlers)
 
     def _handle_latex_editor_image_paste(self) -> bool:
         """Route Command+V images through OCR only when the LaTeX editor owns focus."""
-        editor = getattr(self, "latex_editor", None)
+        editor = getattr(self.view, "latex_editor", None)
         if editor is None:
             return False
         try:
@@ -86,7 +121,7 @@ class AppLifecycleMixin:
         except Exception:
             return False
         try:
-            return bool(self._handle_clipboard_image_paste())
+            return bool(self.file_input._handle_clipboard_image_paste())
         except Exception as exc:
             logger.warning("macOS 图片粘贴处理失败: %s", exc)
             return False
@@ -95,7 +130,7 @@ class AppLifecycleMixin:
         InfoBar.info(
             title=tr("关于 LaTeXSnipper"),
             content=tr("截图、识别、手写、编辑与导出数学内容。"),
-            parent=self,
+            parent=self.view,
             duration=5000,
             position=InfoBarPosition.TOP,
         )
@@ -103,20 +138,20 @@ class AppLifecycleMixin:
     def _close_active_window(self):
         app = QApplication.instance()
         active = app.activeWindow() if app is not None else None
-        if active is not None and active is not self:
+        if active is not None and active is not self.view:
             try:
                 active.close()
                 return
             except Exception:
                 pass
-        self.close()
+        self.view.close()
 
     def _reactivate_from_dock(self):
         if sys.platform != "darwin" or getattr(self, "_force_exit", False):
             return
         try:
-            if not self.isVisible() or self.isMinimized():
-                self.show_window()
+            if not self.view.isVisible() or self.view.isMinimized():
+                self.windows.show_window()
         except Exception:
             pass
 
@@ -128,184 +163,32 @@ class AppLifecycleMixin:
         except Exception as e:
             logger.warning("应用运行日志窗口设置失败: %s", e)
 
-    def prepare_restart(self):
-        """Called by settings restart flow: close heavy resources and release app lock early."""
-        self._force_exit = True
-        try:
-            self._graceful_shutdown()
-        except Exception:
-            pass
-        try:
-            cleanup_runtime_log_session()
-        except Exception:
-            pass
-        try:
-            _release_single_instance_lock()
-        except Exception:
-            pass
-        try:
-            if getattr(self, "hotkey_provider", None):
-                self.hotkey_provider.cleanup()
-        except Exception:
-            pass
-
-    def _graceful_shutdown(self):
-        if getattr(self, "_shutdown_done", False):
-            return
-        self._shutdown_done = True
-        self._model_warmup_cancelled = True
-
-        try:
-            self.save_history()
-        except Exception as e:
-            logger.warning("保存历史失败: %s", e)
-
-        try:
-            if hasattr(self, "favorites_window") and self.favorites_window:
-                self.favorites_window.save_favorites()
-        except Exception as e:
-            logger.warning("保存收藏夹失败: %s", e)
-
-        try:
-            self.cfg.save()
-        except Exception as e:
-            logger.warning("保存配置失败: %s", e)
-
-        try:
-            if getattr(self, "hotkey_provider", None):
-                self.hotkey_provider.cleanup()
-        except Exception:
-            pass
-        try:
-            if getattr(self, "tray_icon", None):
-                self.tray_icon.hide()
-                self.tray_icon.deleteLater()
-        except Exception:
-            pass
-        try:
-            timer = getattr(self, "_auto_theme_refresh_timer", None)
-            if timer is not None:
-                timer.stop()
-        except Exception:
-            pass
-        try:
-            if getattr(self, "overlay", None):
-                self.overlay.close()
-                self.overlay = None
-        except Exception:
-            pass
-        try:
-            automation_api = getattr(self, "automation_api", None)
-            if automation_api is not None:
-                automation_api.shutdown()
-        except Exception:
-            pass
-        try:
-            coordinator = getattr(self, "recognition_coordinator", None)
-            if coordinator is not None:
-                coordinator.stop(wait=False)
-        except Exception:
-            pass
-        try:
-            model = getattr(self, "model", None)
-            stop_model = getattr(model, "_stop_mathcraft_worker", None)
-            if callable(stop_model):
-                stop_model()
-        except Exception:
-            pass
-
-        if self.predict_thread:
-            try:
-                if self.predict_thread.isRunning():
-                    self.predict_thread.quit()
-                    self.predict_thread.wait(3000)
-            except Exception:
-                pass
-        if self.predict_worker:
-            try:
-                self.predict_worker.deleteLater()
-            except Exception:
-                pass
-        self.predict_thread = None
-        self.predict_worker = None
-        self._predict_busy = False
-
-        if self.pdf_predict_thread:
-            try:
-                if self.pdf_predict_thread.isRunning():
-                    self.pdf_predict_thread.quit()
-                    self.pdf_predict_thread.wait(3000)
-            except Exception:
-                pass
-        if self.pdf_predict_worker:
-            try:
-                self.pdf_predict_worker.deleteLater()
-            except Exception:
-                pass
-        self.pdf_predict_thread = None
-        self.pdf_predict_worker = None
-        if self.pdf_progress:
-            try:
-                self.pdf_progress.close()
-            except Exception:
-                pass
-            self.pdf_progress = None
-        if self._pdf_result_window:
-            try:
-                self._pdf_result_window.close()
-            except Exception:
-                pass
-        if self._preview_render_thread:
-            try:
-                if self._preview_render_thread.isRunning():
-                    self._preview_render_thread.quit()
-                    self._preview_render_thread.wait(3000)
-            except Exception:
-                pass
-        if self._preview_render_worker:
-            try:
-                self._preview_render_worker.deleteLater()
-            except Exception:
-                pass
-        self._preview_render_thread = None
-        self._preview_render_worker = None
-        logger.info("LaTeXSnipper 已退出")
-        try:
-            cleanup_runtime_log_session()
-        except Exception:
-            pass
-        try:
-            _release_single_instance_lock()
-        except Exception:
-            pass
-
     def closeEvent(self, event):
         if self._force_exit:
-            self._graceful_shutdown()
+            self.shutdown()
             event.accept()
             return
-
         if sys.platform == "linux":
             tray_available = False
             try:
                 tray_available = bool(
-                    getattr(self, "tray_icon", None)
+                    getattr(self.tray, "tray_icon", None)
                     and QSystemTrayIcon.isSystemTrayAvailable()
-                    and self.tray_icon.isVisible()
+                    and self.tray.tray_icon.isVisible()
                 )
             except Exception:
-                tray_available = bool(getattr(self, "tray_icon", None))
+                tray_available = bool(getattr(self.tray, "tray_icon", None))
             if tray_available:
-                self.hide()
+                self.view.hide()
                 if not getattr(self, "_tray_msg_shown", False):
                     self.system_provider.show_notification(
-                        self.tray_icon, "LaTeXSnipper", tr("已最小化到系统托盘")
+                        self.tray.tray_icon, "LaTeXSnipper", tr("已最小化到系统托盘")
                     )
                     self._tray_msg_shown = True
                 event.ignore()
                 return
             reply = QMessageBox.question(
-                self,
+                self.view,
                 tr("确认退出"),
                 tr("关闭窗口将完全退出 LaTeXSnipper，是否确认？"),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -313,20 +196,21 @@ class AppLifecycleMixin:
             )
             if reply == QMessageBox.StandardButton.Yes:
                 self._force_exit = True
-                if self.tray_icon:
-                    self.tray_icon.hide()
-                self.close()
+                if self.tray.tray_icon:
+                    self.tray.tray_icon.hide()
+                self.view.close()
                 QTimer.singleShot(0, QCoreApplication.quit)
             else:
                 event.ignore()
             return
-
         if sys.platform == "darwin":
-            self.hide()
-            if self.tray_icon and not getattr(self, "_dock_close_notice_shown", False):
+            self.view.hide()
+            if self.tray.tray_icon and (
+                not getattr(self, "_dock_close_notice_shown", False)
+            ):
                 try:
                     self.system_provider.show_notification(
-                        self.tray_icon,
+                        self.tray.tray_icon,
                         "LaTeXSnipper",
                         tr("主窗口已关闭，可通过 Dock 或菜单栏重新打开"),
                     )
@@ -335,25 +219,40 @@ class AppLifecycleMixin:
                     pass
             event.accept()
             return
-
-        self.hide()
-        if self.tray_icon:
+        self.view.hide()
+        if self.tray.tray_icon:
             if not getattr(self, "_tray_msg_shown", False):
                 self.system_provider.show_notification(
-                    self.tray_icon, "LaTeXSnipper", tr("已最小化到系统托盘")
+                    self.tray.tray_icon, "LaTeXSnipper", tr("已最小化到系统托盘")
                 )
                 self._tray_msg_shown = True
         event.ignore()
 
     def truly_exit(self):
         self._force_exit = True
-        if self.tray_icon:
-            self.tray_icon.hide()
-
+        if self.tray.tray_icon:
+            self.tray.tray_icon.hide()
         try:
-            self.close()
+            self.view.close()
         except Exception:
             pass
-        QTimer.singleShot(
-            0, lambda: (self._graceful_shutdown(), QCoreApplication.quit())
-        )
+        QTimer.singleShot(0, lambda: (self.shutdown(), QCoreApplication.quit()))
+
+    def prepare_restart(self):
+        self._force_exit = True
+        self.shutdown()
+
+    def shutdown(self):
+        if self._shutdown_done:
+            return
+        self._shutdown_done = True
+        for action in self.shutdown_actions:
+            try:
+                action()
+            except Exception:
+                logger.exception("退出清理失败: %s", action.__qualname__)
+        if self._mac_quit_filter is not None:
+            QCoreApplication.instance().removeEventFilter(self._mac_quit_filter)
+        logger.info("LaTeXSnipper 已退出")
+        cleanup_runtime_log_session()
+        _release_single_instance_lock()

@@ -1,20 +1,74 @@
-"""Screen capture controller mixin for the main window."""
+"""CaptureController and related helpers."""
 
 from __future__ import annotations
 
-from localization.manager import translate as tr
+from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QEvent, QTimer, Qt
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from PyQt6.QtWidgets import QSystemTrayIcon
+
+    from platform_services.protocols import IScreenshotProvider, ISystemProvider
+    from ui.controllers.file_drop import FileInputController
+    from ui.controllers.model_runtime import ModelRuntimeController
+    from ui.controllers.recognition import ImageRecognitionController
+    from ui.controllers.tasks import RecognitionTaskController
+    from ui.main_window import MainWindow
+from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
 from qfluentwidgets import InfoBar, InfoBarPosition
 
+from localization.manager import translate as tr
 from platform_services import ScreenshotConfig
+from recognition.image_input import image_from_qpixmap
 from ui.notifications import show_user_notice
 
 
-class CaptureControllerMixin:
+class CaptureController(QObject):
+    def __init__(
+        self,
+        view: MainWindow,
+        file_input: FileInputController,
+        models: ModelRuntimeController,
+        recognition: ImageRecognitionController,
+        screenshot_provider: IScreenshotProvider,
+        system_provider: ISystemProvider,
+        tasks: RecognitionTaskController,
+        display_mode: Callable[[], str],
+        display_index: Callable[[], int | None],
+        tray_icon: Callable[[], QSystemTrayIcon | None],
+        can_capture: Callable[[], bool],
+    ):
+        super().__init__(view)
+        self.view = view
+        self.file_input = file_input
+        self.models = models
+        self.recognition = recognition
+        self.screenshot_provider = screenshot_provider
+        self.system_provider = system_provider
+        self.tasks = tasks
+        self.display_mode = display_mode
+        self.display_index = display_index
+        self.tray_icon = tray_icon
+        from capture.window_manager import CaptureWindowManager
+
+        self.capture_window_manager = CaptureWindowManager(view)
+        self.overlay = None
+        self._capture_start_pending = False
+        self._capture_waiting_for_window_update = False
+        self._last_capture_screen_index = None
+        self.can_capture = can_capture
+
     def start_capture(self, preserve_pinned_result: bool = False):
-        tour = getattr(self, "onboarding", None)
-        if tour is not None and tour.active:
+        if self.tasks.is_busy():
+            self._show_capture_notice(
+                tr("正在识别"),
+                tr("当前已有识别任务，请稍候。"),
+                level="info",
+                duration=2600,
+            )
+            return
+        if not self.can_capture():
             return
         if self._capture_start_pending or self.overlay is not None:
             try:
@@ -24,18 +78,17 @@ class CaptureControllerMixin:
                 pass
             return
         self._last_capture_screen_index = None
-        self._next_predict_result_screen_index = None
-        if not self.model:
-            show_user_notice(tr("错误"), tr("模型未初始化"), self)
+        if not self.models.model:
+            show_user_notice(tr("错误"), tr("模型未初始化"), self.view)
             return
         perm = self.screenshot_provider.request_permission()
         if getattr(perm, "state", None) == "denied":
             message = getattr(perm, "message", tr("截图权限被拒绝"))
             notified = False
-            if getattr(self, "tray_icon", None):
+            if self.tray_icon():
                 try:
                     self.system_provider.show_notification(
-                        self.tray_icon,
+                        self.tray_icon(),
                         tr("截图权限不足"),
                         message,
                         critical=True,
@@ -45,14 +98,14 @@ class CaptureControllerMixin:
                 except Exception:
                     pass
             if not notified:
-                show_user_notice(tr("权限不足"), message, self)
+                show_user_notice(tr("权限不足"), message, self.view)
             opener = getattr(self.screenshot_provider, "open_permission_settings", None)
             if callable(opener):
                 opener()
             return
         cfg = ScreenshotConfig(
-            capture_display_mode=self._get_capture_display_mode(),
-            preferred_screen_index=self._get_capture_display_index(),
+            capture_display_mode=self.display_mode(),
+            preferred_screen_index=self.display_index(),
         )
         windows_changed = self.capture_window_manager.prepare(
             preserve_pinned_result=bool(preserve_pinned_result)
@@ -87,19 +140,8 @@ class CaptureControllerMixin:
             )
 
     def eventFilter(self, obj, event):
-        if event.type() == QEvent.Type.KeyPress and self._handle_clipboard_image_paste(
-            event
-        ):
-            event.accept()
+        if self.file_input.eventFilter(obj, event):
             return True
-        if event.type() in (QEvent.Type.DragEnter, QEvent.Type.DragMove):
-            if self._drag_contains_local_file(event):
-                event.acceptProposedAction()
-                return True
-        if event.type() == QEvent.Type.Drop:
-            if self._local_drop_paths(event):
-                self.dropEvent(event)
-                return True
         if (
             obj is getattr(self, "overlay", None)
             and event.type() == QEvent.Type.KeyPress
@@ -126,7 +168,7 @@ class CaptureControllerMixin:
                     ),
                 )
                 return True
-        return super().eventFilter(obj, event)
+        return False
 
     def on_capture_done(self, pixmap):
         self._capture_start_pending = False
@@ -140,7 +182,6 @@ class CaptureControllerMixin:
             self._last_capture_screen_index = (
                 int(screen_index) if screen_index is not None else None
             )
-            self._next_predict_result_screen_index = self._last_capture_screen_index
             self.overlay.close()
             self.overlay = None
         if pixmap is None:
@@ -152,7 +193,7 @@ class CaptureControllerMixin:
                     ),
                 )
             return
-        if self.is_recognition_busy(source="main"):
+        if self.tasks.is_busy(source="main"):
             self._show_capture_notice(
                 tr("正在识别"),
                 tr("当前已有识别任务，请稍候。"),
@@ -161,32 +202,29 @@ class CaptureControllerMixin:
             )
             return
         try:
-            img = self._qpixmap_to_pil(pixmap)
+            img = image_from_qpixmap(pixmap)
         except Exception as e:
             self._show_capture_notice(
                 tr("图片处理失败"), str(e), level="error", duration=5000
             )
             return
-        self._start_predict_with_pil(img)
+        self.recognition.recognize_image(
+            img, screen_index=self._last_capture_screen_index
+        )
 
     def _show_capture_notice(
-        self,
-        title: str,
-        message: str,
-        *,
-        level: str = "warning",
-        duration: int = 6200,
+        self, title: str, message: str, *, level: str = "warning", duration: int = 6200
     ) -> None:
         text = str(message or "").strip()
         if not text:
             return
         try:
-            self.system_provider.activate_window(self)
+            self.system_provider.activate_window(self.view)
         except Exception:
             try:
-                self.show()
-                self.raise_()
-                self.activateWindow()
+                self.view.show()
+                self.view.raise_()
+                self.view.activateWindow()
             except Exception:
                 pass
         notifier = {
@@ -197,13 +235,17 @@ class CaptureControllerMixin:
         notifier(
             title=title,
             content=text,
-            parent=self,
+            parent=self.view,
             duration=duration,
             position=InfoBarPosition.TOP,
         )
 
     def _show_capture_failure_info(self, message: str):
-        self._show_capture_notice(
-            title=tr("截图失败"),
-            message=message,
-        )
+        self._show_capture_notice(title=tr("截图失败"), message=message)
+
+    def shutdown(self):
+        self._capture_start_pending = False
+        self._capture_waiting_for_window_update = False
+        if self.overlay is not None:
+            self.overlay.close()
+            self.overlay = None

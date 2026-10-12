@@ -43,7 +43,6 @@ class SettingsLayoutMixin:
         )
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         self.setWindowTitle(tr("设置"))
-        # Use a wider default size to avoid truncating InfoBar text.
         self.resize(500, 600)
         self.setMinimumWidth(500)
         self.setMinimumHeight(600)
@@ -63,7 +62,6 @@ class SettingsLayoutMixin:
         lay.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.scroll_area.setWidget(self.content_widget)
         root.addWidget(self.scroll_area)
-        # Cache slow probe results to avoid blocking the UI on repeated clicks.
         self._probe_cache_ttl_sec = 45.0
         self._compute_mode_probe_py = ""
         self._compute_mode_probe_ts = 0.0
@@ -71,12 +69,9 @@ class SettingsLayoutMixin:
         self._compute_mode_probe_running = False
         self._theme_mode_values = ["auto", "light", "dark"]
         self._ui_language_values = ["auto", "zh_CN", "en_US"]
-        # Model selection area.
         lay.addWidget(QLabel(tr("选择识别模型:")))
-        # Use a combo box for built-in and external model entries.
         self.model_combo = ComboBox()
         self.model_combo.setFixedHeight(36)
-        # Add recognition model options.
         self._model_options = [
             ("mathcraft", tr("内置模型")),
             ("external_model", tr("外部模型")),
@@ -84,12 +79,10 @@ class SettingsLayoutMixin:
         for key, label in self._model_options:
             self.model_combo.addItem(label, userData=key)
         lay.addWidget(self.model_combo)
-        # Model description.
         self.lbl_model_desc = QLabel()
         self.lbl_model_desc.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
         self.lbl_model_desc.setWordWrap(True)
         lay.addWidget(self.lbl_model_desc)
-        # MathCraft recognition type.
         self.mathcraft_mode_widget = QWidget()
         mathcraft_mode_layout = QHBoxLayout(self.mathcraft_mode_widget)
         mathcraft_mode_layout.setContentsMargins(0, 0, 0, 0)
@@ -212,9 +205,7 @@ class SettingsLayoutMixin:
         )
         lay.addWidget(self.lbl_compute_mode)
         self._update_compute_mode_label()
-        # Separator.
         lay.addSpacing(12)
-        # ============ Appearance and language settings ============
         appearance_row = QWidget()
         appearance_layout = QGridLayout(appearance_row)
         appearance_layout.setContentsMargins(0, 0, 0, 0)
@@ -222,7 +213,6 @@ class SettingsLayoutMixin:
         appearance_layout.setVerticalSpacing(4)
         appearance_layout.setColumnStretch(0, 1)
         appearance_layout.setColumnStretch(1, 1)
-
         appearance_layout.addWidget(QLabel(tr("外观主题:")), 0, 0)
         self.theme_mode_combo = ComboBox()
         self.theme_mode_combo.setFixedHeight(36)
@@ -230,7 +220,6 @@ class SettingsLayoutMixin:
         self.theme_mode_combo.addItem(tr("浅色"), userData="light")
         self.theme_mode_combo.addItem(tr("深色"), userData="dark")
         appearance_layout.addWidget(self.theme_mode_combo, 1, 0)
-
         appearance_layout.addWidget(QLabel(tr("界面语言:")), 0, 1)
         self.ui_language_combo = ComboBox()
         self.ui_language_combo.setFixedHeight(36)
@@ -239,12 +228,9 @@ class SettingsLayoutMixin:
         self.ui_language_combo.addItem("English", userData="en_US")
         appearance_layout.addWidget(self.ui_language_combo, 1, 1)
         lay.addWidget(appearance_row)
-        # ============ Rendering Engine Settings ============
         lay.addWidget(QLabel(tr("公式渲染引擎:")))
-        # Render engine selector; use qfluentwidgets ComboBox for consistent styling.
         self.render_engine_combo = ComboBox()
         self.render_engine_combo.setFixedHeight(36)
-        # Add items.
         self.render_engine_combo.addItems(
             [
                 tr("自动检测（推荐）"),
@@ -254,7 +240,6 @@ class SettingsLayoutMixin:
                 "LaTeX + xelatex",
             ]
         )
-        # Store the corresponding data.
         self._render_modes = [
             "auto",
             "mathjax_local",
@@ -263,12 +248,10 @@ class SettingsLayoutMixin:
             "latex_xelatex",
         ]
         lay.addWidget(self.render_engine_combo)
-        # LaTeX options container; shown only when LaTeX is selected.
         self.latex_options_widget = QWidget()
         latex_layout = QVBoxLayout(self.latex_options_widget)
         latex_layout.setContentsMargins(0, 8, 0, 0)
         latex_layout.setSpacing(6)
-        # LaTeX path selector.
         latex_path_layout = QHBoxLayout()
         latex_path_layout.addWidget(QLabel(tr("LaTeX 路径:")))
         self.latex_path_input = QLineEdit()
@@ -284,7 +267,6 @@ class SettingsLayoutMixin:
         self.btn_browse_latex.setFixedHeight(32)
         latex_path_layout.addWidget(self.btn_browse_latex)
         latex_layout.addLayout(latex_path_layout)
-        # LaTeX action buttons.
         latex_btn_layout = QHBoxLayout()
         self.btn_detect_latex = PushButton(FluentIcon.SEARCH, tr("自动检测"))
         self.btn_detect_latex.setFixedHeight(32)
@@ -293,7 +275,6 @@ class SettingsLayoutMixin:
         self.btn_test_latex.setFixedHeight(32)
         latex_btn_layout.addWidget(self.btn_test_latex)
         latex_layout.addLayout(latex_btn_layout)
-        # LaTeX description.
         self.lbl_latex_desc = QLabel(
             tr("💡 需要本地安装 MacTeX 或 TeX Live，验证通过后才能使用")
             if sys.platform == "darwin"
@@ -302,14 +283,12 @@ class SettingsLayoutMixin:
         self.lbl_latex_desc.setStyleSheet("color: #666; font-size: 10px; padding: 4px;")
         self.lbl_latex_desc.setWordWrap(True)
         latex_layout.addWidget(self.lbl_latex_desc)
-        self.latex_options_widget.setVisible(False)  # Hidden by default.
+        self.latex_options_widget.setVisible(False)
         lay.addWidget(self.latex_options_widget)
-        # Check for updates.
         lay.addWidget(QLabel(tr("检查更新:")))
         self.btn_update = PushButton(FluentIcon.UPDATE, tr("检查更新"))
         self.btn_update.setFixedHeight(36)
         lay.addWidget(self.btn_update)
-        # Startup behavior.
         lay.addWidget(QLabel(tr("启动行为:")))
         startup_row = QWidget()
         startup_layout = QHBoxLayout(startup_row)
@@ -320,8 +299,7 @@ class SettingsLayoutMixin:
         self.runtime_log_button.setCheckable(True)
         runtime_log_pref = False
         try:
-            if self.parent() and hasattr(self.parent(), "cfg"):
-                runtime_log_pref = self.parent().cfg.get("show_runtime_log", False)
+            runtime_log_pref = self.context.cfg.get("show_runtime_log", False)
         except Exception:
             runtime_log_pref = False
         self.runtime_log_button.setChecked(self._to_bool(runtime_log_pref))
@@ -334,10 +312,7 @@ class SettingsLayoutMixin:
         self.automation_api_button.setCheckable(True)
         automation_api_pref = False
         try:
-            if self.parent() and hasattr(self.parent(), "cfg"):
-                automation_api_pref = self.parent().cfg.get(
-                    "automation_api_enabled", False
-                )
+            automation_api_pref = self.context.cfg.get("automation_api_enabled", False)
         except Exception:
             automation_api_pref = False
         self.automation_api_button.setChecked(self._to_bool(automation_api_pref))
@@ -347,9 +322,7 @@ class SettingsLayoutMixin:
         startup_layout.addWidget(self.automation_api_button, 1)
         lay.addWidget(startup_row)
         self._sync_startup_action_buttons()
-        # Separator.
         lay.addSpacing(8)
-        # Advanced action: open terminal; use carefully.
         lay.addWidget(QLabel(tr("高级设置:")))
         terminal_row = QWidget()
         terminal_layout = QHBoxLayout(terminal_row)
@@ -370,7 +343,6 @@ class SettingsLayoutMixin:
         )
         terminal_layout.addWidget(self.environment_terminal_button, 1)
         lay.addWidget(terminal_row)
-        # Dependency management and model cache.
         deps_row = QWidget()
         deps_row_layout = QHBoxLayout(deps_row)
         deps_row_layout.setContentsMargins(0, 0, 0, 0)
@@ -403,9 +375,7 @@ class SettingsLayoutMixin:
             )
             cleanup_row_layout.addWidget(self.btn_cleanup_macos_local_data, 1)
             lay.addWidget(cleanup_row)
-        # Stretch spacer.
         lay.addStretch()
-        # Connect signals.
         self.model_combo.currentIndexChanged.connect(self._on_model_combo_changed)
         self.compute_mode_probe_done.connect(self._on_compute_mode_probe_done)
         self._schedule_compute_mode_probe(force=True)
@@ -428,7 +398,6 @@ class SettingsLayoutMixin:
         )
         self.theme_mode_combo.currentIndexChanged.connect(self._on_theme_mode_changed)
         self.ui_language_combo.currentIndexChanged.connect(self._on_ui_language_changed)
-        # Render-engine related signals.
         self.render_engine_combo.currentIndexChanged.connect(
             self._on_render_engine_changed
         )
@@ -474,7 +443,6 @@ class SettingsLayoutMixin:
         self.external_custom_prompt_input.textChanged.connect(
             self._on_external_config_changed
         )
-        # Initialize selection state.
         self._init_model_combo()
         self._update_model_desc()
         self._init_theme_mode_combo()
@@ -511,15 +479,11 @@ class SettingsLayoutMixin:
         enabled = bool(self.runtime_log_button.isChecked())
         self._sync_startup_action_buttons()
         try:
-            if self.parent() and hasattr(self.parent(), "cfg"):
-                self.parent().cfg.set("show_runtime_log", enabled)
+            self.context.cfg.set("show_runtime_log", enabled)
         except Exception:
             pass
         try:
-            if self.parent() and hasattr(
-                self.parent(), "apply_runtime_log_window_preference"
-            ):
-                self.parent().apply_runtime_log_window_preference(enabled)
+            self.context.lifecycle.apply_runtime_log_window_preference(enabled)
         except Exception:
             pass
         self._show_info(tr("设置已保存"), tr("运行日志显示偏好已更新"), "success")
@@ -545,9 +509,7 @@ class SettingsLayoutMixin:
 
         try:
             controller = (
-                getattr(self.parent(), "automation_api", None)
-                if self.parent()
-                else None
+                getattr(self.context, "automation_api", None) if self.context else None
             )
             if controller is not None:
                 controller.set_automation_api_enabled_async(enabled, _done)
@@ -559,13 +521,17 @@ class SettingsLayoutMixin:
     def _open_automation_access_dialog(self):
         from ui.automation_access_dialog import AutomationAccessDialog
 
-        parent = self.parent()
+        parent = self.context
         if parent is None:
             return
-        AutomationAccessDialog(parent, self).exec()
+        AutomationAccessDialog(
+            self.context.cfg,
+            self.context.automation_api,
+            self,
+            on_saved=self._show_info,
+        ).exec()
 
     def _update_model_desc(self):
-        # Update model description.
         index = self.model_combo.currentIndex()
         if index < 0:
             return

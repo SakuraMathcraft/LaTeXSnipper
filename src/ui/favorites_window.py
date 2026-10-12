@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import logging
-from localization.manager import translate as tr
-
 import json
+import logging
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -26,6 +24,7 @@ from PyQt6.QtWidgets import (
 )
 from qfluentwidgets import Action, InfoBar, InfoBarPosition, RoundMenu
 
+from localization.manager import translate as tr
 from preview.math_preview import preview_theme_tokens
 from runtime.app_paths import resource_path
 from runtime.config_manager import default_user_data_file
@@ -34,13 +33,14 @@ from ui.edit_formula_dialog import EditFormulaDialog
 from ui.formula_export_menu import populate_formula_export_menu
 from ui.window_helpers import (
     apply_close_only_window_flags as _apply_close_only_window_flags,
+)
+from ui.window_helpers import (
     exec_close_only_message_box,
-    show_normal_window,
     show_formula_rename_dialog,
+    show_normal_window,
 )
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
-
 DEFAULT_FAVORITES_NAME = "favorites.json"
 
 
@@ -54,8 +54,14 @@ class FavoritesWindow(QMainWindow):
         export_formula: Callable[[str, str, QWidget], None],
         parent=None,
         select_export_directory=None,
+        history,
+        preview,
+        status,
     ):
         super().__init__(parent)
+        self.history = history
+        self.preview = preview
+        self.status = status
         self.cfg = cfg
         self._export_formula = export_formula
         self._select_export_directory = (
@@ -67,30 +73,23 @@ class FavoritesWindow(QMainWindow):
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
         self.setWindowTitle(tr("公式收藏夹"))
         self.setMinimumSize(400, 350)
-
         icon_path = resource_path("assets/icon.ico")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
-
-        # Use a container widget.
         container = QWidget()
         main_lay = QVBoxLayout(container)
         main_lay.setContentsMargins(6, 6, 6, 6)
         main_lay.setSpacing(6)
+        from qfluentwidgets import FluentIcon, PushButton
 
-        from qfluentwidgets import PushButton, FluentIcon
-
-        # Top button row.
         top_btn_layout = QHBoxLayout()
         btn_export_data = PushButton(FluentIcon.SAVE, tr("导出收藏夹"))
         btn_export_data.clicked.connect(self.export_data)
         top_btn_layout.addWidget(btn_export_data)
-
         btn_clear = PushButton(FluentIcon.DELETE, tr("清空收藏夹"))
         btn_clear.clicked.connect(self._clear_all_favorites)
         top_btn_layout.addWidget(btn_clear)
         main_lay.addLayout(top_btn_layout)
-
         self.list_widget = QListWidget()
         self.list_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.list_widget.customContextMenuRequested.connect(self.show_context_menu)
@@ -102,28 +101,21 @@ class FavoritesWindow(QMainWindow):
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
         main_lay.addWidget(self.list_widget, 1)
-
         close_btn = PushButton(FluentIcon.CLOSE, tr("关闭窗口"))
         close_btn.clicked.connect(self.close)
         main_lay.addWidget(close_btn, 0)
-
-        # Set the container as the central widget.
         self.setCentralWidget(container)
-
         self.favorites = []
-        self._favorite_names = {}  # Favorite names: {content: name}.
-        self._favorite_types = {}  # Favorite types: {content: content_type}.
+        self._favorite_names = {}
+        self._favorite_types = {}
         self.file_path = str(default_user_data_file(DEFAULT_FAVORITES_NAME))
         self.load_favorites()
-
-        # --- ESC shortcut close; fallback when child widgets intercept key events ---
-        from PyQt6.QtGui import QShortcut, QKeySequence
+        from PyQt6.QtGui import QKeySequence, QShortcut
 
         self._esc_shortcut = QShortcut(QKeySequence("Esc"), self)
         self._esc_shortcut.activated.connect(self.close)
         self.apply_theme_styles(force=True)
 
-    # --- Capture the ESC key ---
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Escape:
             self.close()
@@ -133,47 +125,7 @@ class FavoritesWindow(QMainWindow):
 
     def _favorites_list_qss(self) -> str:
         t = preview_theme_tokens()
-        return f"""
-            QListWidget {{
-                border: none;
-                background: transparent;
-                outline: none;
-            }}
-            QListWidget::item {{
-                border-bottom: 1px solid {t["table_border"]};
-                padding: 8px 6px;
-                color: {t["body_text"]};
-                background: transparent;
-                outline: none;
-                border-left: none;
-                border-right: none;
-            }}
-            QListWidget::item:hover {{
-                background: {t["panel_bg"]};
-            }}
-            QListWidget::item:selected {{
-                background: {t["badge_formula_bg"]};
-                color: {t["body_text"]};
-                border: none;
-                outline: none;
-            }}
-            QListWidget::item:selected:active {{
-                background: {t["badge_formula_bg"]};
-                color: {t["body_text"]};
-                border: none;
-                outline: none;
-            }}
-            QListWidget::item:selected:!active {{
-                background: {t["badge_formula_bg"]};
-                color: {t["body_text"]};
-                border: none;
-                outline: none;
-            }}
-            QListWidget::item:focus {{
-                border: none;
-                outline: none;
-            }}
-        """
+        return f"\n            QListWidget {{\n                border: none;\n                background: transparent;\n                outline: none;\n            }}\n            QListWidget::item {{\n                border-bottom: 1px solid {t['table_border']};\n                padding: 8px 6px;\n                color: {t['body_text']};\n                background: transparent;\n                outline: none;\n                border-left: none;\n                border-right: none;\n            }}\n            QListWidget::item:hover {{\n                background: {t['panel_bg']};\n            }}\n            QListWidget::item:selected {{\n                background: {t['badge_formula_bg']};\n                color: {t['body_text']};\n                border: none;\n                outline: none;\n            }}\n            QListWidget::item:selected:active {{\n                background: {t['badge_formula_bg']};\n                color: {t['body_text']};\n                border: none;\n                outline: none;\n            }}\n            QListWidget::item:selected:!active {{\n                background: {t['badge_formula_bg']};\n                color: {t['body_text']};\n                border: none;\n                outline: none;\n            }}\n            QListWidget::item:focus {{\n                border: none;\n                outline: none;\n            }}\n        "
 
     def apply_theme_styles(self, force: bool = False):
         dark = False
@@ -184,7 +136,7 @@ class FavoritesWindow(QMainWindow):
         except Exception:
             try:
                 pal = self.palette().window().color()
-                dark = ((pal.red() + pal.green() + pal.blue()) / 3.0) < 128
+                dark = (pal.red() + pal.green() + pal.blue()) / 3.0 < 128
             except Exception:
                 dark = False
         if not force and self._theme_is_dark_cached is dark:
@@ -208,87 +160,51 @@ class FavoritesWindow(QMainWindow):
             pass
         return result
 
-    # ---------- Status ----------
     def _set_status(self, msg: str):
-        p = self.parent()
-        if p and hasattr(p, "set_action_status"):
-            p.set_action_status(msg)
+        self.status.set_action_status(msg)
 
     def _on_item_double_clicked(self, item):
-        """Load the formula into the editor and render it on double-click."""
-        latex = item.data(Qt.ItemDataRole.UserRole)
-        if not latex:
-            latex = item.text()
+        latex = item.data(Qt.ItemDataRole.UserRole) or item.text()
+        self.preview.set_source(latex, self._favorite_types[latex])
+        name = self._favorite_names.get(latex, "") or self.history.label_for(latex)
+        index = self.list_widget.row(item) + 1
+        label = f"#{index} {name}".strip()
+        self.preview.render_latex_in_preview(latex, self._favorite_types[latex], label)
+        self._set_status(tr("已加载到编辑器"))
 
-        p = self.parent()
-        if p and hasattr(p, "latex_editor") and hasattr(p, "render_latex_in_preview"):
-            if hasattr(p, "_set_editor_text_silent"):
-                p._set_editor_text_silent(latex)
-            else:
-                p.latex_editor.setPlainText(latex)
-
-            content_type = self._favorite_types[latex]
-
-            # Get the index and name, preferring the favorites name.
-            idx = self.list_widget.row(item) + 1
-            name = self._favorite_names.get(latex, "")
-            if not name and hasattr(p, "_formula_names"):
-                name = p._formula_names.get(latex, "")
-
-            if name:
-                label = f"#{idx} {name}"
-            else:
-                label = f"#{idx}"
-            p.render_latex_in_preview(latex, content_type, label)
-            self._set_status(tr("已加载到编辑器"))
-
-    # ---------- Menu ----------
     def show_context_menu(self, pos):
         item = self.list_widget.itemAt(pos)
         if not item:
             return
-
         latex = item.data(Qt.ItemDataRole.UserRole)
         if not latex:
             return
-
         menu = RoundMenu(parent=self)
         menu.addAction(Action(tr("复制"), triggered=lambda: self._copy_item(latex)))
-
         export_menu = RoundMenu(tr("导出为..."), parent=menu)
         populate_formula_export_menu(
             export_menu,
             lambda format_type: self._export_formula(format_type, latex, self),
         )
         menu.addMenu(export_menu)
-
         menu.addSeparator()
         menu.addAction(
             Action(tr("添加到历史"), triggered=lambda: self._add_to_history(latex))
         )
         menu.addAction(Action(tr("重命名"), triggered=lambda: self._rename_item(latex)))
-        menu.addAction(Action(tr("编辑"), triggered=lambda: self._edit_item(item, latex)))
+        menu.addAction(
+            Action(tr("编辑"), triggered=lambda: self._edit_item(item, latex))
+        )
         menu.addAction(Action(tr("删除"), triggered=lambda: self._delete_item(latex)))
         menu.exec(self.list_widget.mapToGlobal(pos))
 
     def _add_to_history(self, latex: str):
-        """Add a favorite formula to history, inheriting label and type."""
-        p = self.parent()
-        if not p or not hasattr(p, "history"):
-            self._set_status(tr("无法添加到历史"))
-            return
-
-        if latex in p.history:
+        if self.history.contains(latex):
             self._set_status(tr("公式已在历史中"))
             return
-
-        content_type = self._favorite_types[latex]
-        # Inherit the name; write the history-name mapping first so the new row shows its label immediately.
-        name = self._favorite_names.get(latex, "")
-        if name and hasattr(p, "_formula_names"):
-            p._formula_names[latex] = name
-
-        p.add_history_record(latex, content_type)
+        self.history.add_named_record(
+            latex, self._favorite_types[latex], self._favorite_names.get(latex, "")
+        )
 
     def _copy_item(self, latex: str):
         """Copy the formula to the clipboard."""
@@ -299,13 +215,9 @@ class FavoritesWindow(QMainWindow):
             self._set_status(tr("已复制到剪贴板"))
 
     def _rename_item(self, latex: str):
-        """Rename a formula in favorites."""
-        p = self.parent()
-        # Use the favorites window name dictionary.
-        current_name = self._favorite_names.get(latex, "")
-        if not current_name:
-            if p and hasattr(p, "_formula_names"):
-                current_name = p._formula_names.get(latex, "")
+        current_name = self._favorite_names.get(latex, "") or self.history.label_for(
+            latex
+        )
         new_name, ok = show_formula_rename_dialog(
             self,
             current_name=current_name,
@@ -314,51 +226,13 @@ class FavoritesWindow(QMainWindow):
         )
         if not ok:
             return
-        if new_name:
-            self._favorite_names[latex] = new_name
-            if p and hasattr(p, "_formula_names"):
-                p._formula_names[latex] = new_name
-                if hasattr(p, "save_history"):
-                    p.save_history()
-            self._set_status(tr("已命名为: {name}").format(name=new_name))
-        else:
-            self._favorite_names.pop(latex, None)
-            if p and hasattr(p, "_formula_names"):
-                p._formula_names.pop(latex, None)
-                if hasattr(p, "save_history"):
-                    p.save_history()
-            self._set_status(tr("已清除名称"))
-
-        # Save favorites.
-        self.save_favorites()
-
-        # Refresh the list display.
-        self.refresh_list()
-        # Refresh main-window history so names for the same formula update immediately.
-        if p and hasattr(p, "rebuild_history_ui"):
-            p.rebuild_history_ui()
-        # Refresh the main-window preview label so it does not keep the old name.
-        if p and hasattr(p, "_rendered_formulas"):
-            updated = False
-            new_rendered = []
-            for formula, label, content_type in getattr(p, "_rendered_formulas", []):
-                if formula != latex:
-                    new_rendered.append((formula, label, content_type))
-                    continue
-                s = (label or "").strip()
-                prefix = ""
-                if s.startswith("#"):
-                    prefix = s.split(" ", 1)[0]
-                if new_name:
-                    new_label = f"{prefix} {new_name}".strip() if prefix else new_name
-                else:
-                    new_label = prefix
-                new_rendered.append((formula, new_label, content_type))
-                updated = True
-            if updated:
-                p._rendered_formulas = new_rendered
-                if hasattr(p, "_refresh_preview"):
-                    p._refresh_preview()
+        self.set_label(latex, new_name)
+        self.history.set_label(latex, new_name)
+        self._set_status(
+            tr("已命名为: {name}").format(name=new_name)
+            if new_name
+            else tr("已清除名称")
+        )
 
     def _edit_item(self, item, latex: str):
         """Edit formula content."""
@@ -366,17 +240,13 @@ class FavoritesWindow(QMainWindow):
         if dlg.exec() == QDialog.DialogCode.Accepted:
             new = dlg.value()
             if new and new != latex:
-                # Find the index in favorites.
                 if latex in self.favorites:
                     idx = self.favorites.index(latex)
                     self.favorites[idx] = new
-
-                    # Update the favorites window name and type mappings.
                     if latex in self._favorite_names:
                         self._favorite_names[new] = self._favorite_names.pop(latex)
                     if latex in self._favorite_types:
                         self._favorite_types[new] = self._favorite_types.pop(latex)
-
                     self.save_favorites()
                     self.refresh_list()
                     self._set_status(tr("已更新"))
@@ -385,58 +255,39 @@ class FavoritesWindow(QMainWindow):
         """Delete a favorite item."""
         if latex in self.favorites:
             self.favorites.remove(latex)
-            # Clean up name and type mappings.
             self._favorite_names.pop(latex, None)
             self._favorite_types.pop(latex, None)
             self.refresh_list()
             self.save_favorites()
             self._set_status(tr("已删除"))
 
-    # ---------- List/File ----------
     def refresh_list(self):
         self.list_widget.clear()
-
-        # Type display names.
         type_names = {
             "mathcraft": tr("公式"),
             "mathcraft_text": tr("文字"),
             "mathcraft_mixed": tr("混合"),
         }
-
         for idx, formula in enumerate(self.favorites, start=1):
-            # Create a styled list item.
             item = QListWidgetItem()
-            item.setData(
-                Qt.ItemDataRole.UserRole, formula
-            )  # Store the original formula.
-
-            # Get name and type, preferring favorites-owned metadata.
+            item.setData(Qt.ItemDataRole.UserRole, formula)
             name = self._favorite_names.get(formula, "")
             if not name:
-                p = self.parent()
-                if p and hasattr(p, "_formula_names"):
-                    name = p._formula_names.get(formula, "")
+                name = self.history.label_for(formula)
             content_type = self._favorite_types[formula]
             type_display = type_names.get(content_type, "")
-
-            # Build display text.
             parts = [f"#{idx}"]
             if name:
                 parts.append(f"[{name}]")
             if content_type != "mathcraft" and type_display:
                 parts.append(f"<{type_display}>")
             display_text = " ".join(parts) + f"\n{formula}"
-
             item.setText(display_text)
             item.setToolTip(formula)
-
-            # Set item size and style.
             from PyQt6.QtCore import QSize
 
-            item.setSizeHint(QSize(0, 50))  # Minimum height.
-
+            item.setSizeHint(QSize(0, 50))
             self.list_widget.addItem(item)
-
         self.list_widget.setStyleSheet(self._favorites_list_qss())
 
     def _favorites_data(self) -> dict:
@@ -453,9 +304,7 @@ class FavoritesWindow(QMainWindow):
 
     def export_data(self):
         directory = self._select_export_directory(
-            self,
-            tr("选择收藏夹导出文件夹"),
-            str(Path(self.file_path).parent),
+            self, tr("选择收藏夹导出文件夹"), str(Path(self.file_path).parent)
         )
         if not directory:
             return
@@ -479,13 +328,11 @@ class FavoritesWindow(QMainWindow):
                 if isinstance(data, dict):
                     fav_list = data.get("favorites", [])
                     self.favorites = [str(x) for x in fav_list]
-                    # Load names.
                     names = data.get("names", {})
                     if isinstance(names, dict):
                         self._favorite_names = {
                             str(k): str(v) for k, v in names.items()
                         }
-                    # Load types.
                     types = data.get("types", {})
                     if isinstance(types, dict):
                         self._favorite_types = {
@@ -515,20 +362,16 @@ class FavoritesWindow(QMainWindow):
                 position=InfoBarPosition.TOP,
             )
             return
-
         ret = exec_close_only_message_box(
             self,
             tr("确认"),
-            tr("确定要清空所有 {count} 条收藏吗？").format(
-                count=len(self.favorites)
-            ),
+            tr("确定要清空所有 {count} 条收藏吗？").format(count=len(self.favorites)),
             icon=QMessageBox.Icon.Question,
             buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             default_button=QMessageBox.StandardButton.No,
         )
         if ret != QMessageBox.StandardButton.Yes:
             return
-
         self.favorites.clear()
         self._favorite_names.clear()
         self._favorite_types.clear()
@@ -536,7 +379,6 @@ class FavoritesWindow(QMainWindow):
         self.refresh_list()
         self._set_status(tr("已清空收藏夹"))
 
-    # ---------- Public API ----------
     def add_favorite(self, text: str, content_type: ContentType, name: str = None):
         """Add a favorite item."""
         t = (text or "").strip()
@@ -546,20 +388,23 @@ class FavoritesWindow(QMainWindow):
         if t in self.favorites:
             self._set_status(tr("已存在"))
             return
-
         self.favorites.append(t)
-
         self._favorite_types[t] = normalize_content_type(content_type)
-
-        # Store name; when missing, read it from the parent window.
         if name is None:
-            p = self.parent()
-            if p and hasattr(p, "_formula_names"):
-                name = p._formula_names.get(t, "")
+            name = self.history.label_for(t)
         if name:
             self._favorite_names[t] = name
-
         self.refresh_list()
         self.save_favorites()
         show_normal_window(self)
         self._set_status(tr("已加入收藏"))
+
+    def set_label(self, text, label):
+        if text not in self.favorites:
+            return
+        if label:
+            self._favorite_names[text] = label
+        else:
+            self._favorite_names.pop(text, None)
+        self.save_favorites()
+        self.refresh_list()

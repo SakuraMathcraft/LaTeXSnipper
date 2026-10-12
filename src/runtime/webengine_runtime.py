@@ -27,10 +27,8 @@ def configure_default_webengine_profile() -> None:
         logger.warning("QWebEngine 配置失败: %s", e)
 
 
-def log_webengine_diagnostics(stage: str, err: Exception | None = None, app_dir: Path | None = None) -> None:
-    """Output diagnostics for packaged WebEngine failures."""
-    if err is None and not logger.isEnabledFor(logging.DEBUG):
-        return
+def _log_webengine_diagnostics(app_dir: Path | None = None) -> None:
+    """Report runtime paths only after a WebEngine import failure."""
 
     def _fmt(path: Path | None) -> str:
         try:
@@ -38,13 +36,9 @@ def log_webengine_diagnostics(stage: str, err: Exception | None = None, app_dir:
         except Exception:
             return "<invalid>"
 
-    logger.debug(f"WebEngine 诊断阶段: {stage}")
-    if err is not None:
-        logger.warning(f"WebEngine 异常: {err}")
-
-    logger.debug(f"WebEngine frozen={getattr(sys, 'frozen', False)} _MEIPASS={getattr(sys, '_MEIPASS', None)}")
-    logger.debug(f"WebEngine executable={sys.executable}")
-    logger.debug(f"WebEngine APP_DIR={_fmt(app_dir)}")
+    logger.warning(f"WebEngine frozen={getattr(sys, 'frozen', False)} _MEIPASS={getattr(sys, '_MEIPASS', None)}")
+    logger.warning(f"WebEngine executable={sys.executable}")
+    logger.warning(f"WebEngine APP_DIR={_fmt(app_dir)}")
 
     exe_name = "QtWebEngineProcess.exe" if os.name == "nt" else "QtWebEngineProcess"
     candidates = []
@@ -73,7 +67,7 @@ def log_webengine_diagnostics(stage: str, err: Exception | None = None, app_dir:
         candidates = []
 
     found = next((p for p in candidates if p.exists()), None)
-    logger.debug(f"WebEngine QtWebEngineProcess found={_fmt(found)}")
+    logger.warning(f"WebEngine QtWebEngineProcess found={_fmt(found)}")
     if not found and candidates:
         logger.warning(f"未找到 QtWebEngineProcess，候选路径: {', '.join(_fmt(p) for p in candidates)}")
 
@@ -101,7 +95,7 @@ def log_webengine_diagnostics(stage: str, err: Exception | None = None, app_dir:
             continue
         missing = [f for f in required if not (rdir / f).exists()]
         present_opt = [f for f in optional if (rdir / f).exists()]
-        logger.debug(f"WebEngine resources_dir={_fmt(rdir)} missing={missing or '<none>'} optional={present_opt or '<none>'}")
+        logger.warning(f"WebEngine resources_dir={_fmt(rdir)} missing={missing or '<none>'} optional={present_opt or '<none>'}")
 
     locale_dirs = []
     try:
@@ -125,7 +119,7 @@ def log_webengine_diagnostics(stage: str, err: Exception | None = None, app_dir:
             pak_count = len(list(ldir.glob("*.pak")))
         except Exception:
             pak_count = 0
-        logger.debug(f"WebEngine locales_dir={_fmt(ldir)} pak_count={pak_count}")
+        logger.warning(f"WebEngine locales_dir={_fmt(ldir)} pak_count={pak_count}")
 
 
 _QWEBENGINE_VIEW = None
@@ -134,14 +128,12 @@ _QWEBENGINE_VIEW = None
 def load_webengine_view(app_dir: Path | None = None):
     """Import and return QWebEngineView, or None if the runtime is unavailable."""
     try:
-        log_webengine_diagnostics("before-import", app_dir=app_dir)
         from PyQt6.QtWebEngineWidgets import QWebEngineView
 
-        log_webengine_diagnostics("import-ok", app_dir=app_dir)
         return QWebEngineView
     except Exception as e:
         logger.warning("WebEngine 未就绪: %s", e, exc_info=True)
-        log_webengine_diagnostics("import-failed", e, app_dir=app_dir)
+        _log_webengine_diagnostics(app_dir)
         return None
 
 

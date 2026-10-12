@@ -20,8 +20,11 @@ class SettingsWindow(
     SettingsExternalModelMixin,
     QDialog,
 ):
-    """Settings window."""
+    def __init__(self, parent, *, context):
+        self.context = context
+        super().__init__(parent)
 
+    "Settings window."
     model_changed = pyqtSignal(str)
     compute_mode_probe_done = pyqtSignal(object, str)
     latex_path_test_done = pyqtSignal(bool, str, str, str, str)

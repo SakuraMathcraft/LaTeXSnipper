@@ -5,11 +5,14 @@ import time
 from pathlib import Path
 
 from localization.manager import translate as tr
-from runtime.dependency_runtime import iter_python_candidates
 from runtime.dependency_python import clean_path_value, normalize_deps_base_dir
+from runtime.dependency_runtime import iter_python_candidates
 from runtime.native_runtime import isolated_python_code
-from ui.settings_dialog_helpers import _existing_non_launcher_pyexe_from_env, _mathcraft_code_roots
 from runtime.processes import hidden_subprocess_kwargs
+from ui.settings_dialog_helpers import (
+    _existing_non_launcher_pyexe_from_env,
+    _mathcraft_code_roots,
+)
 
 
 class SettingsMathCraftMixin:
@@ -18,20 +21,7 @@ class SettingsMathCraftMixin:
             return {"present": False, "error": "Python executable not found"}
         roots = _mathcraft_code_roots()
         preference = self._current_mathcraft_provider_preference()
-        code = (
-            "import json, sys\n"
-            f"[sys.path.insert(0, p) for p in reversed({roots!r}) if p not in sys.path]\n"
-            "out={'present': False, 'active_provider': '', 'device': '', 'gpu_name': '', 'cpu_name': ''}\n"
-            "try:\n"
-            " from mathcraft_ocr.providers import detect_providers\n"
-            " from mathcraft_ocr.serialization import provider_info_to_json\n"
-            f" info = provider_info_to_json(detect_providers({preference!r}))\n"
-            " out.update(info)\n"
-            " out['present'] = True\n"
-            "except Exception as e:\n"
-            " out['error'] = f'{e.__class__.__name__}: {e}'\n"
-            "print(json.dumps(out, ensure_ascii=False))\n"
-        )
+        code = f"import json, sys\n[sys.path.insert(0, p) for p in reversed({roots!r}) if p not in sys.path]\nout={{'present': False, 'active_provider': '', 'device': '', 'gpu_name': '', 'cpu_name': ''}}\ntry:\n from mathcraft_ocr.providers import detect_providers\n from mathcraft_ocr.serialization import provider_info_to_json\n info = provider_info_to_json(detect_providers({preference!r}))\n out.update(info)\n out['present'] = True\nexcept Exception as e:\n out['error'] = f'{{e.__class__.__name__}}: {{e}}'\nprint(json.dumps(out, ensure_ascii=False))\n"
         try:
             res = subprocess.run(
                 [pyexe, "-c", isolated_python_code(code)],
@@ -48,13 +38,16 @@ class SettingsMathCraftMixin:
                         return info
                 except Exception:
                     pass
-            return {"present": False, "error": (res.stderr or raw or "probe failed").strip()}
+            return {
+                "present": False,
+                "error": (res.stderr or raw or "probe failed").strip(),
+            }
         except Exception as e:
             return {"present": False, "error": str(e)}
 
     def _current_mathcraft_provider_preference(self) -> str:
         try:
-            model = getattr(self.parent(), "model", None)
+            model = getattr(self.context.models, "model", None)
             preference = str(getattr(model, "_provider", "") or "").strip().lower()
             if preference in {"auto", "cpu", "gpu"}:
                 return preference
@@ -66,14 +59,10 @@ class SettingsMathCraftMixin:
         return self._resolve_dynamic_main_pyexe()
 
     def _init_model_combo(self):
-        # Initialize the model combo-box selection.
         current = "mathcraft"
-        if self.parent() and hasattr(self.parent(), "desired_model"):
-            current = self.parent().desired_model
-        elif self.parent() and hasattr(self.parent(), "cfg"):
-            current = self.parent().cfg.get("desired_model", current)
-        if not current and self.parent() and hasattr(self.parent(), "current_model"):
-            current = self.parent().current_model
+        current = self.context.models.desired_model
+        if not current and self.context and True:
+            current = self.context.models.current_model
         if current and str(current).startswith("mathcraft"):
             current_key = "mathcraft"
         else:
@@ -87,7 +76,6 @@ class SettingsMathCraftMixin:
         self._update_mathcraft_visibility()
 
     def _on_model_combo_changed(self, index: int):
-        # Model combo-box selection changed.
         if getattr(self, "_model_selection_syncing", False):
             return
         if index < 0 or index >= len(self._model_options):
@@ -103,8 +91,7 @@ class SettingsMathCraftMixin:
 
     def _init_mathcraft_mode(self):
         mode = "formula"
-        if self.parent() and hasattr(self.parent(), "cfg"):
-            mode = self.parent().cfg.get("mathcraft_mode", "formula")
+        mode = self.context.cfg.get("mathcraft_mode", "formula")
         if mode not in {"formula", "mixed", "text"}:
             mode = "formula"
         for i in range(self.mathcraft_mode_combo.count()):
@@ -131,9 +118,7 @@ class SettingsMathCraftMixin:
         return "formula"
 
     def _settings_cfg(self):
-        if self.parent() and hasattr(self.parent(), "cfg"):
-            return self.parent().cfg
-        return None
+        return self.context.cfg
 
     def _current_install_base_dir(self) -> Path | None:
         cfg = self._settings_cfg()
@@ -157,7 +142,6 @@ class SettingsMathCraftMixin:
         env_pyexe = _existing_non_launcher_pyexe_from_env()
         if env_pyexe:
             return env_pyexe
-
         base_dir = self._current_install_base_dir()
         if base_dir is not None:
             for candidate in iter_python_candidates(base_dir):
@@ -184,8 +168,7 @@ class SettingsMathCraftMixin:
         if index < 0:
             return
         mode_key = self.mathcraft_mode_combo.itemData(index)
-        if self.parent() and hasattr(self.parent(), "cfg"):
-            self.parent().cfg.set("mathcraft_mode", mode_key)
+        self.context.cfg.set("mathcraft_mode", mode_key)
         if not self._is_mathcraft_selected():
             return
         self.select_model(self._mathcraft_mode_to_model(mode_key))
@@ -195,8 +178,8 @@ class SettingsMathCraftMixin:
         idx = self.model_combo.currentIndex()
         if idx >= 0 and idx < len(self._model_options):
             key, _ = self._model_options[idx]
-        visible = (key == "mathcraft")
-        external_visible = (key == "external_model")
+        visible = key == "mathcraft"
+        external_visible = key == "external_model"
         try:
             self.mathcraft_mode_widget.setVisible(visible)
             self.external_model_widget.setVisible(external_visible)
@@ -205,7 +188,6 @@ class SettingsMathCraftMixin:
             pass
 
     def select_model(self, model_name: str):
-        # Only emit the signal; the connected on_model_changed handler processes it.
         self.model_changed.emit(model_name)
         self._update_compute_mode_label()
 
@@ -250,11 +232,13 @@ class SettingsMathCraftMixin:
         self._compute_mode_probe_py = str(pyexe or "")
         self._compute_mode_probe_ts = time.monotonic()
         self._compute_mode_probe_info = dict(info) if isinstance(info, dict) else {}
-        self._apply_compute_mode_from_info(self._compute_mode_probe_info or {}, self._compute_mode_probe_py)
+        self._apply_compute_mode_from_info(
+            self._compute_mode_probe_info or {}, self._compute_mode_probe_py
+        )
 
     def _active_mathcraft_provider_info(self) -> dict:
         try:
-            model = getattr(self.parent(), "model", None)
+            model = getattr(self.context.models, "model", None)
             info = getattr(model, "provider_info", None)
             if isinstance(info, dict) and info:
                 return {"present": True, **info}
@@ -267,26 +251,26 @@ class SettingsMathCraftMixin:
         if not pyexe or not os.path.exists(pyexe):
             self._set_compute_mode_text(tr("⚪ 计算模式未知"), "unknown")
             return
-
         active_info = self._active_mathcraft_provider_info()
         if active_info:
             self._apply_compute_mode_from_info(active_info, pyexe)
             return
-
         now = time.monotonic()
         ttl = float(getattr(self, "_probe_cache_ttl_sec", 45.0) or 45.0)
         cached_info = getattr(self, "_compute_mode_probe_info", None)
         cached_py = str(getattr(self, "_compute_mode_probe_py", "") or "")
         cached_ts = float(getattr(self, "_compute_mode_probe_ts", 0.0) or 0.0)
-        if (not force) and cached_py == pyexe and isinstance(cached_info, dict) and (now - cached_ts) <= ttl:
+        if (
+            not force
+            and cached_py == pyexe
+            and isinstance(cached_info, dict)
+            and (now - cached_ts <= ttl)
+        ):
             self._apply_compute_mode_from_info(cached_info, pyexe)
             return
-
-        if self._compute_mode_probe_running and not force:
+        if self._compute_mode_probe_running and (not force):
             return
-
         self._set_compute_mode_text(tr("⚪ 计算模式检测中..."), "unknown")
-
         self._compute_mode_probe_running = True
 
         def worker():
@@ -297,6 +281,7 @@ class SettingsMathCraftMixin:
                 pass
 
         import threading
+
         threading.Thread(target=worker, daemon=True).start()
 
     def _update_compute_mode_label(self):
@@ -304,15 +289,11 @@ class SettingsMathCraftMixin:
         self._schedule_compute_mode_probe()
 
     def update_model_selection(self):
-        # sync model combo selection state
         if getattr(self, "_model_selection_syncing", False):
             return
         current = "mathcraft"
         try:
-            if self.parent() and hasattr(self.parent(), "desired_model"):
-                current = str(self.parent().desired_model or "mathcraft")
-            elif self.parent() and hasattr(self.parent(), "cfg"):
-                current = str(self.parent().cfg.get("desired_model", current) or current)
+            current = str(self.context.models.desired_model or "mathcraft")
         except Exception:
             current = "mathcraft"
         target = "external_model" if current == "external_model" else "mathcraft"

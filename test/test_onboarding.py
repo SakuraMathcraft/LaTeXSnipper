@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 import pytest
+from types import SimpleNamespace
 
 from ui.controllers.onboarding import AUTO_SHOW_KEY, OnboardingController
 
@@ -32,7 +33,6 @@ class Host(QMainWindow):
     def __init__(self):
         super().__init__()
         self.cfg = Config()
-        self._model_warmup_in_progress = False
         self.setCentralWidget(QWidget())
         layout = QVBoxLayout(self.centralWidget())
         for name in (
@@ -48,7 +48,13 @@ class Host(QMainWindow):
             setattr(self, name, widget)
             layout.addWidget(widget)
         self.resize(1180, 720)
-        self.onboarding = OnboardingController(self)
+        self.onboarding = OnboardingController(
+            self,
+            self.cfg,
+            SimpleNamespace(warming_up=False),
+            SimpleNamespace(changed=self.modelStatusChanged),
+            self,
+        )
 
     def set_shortcut(self):
         self.shortcut_window = QDialog(self)
@@ -123,21 +129,21 @@ def test_model_busy_only_affects_preparation_ring(host):
     tour.start()
     for _ in range(3):
         tour.advance()
-    host._model_warmup_in_progress = True
+    host.onboarding.models.warming_up = True
     host.modelStatusChanged.emit()
     assert tour.surface.ring.isVisible()
-    host._model_warmup_in_progress = False
+    host.onboarding.models.warming_up = False
     host.modelStatusChanged.emit()
     assert not tour.surface.ring.isVisible()
     tour.advance()
     tour.advance()
     title = tour.surface.title.text()
-    host._model_warmup_in_progress = True
+    host.onboarding.models.warming_up = True
     host.modelStatusChanged.emit()
     assert tour.surface.title.text() == title
     assert not tour.surface.ring.isVisible()
     tour.advance()
-    assert host._model_warmup_in_progress
+    assert host.onboarding.models.warming_up
 
 
 def test_shortcut_pause_resume_and_single_instance(host):

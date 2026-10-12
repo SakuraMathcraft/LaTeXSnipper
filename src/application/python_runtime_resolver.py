@@ -463,7 +463,6 @@ def _append_private_site_packages(pyexe: str | None):
                         sys.path.append(pstr)
         except Exception:
             pass
-    logger.debug(f"已挂载依赖运行时路径: {base}")
 
 
 def _allowed_roots_for(pyexe: str | None, base_dir: Path) -> list[str]:
@@ -591,19 +590,12 @@ def ensure_full_python_or_prompt(base_dir: Path) -> str | None:
     if getattr(sys, "frozen", False):
         py = _find_full_python(base_dir)
         if py:
-            py_norm = os.path.normcase(os.path.abspath(py))
-            bundled_norm = os.path.normcase(os.path.abspath(str(base_dir)))
-            if py_norm.startswith(bundled_norm):
-                logger.debug(f"使用依赖目录 Python: {py}")
-            else:
-                logger.debug(f"使用外部私有 Python: {py}")
             return py
         logger.debug("依赖目录未检测到可用 Python，使用内置运行时启动依赖管理")
         return sys.executable
 
     py = _find_full_python(base_dir)
     if py:
-        logger.debug(f"使用依赖目录 Python: {py}")
         return py
 
     system_python = find_system_python3()

@@ -109,7 +109,6 @@ def _configure_tls_verify():
         # Set envs for child requests/urllib callers in this process.
         os.environ["REQUESTS_CA_BUNDLE"] = ca_path
         os.environ["SSL_CERT_FILE"] = ca_path
-        logger.debug("更新检查 TLS CA bundle: %s", ca_path)
     else:
         logger.warning("未找到 TLS CA bundle，更新检查可能因 HTTPS 验证失败")
 

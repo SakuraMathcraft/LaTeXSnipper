@@ -1,15 +1,15 @@
-from localization.manager import translate as tr
 import os
 import subprocess
 import sys
 
 from qfluentwidgets import MessageBox
 
+from application.restart import build_restart_with_dependency_management_launch
 from backend.mathcraft.runtime_policy import (
     onnxruntime_cpu_spec,
     onnxruntime_gpu_policy,
 )
-from application.restart import build_restart_with_dependency_management_launch
+from localization.manager import translate as tr
 from runtime.dependency_python import python_env_root
 from runtime.environment_terminal import open_main_environment_terminal
 from ui.settings_dialog_helpers import (
@@ -24,13 +24,7 @@ class SettingsEnvironmentMixin:
     def _main_environment_terminal_help(pyexe: str) -> list[str]:
         env_root = python_env_root(pyexe)
         mathcraft_roots = _mathcraft_code_roots()
-        doctor_code = (
-            "import sys; "
-            f"roots={mathcraft_roots!r}; "
-            "[sys.path.insert(0, p) for p in reversed(roots) if p not in sys.path]; "
-            "from mathcraft_ocr.cli import main; "
-            "raise SystemExit(main(['doctor','--provider','cpu']))"
-        )
+        doctor_code = f"import sys; roots={mathcraft_roots!r}; [sys.path.insert(0, p) for p in reversed(roots) if p not in sys.path]; from mathcraft_ocr.cli import main; raise SystemExit(main(['doctor','--provider','cpu']))"
         gpu_command = onnxruntime_gpu_policy(pyexe).pip_command() + " --no-deps"
         cpu_command = f'pip install "{onnxruntime_cpu_spec(pyexe)}"'
         lines = [
@@ -120,15 +114,13 @@ class SettingsEnvironmentMixin:
         try:
             os.makedirs(path, exist_ok=True)
             if os.name == "nt":
-                os.startfile(path)  # type: ignore[attr-defined]
+                os.startfile(path)
             elif sys.platform == "darwin":
                 subprocess.Popen(["open", path])
             else:
                 subprocess.Popen(["xdg-open", path])
             self._show_info(
-                tr("已打开"),
-                tr("模型缓存目录: {path}").format(path=path),
-                "success",
+                tr("已打开"), tr("模型缓存目录: {path}").format(path=path), "success"
             )
         except Exception as e:
             self._show_info(
@@ -147,7 +139,6 @@ class SettingsEnvironmentMixin:
         _apply_app_window_icon(msg)
         msg.yesButton.setText(tr("重启并打开"))
         msg.cancelButton.setText(tr("取消"))
-
         esc_pressed = [False]
         from PyQt6.QtCore import Qt as QtCore_Qt
         from PyQt6.QtGui import QKeyEvent
@@ -169,10 +160,11 @@ class SettingsEnvironmentMixin:
 
     def _restart_with_dependency_management(self):
         """Restart the app and open dependency management."""
-        import sys
-        from PyQt6.QtWidgets import QApplication
-        from PyQt6.QtCore import QCoreApplication
         import os
+        import sys
+
+        from PyQt6.QtCore import QCoreApplication
+        from PyQt6.QtWidgets import QApplication
 
         argv0 = ""
         try:
@@ -180,36 +172,24 @@ class SettingsEnvironmentMixin:
         except Exception:
             argv0 = ""
         exe_name = os.path.basename(argv0).lower() if argv0 else ""
-        if (not argv0) or exe_name in (
-            "python.exe",
-            "pythonw.exe",
-            "python",
-            "pythonw",
-        ):
+        if not argv0 or exe_name in ("python.exe", "pythonw.exe", "python", "pythonw"):
             argv0 = os.path.abspath(sys.argv[0]) if sys.argv else ""
         spawn_argv, env = build_restart_with_dependency_management_launch(
-            python_exe=sys.executable,
-            argv0=argv0,
-            base_env=os.environ.copy(),
+            python_exe=sys.executable, argv0=argv0, base_env=os.environ.copy()
         )
         try:
-            # Release heavy resources and the instance lock first to reduce the chance that the new process cannot acquire the lock.
-            parent = self.parent()
-            if parent and hasattr(parent, "prepare_restart"):
-                try:
-                    parent.prepare_restart()
-                except Exception:
-                    pass
+            parent = self.context
+            try:
+                parent.lifecycle.prepare_restart()
+            except Exception:
+                pass
             try:
                 app = QApplication.instance()
                 if app:
                     app.processEvents()
             except Exception:
                 pass
-            # This launches the GUI app itself.  Passing SW_HIDE here can hide the
-            # child process' first Qt window, which is dependency management.
             subprocess.Popen([str(x) for x in spawn_argv], env=env)
-            # Close the current program.
             QApplication.instance().quit()
         except Exception as e:
             from qfluentwidgets import InfoBar, InfoBarPosition
@@ -227,29 +207,24 @@ class SettingsEnvironmentMixin:
         if sys.platform != "darwin":
             self._show_info(tr("清理不可用"), tr("本清理入口仅适用于 macOS。"), "info")
             return
-
         from runtime.macos_local_data_cleanup import (
             cleanup_macos_local_data,
             macos_cleanup_targets,
         )
 
-        target_lines = "\n".join(f"• {path}" for path in macos_cleanup_targets())
+        target_lines = "\n".join((f"• {path}" for path in macos_cleanup_targets()))
         msg = MessageBox(
             tr("清理本机依赖与缓存"),
             tr(
-                "这会移除 LaTeXSnipper 在本机下载的依赖、缓存和日志。\n"
-                "应用本身和设置会保留；下次使用内置识别时可能需要重新下载依赖。\n\n"
-                "将清理：\n{targets}\n\n是否继续？"
+                "这会移除 LaTeXSnipper 在本机下载的依赖、缓存和日志。\n应用本身和设置会保留；下次使用内置识别时可能需要重新下载依赖。\n\n将清理：\n{targets}\n\n是否继续？"
             ).format(targets=target_lines),
             self,
         )
         _apply_app_window_icon(msg)
         msg.yesButton.setText(tr("清理"))
         msg.cancelButton.setText(tr("取消"))
-
         if not msg.exec():
             return
-
         result = cleanup_macos_local_data()
         if result.failed:
             first_path, first_error = result.failed[0]
@@ -278,7 +253,6 @@ class SettingsEnvironmentMixin:
         """Show a Fluent floating notification."""
         from qfluentwidgets import InfoBar, InfoBarPosition
 
-        # Anchor to the settings window to avoid covering the main window.
         parent = self
         func = getattr(InfoBar, level, InfoBar.info)
         func(

@@ -3,9 +3,7 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
-
 from PyQt6.QtWidgets import QApplication
-
 from localization.manager import translate as tr
 from runtime.processes import hidden_subprocess_kwargs
 
@@ -14,21 +12,23 @@ def _schedule_windows_installer(path: str) -> None:
     installer = str(Path(path).resolve())
     script = Path(tempfile.gettempdir()) / f"latexsnipper-install-{os.getpid()}.vbs"
     script.write_text(
-        "\n".join([
-            'Set shell = CreateObject("WScript.Shell")',
-            'Set fso = CreateObject("Scripting.FileSystemObject")',
-            r'Set wmi = GetObject("winmgmts:\\.\root\cimv2")',
-            f'installer = "{installer.replace(chr(34), chr(34) * 2)}"',
-            f'waitPid = "{os.getpid()}"',
-            "Do",
-            '  Set processes = wmi.ExecQuery("SELECT ProcessId FROM Win32_Process WHERE ProcessId = " & waitPid)',
-            "  If processes.Count = 0 Then Exit Do",
-            "  WScript.Sleep 1000",
-            "Loop",
-            'shell.Run Chr(34) & installer & Chr(34), 1, False',
-            'On Error Resume Next',
-            'fso.DeleteFile WScript.ScriptFullName, True',
-        ]),
+        "\n".join(
+            [
+                'Set shell = CreateObject("WScript.Shell")',
+                'Set fso = CreateObject("Scripting.FileSystemObject")',
+                'Set wmi = GetObject("winmgmts:\\\\.\\root\\cimv2")',
+                f'installer = "{installer.replace(chr(34), chr(34) * 2)}"',
+                f'waitPid = "{os.getpid()}"',
+                "Do",
+                '  Set processes = wmi.ExecQuery("SELECT ProcessId FROM Win32_Process WHERE ProcessId = " & waitPid)',
+                "  If processes.Count = 0 Then Exit Do",
+                "  WScript.Sleep 1000",
+                "Loop",
+                "shell.Run Chr(34) & installer & Chr(34), 1, False",
+                "On Error Resume Next",
+                "fso.DeleteFile WScript.ScriptFullName, True",
+            ]
+        ),
         encoding="utf-8",
     )
     subprocess.Popen(
@@ -39,17 +39,15 @@ def _schedule_windows_installer(path: str) -> None:
 
 
 def _prepare_app_for_update_exit() -> None:
+    from ui.controllers.app_lifecycle import AppLifecycleController
+
     app = QApplication.instance()
     if app is None:
         return
     for widget in app.topLevelWidgets():
-        try:
-            prepare_restart = getattr(widget, "prepare_restart", None)
-            if callable(prepare_restart):
-                prepare_restart()
-                break
-        except Exception:
-            continue
+        for lifecycle in widget.findChildren(AppLifecycleController):
+            lifecycle.prepare_restart()
+            return
 
 
 def _read_signature_status(path: str) -> str:
@@ -58,11 +56,7 @@ def _read_signature_status(path: str) -> str:
         return tr("未校验（非 Windows 安装器）")
     try:
         escaped_path = path.replace("'", "''")
-        cmd = (
-            "Get-AuthenticodeSignature -FilePath "
-            f"'{escaped_path}' | "
-            "Select-Object Status,SignerCertificate | ConvertTo-Json -Compress"
-        )
+        cmd = f"Get-AuthenticodeSignature -FilePath '{escaped_path}' | Select-Object Status,SignerCertificate | ConvertTo-Json -Compress"
         proc = subprocess.run(
             ["powershell", "-NoProfile", "-Command", cmd],
             capture_output=True,

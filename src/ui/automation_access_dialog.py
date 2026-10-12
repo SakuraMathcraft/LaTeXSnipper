@@ -68,10 +68,11 @@ _AUTOMATION_SETTINGS_ERROR_MESSAGES = frozenset(
 
 
 class AutomationAccessDialog(QDialog):
-    def __init__(self, window, parent=None) -> None:
+    def __init__(self, config, controller, parent=None, *, on_saved=None) -> None:
         super().__init__(parent)
-        self._window = window
-        self._cfg = window.cfg
+        self._controller = controller
+        self._cfg = config
+        self._on_saved = on_saved
         self.setWindowTitle(tr("自动化接口"))
         self.resize(500, 480)
         self.setMinimumWidth(500)
@@ -306,7 +307,7 @@ class AutomationAccessDialog(QDialog):
         self.remote_ack.setChecked(
             bool(self._cfg.get(AUTOMATION_API_REMOTE_WARNING_ACKNOWLEDGED_KEY, False))
         )
-        self.status.setText(self._window.automation_api.automation_api_status_text())
+        self.status.setText(self._controller.automation_api_status_text())
         self._sync_visibility()
 
     def _sync_visibility(self, *_args) -> None:
@@ -343,7 +344,7 @@ class AutomationAccessDialog(QDialog):
         )
 
     def _notify_parent(self, title: str, content: str, level: str) -> None:
-        notify = getattr(self.parent(), "_show_info", None)
+        notify = self._on_saved
         if callable(notify):
             notify(title, content, level)
         else:
@@ -433,9 +434,7 @@ class AutomationAccessDialog(QDialog):
         def done(ok: bool, message: str) -> None:
             self.save_button.setEnabled(True)
             self.save_button.setText(tr("保存"))
-            self.status.setText(
-                self._window.automation_api.automation_api_status_text()
-            )
+            self.status.setText(self._controller.automation_api_status_text())
             if not ok:
                 self._show_info(tr("自动化接口启动失败"), message, "error")
                 return
@@ -445,9 +444,7 @@ class AutomationAccessDialog(QDialog):
             self.accept()
 
         try:
-            self._window.automation_api.update_automation_api_settings_async(
-                values, done
-            )
+            self._controller.update_automation_api_settings_async(values, done)
         except Exception:
             self.save_button.setEnabled(True)
             self.save_button.setText(tr("保存"))

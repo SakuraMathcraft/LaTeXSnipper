@@ -1,21 +1,39 @@
-"""File drag-and-drop helpers and MainWindow mixin."""
+"""FileInputController and related helpers."""
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ui.controllers.pdf import PdfRecognitionController
+    from ui.controllers.recognition import ImageRecognitionController
+    from ui.main_window import MainWindow
 import logging
 from pathlib import Path
 
-from localization.manager import translate as tr
+from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QGuiApplication, QKeySequence
 from qfluentwidgets import InfoBar, InfoBarPosition
 
+from localization.manager import translate as tr
 from recognition.image_contracts import SUPPORTED_IMAGE_EXTENSIONS
 from recognition.image_input import image_from_qimage
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
-class FileDropMixin:
+class FileInputController(QObject):
+    def __init__(
+        self,
+        view: MainWindow,
+        pdf: PdfRecognitionController,
+        recognition: ImageRecognitionController,
+    ):
+        super().__init__(view)
+        self.view = view
+        self.pdf = pdf
+        self.recognition = recognition
+
     def _handle_clipboard_image_paste(self, event=None) -> bool:
         if event is not None:
             try:
@@ -23,53 +41,26 @@ class FileDropMixin:
                     return False
             except Exception:
                 return False
-
         clipboard = QGuiApplication.clipboard()
         mime = clipboard.mimeData() if clipboard is not None else None
         if mime is None:
             return False
-
         if mime.hasImage():
             image = clipboard.image()
             if image.isNull():
                 return False
-            self._next_predict_result_screen_index = None
-            self._start_predict_with_pil(image_from_qimage(image))
+            self.recognition.recognize_image(image_from_qimage(image))
             return True
-
         if mime.hasUrls():
             paths = [
                 Path(url.toLocalFile())
                 for url in mime.urls()
                 if url.isLocalFile() and Path(url.toLocalFile()).is_file()
             ]
-            if len(paths) == 1 and self._drop_file_kind(paths[0]) == "image":
-                self._recognize_image_file(paths[0])
+            if len(paths) == 1 and file_kind(paths[0]) == "image":
+                self.recognition.recognize_file(paths[0])
                 return True
         return False
-
-    def keyPressEvent(self, event):
-        if self._handle_clipboard_image_paste(event):
-            event.accept()
-            return
-        super().keyPressEvent(event)
-
-    def _get_supported_image_patterns(self):
-        """Return image file dialog filter patterns."""
-        return [f"*.{extension}" for extension in SUPPORTED_IMAGE_EXTENSIONS]
-
-    def _get_supported_image_extensions(self):
-        """Return readable image extensions for prompts."""
-        return [
-            p.replace("*.", "").upper() for p in self._get_supported_image_patterns()
-        ]
-
-    def _get_supported_image_suffixes(self) -> set[str]:
-        return {
-            p.replace("*", "").lower()
-            for p in self._get_supported_image_patterns()
-            if p.startswith("*.")
-        }
 
     def _local_drop_paths(self, event) -> list[Path]:
         try:
@@ -87,14 +78,6 @@ class FileDropMixin:
         except Exception:
             return []
 
-    def _drop_file_kind(self, path: Path) -> str | None:
-        suffix = str(path.suffix or "").lower()
-        if suffix == ".pdf":
-            return "pdf"
-        if suffix in self._get_supported_image_suffixes():
-            return "image"
-        return None
-
     def _drag_contains_local_file(self, event) -> bool:
         return bool(self._local_drop_paths(event))
 
@@ -103,7 +86,7 @@ class FileDropMixin:
             InfoBar.warning(
                 title=tr("无法处理拖入文件"),
                 content=content,
-                parent=self,
+                parent=self.view,
                 duration=3200,
                 position=InfoBarPosition.TOP,
             )
@@ -122,18 +105,6 @@ class FileDropMixin:
         except Exception:
             pass
 
-    def dragEnterEvent(self, event):
-        if self._drag_contains_local_file(event):
-            event.acceptProposedAction()
-            return
-        super().dragEnterEvent(event)
-
-    def dragMoveEvent(self, event):
-        if self._drag_contains_local_file(event):
-            event.acceptProposedAction()
-            return
-        super().dragMoveEvent(event)
-
     def dropEvent(self, event):
         paths = self._local_drop_paths(event)
         if len(paths) != 1:
@@ -141,7 +112,7 @@ class FileDropMixin:
                 self._show_drop_file_warning(tr("请一次只拖入一个图片或 PDF 文件。"))
                 event.acceptProposedAction()
             else:
-                img_exts = ", ".join(self._get_supported_image_extensions())
+                img_exts = ", ".join(image_extensions())
                 self._show_drop_file_warning(
                     tr("请拖入单个图片或 PDF 文件。支持图片格式：{formats}。").format(
                         formats=img_exts
@@ -149,11 +120,10 @@ class FileDropMixin:
                 )
                 event.ignore()
             return
-
         path = paths[0]
-        kind = self._drop_file_kind(path)
+        kind = file_kind(path)
         if not kind:
-            img_exts = ", ".join(self._get_supported_image_extensions())
+            img_exts = ", ".join(image_extensions())
             self._show_drop_file_warning(
                 tr("请拖入单个图片或 PDF 文件。支持图片格式：{formats}。").format(
                     formats=img_exts
@@ -161,9 +131,44 @@ class FileDropMixin:
             )
             event.ignore()
             return
-
         event.acceptProposedAction()
         if kind == "image":
-            self._recognize_image_file(path)
+            self.recognition.recognize_file(path)
         elif kind == "pdf":
-            self._recognize_pdf_file(path)
+            self.pdf.recognize_file(path)
+
+    def eventFilter(self, obj, event):
+        from PyQt6.QtCore import QEvent
+
+        if event.type() == QEvent.Type.KeyPress and self._handle_clipboard_image_paste(
+            event
+        ):
+            event.accept()
+            return True
+        if event.type() in (
+            QEvent.Type.DragEnter,
+            QEvent.Type.DragMove,
+        ) and self._drag_contains_local_file(event):
+            event.acceptProposedAction()
+            return True
+        if event.type() == QEvent.Type.Drop and self._local_drop_paths(event):
+            self.dropEvent(event)
+            return True
+        return False
+
+
+def image_patterns():
+    return [f"*.{extension}" for extension in SUPPORTED_IMAGE_EXTENSIONS]
+
+
+def image_extensions():
+    return [extension.upper() for extension in SUPPORTED_IMAGE_EXTENSIONS]
+
+
+def image_suffixes():
+    return {f".{extension.lower()}" for extension in SUPPORTED_IMAGE_EXTENSIONS}
+
+
+def file_kind(path):
+    suffix = Path(path).suffix.lower()
+    return "pdf" if suffix == ".pdf" else "image" if suffix in image_suffixes() else ""

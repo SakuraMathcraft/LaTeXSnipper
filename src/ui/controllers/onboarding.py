@@ -8,11 +8,12 @@ from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import QApplication
 from qfluentwidgets import qconfig
 
-from localization.manager import current_ui_language, translate as tr
+from localization.manager import current_ui_language
+from localization.manager import translate as tr
 from runtime.hotkey_config import display_hotkey
+from ui.controllers.runtime_log import show_runtime_log_window
 from ui.onboarding_steps import tour_steps
 from ui.onboarding_view import TourSurface
-from ui.controllers.runtime_log import show_runtime_log_window
 from update.release_types import _RELEASES_PAGE
 
 AUTO_SHOW_KEY = "onboarding_auto_show"
@@ -20,9 +21,12 @@ PROJECT_URL = _RELEASES_PAGE.removesuffix("/releases")
 
 
 class OnboardingController(QObject):
-    def __init__(self, window):
+    def __init__(self, window, cfg, models, status, hotkey):
         super().__init__(window)
         self.window = window
+        self.cfg = cfg
+        self.models = models
+        self.hotkey = hotkey
         self.central_widget = window.centralWidget()
         self.surface = TourSurface(self.central_widget)
         self.surface.hide()
@@ -38,14 +42,11 @@ class OnboardingController(QObject):
         self.surface.actionRequested.connect(self.action)
         window.installEventFilter(self)
         self.central_widget.installEventFilter(self)
-        window.modelStatusChanged.connect(self.refresh_busy)
+        status.changed.connect(self.refresh_busy)
         qconfig.themeChanged.connect(self.surface.apply_theme)
 
     def start_automatically(self):
-        if (
-            self.window.cfg.get(AUTO_SHOW_KEY, True)
-            and not QApplication.activeModalWidget()
-        ):
+        if self.cfg.get(AUTO_SHOW_KEY, True) and not QApplication.activeModalWidget():
             self.start(automatic=True)
 
     def start(self, automatic=False):
@@ -75,7 +76,7 @@ class OnboardingController(QObject):
         actions = []
         detail = ""
         if self.index == 2:
-            detail = display_hotkey(self.window.cfg.get("hotkey"), sys.platform)
+            detail = display_hotkey(self.cfg.get("hotkey"), sys.platform)
             actions = [("shortcut", tr("修改快捷键"))]
         elif self.index == 3:
             actions = [("logs", tr("查看日志"))]
@@ -98,7 +99,7 @@ class OnboardingController(QObject):
             self.active
             and not self.confirming_exit
             and self.index == 3
-            and bool(self.window._model_warmup_in_progress)
+            and bool(self.models.warming_up)
         )
         if self.surface.isVisible():
             self.surface.reposition()
@@ -126,7 +127,7 @@ class OnboardingController(QObject):
 
     def finish(self):
         if self.automatic:
-            self.window.cfg.set(AUTO_SHOW_KEY, False)
+            self.cfg.set(AUTO_SHOW_KEY, False)
         self.active = False
         self.surface.hide()
         self.window.onboarding_button.setFocus()
@@ -135,8 +136,8 @@ class OnboardingController(QObject):
         if key in ("shortcut", "logs"):
             self.surface.hide()
             if key == "shortcut":
-                self.window.set_shortcut()
-                auxiliary = self.window.shortcut_window
+                self.hotkey.set_shortcut()
+                auxiliary = self.hotkey.shortcut_window
             else:
                 auxiliary = show_runtime_log_window(self.window)
             if auxiliary is None:

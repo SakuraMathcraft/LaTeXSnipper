@@ -1,23 +1,50 @@
-"""Status label and model notice mixin."""
+"""StatusController and related helpers."""
 
 from __future__ import annotations
 
-from localization.manager import translate as tr
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from PyQt6.QtWidgets import QWidget
+
+    from runtime.config_manager import ConfigManager
+    from ui.controllers.model_runtime import ModelRuntimeController
+    from ui.main_window import MainWindow
 from typing import Literal
 
+from PyQt6.QtCore import QObject, pyqtSignal
 from qfluentwidgets import InfoBar, InfoBarPosition
+
+from localization.manager import translate as tr
 
 ActionStatusLevel = Literal["success", "info", "warning", "error"]
 
 
-class StatusControllerMixin:
+class StatusController(QObject):
+    changed = pyqtSignal()
+
+    def __init__(
+        self,
+        view: MainWindow,
+        cfg: ConfigManager,
+        models: ModelRuntimeController,
+        notification_parent: Callable[[], QWidget],
+    ):
+        super().__init__(view)
+        self.view = view
+        self.cfg = cfg
+        self.models = models
+        self.notification_parent = notification_parent
+        self.model_status = tr("未加载")
+
     def _get_status_model_display_name(self) -> str:
-        current = str(getattr(self, "current_model", "") or "").strip()
+        current = str(getattr(self.models, "current_model", "") or "").strip()
         if current != "external_model":
             return current
         try:
-            cfg = self._get_external_model_config()
+            cfg = self.models.external_config()
             if cfg.normalized_provider() == "mineru":
                 return "MinerU Local"
             model_name = cfg.normalized_model_name()
@@ -27,27 +54,27 @@ class StatusControllerMixin:
             pass
         return current
 
-    def _sync_current_model_status_from_preference(self) -> None:
+    def sync_model_status(self) -> None:
         preferred = str(
-            self._get_preferred_model_for_predict()
-            or getattr(self, "current_model", "mathcraft")
+            self.models.preferred_model()
+            or getattr(self.models, "current_model", "mathcraft")
             or "mathcraft"
         ).strip()
-        self.current_model = preferred
+        self.models.select_current(preferred)
         try:
             self.cfg.set("default_model", preferred)
         except Exception:
             pass
         if preferred == "external_model":
-            self.set_model_status(self._get_external_model_status_text())
+            self.set_model_status(self.models.external_status())
             return
-        if not getattr(self, "model", None):
+        if not getattr(self.models, "model", None):
             self.set_model_status(tr("待识别时加载"))
             return
-        if self.model.is_model_ready(preferred):
+        if self.models.model.is_model_ready(preferred):
             self.set_model_status(tr("已加载"))
         elif preferred.startswith("mathcraft") and getattr(
-            self.model, "_import_failed", False
+            self.models.model, "_import_failed", False
         ):
             self.set_model_status(tr("加载失败"))
         else:
@@ -58,7 +85,7 @@ class StatusControllerMixin:
         base = tr("当前模型: {model} | 状态: {status}").format(
             model=model_display, status=self.model_status
         )
-        lbl = getattr(self, "status_label", None)
+        lbl = getattr(self.view, "status_label", None)
         if lbl is None:
             return
         lbl.setText(base)
@@ -66,9 +93,7 @@ class StatusControllerMixin:
     def set_model_status(self, msg: str):
         self.model_status = msg
         self.refresh_status_label()
-        signal = getattr(self, "modelStatusChanged", None)
-        if signal is not None:
-            signal.emit()
+        self.changed.emit()
 
     def set_action_status(self, msg: str, auto_clear_ms: int = 2500, parent=None):
         self.show_action_status(
@@ -96,62 +121,20 @@ class StatusControllerMixin:
         infobar(
             title=tr("提示"),
             content=text,
-            parent=parent or self,
+            parent=parent or self.view,
             position=position,
             duration=auto_clear_ms,
         )
 
     def show_status_message(self, msg: str):
-
         text = str(msg or "").strip()
         if not text:
             return
         if text.startswith("[INFO] MathCraft model cache:"):
-            self._show_mathcraft_cache_repair_infobar(text.split(":", 1)[-1].strip())
+            self.models._show_mathcraft_cache_repair_infobar(
+                text.split(":", 1)[-1].strip()
+            )
             return
-
         if text.startswith("["):
             return
         self.set_model_status(text)
-
-    def _should_show_mathcraft_warmup_started_infobar(
-        self, model_name: str | None
-    ) -> bool:
-        if self._mathcraft_required_models_incomplete(model_name):
-            return True
-        return not bool(self.cfg.get("mathcraft_warmup_notice_done", False))
-
-    def _show_mathcraft_warmup_started_infobar(self) -> None:
-        if self._model_warmup_notice_shown:
-            return
-        self._model_warmup_notice_shown = True
-        try:
-            InfoBar.info(
-                title=tr("MathCraft OCR 正在预热"),
-                content=tr(
-                    "首次预热可能需要下载或初始化模型权重，网速较慢时耗时会更长，请稍候。"
-                ),
-                parent=self._get_infobar_parent(),
-                duration=5200,
-                position=InfoBarPosition.TOP,
-            )
-        except Exception:
-            pass
-
-    def _show_mathcraft_cache_repair_infobar(self, detail: str = "") -> None:
-        if self._model_cache_repair_notice_shown:
-            return
-        self._model_cache_repair_notice_shown = True
-        content = tr("检测到 MathCraft 模型权重缺失或不完整，正在自动补全。")
-        if detail:
-            content = f"{content}\n{detail[:180]}"
-        try:
-            InfoBar.warning(
-                title=tr("正在修复模型缓存"),
-                content=content,
-                parent=self._get_infobar_parent(),
-                duration=6500,
-                position=InfoBarPosition.TOP,
-            )
-        except Exception:
-            pass

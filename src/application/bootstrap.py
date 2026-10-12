@@ -120,8 +120,6 @@ def _prepare_python_runtime(install_base_dir: Path) -> tuple[Path, str]:
     if not _in_ide() and not _is_packaged_mode():
         if not _same_exe(sys.executable, target_py):
             _relaunch_with(target_py)
-    elif _in_ide():
-        logger.debug("IDE 中运行，保持当前解释器并使用私有依赖路径")
 
     return base_dir, target_py
 
@@ -147,7 +145,6 @@ def _prepare_python_runtime_for_dependency_management(
     os.environ.pop("PYTHONPATH", None)
     os.environ.pop("MATHCRAFT_HOME", None)
 
-    logger.debug("依赖管理模式：等待用户选择后准备 Python 环境")
     return base_dir, target_py
 
 
@@ -163,7 +160,6 @@ def _bootstrap_dependencies(base_dir: Path, target_py: str) -> None:
         os.environ.get("LATEXSNIPPER_OPEN_DEPENDENCY_MANAGEMENT", "") == "1"
     )
     if open_dependency_management:
-        logger.debug("依赖管理模式：统一验证依赖")
         return
 
     ensure_startup_splash(tr("检查依赖..."))
@@ -196,12 +192,9 @@ def bootstrap_application() -> BootstrapContext:
     _ensure_src_path()
     configure_default_webengine_profile()
 
-    logger.debug(f"应用根目录: {APP_DIR}")
-    logger.debug(f"打包模式: {_is_packaged_mode()}")
 
     deps_dir = _initial_deps_dir()
     deps_dir.mkdir(parents=True, exist_ok=True)
-    logger.debug(f"依赖目录: {deps_dir}")
 
     install_base_dir = resolve_install_base_dir()
     open_dependency_management = (
@@ -220,7 +213,6 @@ def bootstrap_application() -> BootstrapContext:
 
     for var in ("PYTHONHOME", "PYTHONPATH", "MATHCRAFT_HOME"):
         if var in os.environ:
-            logger.debug(f"清除环境变量 {var}")
             os.environ.pop(var)
 
     _BOOTSTRAP_CONTEXT = BootstrapContext(

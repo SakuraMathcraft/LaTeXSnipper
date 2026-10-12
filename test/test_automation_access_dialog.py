@@ -35,7 +35,8 @@ class _Window:
 
 
 def test_local_access_hides_the_complete_remote_card() -> None:
-    dialog = AutomationAccessDialog(_Window())
+    window = _Window()
+    dialog = AutomationAccessDialog(window.cfg, window.automation_api)
 
     assert dialog.remote_card.isHidden()
 
@@ -52,7 +53,7 @@ def test_local_access_hides_the_complete_remote_card() -> None:
 
 def test_remote_access_requires_explicit_risk_acknowledgement() -> None:
     window = _Window()
-    dialog = AutomationAccessDialog(window)
+    dialog = AutomationAccessDialog(window.cfg, window.automation_api)
     messages: list[tuple[str, str, str]] = []
     dialog._show_info = lambda title, content, level="info": messages.append(
         (title, content, level)
@@ -74,7 +75,7 @@ def test_remote_access_requires_explicit_risk_acknowledgement() -> None:
 
 def test_local_save_reports_success_without_a_message_box() -> None:
     window = _Window()
-    dialog = AutomationAccessDialog(window)
+    dialog = AutomationAccessDialog(window.cfg, window.automation_api)
     messages: list[tuple[str, str, str]] = []
     dialog._show_info = lambda title, content, level="info": messages.append(
         (title, content, level)

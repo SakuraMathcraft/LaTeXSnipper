@@ -1,12 +1,9 @@
-from localization.manager import translate as tr
 from PyQt6.QtCore import QThread
 from PyQt6.QtWidgets import QLineEdit
 from qfluentwidgets import ComboBox
 
-from backend.external_model import (
-    get_preset,
-    load_config_from_mapping,
-)
+from backend.external_model import get_preset, load_config_from_mapping
+from localization.manager import translate as tr
 from recognition.error_messages import external_model_test_error_user_message
 from recognition.external_workers import ExternalModelConnectionWorker
 from ui.settings_external_help import ExternalModelHelpWindow
@@ -38,8 +35,7 @@ class SettingsExternalModelMixin:
     def _init_external_model_config(self):
         cfg = None
         try:
-            if self.parent() and hasattr(self.parent(), "cfg"):
-                cfg = self.parent().cfg
+            cfg = self.context.cfg
         except Exception:
             cfg = None
         config = load_config_from_mapping(cfg or {})
@@ -121,30 +117,27 @@ class SettingsExternalModelMixin:
         self._update_external_provider_visibility()
 
     def _notify_parent_external_status_changed(self):
-        parent = self.parent()
+        parent = self.context
         if parent is None:
             return
         try:
             preferred = ""
-            if hasattr(parent, "_get_preferred_model_for_predict"):
-                preferred = (
-                    str(parent._get_preferred_model_for_predict() or "").strip().lower()
-                )
-            current = str(getattr(parent, "current_model", "") or "").strip().lower()
+            preferred = str(parent.models.preferred_model() or "").strip().lower()
+            current = (
+                str(getattr(parent.models, "current_model", "") or "").strip().lower()
+            )
             if current == "external_model" or preferred == "external_model":
-                if hasattr(parent, "set_model_status") and hasattr(
-                    parent, "_get_external_model_status_text"
-                ):
-                    parent.set_model_status(parent._get_external_model_status_text())
-                elif hasattr(parent, "refresh_status_label"):
-                    parent.refresh_status_label()
+                if True and True:
+                    parent.status.set_model_status(parent.models.external_status())
+                else:
+                    parent.status.refresh_status_label()
         except Exception:
             pass
 
     def _save_external_model_config(self):
         config = self._collect_external_model_config()
         try:
-            parent_cfg = getattr(self.parent(), "cfg", None)
+            parent_cfg = getattr(self.context, "cfg", None)
             if parent_cfg is not None:
                 values = config.to_mapping()
                 if hasattr(parent_cfg, "set_many"):
@@ -203,16 +196,13 @@ class SettingsExternalModelMixin:
     def _test_external_model_connection(self):
         if self._external_test_thread and self._external_test_thread.isRunning():
             self._show_info(
-                tr("测试进行中"),
-                tr("当前已有一个测试连接任务在后台运行。"),
-                "warning",
+                tr("测试进行中"), tr("当前已有一个测试连接任务在后台运行。"), "warning"
             )
             return
         config = self._collect_external_model_config()
         self._save_external_model_config()
         self.external_test_btn.setEnabled(False)
         self.external_test_btn.setText(tr("测试中..."))
-
         self._external_test_thread = QThread(self)
         self._external_test_worker = ExternalModelConnectionWorker(config)
         self._external_test_worker.moveToThread(self._external_test_thread)
@@ -232,11 +222,7 @@ class SettingsExternalModelMixin:
 
         def _on_ok(_ok: bool, _message: str):
             provider = config.normalized_provider()
-            title = (
-                tr("健康检查通过")
-                if provider == "mineru"
-                else tr("测试成功")
-            )
+            title = tr("健康检查通过") if provider == "mineru" else tr("测试成功")
             if provider == "mineru":
                 message = tr("MinerU 健康检查通过：{endpoint}").format(
                     endpoint=config.normalized_mineru_test_endpoint()

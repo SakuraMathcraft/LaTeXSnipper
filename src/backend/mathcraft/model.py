@@ -223,10 +223,8 @@ class ModelWrapper(QObject):
         self._stderr_thread: threading.Thread | None = None
         self._cache_events_seen: set[str] = set()
 
-        self._emit(f"MathCraft OCR 后端偏好: {self._provider}", level=logging.DEBUG)
-        self._emit(f"MathCraft OCR 依赖解释器: {get_deps_python()}", level=logging.DEBUG)
         if auto_warmup:
-            self._lazy_load_mathcraft()
+            self.warmup()
 
     def _emit(self, msg: str, *, level: int = logging.INFO) -> None:
         logger.log(level, "%s", msg)
@@ -332,7 +330,7 @@ class ModelWrapper(QObject):
             exit_code = proc.wait(timeout=0.2)
         except subprocess.TimeoutExpired:
             exit_code = None
-        self._stop_mathcraft_worker()
+        self.stop()
         status = "running before cleanup" if exit_code is None else str(exit_code)
         if exit_code is not None:
             status += f" (0x{exit_code & 0xFFFFFFFF:08X})"
@@ -443,7 +441,7 @@ class ModelWrapper(QObject):
         self._failure_info = {}
         self._import_failed = False
 
-    def _stop_mathcraft_worker(self) -> None:
+    def stop(self) -> None:
         proc = self._worker
         self._worker = None
         if not proc:
@@ -469,7 +467,7 @@ class ModelWrapper(QObject):
         self._ready_modes.clear()
         self.provider_info = {}
 
-    def _lazy_load_mathcraft(self, model_name: str | None = None) -> bool:
+    def warmup(self, model_name: str | None = None) -> bool:
         model = self._normalize_model_name(model_name or self._default_model)
         mode = self._mode_for_model(model)
         self._default_model = model
@@ -556,7 +554,7 @@ class ModelWrapper(QObject):
     def predict_result(self, pil_img: Image.Image, model_name: str = "mathcraft") -> dict[str, Any]:
         model = self._normalize_model_name(model_name)
         mode = self._mode_for_model(model)
-        if mode not in self._ready_modes and not self._lazy_load_mathcraft(model):
+        if mode not in self._ready_modes and not self.warmup(model):
             raise RuntimeError(self._last_error or "MathCraft OCR not ready")
 
         tmp_path = ""
@@ -632,6 +630,11 @@ class ModelWrapper(QObject):
 
     def __del__(self):
         try:
-            self._stop_mathcraft_worker()
+            self.stop()
         except Exception:
             pass
+
+    def restart(self) -> None:
+        """Reset the inference process and readiness through its owner."""
+        self.stop()
+        self._clear_error()

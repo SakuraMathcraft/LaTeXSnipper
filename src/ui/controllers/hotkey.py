@@ -1,15 +1,23 @@
-"""Global hotkey controller mixin for the main window."""
+"""HotkeyController and related helpers."""
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from platform_services.protocols import IHotkeyProvider
+    from runtime.config_manager import ConfigManager
+    from ui.controllers.capture import CaptureController
+    from ui.controllers.status import StatusController
+    from ui.main_window import MainWindow
 import logging
 import sys
 
-from localization.manager import translate as tr
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QObject, Qt, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QDialog
 from qfluentwidgets import InfoBar, InfoBarPosition
 
+from localization.manager import translate as tr
 from runtime.hotkey_config import (
     display_hotkey,
     normalize_hotkey,
@@ -21,7 +29,25 @@ from ui.window_helpers import show_normal_window
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
-class HotkeyControllerMixin:
+class HotkeyController(QObject):
+    changed = pyqtSignal()
+
+    def __init__(
+        self,
+        view: MainWindow,
+        cfg: ConfigManager,
+        capture: CaptureController,
+        hotkey_provider: IHotkeyProvider,
+        status: StatusController,
+    ):
+        super().__init__(view)
+        self.view = view
+        self.cfg = cfg
+        self.capture = capture
+        self.hotkey_provider = hotkey_provider
+        self.status = status
+        self.shortcut_window = None
+
     def register_hotkey(self, seq: str):
         if not getattr(self, "hotkey_provider", None):
             return
@@ -36,7 +62,7 @@ class HotkeyControllerMixin:
             return None
         try:
             modal = app.activeModalWidget()
-            if modal is not None and modal is not self and modal.isVisible():
+            if modal is not None and modal is not self.view and modal.isVisible():
                 return modal
         except Exception:
             pass
@@ -49,7 +75,7 @@ class HotkeyControllerMixin:
             pass
         try:
             for widget in app.topLevelWidgets():
-                if widget is None or widget is self or (not widget.isVisible()):
+                if widget is None or widget is self.view or (not widget.isVisible()):
                     continue
                 try:
                     if (
@@ -77,19 +103,18 @@ class HotkeyControllerMixin:
             except Exception:
                 pass
             return
-        self.start_capture(preserve_pinned_result=True)
+        self.capture.start_capture(preserve_pinned_result=True)
 
     def set_shortcut(self):
         if self.shortcut_window:
             show_normal_window(self.shortcut_window)
             return
-
         current_hotkey = display_hotkey(
             normalize_hotkey_or_default(self.cfg.get("hotkey", None), sys.platform),
             sys.platform,
         )
         dlg = create_hotkey_dialog(
-            self,
+            self.view,
             current_hotkey,
             self.update_hotkey,
             on_destroyed=lambda: setattr(self, "shortcut_window", None),
@@ -134,9 +159,13 @@ class HotkeyControllerMixin:
             content=tr("已更新为 {hotkey}").format(
                 hotkey=display_hotkey(normalized_hotkey, sys.platform)
             ),
-            parent=self._get_infobar_parent(),
+            parent=self.status.notification_parent(),
             duration=2500,
             position=InfoBarPosition.TOP,
         )
-        self.update_tray_tooltip()
-        self.update_tray_menu()
+        self.changed.emit()
+
+    def shutdown(self):
+        self.hotkey_provider.cleanup()
+        if self.shortcut_window is not None:
+            self.shortcut_window.close()

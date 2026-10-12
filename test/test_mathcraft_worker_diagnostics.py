@@ -57,7 +57,7 @@ def test_warmup_persists_remote_traceback(component_failure, monkeypatch, caplog
         raise _MathCraftWorkerError("ValueError", "中文异常", trace)
 
     monkeypatch.setattr(wrapper, "_send_worker_request", request)
-    assert wrapper._lazy_load_mathcraft() is False
+    assert wrapper.warmup() is False
     output = caplog.text
     assert "MathCraft OCR 预热失败" in output
     assert trace in output
@@ -100,7 +100,7 @@ def test_worker_error_response_keeps_native_stderr_in_log(monkeypatch, caplog):
             wrapper._send_worker_request({"action": "warmup"})
         assert caught.value.remote_traceback == "remote frame"
     finally:
-        wrapper._stop_mathcraft_worker()
+        wrapper.stop()
     assert "native diagnostic" in caplog.text
 
 
@@ -143,7 +143,7 @@ def test_warmup_preserves_classification_for_ui(monkeypatch):
         raise _MathCraftWorkerError("ModuleNotFoundError", "No module named 'rapidocr'")
 
     monkeypatch.setattr(wrapper, "_send_worker_request", fail)
-    assert not wrapper._lazy_load_mathcraft()
+    assert not wrapper.warmup()
     info = wrapper.get_failure_info()
     assert info["code"] == "MATHCRAFT_DEP_MISSING"
     assert "rapidocr" in info["log_message"]
