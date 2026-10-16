@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-import sys
 
 from mathcraft_ocr.error_patterns import (
     looks_like_cuda_runtime_error,
@@ -22,20 +21,6 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             "user_message": user_message,
             "log_message": log_message,
         }
-
-    def _cuda_runtime_diagnostics() -> tuple[str, str]:
-        try:
-            if sys.platform == "linux":
-                from .cuda_diagnostics import diagnose_cuda_shared_libraries
-
-                report = diagnose_cuda_shared_libraries()
-            else:
-                from .cuda_diagnostics import diagnose_cuda_dll_paths
-
-                report = diagnose_cuda_dll_paths()
-            return report.format_for_user(), report.format_for_log()
-        except Exception:
-            return "", ""
 
     if not raw:
         return _pack(
@@ -58,15 +43,11 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
         return _pack(
             "ONNXRUNTIME_MISSING",
             "缺少 onnxruntime",
-            "未安装 onnxruntime 依赖，请重新校验依赖层是否安装完整。",
+            "推理组件缺少 onnxruntime，请检查并修复安装资源。",
             "onnxruntime 模块缺失，MathCraft ONNX 后端不可用。",
         )
     if missing_module.startswith("onnxruntime.") or looks_like_onnxruntime_install_error(raw):
-        runtime_hint = "onnxruntime 依赖未正确安装或运行时不可用，请通过依赖管理重装当前 MathCraft 后端。"
-        if sys.platform == "win32":
-            runtime_hint = (
-                f"{runtime_hint} 如 CPU 后端仍失败，请安装最新 Microsoft Visual C++ Redistributable x64 后重启。"
-            )
+        runtime_hint = "onnxruntime 运行资源损坏或不可用，请检查并修复推理组件。"
         return _pack(
             "ONNXRUNTIME_BROKEN",
             "onnxruntime 依赖异常",
@@ -77,9 +58,9 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
         return _pack(
             "MATHCRAFT_DEP_BROKEN" if "." in missing_module else "MATHCRAFT_DEP_MISSING",
             "MathCraft 依赖不完整",
-            "MathCraft OCR 运行依赖缺失或不完整，请通过依赖管理检查并修复当前环境。",
+            "MathCraft OCR 运行资源缺失或不完整，请检查并修复安装资源。",
             f"无法导入模块 {missing_module!r}。"
-            + ("请检查所属包的安装完整性与版本兼容性。" if "." in missing_module else "当前依赖解释器无法找到该模块。"),
+            + ("请检查所属包的安装完整性与版本兼容性。" if "." in missing_module else "推理组件无法找到该模块。"),
         )
     if "not ready" in lower and "missing" in lower and "missing=[]" not in lower:
         return _pack(
@@ -96,25 +77,17 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             f"MathCraft 模型权重下载失败: {raw[:300]}",
         )
     if looks_like_cuda_runtime_error(raw):
-        user_hint, log_hint = _cuda_runtime_diagnostics()
-        user_message = "CUDA 环境异常，GPU 推理不可用。"
-        if user_hint:
-            user_message = f"{user_message}{user_hint}"
-        path_name = "LD_LIBRARY_PATH" if sys.platform == "linux" else "PATH"
-        log_message = f"CUDAExecutionProvider 初始化失败，常见原因是 CUDA/cuDNN 版本不匹配或 {path_name} 配置错误。"
-        if log_hint:
-            log_message = f"{log_message} {log_hint}"
         return _pack(
             "CUDA_RUNTIME_BROKEN",
-            "CUDA 环境异常",
-            user_message,
-            log_message,
+            "GPU 运行资源异常",
+            "GPU 推理不可用，请检查 NVIDIA 显卡、驱动及推理组件完整性。",
+            f"私有 CUDA/cuDNN 初始化失败: {raw[:1000]}",
         )
     if looks_like_gpu_provider_error(raw):
         return _pack(
             "GPU_PROVIDER_UNAVAILABLE",
             "GPU 推理不可用",
-            "当前 GPU 推理后端不可用，请检查依赖层和显卡运行环境。",
+            "当前 GPU 推理不可用，请检查显卡、驱动和安装资源。更换发行类型需使用对应安装包。",
             f"请求的 GPU execution provider 未能启用，且未回退到 CPU: {raw[:300]}",
         )
     if "unsupported worker action" in lower or "unsupported warmup profile" in lower:

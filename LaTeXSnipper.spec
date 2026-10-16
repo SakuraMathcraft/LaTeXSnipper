@@ -70,33 +70,6 @@ extra_binaries += _collect_pywin32_system32_binaries()
 extra_datas += collect_data_files("certifi")
 
 
-def _collect_tree_as_datas(src_root: Path, dest_prefix: str):
-    """Convert a directory tree into PyInstaller datas 2-tuples."""
-    out = []
-    if not src_root.exists():
-        return out
-    for p in src_root.rglob("*"):
-        if not p.is_file():
-            continue
-        if p.suffix.lower() in {".pyc", ".pyo"} or "__pycache__" in p.parts:
-            continue
-        rel_parent = p.relative_to(src_root).parent
-        if str(rel_parent) == ".":
-            dest_dir = dest_prefix
-        else:
-            dest_dir = f"{dest_prefix}/{str(rel_parent).replace(os.sep, '/')}"
-        out.append((str(p), dest_dir))
-    return out
-
-
-MATHCRAFT_OCR_SRC = ROOT / "mathcraft_ocr"
-if MATHCRAFT_OCR_SRC.exists():
-    extra_datas += _collect_tree_as_datas(MATHCRAFT_OCR_SRC, "mathcraft_ocr")
-    print(f"[SPEC] include MathCraft OCR package: {MATHCRAFT_OCR_SRC}")
-else:
-    print(f"[SPEC] MathCraft OCR package not found, skip: {MATHCRAFT_OCR_SRC}")
-
-
 def _prune_collect_tree(dist_root: Path):
     """Remove weakly-related runtime artifacts from final onedir output."""
     if not dist_root.exists():
@@ -113,8 +86,6 @@ def _prune_collect_tree(dist_root: Path):
         "rapidocr",
         "numpy",
         "numpy.libs",
-        "lxml",
-        "fitz",
         "shapely",
         "pyclipper",
         "yaml",
@@ -319,7 +290,6 @@ def _prune_qt_webengine_payload(dist_root: Path):
             Path("imageformats/qtga.dll"),
             Path("imageformats/qwbmp.dll"),
             Path("platforms/qminimal.dll"),
-            Path("platforms/qoffscreen.dll"),
             Path("position/qtposition_nmea.dll"),
             Path("position/qtposition_positionpoll.dll"),
             Path("position/qtposition_winrt.dll"),
@@ -334,16 +304,6 @@ def _prune_qt_webengine_payload(dist_root: Path):
             except Exception as exc:
                 print(f"[SPEC] prune optional Qt plugin skip {child}: {exc}")
         _remove_optional_qt_plugins(plugins_dir, removable_plugins)
-
-
-# The release workflow prepares a clean seed outside the checkout.
-bundled_python = os.environ.get("LATEXSNIPPER_BUNDLED_PYTHON", "").strip()
-if not bundled_python:
-    raise RuntimeError("LATEXSNIPPER_BUNDLED_PYTHON must identify the CI Python seed")
-bundled_python = Path(bundled_python).resolve()
-if not (bundled_python / "python.exe").is_file():
-    raise RuntimeError(f"Bundled Python seed is missing python.exe: {bundled_python}")
-extra_datas += _collect_tree_as_datas(bundled_python, "deps/python311")
 
 
 a = Analysis(
@@ -404,11 +364,6 @@ a = Analysis(
         "PyQt6.QtWebEngineCore",
 
         "editor",
-        "editor.workbench_bridge",
-        "editor.workbench_window",
-        "bootstrap",
-        "bootstrap.deps_pip_runner",
-        "bootstrap.deps_state",
         "exporting",
         "exporting.formula_converters",
         "exporting.formula_export",
@@ -438,14 +393,12 @@ a = Analysis(
         "handwriting.stroke_store",
         "handwriting.tools",
         "handwriting.types",
-        "preview.document.pdf_fitz",
-        "preview.document.pdf_poppler",
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        # Runtime deps are managed by the MathCraft dependency environment.
+        # Inference dependencies belong to the independent inference component.
         "_polars_runtime_32",
         "_polars_runtime_64",
         "_polars_runtime_compat",
@@ -469,8 +422,6 @@ a = Analysis(
         "propcache",
         "yarl",
         "ctranslate2",
-        "lxml",
-        "fitz",
         "shapely",
         "pyclipper",
         "yaml",

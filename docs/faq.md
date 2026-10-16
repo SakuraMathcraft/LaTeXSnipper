@@ -1,5 +1,11 @@
 # FAQ
 
+This branch connects self-contained components, native installation and
+deployment transactions, component updates and repair. Release publication
+requires successful GitHub Actions signing, native installation and hardware
+OCR gates. The new installers have no CI acceptance results yet; see the
+[implementation status](desktop_runtime_distribution_plan.md).
+
 ## Where can I download LaTeXSnipper?
 
 Download the latest installers from the [GitHub Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases) page.
@@ -14,7 +20,7 @@ LaTeXSnipper provides release builds for Windows, Linux, and macOS.
 
 ## What differs between Windows, Linux, and macOS?
 
-The main application behavior is intentionally aligned across all three platforms: screenshot recognition, image recognition, PDF recognition, handwriting recognition, export, history, favorites, and the math workbench use the same UI flow.
+The main application behavior is intentionally aligned across all three platforms: screenshot recognition, image recognition, PDF recognition, handwriting recognition, export, history, and favorites use the same UI flow.
 
 The main differences are platform integration details:
 
@@ -26,16 +32,21 @@ The main differences are platform integration details:
 | Screenshot capture | Qt overlay. | Qt overlay first, then optional CLI/portal fallbacks such as `grim`, `maim`, and `gnome-screenshot`. | Qt overlay with native `screencapture` fallback; macOS may ask for Screen Recording permission. |
 | Window close / background behavior | Closing the main window hides it to the system tray; use the tray menu to exit. | Closing the main window hides it to the system tray when a tray is available; without a tray, the app asks before exiting. | Closing the main window minimizes it while the app keeps running; Dock/menu Quit exits the app. |
 | Permission model | No explicit screenshot permission is required for the normal capture path. | Wayland compositors can restrict global shortcuts or screenshot capture. | Screen Recording permission is required for screenshots. The native Carbon hotkey path normally does not require Accessibility permission. |
-| Dependency runtime | GitHub builds start from the bundled dependency root `<install-dir>\_internal\deps`; users may switch to another root. | Defaults to `~/.latexsnipper/deps`; users may switch to another root. | Defaults to `~/Library/Application Support/LaTeXSnipper/deps`; users may switch to another root. |
-| Packaging | Inno installer from GitHub Releases. | Debian/Ubuntu `.deb`. | `.dmg`. |
+| Inference runtime | Installed independent Python; CPU or NVIDIA GPU edition. | Installed independent Python; CPU or NVIDIA GPU edition. | Installed independent Python; Apple Silicon CPU edition. |
+| Packaging | Signed Inno installer. | Offline `.tar.gz` carrier installing dpkg-owned components on Debian/Ubuntu. | Signed and notarized `.dmg` / `.app`. |
 
 The shortcut UI uses the platform's primary modifier: `Ctrl` on Windows/Linux and `Command` on macOS. macOS system and editing shortcuts such as `Command+Q`, `Command+H`, `Command+M`, `Command+W`, `Command+A`, `Command+C`, `Command+V`, `Command+X`, `Command+Z`, `Command+Space`, `Command+Tab`, and screenshot shortcuts are intentionally rejected; use an `Option+Command` combination when a plain Command shortcut is reserved.
 
 ## Which installer should I use?
 
-- Windows: use `LaTeXSnipper_<version>_amd64.exe` from GitHub Releases. The release workflow prefers the signed installer; if signing is unavailable, the same filename may be published as an unsigned fallback.
-- Linux: use the `.deb` package on Debian/Ubuntu-compatible systems.
-- macOS: use the `.dmg` artifact for your architecture.
+- Windows x86_64: choose the CPU or NVIDIA GPU `.exe` installer.
+- Debian/Ubuntu-compatible Linux x86_64: choose the CPU or NVIDIA GPU offline `.tar.gz`, extract it, and run `install.sh`.
+- macOS Apple Silicon: use the CPU `.dmg`, copy the app to Applications, then launch that copy.
+
+Windows and macOS signing is mandatory in the release workflow. GPU builds
+carry private CUDA/cuDNN user-mode libraries and require supported NVIDIA
+hardware and drivers. The desktop app does not require system Python or CUDA
+Toolkit. Linux still requires its declared system GUI libraries.
 
 ## Why does macOS still say Screen Recording is unavailable after I enabled it?
 
@@ -83,42 +94,20 @@ LaTeXSnipper Office integration is developed in the Windows-native `office_plugi
 
 ## Does LaTeXSnipper require an internet connection?
 
-Core editing and local recognition workflows are designed to work locally after the required dependencies and models are installed. Some optional downloads, update checks, model downloads, and CDN fallbacks require network access.
+Core editing and local recognition workflows are designed to work locally after a complete desktop installation. Some optional downloads, update checks, and model repairs require network access.
 
-## Where are dependency files stored?
+## Where are installation resources stored?
 
-`install_base_dir` is the active dependency root. Windows packaged builds start
-with `<install-dir>\_internal\deps`; Linux defaults to `~/.latexsnipper/deps`;
-macOS defaults to `~/Library/Application Support/LaTeXSnipper/deps`. If the user
-changes the dependency directory, only the isolated Python dependency
-environment follows the new root.
+The self-contained resource model separates `application`, `inference` and
+`models` components from user data. Installation metadata fixes the platform,
+architecture and CPU/GPU edition. The application component also owns Pandoc.
+The app does not offer interpreter or dependency-directory selection.
 
-Within that root, LaTeXSnipper creates:
-
-- `python` for the isolated dependency Python/venv.
-
-App-managed optional tools are shared under the app state root, independent of
-the active dependency root:
-
-- `tools/pandoc` for the optional app-managed Pandoc binary.
-
-Pandoc does not follow the active dependency root. It is deployed once under the
-app-managed tools directory and remains available after the user switches Python
-dependency roots.
-
-Linux/macOS release packages do not bundle build-machine virtual environments.
-
-## When does Dependency Management initialize pip?
-
-Dependency Management opens before running `ensurepip`, `pip` upgrade, or `setuptools`/`wheel` repair. Those steps run only after the user starts dependency installation.
-
-If the selected directory already contains a usable Python environment, Dependency Management uses that interpreter and installs the selected layers there. Windows packaged builds use the bundled `python311` template by default; if the user switches to a directory without a reusable Python, all platforms use a supported system Python (`>=3.10,<3.14`) to create the isolated environment.
-
-## Why do Linux and macOS need Python 3?
-
-The packaged app itself does not run on the user's system Python. Linux and macOS use system Python `>=3.10,<3.14` only to create the isolated optional dependency environment under the active dependency root. Python 3.11 remains the packaged-build baseline, while dependency environments may use Python 3.10 through 3.13.
-
-Linux `.deb` packages require `python3 (>= 3.10)`, `python3 (<< 3.14)`, and `python3-venv`. macOS users should install a supported Homebrew or python.org Python 3.10-3.13 build if no usable `python3` is available.
+Source development uses the Python that starts the application and standard
+developer tooling for its packages. It can use Pandoc from PATH. The release workflow deploys independent inference Python on each supported
+platform. Windows uses its installation root, Linux uses dpkg-owned components
+and external installation metadata, and macOS rebuilds the entire signed app.
+Actual native installer and signature acceptance is gated in GitHub Actions.
 
 ## Where are logs stored?
 
@@ -130,29 +119,22 @@ If the app crashes, include `crash-native.log` when reporting the issue.
 
 ## Where are MathCraft OCR models stored?
 
-- Windows: `%APPDATA%\MathCraft\models\`
-- Linux: `${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper/MathCraft/models/`
-- macOS: `~/Library/Application Support/LaTeXSnipper/MathCraft/models/`
-
-If a model download is interrupted or corrupted, delete the affected model subdirectory and restart LaTeXSnipper.
+Packaged workers prefer the installed model component. If an installed model
+is missing or fails validation, they check the default MathCraft cache and reuse
+weights matching the current manifest's file digests; otherwise they download
+into that same cache. Source desktop workers also use this default cache.
+Settings shows each model's selected directory and integrity, with one
+**Open directory** button at the bottom. Platform locations are documented in the
+[user data map](user_data_storage.md).
 
 ## What should I do if MathCraft OCR does not start?
 
-Open Dependency Management first. If the issue persists, check the logs and verify the model cache with:
-
-```bash
-python -m mathcraft_ocr models check
-```
-
-For GPU-related ONNX Runtime failures, use CPU mode:
-
-```bash
-MATHCRAFT_PROVIDER=cpu
-```
-
-## Does Linux/macOS bundle Python like Windows?
-
-No. Windows has a normalized bundled Python template. Linux/macOS packages contain the PyInstaller app and create a user-writable dependency environment on demand. This avoids permission errors and prevents build-host virtual environments from leaking into release packages.
+Open **App diagnostics** and the runtime log. A packaged
+resource failure needs repair of its installation component. For source
+development, check packages in the Python environment used to start the app.
+GPU failures report hardware, driver or private-runtime problems. Changing the
+installed CPU/GPU edition requires the matching installer; the app does not
+silently select or install another backend.
 
 ## What if Linux fails with EGL, GLOzone, or GPU display errors?
 
@@ -169,11 +151,11 @@ LATEXSNIPPER_DISABLE_LINUX_GRAPHICS_FALLBACKS=1 latexsnipper
 
 Wayland restricts application-level screen capture. LaTeXSnipper uses Qt capture first and can fall back to tools such as `grim`, `maim`, or `gnome-screenshot` when available. These system tools are installed by the user or distribution package manager, not by LaTeXSnipper.
 
-## Why is Pandoc optional?
+## How is Pandoc provided?
 
 Pandoc is only needed for the optional desktop export formats: Word `.docx`, ODT `.odt`, PowerPoint `.pptx`, EPUB `.epub`, PDF `.pdf`, standalone HTML `.html`, Typst `.typ`, and plain text `.txt`. PDF export also requires a LaTeX PDF engine such as XeLaTeX, LuaLaTeX, or pdfLaTeX. Core recognition, editing, preview, handwriting, and built-in LaTeX/Markdown/MathML/HTML/SVG exports work without Pandoc.
 
-Dependency Management manages the optional `PANDOC` layer. Manually downloaded or generated Pandoc binaries should not live under `src/`; developer tools may be installed in a location of your choice; app-managed tools use the application data directory.
+The self-contained application component owns the Pandoc binary. Source development uses PATH Pandoc. The app does not install or uninstall it separately, persist its path, or modify PATH. A missing packaged Pandoc is an installation resource failure.
 
 ## How does PDF recognition work?
 

@@ -143,10 +143,6 @@ class SettingsThemeMixin:
             self.lbl_model_desc.setStyleSheet(
                 f"color: {t['muted']}; font-size: 11px; padding: 4px;"
             )
-        if hasattr(self, "lbl_latex_desc") and self.lbl_latex_desc is not None:
-            self.lbl_latex_desc.setStyleSheet(
-                f"color: {t['muted']}; font-size: 10px; padding: 4px;"
-            )
         if hasattr(self, "lbl_compute_mode") and self.lbl_compute_mode is not None:
             self.lbl_compute_mode.setStyleSheet(
                 f"color: {self._compute_label_color()}; font-size: 11px; padding: 4px;"

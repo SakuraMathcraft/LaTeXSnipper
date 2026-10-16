@@ -6,6 +6,8 @@ from __future__ import annotations
 import sys
 import os
 import tempfile
+import hashlib
+from dataclasses import replace
 from collections.abc import Callable
 from pathlib import Path
 
@@ -80,6 +82,7 @@ def _touch(path: Path, content: bytes = b"x") -> None:
 
 def _touch_model(root: Path, manifest, model_id: str) -> None:
     spec = manifest.models[model_id]
+    manifest.models[model_id] = replace(spec, files=tuple(replace(item, sha256=hashlib.sha256(b'x').hexdigest()) for item in spec.files))
     for file_spec in spec.files:
         _touch(root / model_id / file_spec.path)
 
@@ -2138,6 +2141,7 @@ def test_worker_serializes_formula_result() -> None:
     worker = MathCraftWorker(runtime=_FakeRuntime())
     response = worker.handle(
         {
+            "protocol": 1,
             "id": "1",
             "action": "recognize_formula",
             "image": "sample.png",
@@ -2161,6 +2165,7 @@ def test_worker_passes_extended_formula_budget_to_mixed_runtime() -> None:
     worker = MathCraftWorker(runtime=_FakeRuntime())
     response = worker.handle(
         {
+            "protocol": 1,
             "id": "mixed",
             "action": "recognize_mixed",
             "image": "sample.png",
@@ -2173,7 +2178,7 @@ def test_worker_passes_extended_formula_budget_to_mixed_runtime() -> None:
 
 def test_worker_reports_unsupported_action() -> None:
     worker = MathCraftWorker(runtime=object())  # type: ignore[arg-type]
-    response = worker.handle({"id": "bad", "action": "missing"})
+    response = worker.handle({"protocol": 1, "id": "bad", "action": "missing"})
     assert response["ok"] is False
     assert response["id"] == "bad"
     assert response["error"]["type"] == "ValueError"

@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import logging
 import html as html_module
-import re
-from collections.abc import Callable
 
 from localization.manager import translate as tr
+from preview.content_fragments import render_formula_content, render_mixed_content
 from preview.math_preview import (
     build_math_html,
     mathjax_loader_script,
@@ -17,9 +16,6 @@ from preview.math_preview import (
 from runtime.content_types import normalize_content_type
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
-
-
-FormulaRenderer = Callable[[str], str]
 
 
 def build_preview_error_html(error: Exception | str) -> str:
@@ -47,7 +43,7 @@ def build_preview_error_html(error: Exception | str) -> str:
 </body></html>"""
 
 
-def build_smart_preview_html(items: list, formula_renderer: FormulaRenderer) -> str:
+def build_smart_preview_html(items: list) -> str:
     """Build the main history/editor preview HTML for mixed content types."""
     try:
         tokens = preview_theme_tokens()
@@ -55,7 +51,7 @@ def build_smart_preview_html(items: list, formula_renderer: FormulaRenderer) -> 
             return build_math_html("", center_viewport=True)
 
         body_content = "\n".join(
-            render_content_block(content, label, content_type, formula_renderer)
+            render_content_block(content, label, content_type)
             for content, label, content_type in items
         )
 
@@ -107,6 +103,8 @@ body {{
     font-size: 14px;
     text-align: center;
 }}
+.document-content {{ text-align: left; overflow-wrap: anywhere; }}
+.document-content > svg {{ display: block; max-width: 100%; height: auto; margin: 8px auto; }}
 .formula-content {{
     text-align: center;
     padding: 0.15em 0.35em;
@@ -122,35 +120,6 @@ body {{
     vertical-align: middle;
     display: block;
     margin: 0 auto;
-}}
-.formula-content.latex-svg svg {{
-    display: block;
-    margin: 0 auto;
-    max-width: calc(100% / 1.25);
-    height: auto;
-    transform: scale(1.25);
-    transform-origin: center center;
-}}
-.formula-content.latex-svg {{
-    color: {tokens["latex_formula_text"]};
-    padding-top: 0.25em;
-    padding-bottom: 0.25em;
-}}
-.formula-content.latex-svg svg[fill]:not([fill="none"]),
-.formula-content.latex-svg svg *[fill]:not([fill="none"]) {{
-    fill: currentColor !important;
-}}
-.formula-content.latex-svg svg[stroke]:not([stroke="none"]),
-.formula-content.latex-svg svg *[stroke]:not([stroke="none"]) {{
-    stroke: currentColor !important;
-}}
-.formula-content.latex-svg svg[style*="fill:"]:not([style*="fill:none"]):not([style*="fill: none"]),
-.formula-content.latex-svg svg *[style*="fill:"]:not([style*="fill:none"]):not([style*="fill: none"]) {{
-    fill: currentColor !important;
-}}
-.formula-content.latex-svg svg[style*="stroke:"]:not([style*="stroke:none"]):not([style*="stroke: none"]),
-.formula-content.latex-svg svg *[style*="stroke:"]:not([style*="stroke:none"]):not([style*="stroke: none"]) {{
-    stroke: currentColor !important;
 }}
 .text-content {{
     white-space: pre-wrap;
@@ -195,7 +164,6 @@ def render_content_block(
     content: str,
     label: str,
     content_type: str,
-    formula_renderer: FormulaRenderer,
 ) -> str:
     try:
         content = "" if content is None else str(content)
@@ -209,9 +177,9 @@ def render_content_block(
         }[content_type]
 
         if content_type == "mathcraft":
-            rendered_content = formula_renderer(content)
+            rendered_content = render_formula_content(content)
         elif content_type == "mathcraft_mixed":
-            rendered_content = render_mixed_content(content)
+            rendered_content = f'<div class="document-content">{render_mixed_content(content)}</div>'
         else:
             rendered_content = (
                 f'<div class="text-content">{html_module.escape(content)}</div>'
@@ -237,52 +205,3 @@ def render_content_block(
             f'<div style="color: {tokens["error_text"]}; padding: 10px; '
             f'background: {tokens["error_bg"]}; border-radius: 4px;">{html_module.escape(error_msg)}</div>'
         )
-
-
-def render_formula_content_html(
-    content: str,
-    *,
-    render_mode: str | None,
-    cache_key: str,
-    has_cached_svg: bool,
-    cached_svg: str,
-    namespace_svg_ids: Callable[[str, str], str],
-    schedule_render: Callable[[str], None],
-) -> str:
-    try:
-        if render_mode and render_mode.startswith("latex_"):
-            if has_cached_svg:
-                if cached_svg:
-                    safe_svg = namespace_svg_ids(cached_svg, cache_key)
-                    return f'<div class="formula-content latex-svg">{safe_svg}</div>'
-                return f'<div class="formula-content">$${content}$$</div>'
-            schedule_render(content)
-        return f'<div class="formula-content">$${content}$$</div>'
-    except Exception:
-        return f'<div class="formula-content">$${content}$$</div>'
-
-
-def render_mixed_content(content: str) -> str:
-    try:
-        if not content:
-            return ""
-
-        formula_pattern = r"(\$\$(?:[^$]|\$(?!\$))+?\$\$|\$(?:[^$]|\$(?!\$))+?\$)"
-        parts = re.split(formula_pattern, content)
-        result_parts = []
-
-        for part in parts:
-            if not part:
-                continue
-            if part.startswith("$$") and part.endswith("$$"):
-                result_parts.append(part)
-            elif part.startswith("$") and part.endswith("$"):
-                result_parts.append(part)
-            else:
-                result_parts.append(html_module.escape(part).replace("\n", "<br>"))
-
-        return "".join(result_parts)
-    except Exception as exc:
-        logger.warning("混合内容渲染失败: %s", exc)
-        message = tr("混合内容渲染失败: {error}").format(error=exc)
-        return f'<div style="color: red;">{html_module.escape(message)}</div>'

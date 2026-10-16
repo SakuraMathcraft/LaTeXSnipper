@@ -79,33 +79,6 @@ if QT6_PLUGINS.exists():
 # ---------------------------------------------------------------------------
 # Data collection helpers
 # ---------------------------------------------------------------------------
-def _collect_tree_as_datas(src_root: Path, dest_prefix: str):
-    """Collect a directory tree as PyInstaller datas tuples."""
-    out = []
-    if not src_root.exists():
-        return out
-    for p in src_root.rglob("*"):
-        if not p.is_file():
-            continue
-        if p.suffix.lower() in {".pyc", ".pyo"} or "__pycache__" in p.parts:
-            continue
-        rel_parent = p.relative_to(src_root).parent
-        if str(rel_parent) == ".":
-            dest_dir = dest_prefix
-        else:
-            dest_dir = f"{dest_prefix}/{str(rel_parent).replace(os.sep, '/')}"
-        out.append((str(p), dest_dir))
-    return out
-
-
-# ---------------------------------------------------------------------------
-# MathCraft OCR package
-# ---------------------------------------------------------------------------
-MATHCRAFT_OCR_SRC = ROOT / "mathcraft_ocr"
-if MATHCRAFT_OCR_SRC.exists():
-    extra_datas += _collect_tree_as_datas(MATHCRAFT_OCR_SRC, "mathcraft_ocr")
-    print(f"[SPEC] include MathCraft OCR package: {MATHCRAFT_OCR_SRC}")
-
 # ---------------------------------------------------------------------------
 # certifi certificate bundle
 # ---------------------------------------------------------------------------
@@ -167,12 +140,6 @@ a = Analysis(
 
         # Application submodules
         "editor",
-        "editor.workbench_bridge",
-        "editor.workbench_window",
-        "editor.latex_snippet_panel",
-        "bootstrap",
-        "bootstrap.deps_pip_runner",
-        "bootstrap.deps_state",
         "exporting",
         "exporting.formula_converters",
         "exporting.formula_export",
@@ -202,14 +169,12 @@ a = Analysis(
         "handwriting.stroke_store",
         "handwriting.tools",
         "handwriting.types",
-        "preview.document.pdf_fitz",
-        "preview.document.pdf_poppler",
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        # Runtime deps are managed by the user dependency environment.
+        # Inference dependencies belong to the independent inference component.
         "_polars_runtime_32",
         "_polars_runtime_64",
         "_polars_runtime_compat",
@@ -233,8 +198,6 @@ a = Analysis(
         "propcache",
         "yarl",
         "ctranslate2",
-        "lxml",
-        "fitz",
         "shapely",
         "pyclipper",
         "yaml",
@@ -310,7 +273,7 @@ def _prune_collect_tree_linux(dist_root: Path):
     remove_prefixes = (
         "aiohttp", "frozenlist", "multidict", "propcache", "yarl",
         "ctranslate2", "cv2", "rapidocr",
-        "numpy", "numpy.libs", "lxml", "fitz",
+        "numpy", "numpy.libs",
         "shapely", "pyclipper",
         "yaml", "markupsafe", "pydantic_core",
         "regex", "safetensors", "sentencepiece",
@@ -499,7 +462,6 @@ def _prune_qt_webengine_payload(dist_root: Path):
             Path("imageformats/qtga.dll"),
             Path("imageformats/qwbmp.dll"),
             Path("platforms/qminimal.dll"),
-            Path("platforms/qoffscreen.dll"),
             Path("position/qtposition_nmea.dll"),
             Path("position/qtposition_positionpoll.dll"),
             Path("position/qtposition_winrt.dll"),

@@ -272,7 +272,7 @@ public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime
             + "<script src=\"" + root + "/runtime.js\"></script>"
             + "<script src=\"" + root + "/office.js\"></script>"
             + "<script>LaTeXSnipperMathJax.configure({root:'" + root
-            + "', output:'svg', typeset:false, localFonts:true});</script>"
+            + "', output:'svg', typeset:false});</script>"
             + "<script src=\"" + bundleUri + "\"></script></head><body></body></html>";
     }
 

@@ -8,7 +8,7 @@
 - `prepare.py`：校验并提取官方 npm 包，生成 `config.js`、`resources.json` 和 `office.props`；支持离线验证，不在普通构建时下载资源。
 - `src/assets/MathJax/runtime.js`：共享配置、Promise 转换、串行转换队列、宿主请求结果及取消管理。
 - `src/assets/MathJax/office.js`：Office 输入处理；客户端导出不使用此适配器。
-- `src/rendering/mathjax_runtime.py`：Python HTML 加载器。CDN 主地址与后备地址及字体均固定同一版本。
+- `src/rendering/mathjax_runtime.py`：Python HTML 加载器。所有桌面预览与导出只定位内置资源及字体，不提供 CDN 或其他渲染引擎切换。
 - `office.props`：由清单生成的 MSBuild Office 资源项，安装资源脚本使用相同 `resources.json` 清单。
 - `probe.cjs`、`liteDOM.js`、`smoke_qt.py`：开发测试工具，不进入应用资源包。`liteDOM.js` 来自同一官方 MathJax 包，受资源包许可证约束。
 
@@ -34,11 +34,12 @@ python -X utf8 .\tools\mathjax\prepare.py --verify
 ```powershell
 python -X utf8 tools/mathjax/prepare.py --verify
 python -X utf8 -m pytest test/test_mathjax_runtime.py test/test_formula_export_matrix.py test/test_formula_omml_export.py test/test_content_preview.py test/test_handwriting_preview.py test/test_pandoc_export_formats.py -q
-python -X utf8 tools/mathjax/smoke_qt.py --cdn
+python -X utf8 tools/mathjax/smoke_qt.py
 dotnet test office_plugin/LaTeXSnipper.OfficePlugin.slnx -c Release
 ```
 
-Qt 验证省略 `--cdn` 时只验证离线链路；CDN 验证需要网络，WebEngine 子进程必须允许运行。
+Qt 验证直接覆盖内置资源的离线链路，WebEngine 子进程必须允许运行。
+源码导出验证还需要开发环境的 PATH Pandoc。Qt 验证覆盖 SVG/MathML 转换、主窗口与编辑页的复杂文档、混排、手写、HTML 导出和内置字体；复杂文档中的标题、正文、分段公式及静态 SVG 图使用共享内容解析。
 
 Office 实际渲染与文档往返使用 `office_plugin/tools/Test-OfficeTypographyE2E.ps1`，覆盖 Word OMML/OLE、PowerPoint 文本内原生公式、OLE/PNG 对象和批处理。先构建插件，再按 [Office 插件说明](../../office_plugin/README.md) 选择宿主与测试范围。浏览器编辑器另有 [共享编辑器回归](../office-editor/README.md)，使用模拟桥接，不能替代真实 Office 验证。
 

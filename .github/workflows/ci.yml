@@ -37,6 +37,9 @@ jobs:
       - name: Byte-compile source tree
         run: python -m compileall -q src mathcraft_ocr
 
+      - name: Validate desktop distribution inputs
+        run: python scripts/desktop_distribution.py sources
+
       - name: Validate translation catalog
         run: |
           python scripts/update_translations.py --check

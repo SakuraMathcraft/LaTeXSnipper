@@ -1,199 +1,284 @@
-name: Release Build
+name: Desktop Release
 
 on:
   push:
-    tags:
-      - "v*"
+    tags: ["v*"]
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Existing GitHub Release tag to upload assets to"
-        required: false
+        description: "Release tag matching VERSION (vX.Y.Z or vX.Y.Z-LTS)"
         type: string
-      publish_assets:
-        description: "Upload artifacts to the GitHub Release"
         required: true
-        default: true
+      publish_assets:
+        description: "Publish after every build, signature and hardware gate passes"
         type: boolean
+        default: false
 
 permissions:
   actions: read
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: desktop-release-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+
 jobs:
-  build-windows-installer:
-    name: Build Windows Installer
-    runs-on: windows-2025
-    env:
-      SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-      SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-      SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-      SIGNPATH_ARTIFACT_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
-      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+  models:
+    runs-on: ubuntu-22.04
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
+        with: {lfs: true}
+      - uses: actions/setup-python@v6
+        with: {python-version: "3.11"}
+      - run: python -m pip install requests
+      - name: Assemble common, verified models
+        run: python scripts/build_desktop_release.py models --tag "$RELEASE_TAG"
+      - uses: actions/upload-artifact@v7
         with:
-          fetch-depth: 0
-          lfs: true
-
-      - name: Setup Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
-
-      - name: Install build dependencies
-        shell: pwsh
-        run: |
-          python -m pip install --upgrade pip wheel "setuptools<82"
-          python -m pip install -r requirements.txt
-          python -m pip install -r requirements-build.txt
-
-      - name: Install Inno Setup
-        shell: pwsh
-        run: |
-          $iscc = @(
-            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
-            "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
-          ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-          if (-not $iscc) {
-            choco install innosetup --yes --no-progress
-            if ($LASTEXITCODE -ne 0) {
-              throw "Inno Setup installation failed with exit code $LASTEXITCODE."
-            }
-          }
-
-      - name: Prepare bundled Python seed
-        shell: pwsh
-        run: |
-          $installer = Join-Path $env:RUNNER_TEMP "python-3.11.0-amd64.exe"
-          $target = Join-Path $env:RUNNER_TEMP "latexsnipper-python-seed"
-          Invoke-WebRequest `
-            -Uri "https://www.python.org/ftp/python/3.11.0/python-3.11.0-amd64.exe" `
-            -OutFile $installer
-          $signature = Get-AuthenticodeSignature $installer
-          if ($signature.Status -ne "Valid" -or $signature.SignerCertificate.Subject -notlike "*Python Software Foundation*") {
-            throw "Downloaded Python installer signature is not trusted: $($signature.Status) $($signature.SignerCertificate.Subject)"
-          }
-          $process = Start-Process `
-            -FilePath $installer `
-            -ArgumentList @(
-              "/quiet",
-              "InstallAllUsers=0",
-              "TargetDir=$target",
-              "Include_pip=1",
-              "Include_tcltk=0",
-              "Include_launcher=0",
-              "Include_test=0",
-              "Include_doc=0",
-              "PrependPath=0",
-              "Shortcuts=0"
-            ) `
-            -WindowStyle Hidden `
-            -Wait `
-            -PassThru
-          if ($process.ExitCode -ne 0) {
-            throw "Python installer failed with exit code $($process.ExitCode)"
-          }
-          if (-not (Test-Path (Join-Path $target "python.exe"))) {
-            throw "Bundled Python seed was not created: $target"
-          }
-          Remove-Item -LiteralPath $installer -Force
-          & (Join-Path $target "python.exe") -m pip install --upgrade pip wheel setuptools packaging
-          if ($LASTEXITCODE -ne 0) { throw "Bundled Python tooling installation failed." }
-          "LATEXSNIPPER_BUNDLED_PYTHON=$target" >> $env:GITHUB_ENV
-
-      - name: Build unsigned installer
-        shell: pwsh
-        run: ./scripts/build_github_release_installer.ps1 -BundledPythonPath $env:LATEXSNIPPER_BUNDLED_PYTHON
-
-      - name: Upload unsigned installer artifact
-        id: upload-unsigned
-        uses: actions/upload-artifact@v7
-        with:
-          name: unsigned-latexsnipper-installer
-          path: dist/installer/LaTeXSnipper_*_amd64.exe
+          name: common-models
+          path: build/common-models/**
           if-no-files-found: error
-          retention-days: 30
 
-      - name: Check SignPath configuration
-        id: signpath-config
+  desktop:
+    needs: models
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {system: windows, runner: windows-2025, requirements: requirements.txt}
+          - {system: linux, runner: ubuntu-22.04, requirements: requirements-linux.txt}
+          - {system: macos, runner: macos-15, requirements: requirements-macos.txt}
+    runs-on: ${{ matrix.runner }}
+    env:
+      CODESIGN_IDENTITY: ${{ matrix.system == 'macos' && vars.MACOS_CODESIGN_IDENTITY || '' }}
+    steps:
+      - uses: actions/checkout@v6
+        with: {lfs: true, fetch-depth: 0}
+      - uses: actions/setup-python@v6
+        with: {python-version: "3.11"}
+      - name: Validate tag and source locks
+        shell: python
+        run: |
+          import os, pathlib
+          version = pathlib.Path('VERSION').read_text().strip()
+          assert os.environ['RELEASE_TAG'] in {f'v{version}', f'v{version}-LTS'}, 'Release tag must match VERSION'
+      - run: python scripts/desktop_distribution.py sources
+      - run: python -m pip install -r ${{ matrix.requirements }} -r requirements-build.txt
+      - name: Install Linux build and system libraries
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/desktop-system-libraries
+      - name: Install Windows packaging tool
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $missing = @()
-          foreach ($name in @(
-            "SIGNPATH_ORGANIZATION_ID",
-            "SIGNPATH_PROJECT_SLUG",
-            "SIGNPATH_SIGNING_POLICY_SLUG",
-            "SIGNPATH_ARTIFACT_CONFIGURATION_SLUG",
-            "SIGNPATH_API_TOKEN"
-          )) {
-            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
-              $missing += $name
-            }
-          }
-          if ($missing.Count -gt 0) {
-            "enabled=false" >> $env:GITHUB_OUTPUT
-            "missing=$($missing -join ', ')" >> $env:GITHUB_OUTPUT
-            Write-Host "SignPath is not configured: $($missing -join ', ')"
-          }
-          else {
-            "enabled=true" >> $env:GITHUB_OUTPUT
-            "missing=" >> $env:GITHUB_OUTPUT
-            Write-Host "SignPath is configured."
-          }
-
-      - name: Skip Windows signing when SignPath is unavailable
-        if: ${{ steps.signpath-config.outputs.enabled != 'true' }}
-        shell: pwsh
+          $installer = Join-Path $env:RUNNER_TEMP 'innosetup-7.1.0-x64.exe'
+          $compilerRoot = Join-Path $env:RUNNER_TEMP 'inno-setup-7'
+          Invoke-WebRequest 'https://github.com/jrsoftware/issrc/releases/download/is-7_1_0/innosetup-7.1.0-x64.exe' -OutFile $installer
+          $signature = Get-AuthenticodeSignature -LiteralPath $installer
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notlike '*Pyrsys*') { throw 'Inno Setup publisher verification failed.' }
+          $process = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$compilerRoot") -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Inno Setup installation failed.' }
+          $compilerRoot >> $env:GITHUB_PATH
+      - name: Configure macOS signing and notarization
+        if: runner.os == 'macOS'
+        env:
+          CERTIFICATE: ${{ secrets.MACOS_SIGNING_CERTIFICATE }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_SIGNING_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          Write-Host "SignPath is not configured. The unsigned Windows installer will be published instead. Missing: ${{ steps.signpath-config.outputs.missing }}"
-
-      - name: Submit installer to SignPath
-        id: signpath
-        if: ${{ steps.signpath-config.outputs.enabled == 'true' }}
-        continue-on-error: true
-        uses: signpath/github-action-submit-signing-request@v2
+          set -euo pipefail
+          test -n "$CODESIGN_IDENTITY"
+          test -n "$CERTIFICATE"
+          printf '%s' "$CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/release.keychain-db"
+          security set-keychain-settings -lut 21600 "$RUNNER_TEMP/release.keychain-db"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/release.keychain-db"
+          security import "$RUNNER_TEMP/signing.p12" -k "$RUNNER_TEMP/release.keychain-db" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/release.keychain-db"
+          security list-keychains -d user -s "$RUNNER_TEMP/release.keychain-db"
+          xcrun notarytool store-credentials latexsnipper-notary --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" --team-id "$APPLE_TEAM_ID" --keychain "$RUNNER_TEMP/release.keychain-db"
+          rm -f "$RUNNER_TEMP/signing.p12"
+      - uses: actions/download-artifact@v7
+        with: {name: common-models, path: build/common-models}
+      - name: Calculate component build inputs
+        id: inputs
+        run: python scripts/build_desktop_release.py inputs
+      - uses: actions/cache@v5
+        with:
+          path: build/desktop/application
+          key: desktop-application-${{ matrix.system }}-${{ steps.inputs.outputs.application }}
+      - uses: actions/cache@v5
+        with:
+          path: |
+            build/desktop/inference-cpu
+            build/desktop/inference-gpu
+          key: desktop-inference-${{ matrix.system }}-${{ steps.inputs.outputs.inference }}
+      - uses: actions/cache@v5
+        with:
+          path: build/downloads
+          key: desktop-downloads-${{ matrix.system }}-${{ hashFiles('packaging/runtime/*.lock.json') }}
+      - name: Assemble native components
+        id: assemble
+        run: python scripts/build_desktop_release.py assemble
+      - uses: actions/upload-artifact@v7
+        id: unsigned-components
+        if: runner.os == 'Windows' && steps.assemble.outputs.signing_required == 'true'
+        with:
+          name: unsigned-desktop-components
+          path: build/desktop/signing/**
+          if-no-files-found: error
+      - name: Sign every new Windows executable payload
+        if: runner.os == 'Windows' && steps.assemble.outputs.signing_required == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_COMPONENT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.unsigned-components.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed-components
+      - name: Verify signed component payloads
+        if: runner.os == 'Windows' && steps.assemble.outputs.signing_required == 'true'
+        run: python scripts/build_desktop_release.py accept-signatures --signed signed-components
+      - name: Package components and offline installers
+        run: python scripts/build_desktop_release.py package --tag "${{ env.RELEASE_TAG }}"
+      - uses: actions/upload-artifact@v7
+        id: unsigned-installers
+        if: runner.os == 'Windows'
+        with:
+          name: unsigned-desktop-installers
+          path: dist/desktop/LaTeXSnipper_*.exe
+          if-no-files-found: error
+      - name: Sign Windows first-install carriers
+        if: runner.os == 'Windows'
+        uses: signpath/github-action-submit-signing-request@v3
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
           artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
-          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          github-artifact-id: ${{ steps.unsigned-installers.outputs.artifact-id }}
           wait-for-completion: true
-          output-artifact-directory: signed
-
-      - name: Write signed installer SHA256
-        if: ${{ steps.signpath.outcome == 'success' }}
-        shell: pwsh
-        run: |
-          $files = Get-ChildItem -Path signed -Filter *.exe -Recurse
-          if ($files.Count -eq 0) {
-            throw "SignPath completed, but no signed installer was found."
-          }
-          foreach ($file in $files) {
-            $hash = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLowerInvariant()
-            $shaPath = "$($file.FullName).sha256"
-            [System.IO.File]::WriteAllText(
-              $shaPath,
-              "$hash  $($file.Name)`n",
-              [System.Text.UTF8Encoding]::new($false)
-            )
-          }
-
-      - name: Upload signed installer artifact
-        if: ${{ steps.signpath.outcome == 'success' }}
-        uses: actions/upload-artifact@v7
+          output-artifact-directory: signed-installers
+      - name: Compute final Windows installer identities
+        if: runner.os == 'Windows'
+        run: python scripts/build_desktop_release.py finalize-windows --signed signed-installers
+      - uses: actions/upload-artifact@v7
         with:
-          name: signed-latexsnipper-installer
-          path: signed/**
+          name: desktop-${{ matrix.system }}
+          path: dist/desktop/**
           if-no-files-found: error
-          retention-days: 30
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: desktop-validation-${{ matrix.system }}
+          path: |
+            build/desktop/*validation.json
+      - name: Remove signing credentials
+        if: always() && runner.os == 'macOS'
+        run: security delete-keychain "$RUNNER_TEMP/release.keychain-db" || true
+
+  native:
+    needs: desktop
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {system: windows, runner: windows-2025}
+          - {system: linux, runner: ubuntu-22.04}
+          - {system: macos, runner: macos-15}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+        with: {lfs: true}
+      - uses: actions/setup-python@v6
+        with: {python-version: "3.11"}
+      - run: python -m pip install requests Pillow
+      - uses: ./.github/actions/desktop-system-libraries
+      - uses: actions/download-artifact@v7
+        with: {name: 'desktop-${{ matrix.system }}', path: build/native-release}
+      - name: Native installation, edition replacement, repair and uninstall
+        run: python scripts/validate_desktop_release.py --directory build/native-release --output build/native-acceptance.json
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: native-validation-${{ matrix.system }}
+          path: build/native-acceptance.json
+          if-no-files-found: error
+
+  gpu:
+    needs: desktop
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {system: windows, runner: '["self-hosted", "Windows", "X64", "cuda"]'}
+          - {system: linux, runner: '["self-hosted", "Linux", "X64", "cuda"]'}
+    runs-on: ${{ fromJSON(matrix.runner) }}
+    steps:
+      - uses: actions/checkout@v6
+        with: {lfs: true}
+      - uses: actions/setup-python@v6
+        with: {python-version: "3.11"}
+      - run: python -m pip install requests Pillow
+      - uses: actions/download-artifact@v7
+        with: {name: 'desktop-${{ matrix.system }}', path: build/gpu-release}
+      - name: Real CUDA recognition and loaded-library audit
+        run: python scripts/validate_desktop_release.py --directory build/gpu-release --gpu --output build/gpu-acceptance.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: gpu-validation-${{ matrix.system }}
+          path: build/gpu-acceptance.json
+          if-no-files-found: error
+
+  publish-release-assets:
+    needs: [desktop, native, gpu, build-office-plugin-installer, build-user-manual]
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.publish_assets
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with: {python-version: "3.11"}
+      - run: python -m pip install requests Pillow
+      - uses: actions/download-artifact@v7
+        with: {pattern: 'desktop-*', merge-multiple: false, path: release-assets}
+      - uses: actions/download-artifact@v7
+        with: {name: office-plugin-installer, path: publish-assets}
+      - uses: actions/download-artifact@v7
+        with: {name: user-manual, path: publish-assets}
+      - name: Stage exact declared artifacts
+        shell: python
+        run: |
+          import pathlib, shutil
+          output = pathlib.Path('publish-assets')
+          for system in ('windows', 'linux', 'macos'):
+              source = pathlib.Path('release-assets') / f'desktop-{system}'
+              assert source.is_dir(), f'Missing desktop target: {system}'
+              for path in source.iterdir():
+                  if path.is_file():
+                      destination = output / path.name
+                      if destination.exists():
+                          assert destination.read_bytes() == path.read_bytes(), f'Conflicting artifact: {path.name}'
+                      else:
+                          shutil.copy2(path, destination)
+      - name: Validate every payload before publishing the complete catalog
+        run: python scripts/build_desktop_release.py catalog --output publish-assets
+      - uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          generate_release_notes: true
+          overwrite_files: false
+          fail_on_unmatched_files: true
+          files: publish-assets/*
 
   build-office-plugin-installer:
     name: Validate Office Plugin Installer
@@ -247,121 +332,6 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  build-linux-deb:
-    name: Build Linux .deb
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          lfs: true
-
-      - name: Setup Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
-
-      - name: Install Linux build dependencies
-        env:
-          DEBIAN_FRONTEND: noninteractive
-        run: |
-          set -euo pipefail
-          APT_OPTS=(
-            -o Acquire::Retries=5
-            -o Acquire::http::Timeout=30
-            -o Acquire::https::Timeout=30
-            -o Dpkg::Use-Pty=0
-          )
-          sudo -E timeout 6m apt-get "${APT_OPTS[@]}" update
-          sudo -E timeout 12m apt-get "${APT_OPTS[@]}" install -y --no-install-recommends \
-            dpkg-dev \
-            libasound2 \
-            libatk-bridge2.0-0 \
-            libcups2 \
-            libdbus-1-3 \
-            libdrm2 \
-            libegl1 \
-            libfontconfig1 \
-            libgdk-pixbuf-2.0-0 \
-            libgl1 \
-            libglib2.0-0 \
-            libgtk-3-0 \
-            libnss3 \
-            libopengl0 \
-            libpulse0 \
-            libx11-6 \
-            libxcb-cursor0 \
-            libxcb-icccm4 \
-            libxcb-image0 \
-            libxcb-keysyms1 \
-            libxcb-randr0 \
-            libxcb-render-util0 \
-            libxcb-shape0 \
-            libxcb-xinerama0 \
-            libxcb-xkb1 \
-            libxcomposite1 \
-            libxdamage1 \
-            libxext6 \
-            libxfixes3 \
-            libxkbcommon-x11-0 \
-            libxkbcommon0 \
-            libxrandr2 \
-            libxrender1 \
-            libxss1 \
-            libxtst6 \
-            zlib1g
-
-      - name: Build .deb
-        run: |
-          chmod +x scripts/*.sh
-          ./scripts/build_deb.sh
-
-      - name: Upload Linux artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: latexsnipper-linux-deb
-          path: |
-            dist/*.deb
-            dist/SHA256SUMS-linux.txt
-          if-no-files-found: error
-          retention-days: 30
-
-  build-macos-app:
-    name: Build macOS App
-    runs-on: macos-15
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          lfs: true
-
-      - name: Setup Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
-
-      - name: Install macOS packaging tools
-        env:
-          HOMEBREW_NO_REQUIRE_TAP_TRUST: 1
-        run: brew install create-dmg
-
-      - name: Build macOS app
-        run: |
-          chmod +x scripts/*.sh
-          ./scripts/build_macos.sh
-
-      - name: Upload macOS artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: latexsnipper-macos
-          path: |
-            dist/*.dmg
-            dist/SHA256SUMS-macos.txt
-          if-no-files-found: error
-          retention-days: 30
-
   build-user-manual:
     name: Build User Manual
     runs-on: windows-2025
@@ -393,99 +363,3 @@ jobs:
           path: user_manual/LaTeXSnipper_User_Manual.pdf
           if-no-files-found: error
           retention-days: 30
-
-  publish-release-assets:
-    name: Publish Release Assets
-    if: ${{ always() && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_assets)) && needs.build-windows-installer.result == 'success' && needs.build-office-plugin-installer.result == 'success' && needs.build-linux-deb.result == 'success' && needs.build-macos-app.result == 'success' && needs.build-user-manual.result == 'success' }}
-    runs-on: ubuntu-24.04
-    needs:
-      - build-windows-installer
-      - build-linux-deb
-      - build-macos-app
-      - build-office-plugin-installer
-      - build-user-manual
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v7
-        with:
-          path: release-assets
-
-      - name: List release assets
-        run: find release-assets -maxdepth 3 -type f -print
-
-      - name: Prepare release upload directory
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf publish-assets
-          mkdir -p publish-assets
-
-          if [[ -d release-assets/signed-latexsnipper-installer ]]; then
-            signed_count="$(find release-assets/signed-latexsnipper-installer -type f -name 'LaTeXSnipper_*_amd64.exe' | wc -l | tr -d ' ')"
-          else
-            signed_count="0"
-          fi
-
-          if [[ "${signed_count}" != "0" ]]; then
-            echo "Using signed Windows installer."
-            find release-assets/signed-latexsnipper-installer -type f -name 'LaTeXSnipper_*_amd64.exe' -exec cp -v {} publish-assets/ \;
-          elif [[ -d release-assets/unsigned-latexsnipper-installer ]]; then
-            unsigned_count="$(find release-assets/unsigned-latexsnipper-installer -type f -name 'LaTeXSnipper_*_amd64.exe' | wc -l | tr -d ' ')"
-            if [[ "${unsigned_count}" != "0" ]]; then
-              echo "Signed Windows installer is missing; using unsigned Windows installer."
-              find release-assets/unsigned-latexsnipper-installer -type f -name 'LaTeXSnipper_*_amd64.exe' -exec cp -v {} publish-assets/ \;
-            else
-              echo "Unsigned Windows installer artifact exists but contains no LaTeXSnipper_*_amd64.exe; skipping Windows release asset."
-            fi
-          else
-            echo "No signed or unsigned Windows installer artifact found; skipping Windows release asset."
-          fi
-
-          find release-assets/office-plugin-installer -type f -name 'LaTeXSnipperOffice_*_amd64.exe' -exec cp -v {} publish-assets/ \;
-          find release-assets/user-manual -type f -name 'LaTeXSnipper_User_Manual.pdf' -exec cp -v {} publish-assets/ \;
-          find release-assets/latexsnipper-linux-deb -type f -name '*.deb' -exec cp -v {} publish-assets/ \;
-          find release-assets/latexsnipper-macos -type f -name '*.dmg' -exec cp -v {} publish-assets/ \;
-
-          asset_count="$(find publish-assets -maxdepth 1 -type f | wc -l | tr -d ' ')"
-          if [[ "${asset_count}" == "0" ]]; then
-            echo "No release assets were staged." >&2
-            find release-assets -maxdepth 4 -type f -print >&2
-            exit 1
-          fi
-
-          echo "Release upload assets:"
-          find publish-assets -maxdepth 1 -type f -print
-
-      - name: Resolve release tag
-        id: release
-        shell: bash
-        env:
-          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
-        run: |
-          product_version="$(tr -d '[:space:]' < VERSION)"
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            tag="${RELEASE_TAG_INPUT:-v${product_version}-LTS}"
-          else
-            tag="${{ github.ref_name }}"
-          fi
-          if [[ -z "$tag" ]]; then
-            echo "Release tag is empty." >&2
-            exit 1
-          fi
-          if [[ ! "$tag" =~ v?([0-9]+\.[0-9]+\.[0-9]+) ]] || [[ "${BASH_REMATCH[1]}" != "$product_version" ]]; then
-            echo "Release tag $tag does not match VERSION $product_version." >&2
-            exit 1
-          fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "Publishing assets to release tag: $tag"
-
-      - name: Publish GitHub Release assets
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ steps.release.outputs.tag }}
-          generate_release_notes: ${{ github.event_name != 'workflow_dispatch' }}
-          overwrite_files: true
-          files: publish-assets/*

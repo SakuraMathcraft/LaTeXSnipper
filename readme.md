@@ -25,10 +25,10 @@ English · [简体中文](README.zh-CN.md)
 | Feature                  | What it offers                                                                                                   |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------- |
 | 📸 **Recognize**         | Capture a region, open an image, select PDF pages, or write by hand; recognize formulas, text, and mixed content |
-| ⌨️ **Edit and compute**  | Edit with MathLive and live preview; simplify, evaluate, and solve in the math workspace                         |
+| ⌨️ **Edit and preview**  | Edit LaTeX source with live preview from the bundled MathJax runtime                         |
 | 🔄 **Export**            | Copy formulas or export documents in 20 formats, including LaTeX, MathML, Word, PDF, and Typst                   |
 | 🧩 **Integrate**         | Work in Word/PowerPoint or connect scripts and other tools through the Automation API                            |
-| 🧠 **Choose your model** | Run MathCraft OCR locally after downloading dependencies and weights, or configure a local/online external model |
+| 🧠 **Choose your model** | Run the bundled MathCraft OCR locally, or configure a local/online external model |
 | 🎨 **Make it yours**     | English/Chinese interface, light/dark themes, configurable shortcuts, history, and favorites                     |
 
 **MathCraft OCR:** [benchmark results](https://github.com/SakuraMathcraft/MathCraft-Models/tree/main/benchmarks) · [reproduce the benchmarks](benchmarks/mathcraft_ocr/README.md)
@@ -38,23 +38,16 @@ English · [简体中文](README.zh-CN.md)
 ## Download and Get Started
 
 1. **Install the desktop app.** Choose the package for your system from [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest).
-2. **Prepare recognition.** Install the recognition environment required by the model you want to use.
+2. **Select recognition.** Start the installed app and choose the built-in model and recognition type in Settings.
 3. **Recognize and edit.** Use Capture Recognize, Image, PDF, or Handwriting, then review, copy, or export the result.
 
 > [!IMPORTANT]
-> On first launch, use **Dependency Management** to install the required layers and a CPU or GPU backend for MathCraft OCR. Initial model setup requires downloading weights. If using only an external model, configure and test its connection in **Settings** instead.
+> This branch connects self-contained components, native deployment transactions, application updates and repair. Release publication requires GitHub Actions signature, native installation and real OCR gates; the new installers have no CI acceptance results yet. See the [implementation status](docs/desktop_runtime_distribution_plan.md).
 
-| Platform                  | Download                                   | Before using recognition                                                                   |
-| ------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| **Windows**               | `LaTeXSnipper_<version>_amd64.exe`         | Python runtime included; no separate system Python installation needed                     |
-| **Linux (Debian/Ubuntu)** | `LaTeXSnipper_<version>_<architecture>.deb` | Python `>=3.10,<3.14` with venv/pip; Wayland may restrict screenshots and global shortcuts |
-| **macOS**                 | `LaTeXSnipper_<version>_<architecture>.dmg` | Python `>=3.10,<3.14` with venv/pip; grant Screen Recording permission for screenshots     |
-
-> [!NOTE]
-> Linux/macOS use system Python to create the managed dependency environment; Windows uses its bundled Python 3.11 template. The `.deb` declares `python3` and `python3-venv` dependencies. On macOS, install a supported Python version if one is not available.
+Windows/Linux installers provide CPU and NVIDIA GPU editions; macOS uses CPU. Python, inference dependencies, models and Pandoc belong to installation resources. GPU builds carry private CUDA/cuDNN libraries and require a supported NVIDIA GPU and driver. Source development provides its Python packages and PATH Pandoc through standard developer tools.
 
 > [!TIP]
-> For permissions, model downloads, environment paths, and troubleshooting, see the [FAQ](docs/faq.md), [user data locations](docs/user_data_storage.md), and [full user manual (Chinese)](user_manual/user_manual.md).
+> For permissions, resources, and troubleshooting, see the [FAQ](docs/faq.md), [user data locations](docs/user_data_storage.md), and [full user manual (Chinese)](user_manual/user_manual.md).
 
 ---
 
@@ -109,7 +102,7 @@ Use MathCraft or your configured external model from scripts, batch jobs, editor
 Built-in exports cover **LaTeX, Markdown math, MathML, HTML, Word OMML, and SVG code**.
 
 > [!NOTE]
-> Install the optional **Pandoc** layer in Dependency Management for document exports such as Word, PowerPoint, EPUB, PDF, and Typst. PDF export also requires a LaTeX PDF engine.
+> Document exports use installation-owned **Pandoc** in self-contained builds and PATH Pandoc in source development. PDF export also requires an external LaTeX PDF engine.
 
 See the [user manual](user_manual/user_manual.md) for the full format list and requirements.
 

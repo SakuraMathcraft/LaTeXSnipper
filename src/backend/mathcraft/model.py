@@ -6,23 +6,20 @@ import logging
 from collections import deque
 import json
 import os
-from pathlib import Path
 import queue
 import re
 import subprocess
-import sys
 import tempfile
 import threading
 from typing import Any
 
 from PIL import Image
 from PyQt6.QtCore import QObject, pyqtSignal
-from runtime.app_paths import app_config_path
-from runtime.dependency_python import clean_path_value, find_dependency_python
-from runtime.native_runtime import isolated_python_code
+from runtime.installed_resources import installed_resources, worker_environment, worker_command
+from mathcraft_ocr.protocol import WORKER_PROTOCOL, MODEL_FORMAT, validate_response
 from runtime.exception_diagnostics import format_exception_diagnostics
 from backend.mathcraft.diagnostics import classify_mathcraft_failure
-from backend.mathcraft.process_environment import _worker_code_roots, _worker_path_value, _failed_warmup_component_details, _bundled_mathcraft_models_dir, _same_path
+from backend.mathcraft.process_environment import _failed_warmup_component_details
 from runtime.processes import hidden_subprocess_kwargs
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
@@ -63,7 +60,7 @@ def _looks_like_empty_ocr_input(image: Image.Image) -> bool:
             (max(1, int(sample.width * scale)), max(1, int(sample.height * scale))),
             Image.Resampling.BILINEAR,
         )
-    pixels = list(sample.getdata())
+    pixels = sample.get_flattened_data()
     if not pixels:
         return True
     mean = sum(pixels) / len(pixels)
@@ -107,97 +104,6 @@ def _empty_recognition_result(model: str, mode: str, image: Image.Image, reason:
     }
 
 
-def _configured_install_base_python() -> Path | None:
-    raw_values: list[str] = []
-    raw = clean_path_value(os.environ.get("LATEXSNIPPER_INSTALL_BASE_DIR", ""))
-    if raw:
-        raw_values.append(raw)
-    try:
-        cfg = app_config_path()
-        if cfg.exists():
-            data = json.loads(cfg.read_text(encoding="utf-8"))
-            raw = clean_path_value(data.get("install_base_dir", "")) if isinstance(data, dict) else ""
-            if raw:
-                raw_values.append(raw)
-    except Exception:
-        pass
-    seen: set[str] = set()
-    for raw in raw_values:
-        try:
-            key = os.path.normcase(os.path.abspath(raw))
-        except Exception:
-            key = raw
-        if key in seen:
-            continue
-        seen.add(key)
-        pyexe = find_dependency_python(raw)
-        if pyexe is not None:
-            return pyexe
-    return None
-
-
-def _looks_like_packaged_template_python(pyexe: str | Path | None) -> bool:
-    if not pyexe:
-        return False
-    try:
-        normalized = os.path.normcase(os.path.abspath(str(pyexe)))
-    except Exception:
-        normalized = str(pyexe).lower()
-    return f"{os.sep}_internal{os.sep}deps{os.sep}" in normalized and normalized.endswith("python.exe")
-
-
-def get_deps_python() -> str:
-    pyexe = clean_path_value(os.environ.get("LATEXSNIPPER_PYEXE", ""))
-    configured_py = _configured_install_base_python()
-    if configured_py is not None and pyexe and os.path.exists(pyexe):
-        if _looks_like_packaged_template_python(pyexe) and not _same_path(pyexe, configured_py):
-            return str(configured_py)
-    if pyexe and os.path.exists(pyexe):
-        return pyexe
-    if configured_py is not None:
-        return str(configured_py)
-    if getattr(sys, "frozen", False):
-        logger.warning("打包模式未配置依赖解释器，改用当前运行时")
-    return sys.executable
-
-
-def _infer_provider_preference_from_deps_state(pyexe: str) -> str:
-    candidates: list[Path] = []
-    try:
-        py_path = Path(pyexe).resolve()
-        candidates.append(py_path.parent.parent / ".deps_state.json")
-        candidates.append(py_path.parent / ".deps_state.json")
-    except Exception:
-        pass
-    raw = os.environ.get("LATEXSNIPPER_INSTALL_BASE_DIR", "")
-    if raw:
-        try:
-            candidates.append(Path(raw).resolve() / ".deps_state.json")
-        except Exception:
-            pass
-
-    for state_path in candidates:
-        try:
-            if not state_path.is_file():
-                continue
-            data = json.loads(state_path.read_text(encoding="utf-8-sig"))
-            layers = {str(item) for item in data.get("installed_layers", [])}
-            if "MATHCRAFT_GPU" in layers:
-                return "gpu"
-            if "MATHCRAFT_CPU" in layers:
-                return "cpu"
-        except Exception:
-            continue
-    return "auto"
-
-
-def resolve_mathcraft_provider_preference() -> str:
-    explicit = (os.environ.get("MATHCRAFT_PROVIDER", "") or "").strip().lower()
-    if explicit in {"auto", "cpu", "gpu"}:
-        return explicit
-    return _infer_provider_preference_from_deps_state(get_deps_python())
-
-
 class ModelWrapper(QObject):
     """MathCraft-only internal OCR wrapper."""
 
@@ -207,6 +113,7 @@ class ModelWrapper(QObject):
         super().__init__()
         self.device = "cpu"
         self.provider_info: dict[str, object] = {}
+        self.runtime_info: dict[str, object] = {}
         self._default_model = self._normalize_model_name(default_model or "mathcraft")
         self._worker: subprocess.Popen | None = None
         self._worker_lock = threading.Lock()
@@ -216,7 +123,8 @@ class ModelWrapper(QObject):
         self._import_failed = False
         self._last_error = ""
         self._failure_info: dict[str, str] = {}
-        self._provider = resolve_mathcraft_provider_preference()
+        self._resources = None
+        self._handshake_complete = False
         self._ready_modes: set[str] = set()
         self._stderr_lock = threading.Lock()
         self._worker_stderr_tail: deque[str] = deque(maxlen=80)
@@ -234,23 +142,7 @@ class ModelWrapper(QObject):
             pass
 
     def _build_subprocess_env(self) -> dict:
-        env = os.environ.copy()
-        for key in ("PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "PYTHONEXECUTABLE", "MATHCRAFT_HOME"):
-            env.pop(key, None)
-        pyexe = get_deps_python()
-        env["PYTHONNOUSERSITE"] = "1"
-        env["PYTHONUTF8"] = "1"
-        env["PYTHONIOENCODING"] = "utf-8"
-        env["PYTHONFAULTHANDLER"] = "1"
-        if os.name == "nt":
-            env["PATH"] = _worker_path_value(pyexe, env.get("PATH"))
-        env["ORT_DISABLE_AZURE"] = "1"
-        bundled_models = _bundled_mathcraft_models_dir()
-        if bundled_models is not None:
-            env["MATHCRAFT_BUNDLED_MODELS_DIR"] = str(bundled_models)
-        else:
-            env.pop("MATHCRAFT_BUNDLED_MODELS_DIR", None)
-        return env
+        return worker_environment(self._resources)
 
     def _normalize_model_name(self, model_name: str | None) -> str:
         model = str(model_name or "").strip().lower()
@@ -270,18 +162,8 @@ class ModelWrapper(QObject):
         return f"mathcraft-{self._request_seq}"
 
     def _worker_argv(self) -> list[str]:
-        roots = [str(root) for root in _worker_code_roots()]
-        code = (
-            "import ssl, sys, urllib.request; "
-            "assert any(type(h).__name__ == 'HTTPSHandler' "
-            "for h in urllib.request.build_opener().handlers), 'dependency Python HTTPS support unavailable'; "
-            f"roots={roots!r}; "
-            "insert_at=next((i for i,p in enumerate(sys.path) if 'site-packages' in p.lower()), len(sys.path)); "
-            "[sys.path.insert(insert_at, p) for p in reversed(roots) if p not in sys.path]; "
-            "from mathcraft_ocr.cli import main; "
-            f"raise SystemExit(main(['worker', '--provider', {self._provider!r}]))"
-        )
-        return [get_deps_python(), "-u", "-c", isolated_python_code(code)]
+        self._resources = installed_resources()
+        return worker_command(self._resources)
 
     def _worker_stderr_text(self, limit: int = 4000) -> str:
         with self._stderr_lock:
@@ -364,6 +246,7 @@ class ModelWrapper(QObject):
                     **hidden_subprocess_kwargs(),
                 )
                 self._worker = proc
+                self._handshake_complete = False
                 self._start_worker_stderr_pump(proc)
                 return True
             except Exception as exc:
@@ -379,7 +262,22 @@ class ModelWrapper(QObject):
         if proc is None or proc.stdin is None or proc.stdout is None:
             raise RuntimeError("MathCraft OCR 运行进程管道不可用")
 
+        if payload.get('action') != 'hello' and not self._handshake_complete:
+            hello = self._send_worker_request({'action': 'hello'}, timeout_sec=30)
+            if hello.get('worker_protocol') != WORKER_PROTOCOL or hello.get('model_format') != MODEL_FORMAT:
+                self.stop()
+                raise RuntimeError('MathCraft worker contract mismatch')
+            if self._resources is not None:
+                from runtime.distribution_manifest import read_json
+
+                details = read_json(self._resources.root / 'inference/runtime.json')
+                if any(hello.get(key) != details[key] for key in ('python_version', 'ort_version')):
+                    self.stop()
+                    raise RuntimeError('MathCraft worker runtime versions do not match the installation')
+            self._handshake_complete = True
+            self.runtime_info = dict(hello)
         request = dict(payload)
+        request['protocol'] = WORKER_PROTOCOL
         request["id"] = request.get("id") or self._next_request_id()
         with self._request_lock:
             try:
@@ -412,9 +310,9 @@ class ModelWrapper(QObject):
         if not line:
             raise self._worker_transport_error(proc, "MathCraft OCR 运行进程没有返回结果")
         try:
-            response = json.loads(line)
+            response = validate_response(json.loads(line), request["id"])
         except Exception as exc:
-            raise RuntimeError(f"MathCraft OCR 返回了无效 JSON: {line[:300]}") from exc
+            raise self._worker_transport_error(proc, f"MathCraft OCR 返回了无效响应: {exc}; {line[:300]}") from exc
         if not response.get("ok"):
             err = response.get("error", {})
             if isinstance(err, dict):
@@ -424,8 +322,7 @@ class ModelWrapper(QObject):
                     str(err.get("traceback") or "").strip(),
                 )
             raise RuntimeError(str(err or "MathCraft OCR 运行错误"))
-        result = response.get("result")
-        return result if isinstance(result, dict) else {}
+        return response["result"]
 
     def _set_error(self, detail: str) -> dict[str, str]:
         info = classify_mathcraft_failure(detail)
@@ -442,6 +339,7 @@ class ModelWrapper(QObject):
         self._import_failed = False
 
     def stop(self) -> None:
+        self.runtime_info = {}
         proc = self._worker
         self._worker = None
         if not proc:

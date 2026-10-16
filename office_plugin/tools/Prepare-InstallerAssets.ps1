@@ -51,7 +51,6 @@ function Copy-Directory {
 
 $mathJaxSource = Join-Path $pluginRoot "..\src\assets\MathJax"
 $sharedEditorSource = Join-Path $pluginRoot "src\LaTeXSnipper.OfficePlugin.Editor\EditorAssets"
-$mathLiveVendorSource = Join-Path $pluginRoot "..\src\assets\mathlive\vendor"
 $wordEditorSource = Join-Path $pluginRoot "hosts\WordAddIn\EditorAssets"
 $powerPointEditorSource = Join-Path $pluginRoot "hosts\PowerPointAddIn\EditorAssets"
 
@@ -65,11 +64,6 @@ foreach ($relative in $mathJaxManifest.profiles.office) {
 Copy-Directory `
     -Source $sharedEditorSource `
     -Destination (Join-Path $stagingRoot "EditorSharedAssets")
-
-Copy-Directory `
-    -Source $mathLiveVendorSource `
-    -Destination (Join-Path $stagingRoot "EditorSharedAssets\vendor") `
-    -ExcludeFiles @("compute-engine.min.esm.js", "compute-engine.LICENSE.txt")
 
 Copy-Directory `
     -Source $wordEditorSource `

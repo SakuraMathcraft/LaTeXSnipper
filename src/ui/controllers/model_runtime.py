@@ -13,7 +13,6 @@ if TYPE_CHECKING:
     from ui.controllers.tasks import RecognitionTaskController
     from ui.main_window import MainWindow
 import logging
-import os
 import threading
 
 from PyQt6 import sip
@@ -24,7 +23,6 @@ from backend.external_model import load_config_from_mapping
 from backend.mathcraft.diagnostics import classify_mathcraft_failure
 from localization.manager import translate as tr
 from recognition.error_messages import translate_mathcraft_diagnostic
-from runtime.dependency_python import resolve_dependency_python
 from ui.controllers.theme import normalize_theme_mode
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
@@ -52,7 +50,6 @@ class ModelRuntimeController(QObject):
         self.notice = notice
         self.notification_parent = notification_parent
         self.model = None
-        self._mathcraft_env_state = None
         self._model_warmup_in_progress = False
         self._model_warmup_cancelled = False
         self._model_warmup_notice_shown = False
@@ -65,7 +62,6 @@ class ModelRuntimeController(QObject):
         self._model_warmup_result_signal.connect(self._apply_model_warmup_result)
         from backend.mathcraft.model import ModelWrapper
 
-        self.configure_environment()
         self.model = ModelWrapper("mathcraft", auto_warmup=False)
         self._warmup_thread = None
 
@@ -229,7 +225,6 @@ class ModelRuntimeController(QObject):
         self.status_changed.emit(tr("预热中"))
         if self._should_show_mathcraft_warmup_started_infobar(preferred):
             self._show_mathcraft_warmup_started_infobar()
-        self.configure_environment()
 
         def worker():
             ok = False
@@ -421,13 +416,16 @@ class ModelRuntimeController(QObject):
 
     def needs_models(self, model_name: str | None) -> bool:
         try:
-            from mathcraft_ocr.cache import inspect_model_roots, resolve_model_roots
-            from mathcraft_ocr.manifest import load_manifest
+            from mathcraft_ocr.cache import inspect_model_roots
             from mathcraft_ocr.profiles import PROFILE_MODEL_IDS
 
             profile = self._mathcraft_profile_for_model(model_name)
-            manifest = load_manifest()
-            roots = resolve_model_roots()
+            from runtime.installed_resources import installed_resources
+            from runtime.model_resources import desktop_model_resources
+
+            resources = desktop_model_resources(installed_resources())
+            manifest = resources.manifest
+            roots = resources.roots
             for model_id in PROFILE_MODEL_IDS.get(profile, ()):
                 spec = manifest.models.get(model_id)
                 if spec is None:
@@ -437,37 +435,6 @@ class ModelRuntimeController(QObject):
             return False
         except Exception:
             return False
-
-    def configure_environment(self):
-        env_pyexe = ""
-        try:
-            configured_base = ""
-            try:
-                configured_base = self.cfg.get("install_base_dir", "") or ""
-            except Exception:
-                configured_base = ""
-            pyexe = resolve_dependency_python(
-                (configured_base,), fallback_to_current=True
-            )
-            if pyexe and os.path.exists(pyexe):
-                env_pyexe = pyexe
-        except Exception:
-            pass
-        try:
-            new_state = (env_pyexe,)
-            old_state = getattr(self, "_mathcraft_env_state", None)
-            self._mathcraft_env_state = new_state
-            old_key = old_state
-            new_key = new_state
-            if old_state is not None and old_key != new_key:
-                self.restart_worker("环境切换")
-        except Exception:
-            pass
-
-    def restart_worker(self, reason: str = "环境更新"):
-        if self.model is not None:
-            self.model.restart()
-            logger.info("MathCraft OCR 运行进程已重启: %s", reason)
 
     def _should_show_mathcraft_warmup_started_infobar(
         self, model_name: str | None
@@ -484,7 +451,7 @@ class ModelRuntimeController(QObject):
             InfoBar.info(
                 title=tr("MathCraft OCR 正在预热"),
                 content=tr(
-                    "首次预热可能需要下载或初始化模型权重，网速较慢时耗时会更长，请稍候。"
+                    "正在初始化模型；缺失或损坏的模型将自动修复，请稍候。"
                 ),
                 parent=self.notification_parent(),
                 duration=5200,

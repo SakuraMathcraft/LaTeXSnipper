@@ -1,0 +1,960 @@
+{
+  "build_tools": [
+    {
+      "artifact": {
+        "sha256": "71138adf1f4ca900cdb7d289c21b7494329f2332b6d85f0e1c42108c0384ed3e",
+        "size": 1816632,
+        "url": "https://files.pythonhosted.org/packages/f3/6e/1736e5b4ae2b778ef2f81c47d797de9f891d4d8acb047a24ca37a60294dd/pip-26.2.1-py3-none-any.whl"
+      },
+      "kind": "wheel",
+      "name": "pip",
+      "version": "26.2.1"
+    },
+    {
+      "artifact": {
+        "sha256": "fdd925d5c5d9f62e4b74b30d6dd7828ce236fd6ed998a08d81de62ce5a6310d6",
+        "size": 1062021,
+        "url": "https://files.pythonhosted.org/packages/e1/e3/c164c88b2e5ce7b24d667b9bd83589cf4f3520d97cad01534cd3c4f55fdb/setuptools-81.0.0-py3-none-any.whl"
+      },
+      "kind": "wheel",
+      "name": "setuptools",
+      "version": "81.0.0"
+    },
+    {
+      "artifact": {
+        "sha256": "3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab",
+        "size": 33320,
+        "url": "https://files.pythonhosted.org/packages/2e/29/69cfbb602cd91690c55d38ba9fe53e6a7e76a6fa647bf38f19c138d25449/wheel-0.48.0-py3-none-any.whl"
+      },
+      "kind": "wheel",
+      "name": "wheel",
+      "version": "0.48.0"
+    }
+  ],
+  "python_version": "3.11.17",
+  "requirements": [
+    "numpy<3,>=2",
+    "pillow==12.3.0",
+    "opencv-python==4.13.0.92",
+    "rapidocr==3.5.0",
+    "transformers==4.55.4",
+    "tokenizers==0.21.4",
+    "omegaconf==2.3.0",
+    "antlr4-python3-runtime==4.9.3",
+    "flatbuffers<26,>=24.3.25",
+    "packaging<27,>=25",
+    "protobuf<5,>=4.25",
+    "pymupdf<1.28,>=1.27.2",
+    "requests==2.32.5",
+    "onnxruntime==1.26.0"
+  ],
+  "schema": 1,
+  "targets": {
+    "linux-x86_64": [
+      {
+        "artifact": {
+          "sha256": "f224469b4168294902bb1efa80a8bf7855f24c99aef99cbefc1bcd3cce77881b",
+          "size": 117034,
+          "url": "https://files.pythonhosted.org/packages/3e/38/7859ff46355f76f8d19459005ca000b6e7012f2f1ca597746cbcd1fbfe5e/antlr4-python3-runtime-4.9.3.tar.gz"
+        },
+        "kind": "sdist",
+        "name": "antlr4-python3-runtime",
+        "version": "4.9.3"
+      },
+      {
+        "artifact": {
+          "sha256": "62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775",
+          "size": 136983,
+          "url": "https://files.pythonhosted.org/packages/0b/a7/71ac2cff56fec219ed242bb11b8efb69fcc4bec75db06fb7bfe35de520e6/certifi-2026.7.22-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "certifi",
+        "version": "2026.7.22"
+      },
+      {
+        "artifact": {
+          "sha256": "211d5a3eb6af8f513b8d4ca19a8c1b7accab1b5f0d3175f9826b03c1a920dc1f",
+          "size": 269972,
+          "url": "https://files.pythonhosted.org/packages/e4/ed/cf505d3011ffceb12c2067a7a5d3cfe92b875d4d44bb0ff0d69375e2c184/charset_normalizer-3.5.2-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl"
+        },
+        "kind": "wheel",
+        "name": "charset-normalizer",
+        "version": "3.5.2"
+      },
+      {
+        "artifact": {
+          "sha256": "30d392604e9110045a2c2aeefc27d7a017abbab63f3a8aee594eac0801df784e",
+          "size": 12239,
+          "url": "https://files.pythonhosted.org/packages/d4/19/0b6647bf5e331521e55d2b63bfbdc210bd9cd605189273f03614a05f702d/colorlog-6.12.0-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "colorlog",
+        "version": "6.12.0"
+      },
+      {
+        "artifact": {
+          "sha256": "3f4a557945a7b0f95efeb1f432267affe5d45ac8ddde2aed1b97ebb62382c089",
+          "size": 132460,
+          "url": "https://files.pythonhosted.org/packages/d7/8b/f837f52905395ba4510fe61f753c24833fb0a9c76e21267bb9f828b664a9/filelock-4.1.1-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "filelock",
+        "version": "4.1.1"
+      },
+      {
+        "artifact": {
+          "sha256": "7634f50c427838bb021c2d66a3d1168e9d199b0607e6329399f04846d42e20b4",
+          "size": 26661,
+          "url": "https://files.pythonhosted.org/packages/e8/2d/d2a548598be01649e2d46231d151a6c56d10b964d94043a335ae56ea2d92/flatbuffers-25.12.19-py2.py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "flatbuffers",
+        "version": "25.12.19"
+      },
+      {
+        "artifact": {
+          "sha256": "8dd6e646e99ea382bd85f97a45e6b526a442d79423a7dc673f1e2756d05fcb5f",
+          "size": 221738,
+          "url": "https://files.pythonhosted.org/packages/6c/c0/a98505f18594f1bce828bb159cec0fcf9860562f1a2c85913409fc8f3d9e/fsspec-2026.9.0-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "fsspec",
+        "version": "2026.9.0"
+      },
+      {
+        "artifact": {
+          "sha256": "2814a6e999d13464c4d679b788cc5d784eb5a4edfc638a31f10e9a11ab531ef8",
+          "size": 4212180,
+          "url": "https://files.pythonhosted.org/packages/a3/4c/2bf3b66c215d409655f28de1622393dde04c9461280d48c7924bb3b2decd/hf_xet-1.7.0-cp38-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl"
+        },
+        "kind": "wheel",
+        "name": "hf-xet",
+        "version": "1.7.0"
+      },
+      {
+        "artifact": {
+          "sha256": "48f0c8eac16145dfce371e9d2d7772854a4f591bcb56c9cf548accf531d54270",
+          "size": 566395,
+          "url": "https://files.pythonhosted.org/packages/a8/af/48ac8483240de756d2438c380746e7130d1c6f75802ef22f3c6d49982787/huggingface_hub-0.36.2-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "huggingface-hub",
+        "version": "0.36.2"
+      },
+      {
+        "artifact": {
+          "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
+          "size": 69583,
+          "url": "https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "idna",
+        "version": "3.20"
+      },
+      {
+        "artifact": {
+          "sha256": "89cd468399cfd2504718f0ba50e410dca55a170b61a02ad92bb18c8a65186e93",
+          "size": 16918164,
+          "url": "https://files.pythonhosted.org/packages/02/03/74fe2a4cb3817d94d86402f2506554130a2f01414e299b5a843e5a8a957f/numpy-2.4.6-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl"
+        },
+        "kind": "wheel",
+        "name": "numpy",
+        "version": "2.4.6"
+      },
+      {
+        "artifact": {
+          "sha256": "7b4df175cdb08ba400f45cae3bdcae7ba8365db4d165fc65fd04b050ab63b46b",
+          "size": 79500,
+          "url": "https://files.pythonhosted.org/packages/e3/94/1843518e420fa3ed6919835845df698c7e27e183cb997394e4a670973a65/omegaconf-2.3.0-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "omegaconf",
+        "version": "2.3.0"
+      },
+      {
+        "artifact": {
+          "sha256": "620d602b8f7d8b8dab5f4b99c6eb353e78d3fb8b0f53db1bd258bb1aa001c1d5",
+          "size": 72927042,
+          "url": "https://files.pythonhosted.org/packages/fd/55/b3b49a1b97aabcfbbd6c7326df9cb0b6fa0c0aefa8e89d500939e04aa229/opencv_python-4.13.0.92-cp37-abi3-manylinux_2_28_x86_64.whl"
+        },
+        "kind": "wheel",
+        "name": "opencv-python",
+        "version": "4.13.0.92"
+      },
+      {
+        "artifact": {
+          "sha256": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+          "size": 129956,
+          "url": "https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "packaging",
+        "version": "26.3"
+      },
+      {
+        "artifact": {
+          "sha256": "23d27a3e0307ec2244cc51e7287b919aa68d097504ebe19df4e76a98a3eea5bd",
+          "size": 6934408,
+          "url": "https://files.pythonhosted.org/packages/3b/2d/ede717bc1144f63886c21fd349bb95860b0d1a21149ff16f2bb362b612b6/pillow-12.3.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl"
+        },
+        "kind": "wheel",
+        "name": "pillow",
+        "version": "12.3.0"
+      },
+      {
+        "artifact": {
+          "sha256": "438c636de8fb706a0de94a12a268ef1ae8f5ba5ae655a7671fcda5968ba3c9be",
+          "size": 295178,
+          "url": "https://files.pythonhosted.org/packages/a8/5c/53f18822017b8bda6bd8bb4e02048e911fdc79a3dafdc83ab994fe922a84/protobuf-4.25.9-cp37-abi3-manylinux2014_x86_64.whl"
+        },
+        "kind": "wheel",
+        "name": "protobuf",
+        "version": "4.25.9"
+      },
+      {
+        "artifact": {
+          "sha256": "1b6c8d75ba20c6433c9ea8f1a0feb7e4d3ac06a09ad1fd6d571afc1ddf89b869",
+          "size": 989649,
+          "url": "https://files.pythonhosted.org/packages/ad/88/d8f6c6763ea622fe35e19c75d8b39ed6c55191ddc82d65e06bc46b26cb8e/pyclipper-1.4.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl"
+        },
+        "kind": "wheel",
+        "name": "pyclipper",
+        "version": "1.4.0"
+      },
+      {
+        "artifact": {
+          "sha256": "857842b4888827bd6155a1131341b2822a7ebe9a8c15a975fd7d490d7a64a30c",
+          "size": 24963198,
+          "url": "https://files.pythonhosted.org/packages/e4/a0/aa1ee2240f29481a04a827c313333b4ecd8a14d6ac3e15d3f41a30574781/pymupdf-1.27.2.3-cp310-abi3-manylinux_2_28_x86_64.whl"
+        },
+        "kind": "wheel",
+        "name": "pymupdf",
+        "version": "1.27.2.3"
+      },
+      {
+        "artifact": {
+          "sha256": "b8bb0864c5a28024fac8a632c443c87c5aa6f215c0b126c449ae1a150412f31d",
+          "size": 806638,
+          "url": "https://files.pythonhosted.org/packages/71/60/917329f640924b18ff085ab889a11c763e0b573da888e8404ff486657602/pyyaml-6.0.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl"
+        },
+        "kind": "wheel",
+        "name": "pyyaml",
+        "version": "6.0.3"
+      },
+      {
+        "artifact": {
+          "sha256": "c0e361ffd0a26d2f27827361b0c563a87ee311e62b8c56ad52472c0fc6f1d78a",
+          "size": 15063134,
+          "url": "https://files.pythonhosted.org/packages/d2/f5/d93dfbb4f96acefe3a978ab2d0eab74d96c0388870f8d275792317c4857c/rapidocr-3.5.0-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "rapidocr",
+        "version": "3.5.0"
+      },
+      {
+        "artifact": {
+          "sha256": "612b709381c0355b70d89cdb51b7f670591ed5cbbc0e3b5337488019dc667b65",
+          "size": 804978,
+          "url": "https://files.pythonhosted.org/packages/8a/70/aa08d1d2b294894b365e5f8ba5380fe3f8546acdb81f10639dfd74209c37/regex-2026.9.29-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl"
+        },
+        "kind": "wheel",
+        "name": "regex",
+        "version": "2026.9.29"
+      },
+      {
+        "artifact": {
+          "sha256": "2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6",
+          "size": 64738,
+          "url": "https://files.pythonhosted.org/packages/1e/db/4254e3eabe8020b458f1a747140d32277ec7a271daf1d235b70dc0b4e6e3/requests-2.32.5-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "requests",
+        "version": "2.32.5"
+      },
+      {
+        "artifact": {
+          "sha256": "fd6f3f93c9a0a7cc2788ee63fb763353d4bd2e89b0751bc78fcf7dda00bea774",
+          "size": 516040,
+          "url": "https://files.pythonhosted.org/packages/28/50/f203ff3a3ddfe19308efc83c5a3a29ed02bf786732ec35e68bf9162f3365/safetensors-0.8.0-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+        },
+        "kind": "wheel",
+        "name": "safetensors",
+        "version": "0.8.0"
+      },
+      {
+        "artifact": {
+          "sha256": "5d61088e2ef71dafad0dd4fae8a521cc1f20da4a89d3096bab5b3260b39b3052",
+          "size": 2307874,
+          "url": "https://files.pythonhosted.org/packages/dc/20/56289b91914b62a0849de3c1efe5f0cfd5b5d7ba168568567900087615be/shapely-2.2.0-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl"
+        },
+        "kind": "wheel",
+        "name": "shapely",
+        "version": "2.2.0"
+      },
+      {
+        "artifact": {
+          "sha256": "4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274",
+          "size": 11050,
+          "url": "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "six",
+        "version": "1.17.0"
+      },
+      {
+        "artifact": {
+          "sha256": "51b7eabb104f46c1c50b486520555715457ae833d5aee9ff6ae853d1130506ff",
+          "size": 3115426,
+          "url": "https://files.pythonhosted.org/packages/f2/90/273b6c7ec78af547694eddeea9e05de771278bd20476525ab930cecaf7d8/tokenizers-0.21.4-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+        },
+        "kind": "wheel",
+        "name": "tokenizers",
+        "version": "0.21.4"
+      },
+      {
+        "artifact": {
+          "sha256": "c293e525e6fef9c20e8728fd4612df02a0aa31bb5fe91ecd93e123b1b7bffa73",
+          "size": 80199,
+          "url": "https://files.pythonhosted.org/packages/a7/03/921a3d3c75785aca9ebfbfcabfbc3a1be12e2ab5265deb026d55a5a3f83e/tqdm-4.70.1-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "tqdm",
+        "version": "4.70.1"
+      },
+      {
+        "artifact": {
+          "sha256": "df28f3849665faba4af5106f0db4510323277c4bb595055340544f7e59d06458",
+          "size": 11269659,
+          "url": "https://files.pythonhosted.org/packages/fa/0a/8791a6ee0529c45f669566969e99b75e2ab20eb0bfee8794ce295c18bdad/transformers-4.55.4-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "transformers",
+        "version": "4.55.4"
+      },
+      {
+        "artifact": {
+          "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+          "size": 45571,
+          "url": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "typing-extensions",
+        "version": "4.16.0"
+      },
+      {
+        "artifact": {
+          "sha256": "0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3",
+          "size": 135717,
+          "url": "https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "urllib3",
+        "version": "2.8.0"
+      }
+    ],
+    "macos-arm64": [
+      {
+        "artifact": {
+          "sha256": "f224469b4168294902bb1efa80a8bf7855f24c99aef99cbefc1bcd3cce77881b",
+          "size": 117034,
+          "url": "https://files.pythonhosted.org/packages/3e/38/7859ff46355f76f8d19459005ca000b6e7012f2f1ca597746cbcd1fbfe5e/antlr4-python3-runtime-4.9.3.tar.gz"
+        },
+        "kind": "sdist",
+        "name": "antlr4-python3-runtime",
+        "version": "4.9.3"
+      },
+      {
+        "artifact": {
+          "sha256": "62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775",
+          "size": 136983,
+          "url": "https://files.pythonhosted.org/packages/0b/a7/71ac2cff56fec219ed242bb11b8efb69fcc4bec75db06fb7bfe35de520e6/certifi-2026.7.22-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "certifi",
+        "version": "2026.7.22"
+      },
+      {
+        "artifact": {
+          "sha256": "3d21b8b13c7592db2ac5e544a6d83187b995257472b0c9e8351b6d507ae37ed6",
+          "size": 370642,
+          "url": "https://files.pythonhosted.org/packages/22/67/6a0b94a7960d5e1b5eacd2fb529f3fccc47db4644f7f0a7cfdcfc3be578a/charset_normalizer-3.5.2-cp311-cp311-macosx_10_9_universal2.whl"
+        },
+        "kind": "wheel",
+        "name": "charset-normalizer",
+        "version": "3.5.2"
+      },
+      {
+        "artifact": {
+          "sha256": "30d392604e9110045a2c2aeefc27d7a017abbab63f3a8aee594eac0801df784e",
+          "size": 12239,
+          "url": "https://files.pythonhosted.org/packages/d4/19/0b6647bf5e331521e55d2b63bfbdc210bd9cd605189273f03614a05f702d/colorlog-6.12.0-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "colorlog",
+        "version": "6.12.0"
+      },
+      {
+        "artifact": {
+          "sha256": "3f4a557945a7b0f95efeb1f432267affe5d45ac8ddde2aed1b97ebb62382c089",
+          "size": 132460,
+          "url": "https://files.pythonhosted.org/packages/d7/8b/f837f52905395ba4510fe61f753c24833fb0a9c76e21267bb9f828b664a9/filelock-4.1.1-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "filelock",
+        "version": "4.1.1"
+      },
+      {
+        "artifact": {
+          "sha256": "7634f50c427838bb021c2d66a3d1168e9d199b0607e6329399f04846d42e20b4",
+          "size": 26661,
+          "url": "https://files.pythonhosted.org/packages/e8/2d/d2a548598be01649e2d46231d151a6c56d10b964d94043a335ae56ea2d92/flatbuffers-25.12.19-py2.py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "flatbuffers",
+        "version": "25.12.19"
+      },
+      {
+        "artifact": {
+          "sha256": "8dd6e646e99ea382bd85f97a45e6b526a442d79423a7dc673f1e2756d05fcb5f",
+          "size": 221738,
+          "url": "https://files.pythonhosted.org/packages/6c/c0/a98505f18594f1bce828bb159cec0fcf9860562f1a2c85913409fc8f3d9e/fsspec-2026.9.0-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "fsspec",
+        "version": "2026.9.0"
+      },
+      {
+        "artifact": {
+          "sha256": "59fba37039233c7fcbe196817d6cdcf1b40dfb17b410f229d85b0cf0a1848da4",
+          "size": 3560352,
+          "url": "https://files.pythonhosted.org/packages/c3/47/a26ebdce7056a61e931f228439bc0ab08cbec239d1690f965e5e637cba79/hf_xet-1.7.0-cp38-abi3-macosx_11_0_arm64.whl"
+        },
+        "kind": "wheel",
+        "name": "hf-xet",
+        "version": "1.7.0"
+      },
+      {
+        "artifact": {
+          "sha256": "48f0c8eac16145dfce371e9d2d7772854a4f591bcb56c9cf548accf531d54270",
+          "size": 566395,
+          "url": "https://files.pythonhosted.org/packages/a8/af/48ac8483240de756d2438c380746e7130d1c6f75802ef22f3c6d49982787/huggingface_hub-0.36.2-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "huggingface-hub",
+        "version": "0.36.2"
+      },
+      {
+        "artifact": {
+          "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
+          "size": 69583,
+          "url": "https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "idna",
+        "version": "3.20"
+      },
+      {
+        "artifact": {
+          "sha256": "4cfe66903cc32a9921a6733d96b19bb6abf310397581bbad89c228f5abaf0ee8",
+          "size": 5469159,
+          "url": "https://files.pythonhosted.org/packages/ad/40/40a40ee0ddf7ceb782c49af278894b686e586d65d8c1889c8b5da01a3d7d/numpy-2.4.6-cp311-cp311-macosx_14_0_arm64.whl"
+        },
+        "kind": "wheel",
+        "name": "numpy",
+        "version": "2.4.6"
+      },
+      {
+        "artifact": {
+          "sha256": "7b4df175cdb08ba400f45cae3bdcae7ba8365db4d165fc65fd04b050ab63b46b",
+          "size": 79500,
+          "url": "https://files.pythonhosted.org/packages/e3/94/1843518e420fa3ed6919835845df698c7e27e183cb997394e4a670973a65/omegaconf-2.3.0-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "omegaconf",
+        "version": "2.3.0"
+      },
+      {
+        "artifact": {
+          "sha256": "caf60c071ec391ba51ed00a4a920f996d0b64e3e46068aac1f646b5de0326a19",
+          "size": 46247052,
+          "url": "https://files.pythonhosted.org/packages/fc/6f/5a28fef4c4a382be06afe3938c64cc168223016fa520c5abaf37e8862aa5/opencv_python-4.13.0.92-cp37-abi3-macosx_13_0_arm64.whl"
+        },
+        "kind": "wheel",
+        "name": "opencv-python",
+        "version": "4.13.0.92"
+      },
+      {
+        "artifact": {
+          "sha256": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+          "size": 129956,
+          "url": "https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "packaging",
+        "version": "26.3"
+      },
+      {
+        "artifact": {
+          "sha256": "37d6d0a00072fd2948eb22bce7e1475f34569d90c87c59f7a2ec59541b77f7a6",
+          "size": 4785266,
+          "url": "https://files.pythonhosted.org/packages/b2/5b/a02d30018abd97ced9f5a6c63d28597694a00d066516b9c1c6de45859fc9/pillow-12.3.0-cp311-cp311-macosx_11_0_arm64.whl"
+        },
+        "kind": "wheel",
+        "name": "pillow",
+        "version": "12.3.0"
+      },
+      {
+        "artifact": {
+          "sha256": "9560813560e6ee72c11ca8873878bdb7ee003c96a57ebb013245fe84e2540904",
+          "size": 394826,
+          "url": "https://files.pythonhosted.org/packages/56/5b/0074a0a9eb01f3d1c4648ca5e81b22090c811b210b61df9018ac6d6c5cda/protobuf-4.25.9-cp37-abi3-macosx_10_9_universal2.whl"
+        },
+        "kind": "wheel",
+        "name": "protobuf",
+        "version": "4.25.9"
+      },
+      {
+        "artifact": {
+          "sha256": "adcb7ca33c5bdc33cd775e8b3eadad54873c802a6d909067a57348bcb96e7a2d",
+          "size": 264281,
+          "url": "https://files.pythonhosted.org/packages/de/e3/64cf7794319b088c288706087141e53ac259c7959728303276d18adc665d/pyclipper-1.4.0-cp311-cp311-macosx_10_9_universal2.whl"
+        },
+        "kind": "wheel",
+        "name": "pyclipper",
+        "version": "1.4.0"
+      },
+      {
+        "artifact": {
+          "sha256": "660d93cb6da5bbddf11d3982ae27745dd3a9902d9f24cdb69adab83962294b5a",
+          "size": 23278238,
+          "url": "https://files.pythonhosted.org/packages/01/89/3f8edd6c4f50ca370e2a2f2a3011face36f3760728ffe76dffec91c0fca0/pymupdf-1.27.2.3-cp310-abi3-macosx_11_0_arm64.whl"
+        },
+        "kind": "wheel",
+        "name": "pymupdf",
+        "version": "1.27.2.3"
+      },
+      {
+        "artifact": {
+          "sha256": "652cb6edd41e718550aad172851962662ff2681490a8a711af6a4d288dd96824",
+          "size": 175577,
+          "url": "https://files.pythonhosted.org/packages/16/19/13de8e4377ed53079ee996e1ab0a9c33ec2faf808a4647b7b4c0d46dd239/pyyaml-6.0.3-cp311-cp311-macosx_11_0_arm64.whl"
+        },
+        "kind": "wheel",
+        "name": "pyyaml",
+        "version": "6.0.3"
+      },
+      {
+        "artifact": {
+          "sha256": "c0e361ffd0a26d2f27827361b0c563a87ee311e62b8c56ad52472c0fc6f1d78a",
+          "size": 15063134,
+          "url": "https://files.pythonhosted.org/packages/d2/f5/d93dfbb4f96acefe3a978ab2d0eab74d96c0388870f8d275792317c4857c/rapidocr-3.5.0-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "rapidocr",
+        "version": "3.5.0"
+      },
+      {
+        "artifact": {
+          "sha256": "066d0e3dbfdd739bce2bf8c2a41dd16f73e3d8adc2eb06dd803a36a307f56075",
+          "size": 292123,
+          "url": "https://files.pythonhosted.org/packages/b1/07/9bf3607d8d13a12e436ab9d63f9791e10706827d535695b23964ad79fd79/regex-2026.9.29-cp311-cp311-macosx_11_0_arm64.whl"
+        },
+        "kind": "wheel",
+        "name": "regex",
+        "version": "2026.9.29"
+      },
+      {
+        "artifact": {
+          "sha256": "2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6",
+          "size": 64738,
+          "url": "https://files.pythonhosted.org/packages/1e/db/4254e3eabe8020b458f1a747140d32277ec7a271daf1d235b70dc0b4e6e3/requests-2.32.5-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "requests",
+        "version": "2.32.5"
+      },
+      {
+        "artifact": {
+          "sha256": "c80201d22cbf405b80647a60ada77bba06c8fba2da2743ba1e89cdcc39a81f25",
+          "size": 484562,
+          "url": "https://files.pythonhosted.org/packages/f5/b1/fa7c600e7dceae12e9606c7578cbc9ff1e1ed55844883ee5c92205e86226/safetensors-0.8.0-cp310-abi3-macosx_11_0_arm64.whl"
+        },
+        "kind": "wheel",
+        "name": "safetensors",
+        "version": "0.8.0"
+      },
+      {
+        "artifact": {
+          "sha256": "7c0b262116bb75b86751440b42e19673911bc0a8f0d5ce723ce294c3d6e4d5c0",
+          "size": 1582454,
+          "url": "https://files.pythonhosted.org/packages/55/23/e3502c9312e0cd0dcee9e382ad90d0d3039144015b22de87084be20fffec/shapely-2.2.0-cp311-cp311-macosx_11_0_arm64.whl"
+        },
+        "kind": "wheel",
+        "name": "shapely",
+        "version": "2.2.0"
+      },
+      {
+        "artifact": {
+          "sha256": "4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274",
+          "size": 11050,
+          "url": "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "six",
+        "version": "1.17.0"
+      },
+      {
+        "artifact": {
+          "sha256": "5e2f601a8e0cd5be5cc7506b20a79112370b9b3e9cb5f13f68ab11acd6ca7d60",
+          "size": 2732457,
+          "url": "https://files.pythonhosted.org/packages/8d/a6/28975479e35ddc751dc1ddc97b9b69bf7fcf074db31548aab37f8116674c/tokenizers-0.21.4-cp39-abi3-macosx_11_0_arm64.whl"
+        },
+        "kind": "wheel",
+        "name": "tokenizers",
+        "version": "0.21.4"
+      },
+      {
+        "artifact": {
+          "sha256": "c293e525e6fef9c20e8728fd4612df02a0aa31bb5fe91ecd93e123b1b7bffa73",
+          "size": 80199,
+          "url": "https://files.pythonhosted.org/packages/a7/03/921a3d3c75785aca9ebfbfcabfbc3a1be12e2ab5265deb026d55a5a3f83e/tqdm-4.70.1-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "tqdm",
+        "version": "4.70.1"
+      },
+      {
+        "artifact": {
+          "sha256": "df28f3849665faba4af5106f0db4510323277c4bb595055340544f7e59d06458",
+          "size": 11269659,
+          "url": "https://files.pythonhosted.org/packages/fa/0a/8791a6ee0529c45f669566969e99b75e2ab20eb0bfee8794ce295c18bdad/transformers-4.55.4-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "transformers",
+        "version": "4.55.4"
+      },
+      {
+        "artifact": {
+          "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+          "size": 45571,
+          "url": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "typing-extensions",
+        "version": "4.16.0"
+      },
+      {
+        "artifact": {
+          "sha256": "0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3",
+          "size": 135717,
+          "url": "https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "urllib3",
+        "version": "2.8.0"
+      }
+    ],
+    "windows-x86_64": [
+      {
+        "artifact": {
+          "sha256": "f224469b4168294902bb1efa80a8bf7855f24c99aef99cbefc1bcd3cce77881b",
+          "size": 117034,
+          "url": "https://files.pythonhosted.org/packages/3e/38/7859ff46355f76f8d19459005ca000b6e7012f2f1ca597746cbcd1fbfe5e/antlr4-python3-runtime-4.9.3.tar.gz"
+        },
+        "kind": "sdist",
+        "name": "antlr4-python3-runtime",
+        "version": "4.9.3"
+      },
+      {
+        "artifact": {
+          "sha256": "62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775",
+          "size": 136983,
+          "url": "https://files.pythonhosted.org/packages/0b/a7/71ac2cff56fec219ed242bb11b8efb69fcc4bec75db06fb7bfe35de520e6/certifi-2026.7.22-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "certifi",
+        "version": "2026.7.22"
+      },
+      {
+        "artifact": {
+          "sha256": "87e50a3e7cb90af586b6c5faf23e302a970415ac73bd7bd90a515a04b427ef96",
+          "size": 214932,
+          "url": "https://files.pythonhosted.org/packages/e8/fc/fdf8cf52ff21cd5bf158f20978991cf985325842f74283eb6df26c8a39d8/charset_normalizer-3.5.2-cp311-cp311-win_amd64.whl"
+        },
+        "kind": "wheel",
+        "name": "charset-normalizer",
+        "version": "3.5.2"
+      },
+      {
+        "artifact": {
+          "sha256": "4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6",
+          "size": 25335,
+          "url": "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "colorama",
+        "version": "0.4.6"
+      },
+      {
+        "artifact": {
+          "sha256": "30d392604e9110045a2c2aeefc27d7a017abbab63f3a8aee594eac0801df784e",
+          "size": 12239,
+          "url": "https://files.pythonhosted.org/packages/d4/19/0b6647bf5e331521e55d2b63bfbdc210bd9cd605189273f03614a05f702d/colorlog-6.12.0-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "colorlog",
+        "version": "6.12.0"
+      },
+      {
+        "artifact": {
+          "sha256": "3f4a557945a7b0f95efeb1f432267affe5d45ac8ddde2aed1b97ebb62382c089",
+          "size": 132460,
+          "url": "https://files.pythonhosted.org/packages/d7/8b/f837f52905395ba4510fe61f753c24833fb0a9c76e21267bb9f828b664a9/filelock-4.1.1-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "filelock",
+        "version": "4.1.1"
+      },
+      {
+        "artifact": {
+          "sha256": "7634f50c427838bb021c2d66a3d1168e9d199b0607e6329399f04846d42e20b4",
+          "size": 26661,
+          "url": "https://files.pythonhosted.org/packages/e8/2d/d2a548598be01649e2d46231d151a6c56d10b964d94043a335ae56ea2d92/flatbuffers-25.12.19-py2.py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "flatbuffers",
+        "version": "25.12.19"
+      },
+      {
+        "artifact": {
+          "sha256": "8dd6e646e99ea382bd85f97a45e6b526a442d79423a7dc673f1e2756d05fcb5f",
+          "size": 221738,
+          "url": "https://files.pythonhosted.org/packages/6c/c0/a98505f18594f1bce828bb159cec0fcf9860562f1a2c85913409fc8f3d9e/fsspec-2026.9.0-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "fsspec",
+        "version": "2026.9.0"
+      },
+      {
+        "artifact": {
+          "sha256": "48f0c8eac16145dfce371e9d2d7772854a4f591bcb56c9cf548accf531d54270",
+          "size": 566395,
+          "url": "https://files.pythonhosted.org/packages/a8/af/48ac8483240de756d2438c380746e7130d1c6f75802ef22f3c6d49982787/huggingface_hub-0.36.2-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "huggingface-hub",
+        "version": "0.36.2"
+      },
+      {
+        "artifact": {
+          "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
+          "size": 69583,
+          "url": "https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "idna",
+        "version": "3.20"
+      },
+      {
+        "artifact": {
+          "sha256": "1e254a00cdf42b1e4d5b3d68d33af63268d41340d8885df2ab6470f2e1500147",
+          "size": 12608406,
+          "url": "https://files.pythonhosted.org/packages/c5/31/7fc6239c12bce7e931463251cca4426c465e1876ba3cc785402ef4dd8f4e/numpy-2.4.6-cp311-cp311-win_amd64.whl"
+        },
+        "kind": "wheel",
+        "name": "numpy",
+        "version": "2.4.6"
+      },
+      {
+        "artifact": {
+          "sha256": "7b4df175cdb08ba400f45cae3bdcae7ba8365db4d165fc65fd04b050ab63b46b",
+          "size": 79500,
+          "url": "https://files.pythonhosted.org/packages/e3/94/1843518e420fa3ed6919835845df698c7e27e183cb997394e4a670973a65/omegaconf-2.3.0-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "omegaconf",
+        "version": "2.3.0"
+      },
+      {
+        "artifact": {
+          "sha256": "423d934c9fafb91aad38edf26efb46da91ffbc05f3f59c4b0c72e699720706f5",
+          "size": 40212062,
+          "url": "https://files.pythonhosted.org/packages/e9/a5/1be1516390333ff9be3a9cb648c9f33df79d5096e5884b5df71a588af463/opencv_python-4.13.0.92-cp37-abi3-win_amd64.whl"
+        },
+        "kind": "wheel",
+        "name": "opencv-python",
+        "version": "4.13.0.92"
+      },
+      {
+        "artifact": {
+          "sha256": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+          "size": 129956,
+          "url": "https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "packaging",
+        "version": "26.3"
+      },
+      {
+        "artifact": {
+          "sha256": "8e95e1385e4998ae9694eeaa4730ba5457ff61185b3a55e2e7bea0880aef452a",
+          "size": 7233653,
+          "url": "https://files.pythonhosted.org/packages/63/c6/4bad1b18d132a50b27e1365e1ab163616f7a5bb56d330f66f9d1d9d4f9d4/pillow-12.3.0-cp311-cp311-win_amd64.whl"
+        },
+        "kind": "wheel",
+        "name": "pillow",
+        "version": "12.3.0"
+      },
+      {
+        "artifact": {
+          "sha256": "3683c05154252206f7cb2d371626514b3708199d9bcf683b503dabf3a2e38e06",
+          "size": 413900,
+          "url": "https://files.pythonhosted.org/packages/f3/16/42a5c7f1001783d2b5bfcecde10127f09010f78982c86ae409122ce3ece6/protobuf-4.25.9-cp310-abi3-win_amd64.whl"
+        },
+        "kind": "wheel",
+        "name": "protobuf",
+        "version": "4.25.9"
+      },
+      {
+        "artifact": {
+          "sha256": "e9b973467d9c5fa9bc30bb6ac95f9f4d7c3d9fc25f6cf2d1cc972088e5955c01",
+          "size": 104362,
+          "url": "https://files.pythonhosted.org/packages/3a/76/4901de2919198bb2bd3d989f86d4a1dff363962425bb2d63e24e6c990042/pyclipper-1.4.0-cp311-cp311-win_amd64.whl"
+        },
+        "kind": "wheel",
+        "name": "pyclipper",
+        "version": "1.4.0"
+      },
+      {
+        "artifact": {
+          "sha256": "d20f68ef15195e073071dbc4ae7455257c7889af7584e39df490c0a92728526e",
+          "size": 19249102,
+          "url": "https://files.pythonhosted.org/packages/44/47/5fb10fe73f96b31253a41647c362ea9e0380920bddf16028414a051247fc/pymupdf-1.27.2.3-cp310-abi3-win_amd64.whl"
+        },
+        "kind": "wheel",
+        "name": "pymupdf",
+        "version": "1.27.2.3"
+      },
+      {
+        "artifact": {
+          "sha256": "9f3bfb4965eb874431221a3ff3fdcddc7e74e3b07799e0e84ca4a0f867d449bf",
+          "size": 158763,
+          "url": "https://files.pythonhosted.org/packages/da/e3/ea007450a105ae919a72393cb06f122f288ef60bba2dc64b26e2646fa315/pyyaml-6.0.3-cp311-cp311-win_amd64.whl"
+        },
+        "kind": "wheel",
+        "name": "pyyaml",
+        "version": "6.0.3"
+      },
+      {
+        "artifact": {
+          "sha256": "c0e361ffd0a26d2f27827361b0c563a87ee311e62b8c56ad52472c0fc6f1d78a",
+          "size": 15063134,
+          "url": "https://files.pythonhosted.org/packages/d2/f5/d93dfbb4f96acefe3a978ab2d0eab74d96c0388870f8d275792317c4857c/rapidocr-3.5.0-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "rapidocr",
+        "version": "3.5.0"
+      },
+      {
+        "artifact": {
+          "sha256": "1043aedf5917caa861bcb25a9c11460049656bdf0017a90a309fa8f255467725",
+          "size": 280641,
+          "url": "https://files.pythonhosted.org/packages/4d/4a/aab232183c70fdcf77bcf0c51819da02ec522e393e6a0bf00bcf2142e21f/regex-2026.9.29-cp311-cp311-win_amd64.whl"
+        },
+        "kind": "wheel",
+        "name": "regex",
+        "version": "2026.9.29"
+      },
+      {
+        "artifact": {
+          "sha256": "2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6",
+          "size": 64738,
+          "url": "https://files.pythonhosted.org/packages/1e/db/4254e3eabe8020b458f1a747140d32277ec7a271daf1d235b70dc0b4e6e3/requests-2.32.5-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "requests",
+        "version": "2.32.5"
+      },
+      {
+        "artifact": {
+          "sha256": "096ec1a98435df7beb08853bb5aa9081a84f23d0adc67ed1a0a10550f608373f",
+          "size": 355540,
+          "url": "https://files.pythonhosted.org/packages/1b/6d/3fba214c1e5e0f69991677ec3bc17023f0421776975e1de0c682dca475e2/safetensors-0.8.0-cp310-abi3-win_amd64.whl"
+        },
+        "kind": "wheel",
+        "name": "safetensors",
+        "version": "0.8.0"
+      },
+      {
+        "artifact": {
+          "sha256": "806d399418b23eee7241736d572ad1e0b784782f9241d7c8e2cfceb00787831d",
+          "size": 1795293,
+          "url": "https://files.pythonhosted.org/packages/1f/bc/1b4246004806869c1d420c0a53e97244c9b538a7175e10f5e30012bbeab7/shapely-2.2.0-cp311-cp311-win_amd64.whl"
+        },
+        "kind": "wheel",
+        "name": "shapely",
+        "version": "2.2.0"
+      },
+      {
+        "artifact": {
+          "sha256": "4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274",
+          "size": 11050,
+          "url": "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "six",
+        "version": "1.17.0"
+      },
+      {
+        "artifact": {
+          "sha256": "475d807a5c3eb72c59ad9b5fcdb254f6e17f53dfcbb9903233b0dfa9c943b597",
+          "size": 2507568,
+          "url": "https://files.pythonhosted.org/packages/41/f2/fd673d979185f5dcbac4be7d09461cbb99751554ffb6718d0013af8604cb/tokenizers-0.21.4-cp39-abi3-win_amd64.whl"
+        },
+        "kind": "wheel",
+        "name": "tokenizers",
+        "version": "0.21.4"
+      },
+      {
+        "artifact": {
+          "sha256": "c293e525e6fef9c20e8728fd4612df02a0aa31bb5fe91ecd93e123b1b7bffa73",
+          "size": 80199,
+          "url": "https://files.pythonhosted.org/packages/a7/03/921a3d3c75785aca9ebfbfcabfbc3a1be12e2ab5265deb026d55a5a3f83e/tqdm-4.70.1-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "tqdm",
+        "version": "4.70.1"
+      },
+      {
+        "artifact": {
+          "sha256": "df28f3849665faba4af5106f0db4510323277c4bb595055340544f7e59d06458",
+          "size": 11269659,
+          "url": "https://files.pythonhosted.org/packages/fa/0a/8791a6ee0529c45f669566969e99b75e2ab20eb0bfee8794ce295c18bdad/transformers-4.55.4-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "transformers",
+        "version": "4.55.4"
+      },
+      {
+        "artifact": {
+          "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+          "size": 45571,
+          "url": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "typing-extensions",
+        "version": "4.16.0"
+      },
+      {
+        "artifact": {
+          "sha256": "0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3",
+          "size": 135717,
+          "url": "https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl"
+        },
+        "kind": "wheel",
+        "name": "urllib3",
+        "version": "2.8.0"
+      }
+    ]
+  }
+}

@@ -10,13 +10,11 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_ROOT = PROJECT_ROOT / "src"
 UI_DIRECTORIES = (
-    "bootstrap",
     "capture",
     "editor",
     "exporting",
     "handwriting",
     "platform_services",
-    "preview/document",
     "recognition",
     "ui",
     "update",

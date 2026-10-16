@@ -3,10 +3,9 @@ Version: 0.0.0
 Section: utils
 Priority: optional
 Architecture: amd64
-Installed-Size: 1019920
 Maintainer: SakuraMathcraft <SakuraMathcraft@users.noreply.github.com>
 Homepage: https://github.com/SakuraMathcraft/LaTeXSnipper
-Description: Cross-platform math OCR workspace and automation service
+Description: Desktop OCR, LaTeX editing, MathJax preview and export
  LaTeXSnipper supports end-to-end math content workflows:
   - Capture and recognize mathematical content from screenshots
   - Handwrite expressions in a dedicated canvas and convert to LaTeX
@@ -52,12 +51,9 @@ Depends: libc6 (>= 2.35),
  libcups2,
  libdrm2,
  zlib1g,
- python3 (>= 3.10),
- python3 (<< 3.14),
- python3-venv
-Suggests: pandoc,
- texlive-latex-base,
- poppler-utils,
+ dpkg,
+ pkexec | policykit-1
+Suggests: texlive-latex-base,
  gnome-screenshot | maim | grim,
  imagemagick,
  scrot

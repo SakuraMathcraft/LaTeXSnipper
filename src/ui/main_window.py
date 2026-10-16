@@ -9,7 +9,6 @@ from qfluentwidgets import PrimaryPushButton
 from localization.manager import translate as tr
 from platform_services import PlatformCapabilityRegistry
 from recognition.jobs import RecognitionJobCoordinator
-from rendering.latex import configure_latex_settings
 from runtime.app_paths import resource_path
 from runtime.config_manager import ConfigManager
 from runtime.hotkey_config import normalize_hotkey_or_default
@@ -48,7 +47,6 @@ class MainWindow(QMainWindow):
         self._startup_centered_once = False
         self._post_show_tasks_started = False
         self.cfg = ConfigManager()
-        configure_latex_settings(self.cfg)
         self.setWindowTitle(tr("LaTeXSnipper"))
         self.resize(*DEFAULT_MAIN_WINDOW_SIZE)
         self.setMinimumSize(*DEFAULT_MAIN_WINDOW_SIZE)
@@ -230,7 +228,6 @@ class MainWindow(QMainWindow):
             (self.copy_editor_btn, self.editor.copy_content),
             (self.export_btn, self.editor.show_export_menu),
             (self.handwriting_btn, self.windows.open_handwriting_window),
-            (self.workbench_btn, self.windows.open_workbench),
             (self.clear_preview_btn, self.preview.clear),
         )
         for button, action in actions:

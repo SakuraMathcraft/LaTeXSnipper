@@ -10,20 +10,16 @@
     error: '',
     configure(settings = {}) {
       const root = settings.root.replace(/\/$/, '');
-      const remote = /^https?:/.test(root) && !settings.localFonts;
       const output = settings.output || 'chtml';
       const font = settings.font || config.defaultFont;
-      const fontRoot = remote
-        ? (root.includes('/npm/') ? root.split('/npm/')[0] + '/npm/@mathjax' : new URL(root).origin + '/@mathjax')
-        : root + '/fonts';
-      const fontVersion = remote ? '@' + config.version : '';
+      const fontRoot = root + '/fonts';
       api.ready = false;
       api.error = '';
       global.MathJax = {
         loader: {
           paths: {mathjax: root, fonts: fontRoot,
-            [font]: fontRoot + '/' + font + '-font' + fontVersion,
-            'mathjax-mhchem-extension': fontRoot + '/mathjax-mhchem-font-extension' + fontVersion},
+            [font]: fontRoot + '/' + font + '-font',
+            'mathjax-mhchem-extension': fontRoot + '/mathjax-mhchem-font-extension'},
           dependencies: {
             ['[mathjax-mhchem-extension]/' + output]: ['[' + font + ']/' + output]
           },
@@ -34,7 +30,7 @@
         },
         output: {
           font,
-          fontPath: '[fonts]/%%FONT%%-font' + fontVersion,
+          fontPath: '[fonts]/%%FONT%%-font',
           scale: settings.scale || 1
         },
         tex: {
@@ -56,21 +52,11 @@
       return global.MathJax;
     },
     load(settings) {
-      // Retry a missing entry point before any MathJax modules have executed.
-      const roots = [settings.root, ...(settings.fallbackRoots || [])];
-      function attempt() {
-        const root = roots.shift();
-        api.configure({...settings, root});
-        const script = document.createElement('script');
-        script.src = root.replace(/\/$/, '') + '/startup.js';
-        script.onerror = () => {
-          script.remove();
-          if (roots.length) attempt();
-          else api.error = 'MathJax startup.js could not be loaded';
-        };
-        document.head.appendChild(script);
-      }
-      attempt();
+      api.configure(settings);
+      const script = document.createElement('script');
+      script.src = settings.root.replace(/\/$/, '') + '/startup.js';
+      script.onerror = () => { api.error = 'Bundled MathJax startup.js could not be loaded'; };
+      document.head.appendChild(script);
     },
     convert(input) {
       const run = async () => {

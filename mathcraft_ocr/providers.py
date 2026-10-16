@@ -23,9 +23,6 @@ ACCELERATOR_PROVIDER_NAMES = tuple(
     name for name in MAIN_PROVIDER_NAMES if name != "CPUExecutionProvider"
 )
 
-# Kept as a compatibility alias for integrations importing the old name.
-GPU_PROVIDER_NAMES = ACCELERATOR_PROVIDER_NAMES
-
 _PROVIDER_ALIASES = {
     "cpu": "CPUExecutionProvider",
     "cuda": "CUDAExecutionProvider",
@@ -269,7 +266,6 @@ def confirm_provider_device(provider_info: ProviderInfo) -> ProviderInfo:
 
 __all__ = [
     "ACCELERATOR_PROVIDER_NAMES",
-    "GPU_PROVIDER_NAMES",
     "MAIN_PROVIDER_NAMES",
     "ProviderInfo",
     "ProviderRequest",

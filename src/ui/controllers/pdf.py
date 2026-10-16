@@ -128,7 +128,7 @@ class PdfRecognitionController(QObject):
         except Exception as e:
             show_user_notice(
                 tr("错误"),
-                tr("缺少 PyMuPDF 依赖: {error}\n请在依赖环境中安装 pymupdf。").format(
+                tr("PDF 处理资源不可用: {error}\n请打开应用诊断并修复应用资源。").format(
                     error=e
                 ),
                 self.view,

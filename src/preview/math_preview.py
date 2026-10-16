@@ -3,25 +3,15 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-import sys
 
 from localization.manager import translate as tr
+from preview.content_fragments import render_formula_content
 from PyQt6.QtCore import QUrl
 
-from rendering.mathjax_runtime import cdn_roots, loader_script
+from rendering.mathjax_runtime import ASSET_ROOT, loader_script
 from ui.theme_tokens import is_dark_ui
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
-
-APP_DIR: Path | None = None
-
-MATHJAX_CDN_URL = cdn_roots()[0] + "/startup.js"
-MATHJAX_CDN_URL_BACKUP = cdn_roots()[1] + "/startup.js"
-
-def configure_math_preview_runtime(app_dir: Path | str | None) -> None:
-    global APP_DIR
-    APP_DIR = Path(app_dir) if app_dir else None
 
 
 def preview_theme_tokens() -> dict:
@@ -29,7 +19,6 @@ def preview_theme_tokens() -> dict:
         return {
             "body_bg": "#14171d",
             "body_text": "#e8ebf0",
-            "latex_formula_text": "#ffffff",
             "panel_bg": "#1d222b",
             "label_text": "#8ec5ff",
             "label_bg": "#1e334a",
@@ -58,7 +47,6 @@ def preview_theme_tokens() -> dict:
     return {
         "body_bg": "#fafafa",
         "body_text": "#1f2328",
-        "latex_formula_text": "#1f2328",
         "panel_bg": "#f8f9fa",
         "label_text": "#1976d2",
         "label_bg": "#e3f2fd",
@@ -179,6 +167,17 @@ body.viewport-centered .math-container {
   margin: 0;
   font-size: 20px;
 }
+.document-content {
+  width: 100%;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.document-content > svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 8px auto;
+}
 .error-text {
   color: __ERROR_TEXT__;
   font-size: 12px;
@@ -197,59 +196,9 @@ __MATHJAX_LOADER_SCRIPT__
 """
 
 
-def _current_render_mode() -> str:
-    try:
-        from rendering.latex import get_document_render_mode
-
-        return get_document_render_mode()
-    except Exception as exc:
-        logger.warning("获取渲染模式失败: %s", exc)
-    return "auto"
-
-
-def _mathjax_base_dir() -> tuple[Path, str]:
-    if APP_DIR and str(APP_DIR).strip():
-        return Path(APP_DIR), "本地资源"
-
-    if getattr(sys, "frozen", False):
-        exe_dir = Path(sys.executable).resolve().parent
-        meipass = getattr(sys, "_MEIPASS", "")
-        candidates = [
-            (exe_dir / "_internal", "_internal"),
-            (exe_dir, "exe 同级"),
-            (exe_dir.parent / "src", "父目录 src"),
-        ]
-        if meipass:
-            candidates.insert(0, (Path(meipass), "_MEIPASS"))
-        for candidate, label in candidates:
-            if candidate and (candidate / "assets").exists():
-                return candidate, label
-
-    return Path(__file__).resolve().parents[1], "__file__"
-
-
 def get_mathjax_base_url() -> QUrl:
-    """Return the MathJax base URL used by setHtml."""
-    try:
-        mode = _current_render_mode()
-        if mode == "mathjax_cdn":
-            return QUrl(MATHJAX_CDN_URL.rsplit("/", 1)[0] + "/")
-
-        actual_app_dir, _ = _mathjax_base_dir()
-        runtime_dir = actual_app_dir / "assets" / "MathJax"
-        tex_chtml = runtime_dir / "startup.js"
-        if not tex_chtml.exists():
-            logger.warning("MathJax 文件缺失: %s", tex_chtml)
-
-        url = QUrl.fromLocalFile(str(runtime_dir) + "/")
-        url_str = url.toString()
-        if not url_str.startswith("file:///"):
-            logger.error("URL 格式异常，应以 file:/// 开头: %s", url_str)
-
-        return url
-    except Exception as exc:
-        logger.exception("获取 MathJax 地址失败: %s", exc)
-        return QUrl.fromLocalFile("/")
+    """Return the bundled runtime URL for every desktop preview."""
+    return QUrl.fromLocalFile(str(ASSET_ROOT) + "/")
 
 
 def build_math_html(
@@ -270,7 +219,7 @@ def build_math_html(
         for i, latex in enumerate(formulas):
             label = labels[i] if i < len(labels) and labels[i] else ""
             label_html = f'<div class="formula-label">{label}</div>' if label else ""
-            formula_html += f'<div class="math-container">{label_html}<div class="formula-content">$${latex}$$</div></div>\n'
+            formula_html += f'<div class="math-container">{label_html}{render_formula_content(latex)}</div>\n'
 
         if not formula_html:
             formula_html = (

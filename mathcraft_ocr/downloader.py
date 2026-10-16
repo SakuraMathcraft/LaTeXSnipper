@@ -2,46 +2,45 @@
 
 from __future__ import annotations
 
-import hashlib
 import shutil
 import tempfile
 import time
 import urllib.request
 import zipfile
+import stat
 from collections.abc import Callable
 from pathlib import Path
 
-from .cache import model_dir
+from .cache import model_dir, model_file_valid
 from .errors import DownloadUnavailableError, ModelCacheError
-from .manifest import ModelSpec
+from .manifest import ModelSpec, model_relative_path
 
 
 def _is_placeholder_source(source: str) -> bool:
     return source.startswith("placeholder://") or source.endswith(".invalid")
 
 
-def _sha256_of_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        while True:
-            chunk = stream.read(1024 * 1024)
-            if not chunk:
-                break
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def _verify_model_dir(target: Path, spec: ModelSpec) -> None:
     for file_spec in spec.files:
-        fp = target / file_spec.path
-        if not fp.is_file():
-            raise ModelCacheError(f"required file missing for {spec.model_id}: {file_spec.path}")
-        if file_spec.sha256:
-            actual = _sha256_of_file(fp)
-            if actual.lower() != file_spec.sha256.lower():
-                raise ModelCacheError(
-                    f"sha256 mismatch for {spec.model_id}: {file_spec.path}"
-                )
+        if not model_file_valid(target, file_spec.path, file_spec.sha256):
+            raise ModelCacheError(f"required file missing or corrupt for {spec.model_id}: {file_spec.path}")
+
+
+def _extract_models(archive_path: Path, destination: Path) -> None:
+    seen = set()
+    with zipfile.ZipFile(archive_path) as package:
+        for entry in package.infolist():
+            name = model_relative_path(entry.filename.rstrip('/'))
+            if name.casefold() in seen or stat.S_ISLNK(entry.external_attr >> 16):
+                raise ModelCacheError('duplicate model archive member or symbolic link')
+            seen.add(name.casefold())
+            target = destination / name
+            if entry.is_dir():
+                target.mkdir(parents=True, exist_ok=True)
+            else:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with package.open(entry) as incoming, target.open('xb') as outgoing:
+                    shutil.copyfileobj(incoming, outgoing)
 
 
 def _content_length(headers) -> int:
@@ -156,11 +155,11 @@ def download_model_archive(
     target_root.mkdir(parents=True, exist_ok=True)
     final_dir = model_dir(target_root, spec.model_id)
     downloads_dir = target_root / ".downloads"
-    archive_path = downloads_dir / f"{spec.model_id}.zip.part"
+    archive_path = downloads_dir / f"{spec.model_id}-{spec.content_sha256}.zip.part"
     last_error: Exception | None = None
 
     for source in sources:
-        temp_dir = Path(tempfile.mkdtemp(prefix=f"mathcraft-{spec.model_id}-"))
+        temp_dir = Path(tempfile.mkdtemp(prefix=f"mathcraft-{spec.model_id}-", dir=target_root))
         extract_dir = temp_dir / "extract"
         try:
             _download_archive_file(
@@ -174,8 +173,7 @@ def download_model_archive(
             if progress_callback:
                 progress_callback(f"model {spec.model_id} verifying archive")
             try:
-                with zipfile.ZipFile(archive_path, "r") as zf:
-                    zf.extractall(extract_dir)
+                _extract_models(archive_path, extract_dir)
             except zipfile.BadZipFile as exc:
                 archive_path.unlink(missing_ok=True)
                 raise ModelCacheError(
@@ -195,7 +193,12 @@ def download_model_archive(
                 if backup_dir.exists():
                     shutil.rmtree(backup_dir, ignore_errors=True)
                 final_dir.replace(backup_dir)
-            shutil.move(str(extracted_root), str(final_dir))
+            try:
+                extracted_root.replace(final_dir)
+            except BaseException:
+                if backup_dir is not None:
+                    backup_dir.replace(final_dir)
+                raise
             if backup_dir and backup_dir.exists():
                 shutil.rmtree(backup_dir, ignore_errors=True)
             archive_path.unlink(missing_ok=True)

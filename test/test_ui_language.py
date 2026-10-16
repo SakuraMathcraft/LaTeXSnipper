@@ -53,8 +53,8 @@ def test_compiled_catalog_is_loaded_at_runtime():
     assert install_application_translators(app, ENGLISH_LANGUAGE) == ENGLISH_LANGUAGE
     assert translate("设置") == "Settings"
     assert translate("截图识别") == "Capture & Recognize"
+    assert translate("应用诊断") == "App diagnostics"
 
-    from bootstrap.deps_layer_specs import layer_display_name
     from backend.external_model.errors import ExternalModelConnectionError
     from recognition.error_messages import (
         EMPTY_FORMULA_MESSAGE,
@@ -65,7 +65,6 @@ def test_compiled_catalog_is_loaded_at_runtime():
         translate_image_input_error,
     )
 
-    assert layer_display_name("MATHCRAFT_GPU") == "GPU inference backend"
     assert recognition_error_code_user_message("empty_content") == (
         "No recognizable content detected"
     )

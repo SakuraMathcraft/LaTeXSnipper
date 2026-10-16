@@ -45,7 +45,7 @@ def stub_mathjax_conversion(monkeypatch):
     monkeypatch.setattr(formula_converters, "convert_latex_with_mathjax", convert)
 
 
-def test_mathjax_exports_mathlive_horizontal_strike() -> None:
+def test_mathjax_exports_horizontal_strike() -> None:
     mathml = latex_to_mathml(r"\enclose{horizontalstrike}{x+y}")
     assert '<menclose notation="horizontalstrike">' in mathml
 

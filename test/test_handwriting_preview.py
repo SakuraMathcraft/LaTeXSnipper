@@ -20,7 +20,7 @@ def test_handwriting_latex_preview_keeps_multiline_environment_together() -> Non
 
 def test_handwriting_markdown_preview_preserves_text_and_math() -> None:
     from handwriting.latex_preview import build_handwriting_preview_html
-    from preview.math_preview import MATHJAX_CDN_URL_BACKUP
+    from rendering.mathjax_runtime import ASSET_ROOT
 
     html = build_handwriting_preview_html(
         "京文子\nMathCraft\n$$\\int_0^1 x^2 dx$$", "markdown"
@@ -30,6 +30,6 @@ def test_handwriting_markdown_preview_preserves_text_and_math() -> None:
     assert "MathCraft" in html
     assert "$$\\int_0^1 x^2 dx$$" in html
     assert "startup.js" in html
-    assert MATHJAX_CDN_URL_BACKUP.rsplit("/", 1)[0] in html
+    assert ASSET_ROOT.resolve().as_uri() in html
     assert "LaTeXSnipperMathJax.load" in html
     assert "::-webkit-scrollbar-thumb" in html

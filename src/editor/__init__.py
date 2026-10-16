@@ -1,2 +1,1 @@
-"""2.0 workbench modules."""
-
+"""Source editor widgets used by desktop recognition views."""

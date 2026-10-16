@@ -14,10 +14,10 @@ from runtime.hotkey_config import display_hotkey
 from ui.controllers.runtime_log import show_runtime_log_window
 from ui.onboarding_steps import tour_steps
 from ui.onboarding_view import TourSurface
-from update.release_types import _RELEASES_PAGE
+from update.component_release import RELEASES_PAGE
 
 AUTO_SHOW_KEY = "onboarding_auto_show"
-PROJECT_URL = _RELEASES_PAGE.removesuffix("/releases")
+PROJECT_URL = RELEASES_PAGE.removesuffix("/releases")
 
 
 class OnboardingController(QObject):

@@ -193,47 +193,23 @@
 // ═══════════════════════════════════════════
 #heading(level: 1)[开始使用前（必读）] <sec-quick>
 
-== 安装后第一步：打开依赖管理
+== 安装后直接开始识别
 
-LaTeXSnipper 首次启动或检测到关键依赖缺失时会打开“依赖管理”。这不是可有可无的步骤——依赖管理负责安装和配置内置 MathCraft OCR、PDF/Pandoc 等运行依赖层；外部模型服务本身仍需要用户另行部署或配置。
+桌面发行包含应用、独立推理 Python、锁定依赖、全部模型及 Pandoc。安装后打开主窗口，在设置中选择内置模型和识别类型，再使用截图、图片、PDF 或手写入口。公式预览固定使用内置 MathJax，可离线运行。
 
-#warn-block("常见错误：未安装依赖便直接使用内置识别", [
-  如果依赖层未完整安装，内置 MathCraft 截图识别、PDF 识别、手写识别和 Pandoc 导出可能不可用，或在首次调用时进入修复流程。
-  如果只使用外部模型，可以跳过安装并进入应用，但仍需要在设置页完成外部服务配置并通过连接测试。
-  依赖管理只管理 Python 依赖层，不会安装或卸载系统软件包（如 apt/brew 等）。
-])
+Windows/Linux 提供 CPU 与 NVIDIA GPU 两种发行，macOS Apple Silicon 使用 CPU。GPU 发行携带私有 CUDA/cuDNN 用户态库，系统只需支持的 NVIDIA 显卡与驱动。更换 CPU/GPU 发行使用对应安装器，日常应用更新保持当前发行类型。
 
-如果依赖管理本身运行失败：
+本手册描述当前分支实现。新发行必须通过 GitHub Actions 的签名、原生安装与真实 OCR 验收后才发布；已发布的历史安装包可能采用不同流程。
 
-- Windows：确保以普通用户（非管理员）运行，且杀毒软件未拦截
-- Linux：确保 `python3 -m venv` 可用（Debian/Ubuntu 通常需要 `python3-venv`）
-- macOS：确保有可用的 Python `>=3.10,<3.14`，推荐 Homebrew Python 或 python.org 官方 Python 3.10-3.13 安装包
+== 资源异常时
 
-== 软件的基本工作流
+打开设置中的“应用诊断”查看实际资源、运行版本和错误。“模型资源”显示权重的实际使用位置；安装权重损坏时，程序按当前模型清单校验并使用 MathCraft 默认缓存中的匹配资源。“应用更新”提供组件更新，诊断入口提供当前版本资源修复。
 
-#info-block("了解这个流程可以避免 80% 的困惑", [
-  #text(weight: "bold")[截图 → 识别 → 编辑/预览 → 导出]，具体来说：
-  #v(0.5em)
-  + *主窗口截图：* 按下截图快捷键（默认见设置），框选公式区域
-  + *识别结果：* 自动出现在主窗口列表，双击可查看 LaTeX 源码和渲染预览
-  + *编辑区：* 主窗口右侧是 LaTeX 编辑器，支持实时预览渲染
-  + *数学工作台：* 点击"数学工作台"按钮打开独立窗口，会自动载入主编辑器中的公式。在工作台中可以编辑公式、进行数值计算或表达式化简，完成后可写回主编辑器
-  + *手写识别：* 从主窗口打开手写窗口，内置识别固定使用 MathCraft 混合模式，手写文字和公式会一起识别
-  + *导出：* 右键或菜单可选择 20 种桌面端导出格式（部分需要 Pandoc）
-])
+截图权限和系统热键限制与 OCR 独立。macOS 需要为实际运行的应用授予屏幕录制权限；Linux Wayland 的截屏与全局热键取决于桌面环境。
 
-== 日志文件在哪里（关键！）
+== 使用外部模型
 
-遇到任何问题时，第一步永远是 #text(fill: rgb("#C62828"), weight: "bold")[查看日志]：
-#v(0.5em)
-- *Windows：* `%USERPROFILE%\.latexsnipper\logs\`
-- *Linux：* `~/.latexsnipper/logs/`
-- *macOS：* `~/Library/Logs/LaTeXSnipper/`
-- *崩溃日志：* 同目录下的 `crash-native.log`
-
-#tip-block("建议", [反馈 Bug 时把整个 logs 目录打包发过来，不要只截图报错弹窗。])
-
-#pagebreak()
+外部模型服务需要自行部署或配置。在设置中填写协议、服务地址、模型名称及必要的密钥，并测试连接。具体配置见“外部模型相关问题”。本地 MathCraft OCR 不要求这些服务。
 
 // ═══════════════════════════════════════════
 // 主窗口功能入口与识别流程
@@ -250,7 +226,6 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会打开“依赖管�
 - #text(weight: "bold")[图片识别：] 选择本地图片文件并走当前识别模型。
 - #text(weight: "bold")[PDF识别：] 选择 PDF 后按页渲染识别，可输出 Markdown 或 LaTeX 文档。
 - #text(weight: "bold")[手写识别：] 打开独立手写画布，写完后自动触发识别，结果可复制或写回主编辑器。
-- #text(weight: "bold")[数学工作台：] 将主编辑器中的公式载入 MathLive 工作台，进行计算、化简、展开、因式分解、求解等操作。
 - #text(weight: "bold")[复制 / 导出：] 复制当前编辑器内容，或通过统一导出菜单导出为 LaTeX、Markdown、MathML、HTML、OMML、SVG 以及 Pandoc 扩展格式（Word、ODT、PowerPoint、EPUB、PDF、HTML 独立页、Typst、纯文本）。
 - #text(weight: "bold")[收藏夹 / 历史记录：] 历史项和收藏项都支持复制、编辑、导出、重命名和删除。
 
@@ -274,7 +249,7 @@ LaTeXSnipper 首次启动或检测到关键依赖缺失时会打开“依赖管�
 
 普通图片和截图的确认窗口、历史记录及主窗口预览会按结果类型渲染：LaTeX 使用公式预览，Markdown 使用混合预览，纯文本使用文本预览。本地 MathCraft 的公式、混合和纯文字结果遵循相同映射。
 
-设置页还包含外观主题、公式渲染引擎、LaTeX 路径验证、更新检查、启动时显示运行日志、环境终端、依赖管理、模型缓存等入口。MathCraft 依赖统一由主依赖环境管理，设置页不再提供单独的模型下载按钮。
+设置页还包含外观主题、界面语言、运行日志、自动化接口、访问范围、应用更新、应用诊断和模型资源。应用更新与访问范围位于同一行。所有桌面公式预览固定使用内置 MathJax；模型资源窗口打开时自动检查权重路径和完整性，底部提供一个“打开目录”按钮。内置权重缺失或损坏时先检查 MathCraft 默认缓存，校验通过则复用，否则下载到同一缓存。
 
 == PDF 识别流程
 
@@ -365,106 +340,34 @@ curl -sS "http://100.x.x.x:28765/api/v1/recognition/jobs" \
 // ═══════════════════════════════════════════
 #heading(level: 1)[本地模型（MathCraft ONNX）相关问题] <sec-local>
 
-#tip-block("MathCraft ONNX 用户提示", [
-  应用会自动下载并 `warmup()`，如果 warmup 失败会尝试重新下载。但如果网络慢，下载模型可能很久。
-  可以先用 `python -m mathcraft_ocr models check` 检查缓存状态。
-])
+== 模型与识别类型
 
-== 模型下载失败（网络问题 / 代理 / 防火墙）
+内置 MathCraft OCR 提供公式、纯文字及文字与公式混合识别。PDF 页面使用混合模式恢复文档内容。公式模式适合裁剪清晰的单个公式；正文或图文页面应使用文字或混合模式。
 
-*现象：* 启动或首次使用时卡在 "model xxx downloading"，然后失败。
+== 权重在哪里
 
-#v(0.35em)
+发行程序优先使用安装位置中的模型组件，每个文件按当前清单校验。内置权重缺失或校验失败后，检查库的默认缓存；匹配当前文件摘要的缓存直接复用，缺失、损坏或过期的资源重新下载到同一个缓存目录。
 
-*原因：*
-- 模型托管在 GitHub Releases 等境外服务器，国内用户可能无法直接访问
-- 公司/学校网络有防火墙拦截
-- 代理设置不正确导致 `urllib` 无法连接
+- Windows：`%APPDATA%/MathCraft/models`
+- Linux：`${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper/MathCraft/models`
+- macOS：`~/Library/Application Support/LaTeXSnipper/MathCraft/models`
 
-#v(0.35em)
+设置中的“模型资源”列出安装权重、共享缓存和各模型的实际选用目录。窗口底部的“打开目录”打开正在使用的缓存或安装模型根目录。关闭后再次打开会复用窗口及其校验结果。
 
-*解决：*
-- 检查网络是否能访问 GitHub
-- 设置环境变量 `HTTP_PROXY` / `HTTPS_PROXY`（如果使用代理）
-- 尝试切换网络（如手机热点）
-- 删除 MathCraft 模型缓存目录下残留的不完整下载后重试：
-  - Windows：`%APPDATA%\MathCraft\models\`
-  - Linux：`${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper/MathCraft/models/`
-  - macOS：`~/Library/Application Support/LaTeXSnipper/MathCraft/models/`
+桌面端显式传入默认缓存位置，不读取 `MATHCRAFT_HOME`。单独使用 mathcraft-ocr 库或 CLI 时仍可以用公开参数或环境变量指定缓存。共享缓存的删除会影响使用它的 CLI，因此清理前应确认用途。
 
-#tip-block("命令行诊断", [
-  运行 `python -m mathcraft_ocr models check` 可以查看模型缓存状态。
-  运行 `python -m mathcraft_ocr warmup --profile mixed --provider auto` 可以预热混合识别链路；如果模型缺失或损坏，运行时会自动下载或修复缓存。
-])
+== 下载失败或识别不可用
 
-== onnxruntime 安装不完整或版本不对
+模型修复下载需要网络。检查网络、代理、磁盘空间及应用运行日志；需要代理时可以为启动进程配置 `HTTP_PROXY`、`HTTPS_PROXY`。安装组件故障通过“应用诊断”进入当前版本修复。
 
-*现象：* 启动报 `failed to import onnxruntime` 或 `missing get_available_providers`。
+CPU 发行固定使用 CPU；GPU 发行固定请求 CUDA，并在推理后核对私有库加载位置。GPU 失败时诊断硬件、驱动或资源问题，不自动改变发行类型。需要 CPU 时使用 CPU 安装器。
 
-#v(0.35em)
+== 提高识别质量
 
-*原因：*
-- 可能安装了 `onnxruntime` 的命名空间包而非完整包
-- pip 安装时网络中断导致包不完整
-- CPU 版和 GPU 版冲突
-
-#v(0.35em)
-
-*解决：*
-- `pip uninstall onnxruntime onnxruntime-gpu` 全部卸载后重新安装
-- LaTeXSnipper 用户优先通过依赖管理重装，程序会按 CUDA 11/12/13 选择官方稳定运行时
-- 手动安装 CUDA 13：`pip install "onnxruntime-gpu>=1.27,<1.30"`；CUDA 12：`pip install "onnxruntime-gpu>=1.21,<1.27"`
-- 仅 CPU：`pip install "onnxruntime>=1.20,<1.30"`
-
-== CUDA / GPU 相关错误
-
-*现象：* warmup 时报 CUDA 相关错误，如 `cuda wasn't able to be loaded`、`cublas` 错误等。
-
-#v(0.35em)
-
-*原因：*
-- 安装了 `onnxruntime-gpu` 但没装 CUDA / cuDNN
-- CUDA 版本与 onnxruntime-gpu 不匹配
-- 显卡驱动太旧
-- 多 GPU 环境下默认选错了设备
-
-#v(0.35em)
-
-*解决：*
-- #text(weight: "bold")[如果不需要 GPU：] 设置环境变量 `MATHCRAFT_PROVIDER=cpu` 使用 CPU 模式
-- #text(weight: "bold")[如果需要 GPU：] 确认 CUDA Toolkit 和 cuDNN 版本与 onnxruntime-gpu 匹配（查 onnxruntime 官方兼容表）
-- 更新显卡驱动
-
-== 模型缓存损坏（下载一半断电 / 杀进程）
-
-*现象：* warmup 报 `invalid protobuf`、`failed to load model`、`sha256 mismatch`。
-
-#v(0.35em)
-
-*原因：* 下载过程中断导致模型文件不完整；或者磁盘故障导致文件损坏。
-
-#v(0.35em)
-
-*解决：*
-- 删除对应模型目录：Windows 为 `%APPDATA%\MathCraft\models\<model_id>\`，Linux 为 `${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper/MathCraft/models/<model_id>/`，macOS 为 `~/Library/Application Support/LaTeXSnipper/MathCraft/models/<model_id>/`
-- 重启应用，会自动重新下载
-- 或用命令行：`python -m mathcraft_ocr models check` 检查缓存状态
-
-== 显存不足导致 ONNX 模型加载失败
-
-*现象：* warmup 报 CUDA out of memory 或直接崩溃。
-
-#v(0.35em)
-
-*原因：* GPU 显存不够。应用会根据显存选择批大小，但如果其他程序（浏览器、游戏）占了显存，剩余不够。
-
-#v(0.35em)
-
-*解决：*
-- 关闭其他占用 GPU 的程序
-- 设置 `MATHCRAFT_PROVIDER=cpu` 使用 CPU
-
-#pagebreak()
+- 裁剪到目标区域，保留完整上下标，避免边缘截断。
+- 提供清晰、有对比度的图片，避免过度缩放和压缩。
+- 对混合正文选择混合识别，对单个公式选择公式识别。
+- 在结果编辑器中核对源码，再复制或导出。
 
 // ═══════════════════════════════════════════
 // 外部模型
@@ -619,210 +522,60 @@ curl -sS "http://100.x.x.x:28765/api/v1/recognition/jobs" \
 // ═══════════════════════════════════════════
 #heading(level: 1)[安装和环境问题] <sec-install>
 
-== Python 版本不对
+== 选择发行
 
-*现象：* 安装或运行时出现语法错误或不兼容提示。
+- Windows x86_64：CPU 或 NVIDIA GPU 安装器。
+- Debian/Ubuntu 兼容的 Linux x86_64：CPU 或 NVIDIA GPU 离线安装归档，解包后运行 `install.sh`。
+- macOS Apple Silicon：CPU DMG，把应用复制到 Applications 后运行。
 
-#v(0.35em)
+发行携带 Python、推理依赖、模型、Pandoc 和内置预览资源。Linux 包管理器仍负责 Qt 所需的系统图形库；GPU 仍需要支持的显卡和系统驱动。普通 PDF 文件导出需要用户提供 LaTeX PDF 引擎。
 
-*原因：* 不同场景的 Python 要求不同，不能混用。
+== 安装资源与用户数据
 
-#v(0.35em)
+Windows 安装目录包含 `application`、`inference`、`models` 与 `distribution.json`。Linux 组件由 dpkg 管理，位于 `/usr/lib/latexsnipper`，安装身份位于 `/var/lib/latexsnipper/distribution.json`。macOS 组件位于应用的 `Contents/Resources/desktop` 内，整个应用经过签名与公证验证。
 
-*解决：*
-- #text(weight: "bold")[普通 Windows 安装包用户：] 不需要单独安装 Python，安装包自带规范化的 Python 3.11 模板环境。
-- #text(weight: "bold")[Linux/macOS 安装包用户：] 需要系统中有可用 Python `>=3.10,<3.14`，仅用于创建用户目录下的隔离依赖环境。
-- #text(weight: "bold")[源码运行/开发者：] 推荐 Python 3.11，与当前 Windows 打包环境保持一致。
+配置、历史、收藏和日志属于用户数据。Windows/Linux 应用状态位于 `~/.latexsnipper`；macOS 位于 `~/Library/Application Support/LaTeXSnipper`，日志位于 `~/Library/Logs/LaTeXSnipper`。MathCraft 默认模型缓存独立于安装组件。
 
-```text
-# Python 3.11 创建虚拟环境
-python3.11 -m venv .venv
+== 权限与重装
 
-# Windows 激活
-.\.venv\Scripts\activate
+默认用户安装位置可由当前用户更新；受保护位置的部署由独立更新进程申请平台权限。Linux 安装和组件替换通过 dpkg 完成；macOS 在旁侧重建并验证完整签名应用，再原子交换。
 
-# Linux/macOS 激活
-source .venv/bin/activate
+重新运行安装器会按目标清单部署完整组合。Windows/Linux 更换 CPU/GPU 发行使用对应安装器，正常更新保持当前类型。下载和暂存阶段不会覆盖运行中的组件。
 
-# Windows 安装公共依赖
-pip install -r requirements.txt
+== 卸载与清理
 
-# Linux 安装公共依赖和 Linux 快捷键依赖
-pip install -r requirements-linux.txt
+Windows 使用系统卸载入口；Linux 卸载四个产品包：
 
-# macOS 安装公共依赖
-pip install -r requirements-macos.txt
+```bash
+sudo dpkg --purge latexsnipper-application latexsnipper-inference latexsnipper-models latexsnipper
 ```
 
-== PyInstaller 打包版和开发版行为不同
-
-*现象：* 从 GitHub Release 下载的 exe 能跑，但 `git clone` 后用源码跑不了。
-
-#v(0.35em)
-
-*原因：* 打包版和源码版的环境边界不同。Windows 安装包包含规范化的 Python 3.11 模板环境，默认依赖根是安装目录下的 `_internal\deps`；Linux/macOS 安装包只包含 PyInstaller 应用本体，默认依赖根在用户可写目录中创建。源码运行则完全依赖你自己的开发环境。
-
-#v(0.35em)
-
-*解决：*
-- #text(weight: "bold")[如果是用户：] 优先使用 Release 版本，不要自己从源码跑
-- #text(weight: "bold")[如果是开发者：] Windows 使用 `requirements.txt`；Linux/macOS 分别使用 `requirements-linux.txt` / `requirements-macos.txt`；需要打包或构建资源时再安装 `requirements-build.txt`
-
-== 依赖环境创建在哪里
-
-LaTeXSnipper 使用 `install_base_dir` 作为活动 Python 依赖根。用户在依赖管理或设置中切换依赖目录后，只有主 Python 依赖环境跟随新的依赖根；Pandoc 固定在应用状态目录的共享 `tools` 目录中，部署一次即可复用。
-
-```text
-<安装目录>\_internal\deps
-```
-
-Linux/macOS 安装包不会把构建机的虚拟环境打进安装包。默认依赖根是用户可写目录：
-
-```text
-Linux:  ~/.latexsnipper/deps
-macOS:  ~/Library/Application Support/LaTeXSnipper/deps
-```
-
-依赖根内的常见子目录如下：
-
-```text
-<依赖根>/python            主依赖 Python/venv
-```
-
-共享工具目录如下：
-
-```text
-<应用状态目录>/tools/pandoc            可选 Pandoc 二进制目录
-```
-
-#info-block("为什么这样设计", [
-  Linux/macOS 的安装目录通常位于 `/usr/lib/latexsnipper` 或 `.app` 包内部，普通用户没有写权限。
-  将依赖层放在用户可写依赖根可以避免权限错误，也避免把开发者机器上的 venv、`pyvenv.cfg`、CI 路径打进安装包。
-])
-
-Linux `.deb` 会声明 `python3` 和 `python3-venv` 依赖；macOS 没有 `.deb` 这种系统依赖声明机制，如果找不到可用 `python3`，请先安装：
-
-```text
-# Homebrew
-brew install python
-
-# 或使用 python.org 官方 macOS 安装包
-https://www.python.org/downloads/macos/
-```
-
-== pip 依赖安装失败（特别是 pywin32 / PyQt6）
-
-*现象：* `pip install -r requirements.txt` 报错。
-
-#v(0.35em)
-
-依赖管理会先显示 UI；`ensurepip`、`pip` 升级以及 `setuptools` / `wheel` 修复只会在点击下载/安装后执行。若所选目录已有可用 Python 环境，程序会直接使用该环境。Windows 安装包默认使用内置 `python311` 模板；若用户切换到没有可复用 Python 的目录，三端都会使用系统 Python（3.10 到 3.13）创建隔离环境。
-
-#v(0.35em)
-
-*原因：*
-- `pywin32` 需要编译或特定 wheel
-- `PyQt6` 体积大约束多
-- 某些包在国内 PyPI 镜像可能没有及时同步
-
-#v(0.35em)
-
-*解决：*
-- 使用清华/阿里云 PyPI 镜像：
-  ```text
-  pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
-  ```
-- Linux/macOS 源码运行请改用对应平台文件：`requirements-linux.txt` 或 `requirements-macos.txt`
-- `pywin32` 只在 Windows 平台安装；如果 Windows pip 装不上，去 PyPI 手动下载匹配 Python 版本的 wheel 安装
-
-== 权限问题（Program Files / 系统目录）
-
-*现象：* 安装在 `C:\Program Files\` 下运行报权限错误。
-
-#v(0.35em)
-
-*原因：* 应用需要在用户目录（`%APPDATA%`、`~/.latexsnipper/`）写入日志、配置、模型缓存。如果应用本身放在受保护目录，某些操作可能被 UAC 拦截。
-
-#v(0.35em)
-
-*解决：*
-- GitHub 安装包默认安装到 `%LOCALAPPDATA%\LaTeXSnipper`，普通用户权限即可运行
-- 如果手动放入 `C:\Program Files\` 等受保护目录，不要把依赖目录、模型缓存或日志目录指向安装目录；保持默认用户目录通常没有问题
-
-== 卸载后如何清理用户数据和模型缓存
-
-LaTeXSnipper 卸载默认保留用户数据，方便升级或重装后继续使用原配置、历史记录、用户切换过的依赖环境、共享工具和 MathCraft 模型缓存。需要彻底清理时：
-
-- *Windows：* 运行 Windows 安装包自带卸载程序时，会先出现可选清理窗口，随后仍会显示 Inno 标准卸载确认；标准确认通过后，卸载器会关闭正在运行的 LaTeXSnipper，并按勾选项删除用户数据/日志/临时文件、LaTeXSnipper 管理的共享工具目录、MathCraft 模型权重。安装目录内的 `_internal` 会随主程序卸载删除；用户切换到外部的完整 Python 或 venv 不会被卸载器删除。
-- *Linux `.deb`：* 包管理器卸载不会自动删除 home 目录数据。卸载前可运行 `latexsnipper-clean-user-data`，按提示删除当前用户的数据、共享工具和模型缓存；脚本不会读取或删除用户切换过的外部 Python 依赖根。
-- *macOS `.dmg`：* 删除 `.app` 只会移除应用本体。需要清理数据时，运行 `.dmg` 中的 `Uninstall User Data.command`，或运行 app 包内 `Contents/Resources/Uninstall User Data.command`。
-
-如果你在命令行单独运行 `mathcraft_ocr` 时显式设置过 `MATHCRAFT_HOME` 指向自定义目录，卸载和清理脚本都不会自动删除该目录，避免误删用户指定的外部数据位置。桌面端通常使用应用管理的模型目录，不依赖外部 `MATHCRAFT_HOME`。
-
-== 中文路径 / 用户名包含特殊字符
-
-*现象：* 启动崩溃或模型加载失败。
-
-#v(0.35em)
-
-*原因：* Windows 用户名含中文、空格、特殊符号时，`%APPDATA%` 路径可能包含非 ASCII 字符，某些 C 库或 ONNX 底层可能无法正确处理。
-
-#v(0.35em)
-
-*解决：* 如果是在命令行单独运行 `mathcraft_ocr`，可以设置 `MATHCRAFT_HOME` 指向纯 ASCII 路径，例如 `C:\mathcraft_data`。桌面端会清理 `MATHCRAFT_HOME`，避免外部环境污染应用运行时；桌面端遇到这类问题时请优先附上日志目录和依赖目录信息反馈。
-
-#pagebreak()
+macOS 删除安装的应用。卸载只移除产品拥有的安装资源；用户配置、日志及共享模型缓存可另外按需清理。Windows 卸载选项和 Linux/macOS 用户数据清理脚本分别提供应用数据与模型缓存选项；共享模型缓存可能也被 mathcraft-ocr CLI 使用。用户保存的导出文件和外部工具由用户自行管理。
 
 // ═══════════════════════════════════════════
 // 网络与更新
 // ═══════════════════════════════════════════
 #heading(level: 1)[网络与更新问题] <sec-network>
 
-== Windows 防火墙拦截本地服务
+== 何时需要联网
 
-*现象：* Ollama / MinerU 等服务已启动，但 LaTeXSnipper 连不上。
+完整安装后，本地识别、编辑与内置 MathJax 预览可以离线使用。应用更新、损坏权重下载、外部在线模型需要网络。外部本地服务是否需要网络取决于其部署方式。
 
-#v(0.35em)
+== 应用更新与修复
 
-*原因：* Windows Defender 防火墙可能拦截了本地回环连接。
+设置中的“应用更新”检查匹配当前平台、架构及 CPU/GPU 类型的发行清单。程序校验已安装内容，仅下载变化或损坏的完整组件；同一个更新事务使用目标清单规定的应用、推理和模型组合。macOS 还使用该组合的签名封印载荷。
 
-#v(0.35em)
+下载支持暂停、继续与取消；中断文件按内容身份保存，复用前验证长度和 SHA256。准备完成后确认安装，应用停止识别与 worker 并退出，独立部署进程完成替换和验证。需要权限时由操作系统显示授权窗口。
 
-*解决：*
-- 检查防火墙设置，允许 Python / Ollama 通过
-- 临时关闭防火墙测试（仅用于排查）
-- 确认 Ollama 监听在 `0.0.0.0` 还是 `127.0.0.1`
+“应用诊断”中的修复恢复当前版本的明确组件。校验或部署失败时不提交新安装身份；中断事务在下次启动前恢复。部署临时备份只用于失败恢复，成功提交后删除，不提供历史版本选择或手动降级。
 
-== 更新检查失败
+== 常见失败
 
-*现象：* 检查更新时一直转圈或报错。
-
-#v(0.35em)
-
-*原因：* 更新检查访问 `api.github.com`，国内可能被墙或很慢。
-
-#v(0.35em)
-
-*解决：*
-- 设置代理后重试
-- 直接去 GitHub Releases 手动下载最新版
-- 查看 `%USERPROFILE%/.latexsnipper/logs/` 下的日志了解具体错误
-
-== 杀毒软件误报 / 拦截
-
-*现象：* exe 被删除、隔离或阻止运行。
-
-#v(0.35em)
-
-*原因：* PyInstaller 打包的 exe 有时被误报为木马。
-
-#v(0.35em)
-
-*解决：*
-- 将安装目录加入杀毒软件白名单
-- #text(weight: "bold")[确保从 GitHub Releases 下载]（优先使用 SignPath 签名安装包；签名不可用时官方 Release 可能提供同名未签名回退包）
-
-#pagebreak()
+- 无匹配发行清单：查看发布状态及应用日志，不选择其他平台或类型的载荷。
+- 网络或摘要校验失败：检查代理和连接后重试，损坏下载不会进入部署。
+- 空间不足：清理空间后重试，保留当前组件。
+- 权限不足或文件占用：关闭其他应用实例，并按系统提示授予必要权限。
+- 源码运行：应用显示源码更新说明，使用 Git 和开发工具更新源码与环境。
 
 // ═══════════════════════════════════════════
 // PDF 与识别效果
@@ -882,263 +635,59 @@ LaTeXSnipper 卸载默认保留用户数据，方便升级或重装后继续使�
 // ═══════════════════════════════════════════
 #heading(level: 1)[使用技巧与功能问题] <sec-usage>
 
-== 截图快捷键不生效
+== 预览与导出
 
-*现象：* 按下截图快捷键后没有任何反应。
+公式预览固定使用内置 MathJax。修改 LaTeX 后实时查看结果；复制菜单提供 LaTeX、Markdown、MathML、HTML、SVG、图片和 Office 公式等输出。按用途选择格式，纯源码编辑保留原文。
 
-*可能原因与解决：*
-- #text(weight: "bold")[快捷键被其他软件占用：] 输入法、词典取词、录屏软件可能占用全局快捷键。暂时关闭这些软件，或在设置中更换截图快捷键
-- #text(weight: "bold")[权限不足（Linux/macOS）：] Linux Wayland 可能限制全局快捷键或截图；macOS 截图需要屏幕录制权限，参阅平台特定章节
-- #text(weight: "bold")[应用在后台运行？] Windows 和有托盘的 Linux 会隐藏到系统托盘；macOS 会保持应用运行，可从 Dock 或菜单栏状态项重新打开
+桌面发行随应用组件提供 Pandoc，支持 DOCX、ODT、PPTX、EPUB、独立 HTML、Typst、纯文本和 PDF 文件导出。PDF 导出还需要外部 XeLaTeX、LuaLaTeX 或 pdfLaTeX。源码开发使用 PATH 中的 Pandoc；发行缺失随包 Pandoc 时从应用诊断修复应用组件。
 
-== 导出功能不可用（Pandoc 相关）
+== 手写识别
 
-*现象：* 导出 Word / PowerPoint / EPUB / PDF / Typst 等格式时报错或选项灰色。
+打开手写窗口，在画布上书写后识别。结果进入公式编辑器，可修改源码、预览、复制和导出。手写窗口采用同一内置模型与 MathJax 预览资源。
 
-#v(0.35em)
+== 历史、收藏与快捷键
 
-*原因：* 这些格式依赖 Pandoc。Pandoc 是可选的外部工具；PDF 导出还需要系统中可用的 LaTeX PDF 引擎（XeLaTeX、LuaLaTeX 或 pdfLaTeX）。
+识别结果保存在历史中，可重新编辑并加入收藏。设置中提供截图快捷键、主题、语言与启动行为。Windows/Linux 使用 Ctrl 作为主要修饰键，macOS 使用 Command；系统保留组合会被拒绝，可使用允许的带 Shift 或 Option 的组合。
 
-#v(0.35em)
+== 窗口关闭与退出
 
-*解决：*
-- 打开依赖管理，安装 "PANDOC" 层
-- 或手动安装 Pandoc（https://pandoc.org）并确保在 PATH 中
-- 核心功能（LaTeX / Markdown / MathML / HTML / OMML / SVG 导出）不需要 Pandoc
-- PDF 导出如果继续失败，请确认已安装 TeX Live / MiKTeX 等 LaTeX 发行版，并且 `xelatex`、`lualatex` 或 `pdflatex` 可在 PATH 中找到
-
-== 手写识别不触发 / 延迟太高
-
-*现象：* 在手写窗口写完公式后没反应，或延迟很长才识别。
-
-#v(0.35em)
-
-*原因：*
-- OCR 服务未就绪（内置 MathCraft 混合模式未加载，或外部模型未连接）
-- 网络延迟（使用远程外部模型时）
-- 触控笔驱动问题
-
-#v(0.35em)
-
-*解决：*
-- 打开手写窗口后，程序会后台预热 MathCraft 混合模式；首次使用可能需要等待模型加载
-- 手写窗口右下角有状态指示，确认显示"就绪"
-- 如果使用远程模型，检查网络延迟
-
-== 手写识别为什么不跟随主窗口的公式/文字模式
-
-*说明：* 手写窗口的内置识别固定使用 MathCraft 混合模式。这样可以同时保留普通文字、中文/英文标签和公式，后续"自动排版"生成文档时不会因为只走公式模式而丢失文字。
-
-#v(0.35em)
-
-*影响：*
-- 主窗口截图识别仍然可以选择公式、文字、混合或外部模型
-- 手写窗口使用内置模型时固定为混合模式，并会按混合模式预热
-- 如果主窗口选择了外部模型，手写窗口仍会使用外部模型，但默认采用手写混合 OCR 提示词，以 Markdown + LaTeX 形式保留文字和公式
-
-== 手写自动排版后文字、中文或换行不符合预期
-
-*现象：* 自动排版后普通文字被省略，中文编译异常，或多行文字在 PDF 中挤到同一行。
-
-#v(0.35em)
-
-*当前策略：*
-- 自动排版会生成完整 XeLaTeX 文档，并使用 `ctexart` 文档类
-- 内嵌 MathLive 编辑器中，`Enter` 新建数学行，`Esc` 收起虚拟键盘但不关闭编辑器
-- 导言区会补齐常用数学和表格宏包，如 `amsmath`、`amssymb`、`mathtools`、`geometry` 等
-- 普通文字行会按段落保留，连续文字行会自动分段，避免 PDF 中被合并到同一行
-- 如果外部模型排版时吞掉了识别草稿里的普通文字，程序会尝试把这些文字合并回文档正文
-
-== 数学工作台计算结果不对
-
-*现象：* 输入表达式后计算返回错误结果或超时。
-
-#v(0.35em)
-
-*原因：*
-- 表达式语法问题（如隐式乘法未加 `*`）
-- Compute Engine 无法处理的复杂表达式
-
-#v(0.35em)
-
-*解决：*
-- 检查表达式语法：`2x` 需要写成 `2*x`
-- 计算结果以数学工作台内置前端计算引擎为准
-- 对于超长运行的计算，耐心等待回退引擎结果
-
-== 深色/浅色主题切换后显示异常
-
-*现象：* 切换主题后某些窗口颜色错乱或文字不可见。
-
-#v(0.35em)
-
-*解决：*
-- 重启应用确保所有窗口正确应用主题
-- 如果问题持续，在设置中明确选择"浅色"或"深色"而非"跟随系统"
-
-== Pandoc 导出中文乱码
-
-*现象：* 导出 `.docx` 或 `.epub` 后中文显示为乱码。
-
-#v(0.35em)
-
-*原因：* Pandoc 默认可能使用非 UTF-8 编码，或缺少中文字体。
-
-#v(0.35em)
-
-*解决：*
-- 确保 Pandoc 版本 ≥ 3.0
-- 导出 LaTeX PDF 时确保安装了 `ctex` 宏包或中文字体
-- Word 导出后在 Word 中手动设置字体
+Windows 有托盘时关闭主窗口会隐藏，使用托盘退出。Linux 无托盘时会询问退出；macOS 关闭窗口会最小化，使用菜单退出或 Command+Q。更新安装由应用生命周期控制器统一停止任务与 worker 后交接。
 
 // ═══════════════════════════════════════════
 // 平台特定
 // ═══════════════════════════════════════════
 #heading(level: 1)[平台特定问题（Linux / macOS）] <sec-platform>
 
-== 三端主要差异速查
+== Linux 图形环境与截图
 
-LaTeXSnipper 的主流程在 Windows、Linux、macOS 上保持一致：截图识别、图片识别、PDF 识别、手写识别、导出、历史记录、收藏夹和数学工作台使用同一套业务逻辑。
+X11 通常可以正常使用全局热键。Wayland 的热键和截图受合成器策略限制；应用先尝试 Qt 截图，可使用可用的 `grim`、`maim`、`gnome-screenshot` 等后备工具。这些系统工具由用户或发行版安装。
 
-#v(0.35em)
+出现 EGL、GLOzone 或 WebEngine 画面异常时，先检查桌面会话和系统图形库。应用对 Wayland、虚拟机、WSL 等高风险会话启用软件图形后备；可用以下变量手动控制：
 
-*主要差异集中在系统集成层：*
-
-- *截图快捷键：* Windows 使用 Win32 原生全局快捷键；Linux 使用 `pynput` 全局快捷键，X11 最稳定，Wayland 可能受桌面环境策略限制；macOS 使用 Carbon 原生全局快捷键。
-- *可设置快捷键：* Windows/Linux 支持 `Ctrl+字母` 或 `Ctrl+Shift+字母`；macOS 支持非保留 `Command+字母` / `Command+Shift+字母`，也支持 `Option+Command` 组合。
-- *默认快捷键：* Windows/Linux 为 `Ctrl+F`；macOS 为 `Command+F`。
-- *截图实现：* Windows 使用 Qt 框选截图；Linux 先走 Qt，失败后可尝试 `grim`、`maim`、`gnome-screenshot` 等系统工具或 portal 回退；macOS 先走 Qt，可回退到系统 `screencapture`，首次使用可能弹出屏幕录制权限。
-- *关闭窗口 / 后台常驻：* Windows 关闭主窗口会隐藏到系统托盘，托盘菜单"退出"才真正退出；Linux 有系统托盘时关闭主窗口会隐藏到托盘，没有托盘时会询问是否退出；macOS 关闭主窗口会最小化并保持应用运行，Dock 或菜单栏"退出"才真正退出。
-- *权限要求：* Windows 普通截图路径不需要额外系统权限；Linux Wayland 可能限制截图和全局快捷键；macOS 截图需要屏幕录制权限，Carbon 全局快捷键通常不需要辅助功能权限。
-- *依赖环境：* Windows 默认依赖根为 `<安装目录>\_internal\deps`，可切换；Linux 默认依赖根为 `~/.latexsnipper/deps`，可切换；macOS 默认依赖根为 `~/Library/Application Support/LaTeXSnipper/deps`，可切换。Linux/macOS 需要系统 Python `>=3.10,<3.14` 创建 venv。
-- *安装包：* Windows 使用 Inno 安装包；GitHub Release 优先发布签名安装包，签名不可用时发布同名未签名回退包；Linux 使用 Debian/Ubuntu `.deb`；macOS 使用 `.dmg`。
-
-#info-block("快捷键兼容性", [
-  快捷键设置入口使用平台主修饰键：Windows/Linux 接受 `Ctrl+字母` 或 `Ctrl+Shift+字母`。macOS 接受非系统保留的 `Command+字母` / `Command+Shift+字母`，并支持 `Option+Command` 组合；`Command+Q/H/M/W/A/C/V/X/Z/Space/Tab` 和系统截图键会被拒绝。
-  若 Linux Wayland 环境下快捷键或截图无响应，通常是桌面环境权限或全局快捷键策略限制，优先参考下方 Wayland 说明。
-  macOS 使用 Carbon 注册全局快捷键，通常不需要开启"辅助功能"权限；截图失败时应优先检查"屏幕录制"权限。
-])
-
-== Linux: Wayland 下截图功能异常
-
-*现象：* 在 Wayland 会话下截图黑屏、部分窗口无法截取或快捷键无响应。
-
-#v(0.35em)
-
-*原因：* Wayland 的安全模型限制了应用间的屏幕捕获，Qt 的截图机制可能需要额外配置。
-
-#v(0.35em)
-
-*解决：*
-- 尝试安装并配置 `grim` + `slurp`（wlroots 系）或 `gnome-screenshot`（GNOME）
-- 应用会自动检测这些工具作为回退方案
-- 某些发行版需要在设置中允许屏幕共享权限
-
-#info-block("Linux 依赖提示", [
-  依赖管理只管理 Python 依赖层。`grim`、`maim`、`gnome-screenshot` 等系统工具需要用户自行通过包管理器安装。
-  这些工具是可选的回退方案——应用在 Qt 原生截图失败时自动尝试它们。
-])
-
-== Linux: 虚拟机或 Wayland 下启动后直接中止
-
-*现象：* 命令行出现 `EGL not available`、`No physical devices`、`GLOzone not found`、`Failed to get system egl display`，随后程序中止。
-
-#v(0.35em)
-
-*原因：* 这通常不是 MathCraft GPU 推理问题，而是 Qt WebEngine / Chromium 在 Wayland、虚拟机、WSL 或没有可用 DRI render 节点时无法初始化 EGL/GPU 图形后端。
-
-#v(0.35em)
-
-*当前策略：* LaTeXSnipper 会在高风险 Linux 图形环境中自动启用软件渲染兜底。正常 X11 + 真实 GPU + 可用 `/dev/dri/renderD*` 的用户仍走原生路径，不会被强制降级。
-
-#v(0.35em)
-
-*手动开关：*
-
-```text
-# 强制启用 Linux 图形兜底
+```bash
 LATEXSNIPPER_FORCE_LINUX_GRAPHICS_FALLBACKS=1 latexsnipper
-
-# 禁用 Linux 图形兜底，尝试原生 Qt/GPU 路径
 LATEXSNIPPER_DISABLE_LINUX_GRAPHICS_FALLBACKS=1 latexsnipper
 ```
 
-如果仍然无法启动，通常是系统缺少 XWayland/XCB/QtWebEngine 运行库。Debian/Ubuntu 用户可先确认这些包是否存在：
+这是预览图形后端设置，不改变 MathCraft 推理发行类型。Linux 安装依赖必要的系统 Qt 图形库，但不使用系统 Python、CUDA Toolkit 或 cuDNN。
 
-```text
-sudo apt install xwayland libxcb-cursor0 libxcb-icccm4 libxcb-image0 \
-  libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 libxkbcommon-x11-0
+== macOS 屏幕录制权限
+
+把应用复制到 Applications，退出后从同一位置重新启动。在“系统设置 → 隐私与安全性 → 屏幕录制”中为实际运行的应用授权；较新系统可能将该项命名为“屏幕与系统音频录制”。开启后用 Command+Q 完全退出并重新启动，关闭窗口不会退出应用。
+
+源码运行应授权系统列出的 Python、Terminal 或 IDE 启动进程。不要直接从 DMG 或应用转移位置持续运行。原生 Carbon 全局热键通常不需要辅助功能权限，截图权限单独检查。
+
+开发机存在失效权限记录时可手动重置后重新授权：
+
+```bash
+tccutil reset ScreenCapture com.mathcraft.latexsnipper
 ```
 
-== macOS: 首次启动被阻止
+应用不会自动执行重置。若授权检查成功但截图为空，报告屏幕布局、选区和截图日志。
 
-*现象：* macOS 提示"无法验证开发者"或"已损坏"。
+== macOS 签名与资源修复
 
-#v(0.35em)
-
-*原因：* 应用未经过 Apple 公证（notarization）。
-
-#v(0.35em)
-
-*解决：*
-- 前往 系统设置 → 隐私与安全性 → 点击"仍要打开"
-- 或终端执行：`xattr -cr /Applications/LaTeXSnipper.app`
-
-== macOS: 截图权限弹窗
-
-*现象：* 首次截图时系统弹窗要求授予屏幕录制权限。
-
-#v(0.35em)
-
-*解决：*
-- 在系统设置 → 隐私与安全性 → 屏幕录制中勾选 LaTeXSnipper
-- 授权后如果仍无法截图，请完全退出并重新打开应用
-
-== macOS: 全局快捷键是否需要辅助功能权限
-
-*结论：* 通常不需要。
-
-LaTeXSnipper 在 macOS 上使用 Carbon 原生全局快捷键注册，不使用 pynput 或键盘事件监听线程。截图快捷键不生效时，优先检查快捷键是否被系统或其他软件占用，以及应用是否仍在运行。只有涉及低层键盘监听、模拟键鼠控制或其他辅助控制能力的软件通常才需要"辅助功能"权限。
-
-== macOS: 没有可用 pip 或 pip 版本太低
-
-*现象：* 依赖管理提示找不到 `pip`，或安装依赖时出现 `pip` / `setuptools` / `wheel` 版本过低。
-
-#v(0.35em)
-
-*原因：* macOS 安装包不内置完整 Python 依赖环境，需要借助系统中可用的 Python `>=3.10,<3.14` 在活动依赖根下创建 `python`。默认依赖根是 `~/Library/Application Support/LaTeXSnipper/deps`。如果系统 Python 没有 `venv` / `ensurepip` / `pip`，依赖层无法自动初始化。
-
-#v(0.35em)
-
-*解决：*
-- 推荐安装 Homebrew Python：`brew install python`
-- 或安装 python.org 官方 macOS Python 包
-- 重新启动 LaTeXSnipper 后再打开依赖管理
-
-== 各平台数据目录速查
-
-```text
-配置文件 & 日志：
-  Windows:  %USERPROFILE%\.latexsnipper\
-  Linux:    ~/.latexsnipper/
-  macOS:    ~/Library/Application Support/LaTeXSnipper/
-
-依赖根：
-  Windows:  <安装目录>\_internal\deps（默认，可在依赖管理/设置中切换）
-  Linux:    ~/.latexsnipper/deps（默认，可切换）
-  macOS:    ~/Library/Application Support/LaTeXSnipper/deps（默认，可切换）
-
-依赖根内：
-  python            主依赖 Python/venv
-
-共享工具目录：
-  <应用状态目录>/tools/pandoc            可选 Pandoc 二进制目录
-
-模型缓存（MathCraft ONNX）：
-  Windows:  %APPDATA%\MathCraft\models\
-  Linux:    ${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper/MathCraft/models/
-  macOS:    ~/Library/Application Support/LaTeXSnipper/MathCraft/models/
-```
+发行应用整体签名、公证并附带公证票据。更新时在应用旁侧构建目标组合，验证代码签名、公证票据、Gatekeeper 和 worker，再原子交换整个应用。请用“应用诊断”修复安装资源，避免手工改写签名应用内部文件。
 
 // ═══════════════════════════════════════════
 // 软件冲突
@@ -1177,125 +726,50 @@ LaTeXSnipper 在 macOS 上使用 Carbon 原生全局快捷键注册，不使用 
 // ═══════════════════════════════════════════
 #heading(level: 1)[如何有效反馈 Bug] <sec-bugreport>
 
-#error-block("先说最重要的", [
-  #text(weight: "bold")[只说"报错了""用不了""闪退"而不提供日志的 issue，不会被处理。]
-  没有日志 = 无法定位 = 无法修复。
-])
+== 提供可复现信息
 
-反馈 Bug 时请务必附带以下 #text(weight: "bold", fill: rgb("#C62828"))[全部] 信息：
+提交 Issue 时包含操作系统、应用版本、CPU/GPU 发行类型、输入类型、具体步骤、完整报错和必要截图。识别错误最好附可公开的输入样例以及期望结果。外部服务问题应说明协议与模型配置，密钥无需提供。
 
-== 必须提供的信息
+== 诊断与日志
 
-#block(
-  fill: rgb("#FFF3E0"),
-  inset: 12pt,
-  radius: 4pt,
-  stroke: 0.8pt + rgb("#FFB74D"),
-)[
-  #set par(spacing: 0.25em)
+设置中的“应用诊断”显示实际安装组件、Python/ORT 版本、计算提供者及资源异常。“运行日志”显示当前会话诊断。请附应用日志目录；闪退时还需 `crash-native.log`（如果生成）。
 
-  #text(weight: "bold")[1. 日志文件]
-  #v(0.2em)
-  位于 `%USERPROFILE%\.latexsnipper\logs\`，
-  把 #text(fill: rgb("#C62828"), weight: "bold")[整个 logs 目录打包] 发过来。
-  命令行运行时 stderr 的输出也要一并附上。
+- Windows：`%USERPROFILE%/.latexsnipper/logs`
+- Linux：`~/.latexsnipper/logs`
+- macOS：`~/Library/Logs/LaTeXSnipper`
 
-  #v(0.55em)
-
-  #text(weight: "bold")[2. 崩溃日志]
-  #v(0.55em)
-  `crash-native.log`（在日志目录下），如果有的话。
-
-  #v(0.55em)
-
-  #text(weight: "bold")[3. 运行环境]
-  #v(0.55em)
-  操作系统版本、安装方式（exe 还是源码）、Python 版本（源码运行时）。
-
-  #v(0.55em)
-
-  #text(weight: "bold")[4. 外部模型配置]
-  #v(0.55em)
-  协议类型、模型名、是否本地部署、是否使用代理。
-
-  #v(0.55em)
-
-  #text(weight: "bold")[5. 复现步骤]
-  #v(0.55em)
-  你点了什么、填了什么配置、什么时候报的错。越详细越好。
-
-  #v(0.55em)
-
-  #text(weight: "bold")[6. 截图]
-  #v(0.55em)
-  错误提示的 #text(weight: "bold", fill: rgb("#C62828"))[完整截图]（不要裁剪，要包含窗口标题栏）。
-]
-
-#v(0.8em)
-
-== 去哪里反馈
-
-- #text(weight: "bold")[GitHub Issues：] https://github.com/SakuraMathcraft/LaTeXSnipper/issues
-- #text(weight: "bold")[GitHub Discussions：] https://github.com/SakuraMathcraft/LaTeXSnipper/discussions （一般使用问题请发这里）
-
-== 可附带的诊断输出
-
-这些命令与当前源码中的启动和 MathCraft CLI 一致，能直接判断是依赖环境、模型缓存还是 ONNX Runtime 后端问题：
-
-```text
-python -m mathcraft_ocr models check
-python -m mathcraft_ocr doctor --provider auto
-python -m mathcraft_ocr warmup --profile mixed --provider auto
-```
-
-- 如果 `models check` 显示缺文件或缓存不完整，问题通常在模型下载或缓存目录。
-- 如果 `doctor` 显示 ONNX Runtime providers 异常，优先说明是否安装 GPU 版、是否设置过 `MATHCRAFT_PROVIDER=cpu`。
-- 如果命令行正常但 GUI 失败，请同时说明设置页中的依赖目录、日志目录和当前选择的识别模型。
+应用诊断通过标准日志系统记录；打开或关闭日志窗口不改变日志采集状态。模型问题另附“模型资源”的实际路径及校验状态，GPU 问题另附显卡型号与驱动版本。修复失败需要完整部署结果和日志，避免只截取最后一行。
 
 // ═══════════════════════════════════════════
 // 从源码运行
 // ═══════════════════════════════════════════
 #heading(level: 1)[从源码运行与开发者常见问题] <sec-source>
 
-== README Quick Start 步骤验证
+== 使用同一开发 Python
 
-README 中提供了三种平台的源码运行步骤，经验证均正确可行：
+选择 venv、Conda、uv 等受支持的 Python 环境，运行、测试和 IDE 使用同一解释器。Windows 安装 `requirements.txt`，Linux/macOS 分别安装 `requirements-linux.txt`、`requirements-macos.txt`；后两者包含公共依赖。本地 OCR 还需要 CPU extra：
 
-#tip-block("已验证的步骤", [
-  - *Windows：* `python -m venv .venv` → `pip install -r requirements.txt` → `python src/main.py`
-  - *Linux：* `python3 -m venv .venv` → `pip install -r requirements-linux.txt` → `python src/main.py`
-  - *macOS：* `python3 -m venv .venv` → `pip install -r requirements-macos.txt` → `python src/main.py`
-  - `requirements-linux.txt` 和 `requirements-macos.txt` 通过 `-r requirements.txt` 自动包含公共依赖；Linux 额外使用 `pynput` 支持全局快捷键，macOS 使用原生全局快捷键实现。
-])
-
-== 开发环境与发布构建
-
-开发者可以自行选择 venv、Conda、uv 等环境及存放位置。激活环境后，运行、检查和 IDE 使用同一解释器即可；项目不要求固定的环境目录。
-
-Windows 示例（`.venv` 仅为示例，可替换为自己的路径）：
-
-```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
+```bash
 python -m pip install -r requirements.txt
-python -m pip install ruff pytest pyright
+python -m pip install -e '.[cpu]'
 python src/main.py
 ```
 
-Linux/macOS 使用各自的 requirements 文件，并激活所选环境。客户端安装包统一由 GitHub Actions 的 `release.yml` 工作流构建；Windows 内置运行时在 runner 临时目录准备，不收集开发者的 Python 环境。
+Linux/macOS 替换第一行的 requirements 文件即可。源码 worker 使用启动应用的 Python，固定 CPU，并显式使用库的平台默认缓存。开发依赖由标准开发工具管理。源码 Pandoc 从 PATH 获取；PDF 文件导出的 LaTeX 引擎同样由开发者提供。
 
-== 开发者验证命令
+== 检查与发行构建
 
-在已激活并安装检查工具的环境中执行：
+在选定环境中安装检查工具后执行：
 
 ```bash
-python -m ruff check .
-python -m pytest test
-python -m pyright --pythonpath "$(python -c 'import sys; print(sys.executable)')"
-python -m compileall -q src mathcraft_ocr test
+python -m pytest -q
+python -m pyright --pythonpath <selected-python>
+python -m compileall -q src mathcraft_ocr scripts
+python scripts/update_translations.py --check
+python scripts/check_ui_translations.py
 ```
 
-IDE 中选择相同的解释器；类型检查通过 `--pythonpath` 指定所选解释器，无需在项目配置中硬编码第三方包目录。
+客户端安装器由 GitHub Actions 构建。Release 工作流按锁定官方来源装配独立推理环境；应用和推理采用分开的构建缓存键。签名完成后生成实际内容身份、归档摘要和首次安装载体，再执行原生安装、修复、卸载及 CUDA 实机验收。开发者环境不会被收集进发行。
 
 #pagebreak()
 
@@ -1925,7 +1399,7 @@ LaTeXSnipper Mobile 是基于 Capacitor + Vite 构建的移动端公式 OCR 应�
 #info-block("全平台生态", [
   LaTeXSnipper Mobile 是独立的应用，不依赖桌面版 LaTeXSnipper。
   两者共享 MathCraft OCR 模型体系，但不共享实现代码；Android 版使用 Java ONNX Runtime，而非桌面版的 Python 运行时。
-  桌面版的 Office 加载项、数学工作台和扩展格式导出不在移动版中提供。
+  桌面版的 Office 加载项和扩展格式导出不在移动版中提供。
 ])
 
 == 系统要求
@@ -2009,11 +1483,10 @@ MathLive 所见即所得公式编辑器，支持中文界面和本地化：
   #set par(spacing: 0.25em)
 
   - *Office 加载项：* Word / PowerPoint 插件只支持桌面 Windows，移动端不支持
-  - *数学工作台：* 符号计算、表达式化简、方程求解等桌面专属功能
   - *全局截图快捷键：* 移动端不存在桌面端的操作系统级截图快捷方式
   - *Pandoc 全格式导出：* AsciiDoc、reStructuredText、OPML 等格式在移动端已移除，保留 9 种常用格式
-  - *自定义环境变量：* 桌面端通过 `MATHCRAFT_*` 等环境变量配置模型路径、加速模式等，移动端通过设置 UI 配置
-  - *多窗口管理：* 桌面端有主窗口、手写窗口、数学工作台等多个独立窗口，移动端为单页面应用
+  - *自定义环境变量：* 桌面发行由安装身份确定模型资源与 CPU/GPU 类型，移动端通过设置 UI 配置
+  - *多窗口管理：* 桌面端有主窗口、手写窗口、识别结果窗口等多个独立窗口，移动端为单页面应用
 ]
 
 == 移动端独有的桌面没有的功能
@@ -2412,7 +1885,7 @@ pip install "mathcraft-ocr[gpu]"
 pip install "mathcraft-ocr[gpu-cu12]"
 ```
 
-单独使用 PyPI 包时，请在干净环境中只选择一种 ONNX Runtime 后端；不要同时安装 `onnxruntime` 和 `onnxruntime-gpu`。CUDA 11 还需使用 ONNX Runtime 官方 CUDA 11 feed。在 LaTeXSnipper 中使用时，通常通过依赖管理自动安装。
+单独使用 PyPI 包时，请在干净环境中只选择一种 ONNX Runtime 后端；不要同时安装 `onnxruntime` 和 `onnxruntime-gpu`。CUDA 11 还需使用 ONNX Runtime 官方 CUDA 11 feed。LaTeXSnipper 桌面发行由安装器提供完整推理组件。
 
 *命令行使用：*
 ```text
@@ -2430,7 +1903,7 @@ python -m mathcraft_ocr ocr formula.png --profile formula --provider auto --json
 python -m mathcraft_ocr ocr page.png --profile mixed --provider auto --output result.md
 ```
 
-*在 LaTeXSnipper 中使用：* 在设置页的"选择识别模型"中选择 #text(weight: "bold")[内置模型] 即可启用本地 MathCraft OCR；识别类型可选公式、混合（文字+公式）或纯文字。如需强制使用 CPU 推理（例如避免 GPU 兼容性问题），请参考下方的环境变量设置。
+*在 LaTeXSnipper 中使用：* 在设置页的"选择识别模型"中选择 #text(weight: "bold")[内置模型] 即可启用本地 MathCraft OCR；识别类型可选公式、混合（文字+公式）或纯文字。桌面端使用 CPU 安装器即可固定 CPU 推理；独立库的提供者配置见环境变量章节。
 
 #heading(level: 1)[模型集与识别配置] <sec-mathcraft-models>
 
@@ -2531,65 +2004,25 @@ python -m mathcraft_ocr ocr page.png --profile mixed --provider auto --output re
 
 #heading(level: 1)[环境变量设置指南] <sec-envvar>
 
-许多排障操作需要临时设置环境变量。注意：桌面端启动时会清理 `MATHCRAFT_HOME`、`PYTHONHOME` 和 `PYTHONPATH`，避免外部 Python 环境污染应用运行时；`MATHCRAFT_HOME` 主要用于命令行单独运行 `mathcraft_ocr` 时指定模型缓存目录。
+== 桌面发行与独立库的边界
 
-```text
-Windows 永久：Win+R → sysdm.cpl → 高级 → 环境变量 → 用户变量中新建
-Windows 当前终端：$env:MATHCRAFT_PROVIDER = "cpu"
-Linux/macOS 永久：写入 ~/.bashrc 或 ~/.zshrc 后 source 对应文件
-Linux/macOS 当前终端：export MATHCRAFT_PROVIDER=cpu
+桌面发行的 Python、模型清单、CPU/GPU 类型及私有运行库由安装身份确定。worker 清理外部 Python 和 MathCraft 环境覆盖，显式传入当前发行类型和默认模型缓存，用户无需用环境变量选择解释器、ORT、CUDA 版本或模型目录。
+
+单独使用 mathcraft-ocr 库或 CLI 时仍保留公开参数与环境变量。`MATHCRAFT_HOME` 指定独立库的模型缓存；`MATHCRAFT_PROVIDER` 设置独立调用的提供者。为独立 GPU 环境安装所需的 ORT 和运行库时遵循库的文档。桌面 GPU 发行自带匹配用户态库，不通过这些变量切换后端。
+
+== 临时配置示例
+
+Windows PowerShell：
+
+```powershell
+$env:MATHCRAFT_PROVIDER = 'cpu'
+python -m mathcraft_ocr --help
 ```
 
-*常用环境变量一览：*
+Linux/macOS：
 
-#block(
-  inset: 12pt,
-  width: 100%,
-)[
-  #set par(spacing: 0.25em)
+```bash
+MATHCRAFT_PROVIDER=cpu python -m mathcraft_ocr --help
+```
 
-  - `MATHCRAFT_PROVIDER` — 设为 `auto`、`cpu` 或 `gpu`，显式选择推理后端
-  - `MATHCRAFT_HOME` — 命令行 `mathcraft_ocr` 使用的模型缓存目录；桌面端会清理该变量
-  - `MATHCRAFT_BUNDLED_MODELS_DIR` — 定制包或调试时指定包内 MathCraft 模型目录；正式包未预置模型时不需要设置
-  - `HTTP_PROXY` / `HTTPS_PROXY` — 设置代理服务器地址（用于模型下载）
-  - `LATEXSNIPPER_FORCE_LINUX_GRAPHICS_FALLBACKS` — Linux 下强制启用 Qt/WebEngine 软件渲染兜底
-  - `LATEXSNIPPER_DISABLE_LINUX_GRAPHICS_FALLBACKS` — Linux 下禁用图形兜底，尝试原生 Qt/GPU 路径
-  - `LATEXSNIPPER_SHOW_RUNTIME_LOG` — 启动后显示或隐藏运行日志窗口
-]
-
-#block(breakable: false)[
-  *模型目录与桌面端行为：*
-
-  #table(
-    columns: (1.1fr, 3.2fr),
-    inset: 5pt,
-    stroke: 0.5pt + gray,
-    align: horizon,
-    [场景], [实际行为],
-    [命令行 `mathcraft_ocr` 默认缓存], [Windows：`%APPDATA%\MathCraft\models`；Linux：`${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper/MathCraft/models`；macOS：`~/Library/Application Support/LaTeXSnipper/MathCraft/models`],
-    [桌面端 MathCraft worker], [启动子进程前会清理 `PYTHONHOME`、`PYTHONPATH`、`PYTHONSTARTUP`、`PYTHONEXECUTABLE` 和 `MATHCRAFT_HOME`，并设置 `PYTHONNOUSERSITE=1`],
-    [可选包内模型目录], [如果可执行文件旁或包内实际存在 `MathCraft/models`，程序会自动设置 `MATHCRAFT_BUNDLED_MODELS_DIR` 并优先读取；当前发布包未预置模型时会直接使用用户模型缓存],
-    [CPU 模式], [`MATHCRAFT_PROVIDER=cpu` 会被 ONNX Runtime provider 检测逻辑读取，可用于避开 GPU/CUDA 兼容性问题],
-  )
-]
-
-#info-block("排障判断顺序", [
-  - 检测到包内 `MathCraft/models` 时，模型查找顺序是 #text(weight: "bold")[包内模型目录] → #text(weight: "bold")[用户模型缓存]；包内模型完整时，用户缓存缺失通常不会影响识别。
-  - 如果没有包内模型目录，`mathcraft_ocr` 会检查用户缓存；缺失或不完整时，运行时会按 manifest 下载或修复。
-  - `models check` 用来确认模型文件是否完整，`doctor --provider auto` 用来确认 ONNX Runtime provider，`warmup --profile mixed` 用来验证公式、文字和混合识别链路。
-  - `MATHCRAFT_PROVIDER=cpu` 只改变 ONNX Runtime provider 选择，不改变模型缓存目录；模型路径问题和 GPU/CUDA 问题要分开排查。
-])
-
-*变量适用边界：*
-
-#table(
-  columns: (1.15fr, 3fr),
-  inset: 5pt,
-  stroke: 0.5pt + gray,
-  align: horizon,
-  [排查目标], [优先检查],
-  [命令行模型缓存], [`MATHCRAFT_HOME` 和 `models check`；这只影响单独运行的 `mathcraft_ocr`。],
-  [桌面端识别失败], [日志目录、当前选择的识别模型，以及 worker 环境；桌面端会清理外部 Python 变量和 `MATHCRAFT_HOME`。],
-  [GPU / CUDA 异常], [`doctor --provider auto` 与 `MATHCRAFT_PROVIDER=cpu`；先确认是否为 provider 问题。],
-  [Linux 黑屏或 WebView 异常], [`LATEXSNIPPER_FORCE_LINUX_GRAPHICS_FALLBACKS` / `LATEXSNIPPER_DISABLE_LINUX_GRAPHICS_FALLBACKS`；它们只影响 Qt/WebEngine 图形路径。],
-)
+网络代理 `HTTP_PROXY`、`HTTPS_PROXY` 可作用于应用下载和外部服务。Linux 预览图形变量 `LATEXSNIPPER_FORCE_LINUX_GRAPHICS_FALLBACKS` 与 `LATEXSNIPPER_DISABLE_LINUX_GRAPHICS_FALLBACKS` 只影响 Qt 图形后端，具体用法见平台章节。排障时优先使用应用诊断中的实际版本、提供者与日志。

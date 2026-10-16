@@ -90,9 +90,9 @@ def test_worker_error_response_keeps_native_stderr_in_log(monkeypatch, caplog):
     caplog.set_level(logging.INFO, logger="latexsnipper.backend.mathcraft.model")
     wrapper = _script_worker(
         monkeypatch,
-        "import sys,json; sys.stdin.readline(); "
+        "import sys,json; request=json.loads(sys.stdin.readline()); "
         'sys.stderr.write("native diagnostic\\n"); sys.stderr.flush(); '
-        'print(json.dumps({"ok":False,"error":{"type":"ValueError","message":"failed","traceback":"remote frame"}}),flush=True); '
+        'print(json.dumps({"protocol":1,"id":request["id"],"ok":False,"error":{"type":"ValueError","message":"failed","traceback":"remote frame"}}),flush=True); '
         "sys.stdin.readline()",
     )
     try:

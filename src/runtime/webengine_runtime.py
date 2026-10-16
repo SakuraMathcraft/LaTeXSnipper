@@ -7,7 +7,6 @@ import os
 import sys
 from pathlib import Path
 
-from runtime.dependency_python import clean_path_value
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
@@ -55,14 +54,6 @@ def _log_webengine_diagnostics(app_dir: Path | None = None) -> None:
             exe_dir / "PyQt6" / "Qt6" / "bin" / exe_name,
             exe_dir / "Lib" / "site-packages" / "PyQt6" / "Qt6" / "bin" / exe_name,
         ])
-        pyexe_env = clean_path_value(os.environ.get("LATEXSNIPPER_PYEXE", ""))
-        if pyexe_env:
-            pyexe_dir = Path(pyexe_env).parent
-            candidates.extend([
-                pyexe_dir / "Qt6" / "bin" / exe_name,
-                pyexe_dir / "PyQt6" / "Qt6" / "bin" / exe_name,
-                pyexe_dir / "Lib" / "site-packages" / "PyQt6" / "Qt6" / "bin" / exe_name,
-            ])
     except Exception:
         candidates = []
 

@@ -14,9 +14,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from exporting.formula_format_helpers import normalize_latex_for_export
-from rendering.mathjax_runtime import cdn_roots, loader_script
+from rendering.mathjax_runtime import ASSET_ROOT, loader_script
 from localization.manager import mark_for_translation
-from runtime.pandoc_runtime import load_configured_pandoc_path, save_configured_pandoc_path
+from runtime.pandoc_runtime import resolve_pandoc
 from runtime.processes import hidden_subprocess_kwargs
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
@@ -67,26 +67,11 @@ _pandoc_version_cache: str | None = None
 _pandoc_path_cache: str | None = None
 
 
-def _append_to_path_once(directory: Path) -> None:
-    path_value = os.environ.get("PATH", "")
-    dir_str = str(directory)
-    entries = [os.path.normcase(os.path.abspath(item)) for item in path_value.split(os.pathsep) if item]
-    key = os.path.normcase(os.path.abspath(dir_str))
-    if key not in entries:
-        os.environ["PATH"] = dir_str + os.pathsep + path_value
-
-
 def _find_pandoc_binary() -> str | None:
-    configured = load_configured_pandoc_path()
-    if configured is not None:
-        _append_to_path_once(configured.parent)
-        os.environ["PYPANDOC_PANDOC"] = str(configured)
-        return str(configured)
-
-    found = shutil.which("pandoc")
-    if found:
-        os.environ["PYPANDOC_PANDOC"] = found
-        return found
+    path = resolve_pandoc()
+    if path is not None:
+        os.environ['PYPANDOC_PANDOC'] = str(path)
+        return str(path)
     return None
 
 
@@ -106,7 +91,11 @@ def check_pandoc_available(*, force: bool = False) -> bool:
         logger.debug("pypandoc is not installed – Pandoc export disabled")
         return False
 
-    pandoc_path = _find_pandoc_binary()
+    try:
+        pandoc_path = _find_pandoc_binary()
+    except (OSError, ValueError) as exc:
+        logger.warning('Pandoc 安装资源不可用: %s', exc)
+        return False
 
     if not pandoc_path:
         logger.debug("pandoc binary not found – Pandoc export disabled")
@@ -123,10 +112,9 @@ def check_pandoc_available(*, force: bool = False) -> bool:
         first_line = ver_output.splitlines()[0] if ver_output else ""
         _pandoc_version_cache = first_line.strip()
         _pandoc_path_cache = str(Path(pandoc_path).resolve())
-        save_configured_pandoc_path(_pandoc_path_cache)
-    except Exception:
-        _pandoc_version_cache = "(unknown version)"
-        _pandoc_path_cache = str(pandoc_path)
+    except Exception as exc:
+        logger.warning('Pandoc 运行检查失败: %s', exc)
+        return False
 
     _available_cache = True
     logger.debug("Pandoc 可用: %s", _pandoc_version_cache)
@@ -214,12 +202,12 @@ def _looks_like_latex_formula(text: str) -> bool:
 def _ensure_mathjax_script(html: str) -> str:
     # Pandoc preserves TeX in the page; replace its generated loader with our
     # pinned configuration, retaining browser-side typesetting of that source.
-    entry = cdn_roots()[0] + "/startup.js"
+    entry = ASSET_ROOT.resolve().as_uri() + "/startup.js"
     pattern = r'<script\b[^>]*\bsrc=[\"\']' + re.escape(entry) + r'[\"\'][^>]*>\s*</script>'
     html, count = re.subn(pattern, "", html, flags=re.IGNORECASE)
     if not count and "math inline" not in html and "math display" not in html:
         return html
-    script = loader_script(root=cdn_roots()[0])
+    script = loader_script()
     head_end = html.lower().find("</head>")
     return html[:head_end] + script + html[head_end:] if head_end >= 0 else script + html
 
@@ -290,7 +278,7 @@ def convert_latex_to(
         if "--standalone" not in args:
             args.append("--standalone")
         args = [arg for arg in args if arg != "--mathjax" and not arg.startswith("--mathjax=")]
-        args.append("--mathjax=" + cdn_roots()[0] + "/startup.js")
+        args.append("--mathjax=" + ASSET_ROOT.resolve().as_uri() + "/startup.js")
 
     if target_key == "pandoc_pdf" and "--pdf-engine" not in " ".join(args):
         engine = _find_pdf_engine()

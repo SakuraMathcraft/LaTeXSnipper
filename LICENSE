@@ -630,7 +630,7 @@ to attach them to the start of each source file to most effectively
 state the exclusion of warranty; and each file should have at least
 the "copyright" line and a pointer to where the full notice is found.
 
-    LaTeXSnipper - A desktop math workspace for capture, recognize, handwrite, edit, and compute.
+    LaTeXSnipper - A desktop OCR tool for screenshots, images, PDFs, and handwriting, with LaTeX editing, MathJax preview, and export.
     Copyright (C) 2026 MathCraft
 
     This program is free software: you can redistribute it and/or modify

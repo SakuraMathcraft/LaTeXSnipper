@@ -1,4 +1,3 @@
-import sys
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
@@ -21,8 +20,6 @@ class SettingsLayoutMixin:
     def __init__(self, parent=None):
         super().__init__(parent)
         self._model_selection_syncing = False
-        self._latex_test_in_progress = False
-        self._latex_detect_in_progress = False
         self._external_test_thread = None
         self._external_test_worker = None
         self._external_help_window = None
@@ -43,9 +40,9 @@ class SettingsLayoutMixin:
         )
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         self.setWindowTitle(tr("设置"))
-        self.resize(500, 600)
-        self.setMinimumWidth(500)
-        self.setMinimumHeight(600)
+        self.resize(420, 460)
+        self.setMinimumWidth(420)
+        self.setMinimumHeight(460)
         root = QVBoxLayout(self)
         root.setSpacing(0)
         root.setContentsMargins(0, 0, 0, 0)
@@ -62,11 +59,6 @@ class SettingsLayoutMixin:
         lay.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.scroll_area.setWidget(self.content_widget)
         root.addWidget(self.scroll_area)
-        self._probe_cache_ttl_sec = 45.0
-        self._compute_mode_probe_py = ""
-        self._compute_mode_probe_ts = 0.0
-        self._compute_mode_probe_info = None
-        self._compute_mode_probe_running = False
         self._theme_mode_values = ["auto", "light", "dark"]
         self._ui_language_values = ["auto", "zh_CN", "en_US"]
         lay.addWidget(QLabel(tr("选择识别模型:")))
@@ -228,67 +220,6 @@ class SettingsLayoutMixin:
         self.ui_language_combo.addItem("English", userData="en_US")
         appearance_layout.addWidget(self.ui_language_combo, 1, 1)
         lay.addWidget(appearance_row)
-        lay.addWidget(QLabel(tr("公式渲染引擎:")))
-        self.render_engine_combo = ComboBox()
-        self.render_engine_combo.setFixedHeight(36)
-        self.render_engine_combo.addItems(
-            [
-                tr("自动检测（推荐）"),
-                tr("本地 MathJax"),
-                "CDN MathJax",
-                "LaTeX + pdflatex",
-                "LaTeX + xelatex",
-            ]
-        )
-        self._render_modes = [
-            "auto",
-            "mathjax_local",
-            "mathjax_cdn",
-            "latex_pdflatex",
-            "latex_xelatex",
-        ]
-        lay.addWidget(self.render_engine_combo)
-        self.latex_options_widget = QWidget()
-        latex_layout = QVBoxLayout(self.latex_options_widget)
-        latex_layout.setContentsMargins(0, 8, 0, 0)
-        latex_layout.setSpacing(6)
-        latex_path_layout = QHBoxLayout()
-        latex_path_layout.addWidget(QLabel(tr("LaTeX 路径:")))
-        self.latex_path_input = QLineEdit()
-        self.latex_path_input.setPlaceholderText(
-            tr("例：/Library/TeX/texbin/pdflatex")
-            if sys.platform == "darwin"
-            else tr("例：C:\\Program Files\\MiKTeX\\miktex\\bin\\x64\\pdflatex.exe")
-        )
-        self.latex_path_input.setFixedHeight(32)
-        latex_path_layout.addWidget(self.latex_path_input)
-        self.btn_browse_latex = PushButton(FluentIcon.FOLDER, tr("浏览"))
-        self.btn_browse_latex.setFixedWidth(80)
-        self.btn_browse_latex.setFixedHeight(32)
-        latex_path_layout.addWidget(self.btn_browse_latex)
-        latex_layout.addLayout(latex_path_layout)
-        latex_btn_layout = QHBoxLayout()
-        self.btn_detect_latex = PushButton(FluentIcon.SEARCH, tr("自动检测"))
-        self.btn_detect_latex.setFixedHeight(32)
-        latex_btn_layout.addWidget(self.btn_detect_latex)
-        self.btn_test_latex = PrimaryPushButton(tr("验证路径"))
-        self.btn_test_latex.setFixedHeight(32)
-        latex_btn_layout.addWidget(self.btn_test_latex)
-        latex_layout.addLayout(latex_btn_layout)
-        self.lbl_latex_desc = QLabel(
-            tr("💡 需要本地安装 MacTeX 或 TeX Live，验证通过后才能使用")
-            if sys.platform == "darwin"
-            else tr("💡 需要本地安装 MiKTeX 或 TeX Live，验证通过后才能使用")
-        )
-        self.lbl_latex_desc.setStyleSheet("color: #666; font-size: 10px; padding: 4px;")
-        self.lbl_latex_desc.setWordWrap(True)
-        latex_layout.addWidget(self.lbl_latex_desc)
-        self.latex_options_widget.setVisible(False)
-        lay.addWidget(self.latex_options_widget)
-        lay.addWidget(QLabel(tr("检查更新:")))
-        self.btn_update = PushButton(FluentIcon.UPDATE, tr("检查更新"))
-        self.btn_update.setFixedHeight(36)
-        lay.addWidget(self.btn_update)
         lay.addWidget(QLabel(tr("启动行为:")))
         startup_row = QWidget()
         startup_layout = QHBoxLayout(startup_row)
@@ -324,89 +255,46 @@ class SettingsLayoutMixin:
         self._sync_startup_action_buttons()
         lay.addSpacing(8)
         lay.addWidget(QLabel(tr("高级设置:")))
-        terminal_row = QWidget()
-        terminal_layout = QHBoxLayout(terminal_row)
-        terminal_layout.setContentsMargins(0, 0, 0, 0)
-        terminal_layout.setSpacing(6)
+        advanced_row = QWidget()
+        advanced_layout = QHBoxLayout(advanced_row)
+        advanced_layout.setContentsMargins(0, 0, 0, 0)
+        advanced_layout.setSpacing(6)
         self.access_scope_button = PushButton(FluentIcon.GLOBE, tr("访问范围"))
         self.access_scope_button.setFixedHeight(36)
         self.access_scope_button.setToolTip(
             tr("配置 Automation API 的本机或远程访问范围")
         )
-        terminal_layout.addWidget(self.access_scope_button, 1)
-        self.environment_terminal_button = PushButton(
-            FluentIcon.COMMAND_PROMPT, tr("环境终端")
-        )
-        self.environment_terminal_button.setFixedHeight(36)
-        self.environment_terminal_button.setToolTip(
-            tr("打开主环境终端，可手动安装/修复依赖")
-        )
-        terminal_layout.addWidget(self.environment_terminal_button, 1)
-        lay.addWidget(terminal_row)
-        deps_row = QWidget()
-        deps_row_layout = QHBoxLayout(deps_row)
-        deps_row_layout.setContentsMargins(0, 0, 0, 0)
-        deps_row_layout.setSpacing(6)
-        self.dependency_management_button = PushButton(
-            FluentIcon.DEVELOPER_TOOLS, tr("依赖管理")
-        )
-        self.dependency_management_button.setFixedHeight(36)
-        self.dependency_management_button.setToolTip(
-            tr("打开依赖管理，可安装/修复依赖")
-        )
-        deps_row_layout.addWidget(self.dependency_management_button, 1)
-        self.model_cache_button = PushButton(FluentIcon.FOLDER, tr("模型缓存"))
-        self.model_cache_button.setFixedHeight(36)
-        self.model_cache_button.setToolTip(tr("打开 MathCraft 模型缓存目录"))
-        deps_row_layout.addWidget(self.model_cache_button, 1)
-        lay.addWidget(deps_row)
-        self.btn_cleanup_macos_local_data = None
-        if sys.platform == "darwin":
-            cleanup_row = QWidget()
-            cleanup_row_layout = QHBoxLayout(cleanup_row)
-            cleanup_row_layout.setContentsMargins(0, 0, 0, 0)
-            cleanup_row_layout.setSpacing(6)
-            self.btn_cleanup_macos_local_data = PushButton(
-                FluentIcon.BROOM, tr("清理本机依赖与缓存")
-            )
-            self.btn_cleanup_macos_local_data.setFixedHeight(36)
-            self.btn_cleanup_macos_local_data.setToolTip(
-                tr("移除本机下载的依赖、缓存和日志；默认保留应用设置")
-            )
-            cleanup_row_layout.addWidget(self.btn_cleanup_macos_local_data, 1)
-            lay.addWidget(cleanup_row)
+        advanced_layout.addWidget(self.access_scope_button, 1)
+        self.btn_update = PushButton(FluentIcon.UPDATE, tr("应用更新"))
+        self.btn_update.setFixedHeight(36)
+        advanced_layout.addWidget(self.btn_update, 1)
+        lay.addWidget(advanced_row)
+        resources_row = QWidget()
+        resources_layout = QHBoxLayout(resources_row)
+        resources_layout.setContentsMargins(0, 0, 0, 0)
+        resources_layout.setSpacing(6)
+        self.resources_button = PushButton(FluentIcon.DEVELOPER_TOOLS, tr("应用诊断"))
+        self.resources_button.setFixedHeight(36)
+        resources_layout.addWidget(self.resources_button, 1)
+        self.model_resources_button = PushButton(FluentIcon.FOLDER, tr("模型资源"))
+        self.model_resources_button.setFixedHeight(36)
+        self.model_resources_button.setToolTip(tr("查看桌面端实际使用的模型权重目录"))
+        resources_layout.addWidget(self.model_resources_button, 1)
+        lay.addWidget(resources_row)
         lay.addStretch()
         self.model_combo.currentIndexChanged.connect(self._on_model_combo_changed)
-        self.compute_mode_probe_done.connect(self._on_compute_mode_probe_done)
-        self._schedule_compute_mode_probe(force=True)
+        self.context.models.status_changed.connect(self._update_compute_mode_label)
+        self._update_compute_mode_label()
         self.btn_update.clicked.connect(lambda: check_update_dialog(self))
-        self.environment_terminal_button.clicked.connect(
-            self._open_environment_terminal
-        )
         self.access_scope_button.clicked.connect(self._open_automation_access_dialog)
-        self.dependency_management_button.clicked.connect(
-            self._open_dependency_management
-        )
-        self.model_cache_button.clicked.connect(self._open_model_cache)
-        if self.btn_cleanup_macos_local_data is not None:
-            self.btn_cleanup_macos_local_data.clicked.connect(
-                self._cleanup_macos_local_data
-            )
+        self.resources_button.clicked.connect(self._show_resource_diagnostics)
+        self.model_resources_button.clicked.connect(self._show_model_resources)
         self.runtime_log_button.clicked.connect(self._on_runtime_log_button_clicked)
         self.automation_api_button.clicked.connect(
             self._on_automation_api_button_clicked
         )
         self.theme_mode_combo.currentIndexChanged.connect(self._on_theme_mode_changed)
         self.ui_language_combo.currentIndexChanged.connect(self._on_ui_language_changed)
-        self.render_engine_combo.currentIndexChanged.connect(
-            self._on_render_engine_changed
-        )
-        self.latex_path_test_done.connect(self._on_latex_path_test_done)
-        self.latex_auto_detect_done.connect(self._on_latex_auto_detect_done)
-        self.btn_browse_latex.clicked.connect(self._browse_latex_path)
-        self.btn_detect_latex.clicked.connect(self._detect_latex)
-        self.btn_test_latex.clicked.connect(self._test_latex_path)
-        self.latex_path_input.textChanged.connect(self._on_latex_path_changed)
         self.external_apply_preset_btn.clicked.connect(self._apply_external_preset)
         self.external_test_btn.clicked.connect(self._test_external_model_connection)
         self.external_help_btn.clicked.connect(self._show_external_model_help)
@@ -447,8 +335,6 @@ class SettingsLayoutMixin:
         self._update_model_desc()
         self._init_theme_mode_combo()
         self._init_ui_language_combo()
-        self._init_render_engine()
-        self._load_latex_settings()
         self.apply_theme_styles(force=True)
 
     def _to_bool(self, value) -> bool:

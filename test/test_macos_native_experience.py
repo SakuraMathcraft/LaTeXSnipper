@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from bootstrap import deps_layer_specs
 from runtime import app_paths
 
 
@@ -16,56 +15,3 @@ def test_macos_app_paths_use_library_directories(tmp_path, monkeypatch) -> None:
     assert app_paths.app_config_path() == (
         tmp_path / "Library" / "Application Support" / "LaTeXSnipper" / "LaTeXSnipper_config.json"
     )
-
-
-def test_macos_dependency_gpu_probe_does_not_run_cuda_tools(monkeypatch) -> None:
-    def fail_run(*_args, **_kwargs):
-        raise AssertionError("macOS dependency UI must not probe nvidia-smi or nvcc")
-
-    monkeypatch.setattr(deps_layer_specs.sys, "platform", "darwin")
-    monkeypatch.setattr(deps_layer_specs.subprocess, "run", fail_run)
-
-    assert deps_layer_specs._gpu_available() is False
-    assert deps_layer_specs._cuda_toolkit_available() is False
-
-
-def test_macos_dependency_management_hides_nvidia_cuda_gpu_option(monkeypatch) -> None:
-    from bootstrap import deps_ui
-
-    monkeypatch.setattr(deps_ui.sys, "platform", "darwin")
-
-    assert "MATHCRAFT_GPU" not in deps_ui._visible_layer_names()
-    assert "MATHCRAFT_CPU" in deps_ui._visible_layer_names()
-
-
-def test_dependency_failure_guidance_is_concise_and_platform_neutral() -> None:
-    from bootstrap import deps_workers
-
-    text = "\n".join(deps_workers._install_failure_guidance(["lxml>=6.1,<7"], 1, 2))
-
-    assert "CMD" not in text
-    assert "管理员" not in text
-    assert "pip install" not in text
-    assert "lxml>=6.1,<7" in text
-    assert "重试" in text
-
-
-def test_dependency_failure_dialog_is_localized() -> None:
-    from bootstrap import python_setup
-
-    title, message = python_setup.install_failure_dialog_copy()
-
-    assert title == "依赖安装未完成"
-    assert "Some dependencies failed" not in message
-    assert "查看日志" in message
-
-
-def test_macos_dependency_failure_log_line_is_localized(monkeypatch) -> None:
-    from bootstrap import python_setup
-
-    monkeypatch.setattr(python_setup.sys, "platform", "darwin")
-
-    text = python_setup.install_failure_log_line()
-
-    assert "Install has failures" not in text
-    assert "依赖安装未完成" in text

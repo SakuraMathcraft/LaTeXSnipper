@@ -1,4 +1,4 @@
-﻿# -*- mode: python ; coding: utf-8 -*-
+# -*- mode: python ; coding: utf-8 -*-
 """
 LaTeXSnipper PyInstaller spec for macOS.
 
@@ -23,7 +23,7 @@ sys.setrecursionlimit(max(5000, sys.getrecursionlimit() * 5))
 ROOT = Path(SPECPATH)
 SRC = ROOT / "src"
 sys.path.insert(0, str(SRC))
-from runtime.product_version import PRODUCT_VERSION
+
 
 APP_NAME = os.environ.get("LATEXSNIPPER_BUILD_NAME", "LaTeXSnipper")
 ICON_ICNS_ENV = os.environ.get("LATEXSNIPPER_ICON_ICNS", "").strip()
@@ -88,34 +88,6 @@ if QT6_PLUGINS.exists():
 # ---------------------------------------------------------------------------
 # Data collection helpers
 # ---------------------------------------------------------------------------
-def _collect_tree_as_datas(src_root: Path, dest_prefix: str):
-    """Collect a directory tree as PyInstaller datas tuples."""
-    out = []
-    if not src_root.exists():
-        return out
-    for p in src_root.rglob("*"):
-        if not p.is_file():
-            continue
-        if p.suffix.lower() in {".pyc", ".pyo"} or "__pycache__" in p.parts:
-            continue
-        rel_parent = p.relative_to(src_root).parent
-        if str(rel_parent) == ".":
-            dest_dir = dest_prefix
-        else:
-            dest_dir = f"{dest_prefix}/{str(rel_parent).replace(os.sep, '/')}"
-        out.append((str(p), dest_dir))
-    return out
-
-
-# ---------------------------------------------------------------------------
-# MathCraft OCR package
-# ---------------------------------------------------------------------------
-MATHCRAFT_OCR_SRC = ROOT / "mathcraft_ocr"
-if MATHCRAFT_OCR_SRC.exists():
-    extra_datas += _collect_tree_as_datas(MATHCRAFT_OCR_SRC, "mathcraft_ocr")
-    print(f"[SPEC] include MathCraft OCR package: {MATHCRAFT_OCR_SRC}")
-
-
 # ---------------------------------------------------------------------------
 # certifi certificate bundle
 # ---------------------------------------------------------------------------
@@ -169,12 +141,6 @@ a = Analysis(
 
         # Application submodules
         "editor",
-        "editor.workbench_bridge",
-        "editor.workbench_window",
-        "editor.latex_snippet_panel",
-        "bootstrap",
-        "bootstrap.deps_pip_runner",
-        "bootstrap.deps_state",
         "exporting",
         "exporting.formula_converters",
         "exporting.formula_export",
@@ -204,8 +170,6 @@ a = Analysis(
         "handwriting.stroke_store",
         "handwriting.tools",
         "handwriting.types",
-        "preview.document.pdf_fitz",
-        "preview.document.pdf_poppler",
     ],
     hookspath=[],
     hooksconfig={},
@@ -235,8 +199,6 @@ a = Analysis(
         "propcache",
         "yarl",
         "ctranslate2",
-        "lxml",
-        "fitz",
         "shapely",
         "pyclipper",
         "yaml",
@@ -282,7 +244,7 @@ exe = EXE(
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
-    codesign_identity=None,
+    codesign_identity=os.environ.get("CODESIGN_IDENTITY"),
     entitlements_file=None,
     icon=str(ICON_ICNS) if ICON_ICNS is not None else None,
 )
@@ -301,33 +263,6 @@ coll = COLLECT(
 )
 
 # ---------------------------------------------------------------------------
-# BUNDLE
-# ---------------------------------------------------------------------------
-app_bundle = BUNDLE(
-    coll,
-    name=APP_NAME + ".app",
-    icon=str(ICON_ICNS) if ICON_ICNS is not None else None,
-    bundle_identifier="com.mathcraft.latexsnipper",
-    info_plist={
-        "NSPrincipalClass": "NSApplication",
-        "NSHighResolutionCapable": True,
-        "CFBundleName": APP_NAME,
-        "CFBundleDisplayName": "LaTeXSnipper",
-        "CFBundleIdentifier": "com.mathcraft.latexsnipper",
-        "CFBundleVersion": PRODUCT_VERSION,
-        "CFBundleShortVersionString": PRODUCT_VERSION,
-        "NSHumanReadableCopyright": "Copyright 2026 Mathcraft",
-        "CFBundleDocumentTypes": [],
-        "LSMinimumSystemVersion": "13.0",
-        "NSDesktopFolderUsageDescription": "LaTeXSnipper needs access when you choose files from or export results to Desktop.",
-        "NSDocumentsFolderUsageDescription": "LaTeXSnipper needs access when you choose documents or export recognition results to Documents.",
-        "NSDownloadsFolderUsageDescription": "LaTeXSnipper needs access when you choose downloaded files or save exported results to Downloads.",
-        "NSNetworkVolumesUsageDescription": "LaTeXSnipper needs access when you choose files from network volumes.",
-        "NSRemovableVolumesUsageDescription": "LaTeXSnipper needs access when you choose files from removable drives.",
-    },
-)
-
-# ---------------------------------------------------------------------------
 # Post-build pruning
 # ---------------------------------------------------------------------------
 def _prune_collect_tree_macos(dist_root: Path):
@@ -338,7 +273,7 @@ def _prune_collect_tree_macos(dist_root: Path):
     remove_prefixes = (
         "aiohttp", "frozenlist", "multidict", "propcache", "yarl",
         "ctranslate2", "cv2", "rapidocr",
-        "numpy", "numpy.libs", "lxml", "fitz",
+        "numpy", "numpy.libs",
         "shapely", "pyclipper",
         "yaml", "markupsafe", "pydantic_core",
         "regex", "safetensors", "sentencepiece",
@@ -525,7 +460,6 @@ def _prune_qt_webengine_payload(dist_root: Path):
             Path("imageformats/qtga.dll"),
             Path("imageformats/qwbmp.dll"),
             Path("platforms/qminimal.dll"),
-            Path("platforms/qoffscreen.dll"),
             Path("position/qtposition_nmea.dll"),
             Path("position/qtposition_positionpoll.dll"),
             Path("position/qtposition_winrt.dll"),

@@ -27,7 +27,7 @@ from recognition.model_policy import (
     is_internal_document_model,
     resolve_document_recognition_model,
 )
-from runtime.content_types import FORMULA_CONTENT_TYPE, content_type_for_external_output
+from runtime.content_types import content_type_for_external_output
 from ui.settings_window import SettingsWindow
 from ui.window_helpers import show_normal_window
 
@@ -61,7 +61,6 @@ class WindowController(QObject):
         self.coordinator = coordinator
         self.settings_window = None
         self.handwriting_window = None
-        self.workbench_window = None
         self.favorites_window = None
 
     def open_settings(self):
@@ -92,34 +91,6 @@ class WindowController(QObject):
         fav = self.favorites_window
         show_normal_window(fav)
 
-    def _on_workbench_insert(self, latex: str):
-        text = (latex or "").strip()
-        if text == "__LOAD_FROM_MAIN__":
-            text = self.view.latex_editor.toPlainText().strip()
-            if not text:
-                if getattr(self, "workbench_window", None):
-                    self.workbench_window.show_info(
-                        tr("当前无内容"), tr("主编辑器为空，没有可载入的公式")
-                    )
-                return
-            self.workbench_window.set_latex(text)
-            self.workbench_window.show_success(
-                tr("已载入"), tr("主编辑器内容已载入数学工作台")
-            )
-            return
-        if not text:
-            if getattr(self, "workbench_window", None):
-                self.workbench_window.show_info(
-                    tr("当前无内容"), tr("数学工作台为空，没有可写回的内容")
-                )
-            return
-        self.view.latex_editor.setPlainText(text)
-        self.preview.render_latex_in_preview(text, FORMULA_CONTENT_TYPE)
-        self.status.set_action_status(tr("工作台内容已回填到主编辑器"))
-        if getattr(self, "workbench_window", None):
-            self.workbench_window.show_success(
-                tr("已写回"), tr("数学工作台内容已写回主编辑器")
-            )
 
     def _on_handwriting_insert(self, latex: str, output_mode: str):
         text = (latex or "").strip()
@@ -172,21 +143,6 @@ class WindowController(QObject):
         if is_internal_document_model(model):
             self.models.ensure_warmup(preferred_model=model, update_preference=False)
 
-    def open_workbench(self):
-        if not getattr(self, "workbench_window", None):
-            from editor.workbench_window import WorkbenchWindow
-
-            self.workbench_window = WorkbenchWindow(
-                self.view, on_insert_latex=self._on_workbench_insert
-            )
-            self.workbench_window.destroyed.connect(
-                lambda: setattr(self, "workbench_window", None)
-            )
-            self.workbench_window.apply_theme_styles(force=True)
-        current = self.view.latex_editor.toPlainText().strip()
-        if current:
-            self.workbench_window.set_latex(current)
-        show_normal_window(self.workbench_window)
 
     def show_window(self):
         self.system_provider.activate_window(self.view)
@@ -210,7 +166,6 @@ class WindowController(QObject):
         self.favorites_window.save_favorites()
         for window in (
             self.handwriting_window,
-            self.workbench_window,
             self.favorites_window,
         ):
             if window is not None:

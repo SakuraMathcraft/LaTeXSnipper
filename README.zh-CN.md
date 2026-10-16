@@ -25,10 +25,10 @@
 | 功能           | 你可以做什么                                             |
 | ------------ | -------------------------------------------------- |
 | 📸 **识别**    | 框选截图、打开图片、选择 PDF 页面或手写，识别公式、文本和图文混排内容              |
-| ⌨️ **编辑与计算** | 使用 MathLive 和实时预览编辑公式，在数学工作台中化简、求值和求解              |
+| ⌨️ **编辑与预览** | 编辑 LaTeX 源码，使用内置 MathJax 实时预览公式              |
 | 🔄 **导出**    | 复制公式或导出文档，支持 LaTeX、MathML、Word、PDF、Typst 等 20 种格式  |
 | 🧩 **集成**    | 在 Word/PowerPoint 中使用，或通过 Automation API 连接脚本与其他工具 |
-| 🧠 **模型选择**  | 下载依赖和权重后在本地运行 MathCraft OCR，也可配置本地或线上外部模型          |
+| 🧠 **模型选择**  | 使用随包 MathCraft OCR 在本地识别，也可配置本地或线上外部模型          |
 | 🎨 **个性化**   | 中英文界面、亮暗主题、自定义快捷键、历史记录与收藏夹                         |
 
 **MathCraft OCR：** [基准测试结果](https://github.com/SakuraMathcraft/MathCraft-Models/tree/main/benchmarks) · [复现套件](benchmarks/mathcraft_ocr/README.md)
@@ -38,23 +38,16 @@
 ## 下载与开始使用
 
 1. **安装桌面端。** 从 [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest) 下载对应系统的安装包。
-2. **准备识别环境。** 安装所使用识别模型需要的运行环境。
+2. **选择识别模型。** 安装后直接运行，在设置中选择内置模型和识别类型。
 3. **开始识别与编辑。** 使用截图识别、图片、PDF 或手写入口，然后查看、复制或导出结果。
 
 > [!IMPORTANT]
-> 首次启动时，请在**依赖管理**中安装 MathCraft OCR 所需依赖层及 CPU 或 GPU 后端；首次模型初始化需要下载权重。如果仅使用外部模型，请在**设置**中配置服务并测试连接。
+> 本分支已接通自包含组件、三平台安装事务、应用更新与资源修复源码。正式发行仍须通过 GitHub Actions 签名、原生安装和真实 OCR 验收；当前尚无这些新安装器的 CI 验收结果，详见[实施状态](docs/desktop_runtime_distribution_plan.md)。
 
-| 平台                       | 下载文件                              | 使用识别前注意                                                  |
-| ------------------------ | --------------------------------- | -------------------------------------------------------- |
-| **Windows**              | `LaTeXSnipper_<version>_amd64.exe` | 已包含 Python 运行时，无需另装系统 Python                             |
-| **Linux（Debian/Ubuntu）** | `LaTeXSnipper_<version>_<architecture>.deb`                      | 需要 Python `>=3.10,<3.14` 及 venv/pip；Wayland 可能限制截图和全局快捷键 |
-| **macOS**                | `LaTeXSnipper_<version>_<architecture>.dmg`         | 需要 Python `>=3.10,<3.14` 及 venv/pip；截图需授予屏幕录制权限          |
-
-> [!NOTE]
-> Linux/macOS 使用系统 Python 创建受管理的依赖环境，Windows 使用内置 Python 3.11 模板。`.deb` 声明了 `python3` 和 `python3-venv` 依赖；macOS 若没有可用 Python，请先安装受支持的版本。
+Windows/Linux 安装包提供 CPU 与 NVIDIA GPU 发行，macOS 使用 CPU。Python、推理依赖、模型及 Pandoc 属于安装资源。GPU 发行自带私有 CUDA/cuDNN 库，要求支持的 NVIDIA 显卡与驱动。源码开发通过标准开发工具提供 Python 依赖和 PATH Pandoc。
 
 > [!TIP]
-> 权限、模型下载、环境目录及故障排查见 [常见问题](docs/faq.md)、[用户数据位置](docs/user_data_storage.md) 和 [完整用户手册](user_manual/user_manual.md)。
+> 权限、安装资源和故障排查见[常见问题](docs/faq.md)、[用户数据位置](docs/user_data_storage.md)和[完整用户手册](user_manual/user_manual.md)。
 
 ---
 
@@ -109,7 +102,7 @@
 内置导出覆盖 **LaTeX、Markdown 公式、MathML、HTML、Word OMML 和 SVG 代码**。
 
 > [!NOTE]
-> 在依赖管理中安装可选的 **Pandoc** 层后，可导出 Word、PowerPoint、EPUB、PDF、Typst 等文档；PDF 导出还需要 LaTeX PDF 引擎。
+> 自包含发行使用安装资源中的 **Pandoc**，源码开发使用 PATH Pandoc，可导出 Word、PowerPoint、EPUB、PDF、Typst 等文档；PDF 导出还需要外部 LaTeX PDF 引擎。
 
 完整格式列表与要求见 [用户手册](user_manual/user_manual.md)。
 

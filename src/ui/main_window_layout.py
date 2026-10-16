@@ -10,7 +10,7 @@ from runtime.webengine_runtime import ensure_webengine_loaded, get_webengine_vie
 from ui.controllers.file_drop import image_extensions
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
-DEFAULT_MAIN_WINDOW_SIZE = (1180, 720)
+DEFAULT_MAIN_WINDOW_SIZE = (1160, 700)
 EDITOR_TOOLBAR_RIGHT_MARGIN = 8
 
 
@@ -85,7 +85,6 @@ def build_main_window_layout(view, cfg):
     view.copy_editor_btn = PushButton(FluentIcon.COPY, tr("复制"))
     view.export_btn = PushButton(FluentIcon.SHARE, tr("导出"))
     view.handwriting_btn = PushButton(FluentIcon.FINGERPRINT, tr("手写识别"))
-    view.workbench_btn = PushButton(FluentIcon.PROJECTOR, tr("数学工作台"))
     editor_actions = QHBoxLayout()
     editor_actions.setContentsMargins(0, 0, 0, 0)
     editor_actions.setSpacing(6)
@@ -94,7 +93,6 @@ def build_main_window_layout(view, cfg):
     editor_actions.addWidget(view.handwriting_btn)
     editor_actions.addWidget(view.copy_editor_btn)
     editor_actions.addWidget(view.export_btn)
-    editor_actions.addWidget(view.workbench_btn)
     editor_header.addLayout(editor_actions)
     right_layout.addLayout(editor_header)
     from qfluentwidgets import PlainTextEdit
@@ -204,7 +202,6 @@ def adjust_main_window_size(view):
         view.handwriting_btn,
         view.copy_editor_btn,
         view.export_btn,
-        view.workbench_btn,
     ):
         button.setMinimumWidth(button.sizeHint().width())
     left_layout.activate()

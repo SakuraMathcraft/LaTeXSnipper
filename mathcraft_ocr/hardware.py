@@ -11,7 +11,7 @@ import subprocess
 import sys
 
 from .devices import query_dxgi_adapters, query_nvidia_devices, select_nvidia_device
-from .providers import GPU_PROVIDER_NAMES, ProviderInfo
+from .providers import ACCELERATOR_PROVIDER_NAMES, ProviderInfo
 
 
 @dataclass(frozen=True)
@@ -135,7 +135,7 @@ def choose_rec_batch_num(
 ) -> int:
     hw = hardware or detect_hardware_info()
     active = str(provider_info.active_provider or "")
-    if provider_info.device == "gpu" and active in GPU_PROVIDER_NAMES:
+    if provider_info.device == "gpu" and active in ACCELERATOR_PROVIDER_NAMES:
         free_vram = max(0, int(hw.gpu_free_memory_mb or 0))
         if free_vram >= 8192:
             return 24

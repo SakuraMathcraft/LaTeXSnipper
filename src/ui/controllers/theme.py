@@ -182,7 +182,6 @@ class ThemeController(QObject):
             self.apply_styles(force=True)
             for attr in (
                 "settings_window",
-                "workbench_window",
                 "favorites_window",
                 "handwriting_window",
             ):
@@ -261,14 +260,6 @@ class ThemeController(QObject):
         apply_theme_mode(normalized)
         try:
             self.apply_styles(force=True)
-        except Exception:
-            pass
-        try:
-            if (
-                getattr(self.windows, "workbench_window", None)
-                and self.windows.workbench_window.isVisible()
-            ):
-                self.windows.workbench_window.apply_theme_styles(force=True)
         except Exception:
             pass
         try:

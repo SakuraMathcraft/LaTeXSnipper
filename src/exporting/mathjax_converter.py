@@ -69,7 +69,7 @@ class _MathJaxConverter:
             self._page.loadFinished,
             lambda: self._page.setHtml(
                 "<!doctype html><html><head>"
-                + loader_script(output="svg", typeset=False, fallback=False)
+                + loader_script(output="svg", typeset=False)
                 + "</head><body></body></html>", QUrl.fromLocalFile(str(ASSET_ROOT) + "/")),
             timeout_ms=15_000,
         )

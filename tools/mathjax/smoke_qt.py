@@ -5,25 +5,24 @@ import json
 import sys
 import time
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'src'))
+ROOT = Path(__file__).resolve().parents[2]
+sys.path[:0] = [str(ROOT), str(ROOT / 'src')]
 
 from PyQt6.QtWebEngineWidgets import QWebEngineView  # noqa: E402,F401
-from PyQt6.QtWebEngineCore import QWebEngineSettings  # noqa: E402
 from PyQt6.QtWidgets import QApplication  # noqa: E402
-from PyQt6.QtCore import QUrl  # noqa: E402
+from PyQt6.QtCore import QCoreApplication, QEvent, QUrl  # noqa: E402
 from exporting.mathjax_converter import _MathJaxConverter  # noqa: E402
 from exporting.pandoc_exporter import convert_latex_to  # noqa: E402
 from preview.math_preview import build_math_html  # noqa: E402
 from preview.content_preview import build_mixed_content_html  # noqa: E402
 from preview.smart_preview import build_smart_preview_html  # noqa: E402
-from rendering.mathjax_runtime import ASSET_ROOT, cdn_roots, loader_script  # noqa: E402
+from handwriting.latex_preview import build_handwriting_preview_html  # noqa: E402
+from rendering.mathjax_runtime import ASSET_ROOT, loader_script  # noqa: E402
 
 
 def main() -> None:
     app = QApplication(['mathjax-smoke'])
     converter = _MathJaxConverter()
-    if '--cdn' in sys.argv:
-        converter._page.settings().setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
     samples = [r'\ce{CO2 + C -> 2 CO}', r'\mathrm{\delta}',
                r'\begin{align}&\text{设 }A,B\text{ 为事件}\\&P(A\mid B)=\frac{P(A\cap B)}{P(B)}\end{align}']
     for source in samples:
@@ -31,19 +30,17 @@ def main() -> None:
         assert 'data-mjx-error' not in result['svg'] and '<merror' not in result['mathml']
     base = QUrl.fromLocalFile(str(ASSET_ROOT) + '/')
     exported = convert_latex_to('pandoc_html_standalone', r'\[\ce{CO2 + C -> 2 CO}\]')
-    assert 'mathjax@4.1.3' in exported and '\\ce{CO2 + C' in exported
-    # Replay the exported page offline using exactly the vendored counterpart of its CDN assets.
-    original_exported = exported
-    for root in cdn_roots():
-        exported = exported.replace(root, base.toString().rstrip('/'))
+    assert ASSET_ROOT.resolve().as_uri() in exported and '\\ce{CO2 + C' in exported
     pages = [build_math_html(samples[-1]), build_mixed_content_html('混排 $x^2$'),
-             build_smart_preview_html([('$x$', 'Formula', 'mathcraft')],
-                                      lambda _: '<div class="formula-content">$x^2$</div>'),
+             build_smart_preview_html([('x', 'Formula', 'mathcraft')]),
+             build_handwriting_preview_html('手写结果 $x^2$', 'markdown'),
              exported,
-             '<html><head>' + loader_script(font='mathjax-stix2', root=base.toString(), fallback=False)
+             '<html><head>' + loader_script(font='mathjax-stix2')
              + '</head><body>$\\mathbb{ABC}$</body></html>']
-    if '--cdn' in sys.argv:
-        pages.append(original_exported)
+    document = ('### 试卷片段\n正文 $x<y$，解不等式：\n'
+                '$$\\begin{cases}x+1<2x-1\\\\x-1>0\\end{cases}$$\n'
+                '<svg width="80" height="60"><path d="M0 0 L60 60" stroke="#123456"/></svg>')
+    pages += [build_smart_preview_html([(document, 'Exam', 'mathcraft')]), build_math_html(document)]
     for html in pages:
         assert converter._wait_for_signal(converter._page.loadFinished,
                                          lambda: converter._page.setHtml(html, base), timeout_ms=15000)
@@ -71,6 +68,7 @@ def main() -> None:
         else:
             raise AssertionError(f'CHTML page failed to typeset: {state}')
     converter._view.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
     app.processEvents()
     print(f'Qt smoke passed: {len(samples)} SVG/MathML conversions, {len(pages)} CHTML pages.')
 
