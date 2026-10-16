@@ -2,7 +2,6 @@
 
 from dataclasses import replace
 import os
-from pathlib import Path
 import threading
 import time
 from types import SimpleNamespace

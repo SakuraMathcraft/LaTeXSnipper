@@ -17,16 +17,16 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / 'src'), str(ROOT / 'scripts')]
 
-from runtime.component_archive import extract_archive
-from runtime.component_inventory import verify_component
-from runtime.distribution_manifest import Component, DistributionManifest, ManifestError, read_json
-from runtime.installed_resources import current_target
-from update.deployment_transaction import verify_distribution
-from update.deployment_validation import validate_installed_worker
-from distribution_inputs import load_resources, load_sources
-from release_artifacts import artifact, finalize_windows, package_bundle_seal, package_component, publish_catalog
-from release_installers import link_or_copy, linux_installer, macos_installer, run, windows_installer
-from desktop_distribution import write_json
+from runtime.component_archive import extract_archive  # noqa: E402
+from runtime.component_inventory import verify_component  # noqa: E402
+from runtime.distribution_manifest import Component, DistributionManifest, ManifestError, read_json  # noqa: E402
+from runtime.installed_resources import current_target  # noqa: E402
+from update.deployment_transaction import verify_distribution  # noqa: E402
+from update.deployment_validation import validate_installed_worker  # noqa: E402
+from distribution_inputs import load_resources, load_sources  # noqa: E402
+from release_artifacts import artifact, finalize_windows, package_bundle_seal, package_component, publish_catalog  # noqa: E402
+from release_installers import link_or_copy, linux_installer, macos_installer, run, windows_installer  # noqa: E402
+from desktop_distribution import write_json  # noqa: E402
 
 
 def fingerprint(paths: list[Path], configuration: object) -> str:

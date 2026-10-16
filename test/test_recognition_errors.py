@@ -1,7 +1,6 @@
 # pyright: reportMissingImports=false
 
 import unittest
-from unittest import mock
 
 
 class TestRecognitionErrors(unittest.TestCase):

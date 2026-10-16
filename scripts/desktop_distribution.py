@@ -13,10 +13,10 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'scripts'), str(ROOT / 'src')]
 
-from distribution_inputs import load_sources, load_dependencies, load_resources
-from runtime.component_inventory import file_sha256, inventory_component, verify_component
-from runtime.distribution_manifest import Artifact, Component, DistributionManifest, ManifestError, ReleaseCatalog, read_json
-from update.component_plan import plan_component_update
+from distribution_inputs import load_sources, load_dependencies, load_resources  # noqa: E402
+from runtime.component_inventory import file_sha256, inventory_component, verify_component  # noqa: E402
+from runtime.distribution_manifest import Artifact, Component, DistributionManifest, ManifestError, ReleaseCatalog, read_json  # noqa: E402
+from update.component_plan import plan_component_update  # noqa: E402
 
 
 def write_json(path: Path, value: object) -> None:

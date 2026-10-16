@@ -13,13 +13,13 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / 'scripts'), str(ROOT / 'src')]
 
-from distribution_archives import download_artifact
-from runtime.component_archive import extract_archive
-from distribution_inputs import load_resources
-from mathcraft_ocr.manifest import load_manifest
-from runtime.component_inventory import file_sha256, inventory_component
-from runtime.distribution_manifest import Artifact, ManifestError
-from runtime.processes import hidden_subprocess_kwargs
+from distribution_archives import download_artifact  # noqa: E402
+from runtime.component_archive import extract_archive  # noqa: E402
+from distribution_inputs import load_resources  # noqa: E402
+from mathcraft_ocr.manifest import load_manifest  # noqa: E402
+from runtime.component_inventory import file_sha256, inventory_component  # noqa: E402
+from runtime.distribution_manifest import Artifact, ManifestError  # noqa: E402
+from runtime.processes import hidden_subprocess_kwargs  # noqa: E402
 
 
 def assemble_models(lock: dict, output: Path, cache: Path) -> None:

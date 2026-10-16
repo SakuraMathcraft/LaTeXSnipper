@@ -1,6 +1,5 @@
 # pyright: reportMissingImports=false
 
-import os
 import io
 import json
 import unittest

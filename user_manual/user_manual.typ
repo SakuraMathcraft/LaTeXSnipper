@@ -237,7 +237,7 @@ Windows/Linux 提供 CPU 与 NVIDIA GPU 两种发行，macOS Apple Silicon 使�
 
 托盘或菜单栏状态菜单还提供 #text(weight: "bold")[识别屏幕]：默认按鼠标释放位置自动选择，也可以固定到某一块显示器。多屏截图位置不对时，优先检查这里。
 
-== 设置页当前业务逻辑
+== 设置
 
 设置页的"选择识别模型"只有两类入口：
 
@@ -248,7 +248,7 @@ Windows/Linux 提供 CPU 与 NVIDIA GPU 两种发行，macOS Apple Silicon 使�
 
 普通图片和截图的确认窗口、历史记录及主窗口预览会按结果类型渲染：LaTeX 使用公式预览，Markdown 使用混合预览，纯文本使用文本预览。本地 MathCraft 的公式、混合和纯文字结果遵循相同映射。
 
-设置页还包含外观主题、界面语言、运行日志、自动化接口、访问范围、应用更新、应用诊断和模型资源。应用更新与访问范围位于同一行。所有桌面公式预览固定使用内置 MathJax；模型资源窗口打开时自动检查权重路径和完整性，底部提供一个“打开目录”按钮。内置权重缺失或损坏时先检查 MathCraft 默认缓存，校验通过则复用，否则下载到同一缓存。
+设置中可以调整主题、语言、日志和自动化接口，通过“应用更新”升级，通过“应用诊断”排查故障。
 
 == PDF 识别流程
 
@@ -351,7 +351,7 @@ curl -sS "http://100.x.x.x:28765/api/v1/recognition/jobs" \
 - Linux：`${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper/MathCraft/models`
 - macOS：`~/Library/Application Support/LaTeXSnipper/MathCraft/models`
 
-设置中的“模型资源”列出安装权重、共享缓存和各模型的实际选用目录。窗口底部的“打开目录”打开正在使用的缓存或安装模型根目录。关闭后再次打开会复用窗口及其校验结果。
+可以在设置的“模型资源”中查看各模型实际使用的路径和校验状态。
 
 桌面端显式传入默认缓存位置，不读取 `MATHCRAFT_HOME`。单独使用 mathcraft-ocr 库或 CLI 时仍可以用公开参数或环境变量指定缓存。共享缓存的删除会影响使用它的 CLI，因此清理前应确认用途。
 
@@ -650,7 +650,7 @@ macOS 删除安装的应用。卸载只移除产品拥有的安装资源；用�
 
 == 窗口关闭与退出
 
-Windows 有托盘时关闭主窗口会隐藏，使用托盘退出。Linux 无托盘时会询问退出；macOS 关闭窗口会最小化，使用菜单退出或 Command+Q。更新安装由应用生命周期控制器统一停止任务与 worker 后交接。
+Windows 有托盘时关闭主窗口会隐藏，使用托盘退出。Linux 无托盘时会询问退出；macOS 关闭窗口会最小化，使用菜单退出或 Command+Q。
 
 // ═══════════════════════════════════════════
 // 平台特定
@@ -686,7 +686,7 @@ tccutil reset ScreenCapture com.mathcraft.latexsnipper
 
 == macOS 签名与资源修复
 
-当前 macOS 发行不要求 Apple 开发者证书或公证。更新时在应用旁侧构建目标组合，验证资源完整性、本地代码签名和 worker，再原子交换整个应用。请用“应用诊断”修复安装资源，避免手工改写签名应用内部文件。
+macOS 安装包使用 ad-hoc 签名，未经 Apple 公证。资源损坏时，可通过“应用诊断”修复或重新安装。
 
 // ═══════════════════════════════════════════
 // 软件冲突
@@ -737,7 +737,7 @@ tccutil reset ScreenCapture com.mathcraft.latexsnipper
 - Linux：`~/.latexsnipper/logs`
 - macOS：`~/Library/Logs/LaTeXSnipper`
 
-应用诊断通过标准日志系统记录；打开或关闭日志窗口不改变日志采集状态。模型问题另附“模型资源”的实际路径及校验状态，GPU 问题另附显卡型号与驱动版本。修复失败需要完整部署结果和日志，避免只截取最后一行。
+模型问题请附“模型资源”中的实际路径及校验状态；GPU 问题请附显卡型号与驱动版本；修复失败请附完整日志。
 
 // ═══════════════════════════════════════════
 // 从源码运行
@@ -2005,7 +2005,7 @@ python -m mathcraft_ocr ocr page.png --profile mixed --provider auto --output re
 
 == 桌面发行与独立库的边界
 
-桌面发行的 Python、模型清单、CPU/GPU 类型及私有运行库由安装身份确定。worker 清理外部 Python 和 MathCraft 环境覆盖，显式传入当前发行类型和默认模型缓存，用户无需用环境变量选择解释器、ORT、CUDA 版本或模型目录。
+桌面安装包自带 Python、推理依赖、模型和运行库。桌面端不使用环境变量切换 CPU/GPU 类型或模型缓存目录；更换类型时请使用对应安装包。
 
 单独使用 mathcraft-ocr 库或 CLI 时仍保留公开参数与环境变量。`MATHCRAFT_HOME` 指定独立库的模型缓存；`MATHCRAFT_PROVIDER` 设置独立调用的提供者。为独立 GPU 环境安装所需的 ORT 和运行库时遵循库的文档。桌面 GPU 发行自带匹配用户态库，不通过这些变量切换后端。
 

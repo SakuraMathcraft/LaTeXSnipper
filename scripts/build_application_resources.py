@@ -11,9 +11,9 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / 'scripts'), str(ROOT / 'src')]
 
-from build_desktop_resources import assemble_pandoc
-from distribution_inputs import load_resources
-from runtime.distribution_manifest import ManifestError
+from build_desktop_resources import assemble_pandoc  # noqa: E402
+from distribution_inputs import load_resources  # noqa: E402
+from runtime.distribution_manifest import ManifestError  # noqa: E402
 
 
 def assemble_linux_integration(directory: Path) -> None:

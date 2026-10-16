@@ -1,7 +1,6 @@
 """Verify native adapter ownership and recovery across interrupted combinations."""
 
 from dataclasses import replace
-from pathlib import Path
 import shutil
 import sys
 from types import SimpleNamespace

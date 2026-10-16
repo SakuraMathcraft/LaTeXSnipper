@@ -102,7 +102,6 @@ Source development uses the Python that starts the application and standard
 developer tooling for its packages. It can use Pandoc from PATH. The release workflow deploys independent inference Python on each supported
 platform. Windows uses its installation root, Linux uses dpkg-owned components
 and external installation metadata, and macOS rebuilds the entire signed app.
-Actual native installer and signature acceptance is gated in GitHub Actions.
 
 ## Where are logs stored?
 
@@ -118,8 +117,7 @@ Packaged workers prefer the installed model component. If an installed model
 is missing or fails validation, they check the default MathCraft cache and reuse
 weights matching the current manifest's file digests; otherwise they download
 into that same cache. Source desktop workers also use this default cache.
-Settings shows each model's selected directory and integrity, with one
-**Open directory** button at the bottom. Platform locations are documented in the
+Platform locations are documented in the
 [user data map](user_data_storage.md).
 
 ## What should I do if MathCraft OCR does not start?

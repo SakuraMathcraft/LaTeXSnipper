@@ -12,7 +12,7 @@ sys.path[:0] = [str(ROOT), str(ROOT / 'src')]
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu")
 
-from PyQt6.QtWebEngineCore import QWebEngineSettings
+from PyQt6.QtWebEngineCore import QWebEngineSettings  # noqa: E402
 from PyQt6.QtWebEngineWidgets import QWebEngineView  # noqa: E402,F401
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 from PyQt6.QtCore import QCoreApplication, QEvent, QUrl  # noqa: E402

@@ -16,13 +16,13 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / 'scripts'), str(ROOT / 'src')]
 
-from distribution_archives import download_artifact
-from runtime.component_archive import extract_archive
-from distribution_inputs import load_sources, load_dependencies
-from mathcraft_ocr.protocol import MODEL_FORMAT, WORKER_PROTOCOL
-from runtime.component_inventory import file_sha256, inventory_component
-from runtime.distribution_manifest import Artifact, ManifestError
-from runtime.inference_probe import PROBE_CODE
+from distribution_archives import download_artifact  # noqa: E402
+from runtime.component_archive import extract_archive  # noqa: E402
+from distribution_inputs import load_sources, load_dependencies  # noqa: E402
+from mathcraft_ocr.protocol import MODEL_FORMAT, WORKER_PROTOCOL  # noqa: E402
+from runtime.component_inventory import file_sha256, inventory_component  # noqa: E402
+from runtime.distribution_manifest import Artifact, ManifestError  # noqa: E402
+from runtime.inference_probe import PROBE_CODE  # noqa: E402
 
 
 def host_target() -> str:

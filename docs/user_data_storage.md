@@ -71,20 +71,12 @@ missing, corrupt or outdated cached models are downloaded into that same cache.
 The current model manifest's file digests determine whether a cached model is
 usable, so cached weights cannot shadow valid installed weights.
 
-The settings **Model resources** dialog shows the installed models, repair
-cache and each model's selected directory and integrity state, with one
-**Open directory** button at the bottom.
-The button opens the shared cache if cached models are in use;
-otherwise it opens the installed model root. Source desktop workers use the
-same default cache through an explicit cache argument.
-
 The desktop and standalone library share the platform default model cache:
 Windows `%APPDATA%/MathCraft/models`, Linux
 `${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper/MathCraft/models`, and macOS
 `~/Library/Application Support/LaTeXSnipper/MathCraft/models`. The standalone
-library also supports its explicit cache argument and `MATHCRAFT_HOME`; the
-desktop worker does not inherit that environment override. No cached weights
-are copied or migrated between directories.
+library also supports its explicit cache argument and `MATHCRAFT_HOME`;
+desktop recognition uses the platform default cache regardless of that override.
 
 Component payload caches use component platform/architecture/variant/identity
 and validate size and SHA256 before reuse. Interrupted transfers retain `.part`
@@ -112,7 +104,7 @@ history, logs and update caches are separate user data. The shared MathCraft
 cache also serves the standalone library and is not an installation component.
 Windows uninstall owns the installation components and offers separate app-data
 and shared-model-cache cleanup choices. Linux uses dpkg removal/purge of the
-base and three component packages; macOS removes the app. Linux/macOS also
+three component packages; macOS removes the app. Linux/macOS also
 provide `latexsnipper-clean-user-data.sh` with explicit app-data and model-cache
 options. Uninstall leaves user data unless explicitly selected for cleanup.
 User-selected export paths and external tool installations remain outside the

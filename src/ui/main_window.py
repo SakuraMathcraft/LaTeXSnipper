@@ -57,7 +57,8 @@ class MainWindow(QMainWindow):
         build_main_window_layout(self, self.cfg)
         self.platform_registry = PlatformCapabilityRegistry(parent=self)
         providers = self.platform_registry.create()
-        notification_parent = lambda: self.windows.notification_parent()
+        def notification_parent():
+            return self.windows.notification_parent()
         self.tasks = RecognitionTaskController(
             self, lambda: self.windows.handwriting_busy()
         )

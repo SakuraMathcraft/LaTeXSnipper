@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from runtime.distribution_manifest import DistributionManifest, ManifestError, read_json
+from runtime.distribution_manifest import ManifestError, read_json
 from runtime import deployment_feedback
 from update import updater_entry
 from update.deployment_transaction import atomic_json, verify_distribution

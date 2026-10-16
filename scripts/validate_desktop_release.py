@@ -14,17 +14,17 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / 'src')]
 
-from mathcraft_ocr.protocol import validate_response
-from runtime.component_archive import extract_archive
-from runtime.component_inventory import verify_component
-from runtime.distribution_manifest import DistributionManifest, ManifestError
-from runtime.installed_resources import InstalledResources, current_target, worker_command, worker_environment
-from runtime.installation_layout import installation_manifest, macos_bundle
-from runtime.processes import hidden_subprocess_kwargs
-from update.component_plan import plan_component_update
-from update.deployment_transaction import atomic_json, verify_distribution
-from update.deployment_validation import validate_installed_worker
-from update.platform_deployment import deployment_transaction
+from mathcraft_ocr.protocol import validate_response  # noqa: E402
+from runtime.component_archive import extract_archive  # noqa: E402
+from runtime.component_inventory import verify_component  # noqa: E402
+from runtime.distribution_manifest import DistributionManifest, ManifestError  # noqa: E402
+from runtime.installed_resources import InstalledResources, current_target, worker_command, worker_environment  # noqa: E402
+from runtime.installation_layout import installation_manifest, macos_bundle  # noqa: E402
+from runtime.processes import hidden_subprocess_kwargs  # noqa: E402
+from update.component_plan import plan_component_update  # noqa: E402
+from update.deployment_transaction import atomic_json, verify_distribution  # noqa: E402
+from update.deployment_validation import validate_installed_worker  # noqa: E402
+from update.platform_deployment import deployment_transaction  # noqa: E402
 
 
 def archive_path(directory: Path, url: str) -> Path:
