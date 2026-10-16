@@ -158,11 +158,13 @@ class LinuxHotkeyArchiveVerifierTests(unittest.TestCase):
     def test_rejects_each_missing_required_module(self) -> None:
         for missing_module in EXPECTED_REQUIRED_MODULES:
             with self.subTest(missing_module=missing_module):
-                result = self._run_verifier(
-                    EXPECTED_REQUIRED_MODULES - {missing_module}
-                )
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn(missing_module, result.stderr)
+                self.assertEqual(linux_hotkey_packaging.missing_hotkey_modules(
+                    EXPECTED_REQUIRED_MODULES - {missing_module}), [missing_module])
+
+    def test_cli_reports_missing_module(self) -> None:
+        result = self._run_verifier(EXPECTED_REQUIRED_MODULES - {'Xlib.ext.record'})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('Xlib.ext.record', result.stderr)
 
 
 if __name__ == "__main__":

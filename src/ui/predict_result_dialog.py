@@ -66,7 +66,7 @@ def show_predict_result_dialog(
     lay.addLayout(header_row)
 
     te = QTextEdit()
-    te.setText(code)
+    te.setPlainText(code)
     dlg._predict_result_editor = te
     lay.addWidget(te)
 

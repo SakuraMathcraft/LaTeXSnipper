@@ -34,13 +34,13 @@ def cleanup_deployment_task(directory: Path) -> bool:
         return True
     request_path = directory / 'request.json'
     request = read_json(request_path) if request_path.is_file() else {'recover': True}
-    if not request.get('recover'):
-        staging = Path(request['staged']).parent
-        if staging.is_symlink() or staging.resolve().parent != cache or not staging.name.startswith('component-update-'):
-            raise ManifestError('Deployment staging escaped the task cache')
-        if staging.exists():
-            shutil.rmtree(staging)
     try:
+        if not request.get('recover'):
+            staging = Path(request['staged']).parent
+            if staging.is_symlink() or staging.resolve().parent != cache or not staging.name.startswith('component-update-'):
+                raise ManifestError('Deployment staging escaped the task cache')
+            if staging.exists():
+                shutil.rmtree(staging)
         shutil.rmtree(directory)
         return True
     except PermissionError:

@@ -229,6 +229,20 @@ def test_model_roots_skip_corrupt_and_obsolete_contents(tmp_path):
     assert replace(spec, files=(ModelFileSpec('weights.onnx', '0' * 64),)).content_sha256 != spec.content_sha256
 
 
+def test_model_integrity_checks_current_bytes_with_preserved_size_and_timestamp(tmp_path):
+    import os
+    from mathcraft_ocr.cache import model_file_valid
+
+    weights = tmp_path / 'weights.onnx'
+    weights.write_bytes(b'valid')
+    digest = hashlib.sha256(b'valid').hexdigest()
+    metadata = weights.stat()
+    assert model_file_valid(tmp_path, weights.name, digest)
+    weights.write_bytes(b'wrong')
+    os.utime(weights, ns=(metadata.st_atime_ns, metadata.st_mtime_ns))
+    assert not model_file_valid(tmp_path, weights.name, digest)
+
+
 @pytest.mark.parametrize('protocol', [None, True, '1', 2])
 def test_worker_contract_rejects_unsupported_protocol(protocol):
     with pytest.raises(ValueError, match='protocol'):

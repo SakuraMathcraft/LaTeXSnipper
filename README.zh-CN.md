@@ -42,7 +42,6 @@
 3. **开始识别与编辑。** 使用截图识别、图片、PDF 或手写入口，然后查看、复制或导出结果。
 
 > [!IMPORTANT]
-> 本分支已接通自包含组件、三平台安装事务、应用更新与资源修复源码。正式发行仍须通过 GitHub Actions 签名、原生安装和真实 OCR 验收；当前尚无这些新安装器的 CI 验收结果，详见[实施状态](docs/desktop_runtime_distribution_plan.md)。
 
 Windows/Linux 安装包提供 CPU 与 NVIDIA GPU 发行，macOS 使用 CPU。Python、推理依赖、模型及 Pandoc 属于安装资源。GPU 发行自带私有 CUDA/cuDNN 库，要求支持的 NVIDIA 显卡与驱动。源码开发通过标准开发工具提供 Python 依赖和 PATH Pandoc。
 

@@ -199,7 +199,6 @@
 
 Windows/Linux 提供 CPU 与 NVIDIA GPU 两种发行，macOS Apple Silicon 使用 CPU。GPU 发行携带私有 CUDA/cuDNN 用户态库，系统只需支持的 NVIDIA 显卡与驱动。更换 CPU/GPU 发行使用对应安装器，日常应用更新保持当前发行类型。
 
-本手册描述当前分支实现。新发行必须通过 GitHub Actions 的签名、原生安装与真实 OCR 验收后才发布；已发布的历史安装包可能采用不同流程。
 
 == 资源异常时
 
@@ -532,7 +531,7 @@ CPU 发行固定使用 CPU；GPU 发行固定请求 CUDA，并在推理后核对
 
 == 安装资源与用户数据
 
-Windows 安装目录包含 `application`、`inference`、`models` 与 `distribution.json`。Linux 组件由 dpkg 管理，位于 `/usr/lib/latexsnipper`，安装身份位于 `/var/lib/latexsnipper/distribution.json`。macOS 组件位于应用的 `Contents/Resources/desktop` 内，整个应用经过签名与公证验证。
+Windows 安装目录包含 `application`、`inference`、`models` 与 `distribution.json`。Linux 组件由 dpkg 管理，位于 `/usr/lib/latexsnipper`，安装身份位于 `/var/lib/latexsnipper/distribution.json`。macOS 组件位于应用的 `Contents/Resources/desktop` 内，更新时重建并验证整个应用。
 
 配置、历史、收藏和日志属于用户数据。Windows/Linux 应用状态位于 `~/.latexsnipper`；macOS 位于 `~/Library/Application Support/LaTeXSnipper`，日志位于 `~/Library/Logs/LaTeXSnipper`。MathCraft 默认模型缓存独立于安装组件。
 
@@ -547,7 +546,7 @@ Windows 安装目录包含 `application`、`inference`、`models` 与 `distribut
 Windows 使用系统卸载入口；Linux 卸载四个产品包：
 
 ```bash
-sudo dpkg --purge latexsnipper-application latexsnipper-inference latexsnipper-models latexsnipper
+sudo dpkg --purge latexsnipper-inference latexsnipper-models latexsnipper
 ```
 
 macOS 删除安装的应用。卸载只移除产品拥有的安装资源；用户配置、日志及共享模型缓存可另外按需清理。Windows 卸载选项和 Linux/macOS 用户数据清理脚本分别提供应用数据与模型缓存选项；共享模型缓存可能也被 mathcraft-ocr CLI 使用。用户保存的导出文件和外部工具由用户自行管理。
@@ -559,15 +558,15 @@ macOS 删除安装的应用。卸载只移除产品拥有的安装资源；用�
 
 == 何时需要联网
 
-完整安装后，本地识别、编辑与内置 MathJax 预览可以离线使用。应用更新、损坏权重下载、外部在线模型需要网络。外部本地服务是否需要网络取决于其部署方式。
+完整安装后，本地识别、编辑与内置 MathJax 预览可以离线使用。HTML 独立页导出使用 CDN，接收者打开文件时需要联网加载公式和字体。应用更新、损坏权重下载、外部在线模型需要网络。外部本地服务是否需要网络取决于其部署方式。
 
 == 应用更新与修复
 
-设置中的“应用更新”检查匹配当前平台、架构及 CPU/GPU 类型的发行清单。程序校验已安装内容，仅下载变化或损坏的完整组件；同一个更新事务使用目标清单规定的应用、推理和模型组合。macOS 还使用该组合的签名封印载荷。
+设置中的“应用更新”检查匹配当前平台、架构及 CPU/GPU 类型的发行清单。程序校验已安装内容，仅下载变化或损坏的完整组件；更新仅安装与当前发行匹配的应用、推理和模型组合。
 
 下载支持暂停、继续与取消；中断文件按内容身份保存，复用前验证长度和 SHA256。准备完成后确认安装，应用停止识别与 worker 并退出，独立部署进程完成替换和验证。需要权限时由操作系统显示授权窗口。
 
-“应用诊断”中的修复恢复当前版本的明确组件。校验或部署失败时不提交新安装身份；中断事务在下次启动前恢复。部署临时备份只用于失败恢复，成功提交后删除，不提供历史版本选择或手动降级。
+“应用诊断”中的修复恢复当前版本的明确组件。校验或部署失败时不提交新安装身份；中断事务在下次启动前恢复。部署临时备份只用于失败恢复，成功提交后清理；文件暂被占用时稍后重试清理，已完成的更新不受影响，不提供历史版本选择或手动降级。
 
 == 常见失败
 
@@ -687,7 +686,7 @@ tccutil reset ScreenCapture com.mathcraft.latexsnipper
 
 == macOS 签名与资源修复
 
-发行应用整体签名、公证并附带公证票据。更新时在应用旁侧构建目标组合，验证代码签名、公证票据、Gatekeeper 和 worker，再原子交换整个应用。请用“应用诊断”修复安装资源，避免手工改写签名应用内部文件。
+当前 macOS 发行不要求 Apple 开发者证书或公证。更新时在应用旁侧构建目标组合，验证资源完整性、本地代码签名和 worker，再原子交换整个应用。请用“应用诊断”修复安装资源，避免手工改写签名应用内部文件。
 
 // ═══════════════════════════════════════════
 // 软件冲突
@@ -769,7 +768,7 @@ python scripts/update_translations.py --check
 python scripts/check_ui_translations.py
 ```
 
-客户端安装器由 GitHub Actions 构建。Release 工作流按锁定官方来源装配独立推理环境；应用和推理采用分开的构建缓存键。签名完成后生成实际内容身份、归档摘要和首次安装载体，再执行原生安装、修复、卸载及 CUDA 实机验收。开发者环境不会被收集进发行。
+客户端安装器由 GitHub Actions 构建；发行维护与验收约束见仓库中的 `docs/desktop_distribution.md`。
 
 #pagebreak()
 

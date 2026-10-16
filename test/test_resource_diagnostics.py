@@ -134,3 +134,26 @@ def test_component_hashing_keeps_gui_responsive_and_runtime_current(app, monkeyp
         dialog.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         app.processEvents()
+
+
+def test_reopening_refreshes_component_integrity(app, monkeypatch):
+    models = Models()
+    manifest = SimpleNamespace(version='4.0.0', target=('windows', 'x86_64', 'cpu'),
+                               components=(SimpleNamespace(name='application', content_sha256='a' * 64),))
+    monkeypatch.setattr(resource_diagnostics, 'installed_resources', lambda: SimpleNamespace(root=Path('installed'), manifest=manifest))
+    damaged = []
+    monkeypatch.setattr(resource_diagnostics, 'verify_component', lambda *args: tuple(damaged))
+    dialog = resource_diagnostics.ResourceDiagnosticsDialog(models)
+    try:
+        dialog.show()
+        pump(app, lambda: not dialog._checking)
+        assert json.loads(dialog.output.toPlainText())['components']['application']['damaged'] == []
+        dialog.close()
+        damaged.append('damaged.dll')
+        dialog.show()
+        pump(app, lambda: not dialog._checking)
+        assert json.loads(dialog.output.toPlainText())['components']['application']['damaged'] == damaged
+    finally:
+        dialog.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        app.processEvents()

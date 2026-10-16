@@ -5,14 +5,12 @@ from __future__ import annotations
 import logging
 
 from localization.manager import translate as tr
-from preview.content_fragments import render_formula_content
 from PyQt6.QtCore import QUrl
 
 from rendering.mathjax_runtime import ASSET_ROOT, loader_script
 from ui.theme_tokens import is_dark_ui
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
-
 
 def preview_theme_tokens() -> dict:
     if is_dark_ui():
@@ -28,18 +26,14 @@ def preview_theme_tokens() -> dict:
             "pre_bg": "#342b20",
             "border_formula": "#63a5ff",
             "border_text": "#72d68e",
-            "border_table": "#ffb35c",
             "border_mixed": "#d8a4ff",
             "badge_formula_bg": "#23374d",
             "badge_formula_text": "#9fd1ff",
             "badge_text_bg": "#213328",
             "badge_text_text": "#88d5a3",
-            "badge_table_bg": "#3a2a18",
-            "badge_table_text": "#ffbf7a",
             "badge_mixed_bg": "#35253f",
             "badge_mixed_text": "#e4bcff",
             "table_border": "#3e4958",
-            "th_bg": "#27303b",
             "scrollbar_track": "#1b1f27",
             "scrollbar_thumb": "#6f7782",
             "scrollbar_thumb_hover": "#8b949e",
@@ -56,18 +50,14 @@ def preview_theme_tokens() -> dict:
         "pre_bg": "#fff3e0",
         "border_formula": "#1976d2",
         "border_text": "#43a047",
-        "border_table": "#f57c00",
         "border_mixed": "#7b1fa2",
         "badge_formula_bg": "#e3f2fd",
         "badge_formula_text": "#1976d2",
         "badge_text_bg": "#e8f5e9",
         "badge_text_text": "#43a047",
-        "badge_table_bg": "#fff3e0",
-        "badge_table_text": "#f57c00",
         "badge_mixed_bg": "#f3e5f5",
         "badge_mixed_text": "#7b1fa2",
         "table_border": "#dddddd",
-        "th_bg": "#f2f2f2",
         "scrollbar_track": "#f0f0f0",
         "scrollbar_thumb": "#b8b8b8",
         "scrollbar_thumb_hover": "#969696",
@@ -167,17 +157,6 @@ body.viewport-centered .math-container {
   margin: 0;
   font-size: 20px;
 }
-.document-content {
-  width: 100%;
-  text-align: left;
-  overflow-wrap: anywhere;
-}
-.document-content > svg {
-  display: block;
-  max-width: 100%;
-  height: auto;
-  margin: 8px auto;
-}
 .error-text {
   color: __ERROR_TEXT__;
   font-size: 12px;
@@ -197,7 +176,7 @@ __MATHJAX_LOADER_SCRIPT__
 
 
 def get_mathjax_base_url() -> QUrl:
-    """Return the bundled runtime URL for every desktop preview."""
+    """Return the bundled runtime URL for desktop previews."""
     return QUrl.fromLocalFile(str(ASSET_ROOT) + "/")
 
 
@@ -219,7 +198,7 @@ def build_math_html(
         for i, latex in enumerate(formulas):
             label = labels[i] if i < len(labels) and labels[i] else ""
             label_html = f'<div class="formula-label">{label}</div>' if label else ""
-            formula_html += f'<div class="math-container">{label_html}{render_formula_content(latex)}</div>\n'
+            formula_html += f'<div class="math-container">{label_html}<div class="formula-content">$${latex}$$</div></div>\n'
 
         if not formula_html:
             formula_html = (

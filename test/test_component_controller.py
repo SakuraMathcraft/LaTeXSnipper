@@ -117,6 +117,30 @@ def test_resource_repair_requests_exact_installed_release(app, updates, monkeypa
     controller.close()
 
 
+def test_failed_handoff_releases_helpers_and_staged_payloads(app, updates, monkeypatch):
+    from runtime import deployment_feedback
+
+    resources, _, cache = updates
+    monkeypatch.setattr(deployment_feedback, 'app_cache_dir', lambda: cache)
+    directory = cache / 'component-update-failed'
+    staged = directory / 'staged'
+    staged.mkdir(parents=True)
+    task = cache / 'deployment-failed'
+    task.mkdir()
+    request = task / 'request.json'
+    atomic_json(request, {'root': str(resources.root), 'staged': str(staged), 'recover': False})
+    atomic_json(task / 'deployment-result.json', {'state': 'failed', 'error': 'rejected before exit'})
+    monkeypatch.setattr(controller_module, 'launch_deployment', lambda *args: request)
+    controller = ComponentUpdateController()
+    controller.resources, controller._directory, controller.staged = resources, directory, staged
+    states = []
+    controller.changed.connect(lambda state, data: states.append(state))
+    controller.deploy()
+    pump(app, lambda: 'failed' in states)
+    controller.close()
+    pump(app, lambda: not task.exists() and not directory.exists())
+
+
 def test_update_dialog_can_be_closed_and_immediately_reopened(app, updates):
     first = check_update_dialog()
     pump(app, lambda: not first.controller.busy)

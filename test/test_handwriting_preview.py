@@ -15,7 +15,6 @@ def test_handwriting_latex_preview_keeps_multiline_environment_together() -> Non
 
     assert "\\begin{aligned}" in html
     assert "\\end{aligned}" in html
-    assert '<div class="math-block">' not in html
 
 
 def test_handwriting_markdown_preview_preserves_text_and_math() -> None:

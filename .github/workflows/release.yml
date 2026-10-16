@@ -10,7 +10,11 @@ on:
         type: string
         required: true
       publish_assets:
-        description: "Publish after every build, signature and hardware gate passes"
+        description: "Publish after builds and selected validation pass"
+        type: boolean
+        default: false
+      validate_gpu:
+        description: "Run CUDA hardware checks on configured self-hosted runners"
         type: boolean
         default: false
 
@@ -52,8 +56,6 @@ jobs:
           - {system: linux, runner: ubuntu-22.04, requirements: requirements-linux.txt}
           - {system: macos, runner: macos-15, requirements: requirements-macos.txt}
     runs-on: ${{ matrix.runner }}
-    env:
-      CODESIGN_IDENTITY: ${{ matrix.system == 'macos' && vars.MACOS_CODESIGN_IDENTITY || '' }}
     steps:
       - uses: actions/checkout@v6
         with: {lfs: true, fetch-depth: 0}
@@ -82,28 +84,6 @@ jobs:
           $process = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$compilerRoot") -WindowStyle Hidden -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw 'Inno Setup installation failed.' }
           $compilerRoot >> $env:GITHUB_PATH
-      - name: Configure macOS signing and notarization
-        if: runner.os == 'macOS'
-        env:
-          CERTIFICATE: ${{ secrets.MACOS_SIGNING_CERTIFICATE }}
-          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_SIGNING_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          set -euo pipefail
-          test -n "$CODESIGN_IDENTITY"
-          test -n "$CERTIFICATE"
-          printf '%s' "$CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/signing.p12"
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/release.keychain-db"
-          security set-keychain-settings -lut 21600 "$RUNNER_TEMP/release.keychain-db"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/release.keychain-db"
-          security import "$RUNNER_TEMP/signing.p12" -k "$RUNNER_TEMP/release.keychain-db" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/release.keychain-db"
-          security list-keychains -d user -s "$RUNNER_TEMP/release.keychain-db"
-          xcrun notarytool store-credentials latexsnipper-notary --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" --team-id "$APPLE_TEAM_ID" --keychain "$RUNNER_TEMP/release.keychain-db"
-          rm -f "$RUNNER_TEMP/signing.p12"
       - uses: actions/download-artifact@v7
         with: {name: common-models, path: build/common-models}
       - name: Calculate component build inputs
@@ -126,28 +106,6 @@ jobs:
       - name: Assemble native components
         id: assemble
         run: python scripts/build_desktop_release.py assemble
-      - uses: actions/upload-artifact@v7
-        id: unsigned-components
-        if: runner.os == 'Windows' && steps.assemble.outputs.signing_required == 'true'
-        with:
-          name: unsigned-desktop-components
-          path: build/desktop/signing/**
-          if-no-files-found: error
-      - name: Sign every new Windows executable payload
-        if: runner.os == 'Windows' && steps.assemble.outputs.signing_required == 'true'
-        uses: signpath/github-action-submit-signing-request@v3
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
-          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-          artifact-configuration-slug: ${{ vars.SIGNPATH_COMPONENT_CONFIGURATION_SLUG }}
-          github-artifact-id: ${{ steps.unsigned-components.outputs.artifact-id }}
-          wait-for-completion: true
-          output-artifact-directory: signed-components
-      - name: Verify signed component payloads
-        if: runner.os == 'Windows' && steps.assemble.outputs.signing_required == 'true'
-        run: python scripts/build_desktop_release.py accept-signatures --signed signed-components
       - name: Package components and offline installers
         run: python scripts/build_desktop_release.py package --tag "${{ env.RELEASE_TAG }}"
       - uses: actions/upload-artifact@v7
@@ -157,9 +115,29 @@ jobs:
           name: unsigned-desktop-installers
           path: dist/desktop/LaTeXSnipper_*.exe
           if-no-files-found: error
-      - name: Sign Windows first-install carriers
+      - name: Check optional Windows signing
+        id: signpath-config
         if: runner.os == 'Windows'
-        uses: signpath/github-action-submit-signing-request@v3
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          SIGNPATH_ARTIFACT_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+        shell: python
+        run: |
+          import os
+          names = ('SIGNPATH_API_TOKEN', 'SIGNPATH_ORGANIZATION_ID', 'SIGNPATH_PROJECT_SLUG',
+                   'SIGNPATH_SIGNING_POLICY_SLUG', 'SIGNPATH_ARTIFACT_CONFIGURATION_SLUG')
+          enabled = all(os.environ.get(name, '').strip() for name in names)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'enabled={str(enabled).lower()}\n')
+          print('SignPath configured.' if enabled else 'SignPath unavailable; keeping unsigned installers.')
+      - name: Sign Windows first-install carriers
+        id: sign-installers
+        if: runner.os == 'Windows' && steps.signpath-config.outputs.enabled == 'true'
+        continue-on-error: true
+        uses: signpath/github-action-submit-signing-request@v2
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -170,7 +148,7 @@ jobs:
           wait-for-completion: true
           output-artifact-directory: signed-installers
       - name: Compute final Windows installer identities
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && steps.sign-installers.outcome == 'success'
         run: python scripts/build_desktop_release.py finalize-windows --signed signed-installers
       - uses: actions/upload-artifact@v7
         with:
@@ -183,9 +161,6 @@ jobs:
           name: desktop-validation-${{ matrix.system }}
           path: |
             build/desktop/*validation.json
-      - name: Remove signing credentials
-        if: always() && runner.os == 'macOS'
-        run: security delete-keychain "$RUNNER_TEMP/release.keychain-db" || true
 
   native:
     needs: desktop
@@ -216,6 +191,7 @@ jobs:
           if-no-files-found: error
 
   gpu:
+    if: github.event_name == 'workflow_dispatch' && inputs.validate_gpu
     needs: desktop
     strategy:
       fail-fast: false
@@ -242,7 +218,11 @@ jobs:
 
   publish-release-assets:
     needs: [desktop, native, gpu, build-office-plugin-installer, build-user-manual]
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.publish_assets
+    if: >-
+      always() && (startsWith(github.ref, 'refs/tags/v') || inputs.publish_assets) &&
+      needs.desktop.result == 'success' && needs.native.result == 'success' &&
+      (needs.gpu.result == 'success' || needs.gpu.result == 'skipped') &&
+      needs.build-office-plugin-installer.result == 'success' && needs.build-user-manual.result == 'success'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6

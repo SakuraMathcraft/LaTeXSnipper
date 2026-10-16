@@ -74,3 +74,33 @@ def test_model_resources_can_be_reopened_without_unhandled_exceptions(
         settings.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         app.processEvents()
+
+
+def test_reopening_refreshes_downloaded_models_and_directory_action(app, tmp_path, monkeypatch):
+    cache = tmp_path / 'models'
+
+    def inspect():
+        complete = cache.is_dir()
+        return {'formula': ModelCacheState('formula', cache / 'formula', complete, complete, () if complete else ('model.onnx',))}
+
+    resources = SimpleNamespace(installed_root=None, cache_root=cache, inspect=inspect)
+    monkeypatch.setattr(model_resources_dialog, 'installed_resources', lambda: None)
+    monkeypatch.setattr(model_resources_dialog, 'desktop_model_resources', lambda _: resources)
+    settings = SettingsHarness()
+    try:
+        settings._show_model_resources()
+        dialog = settings._model_resources_dialog
+        deadline = time.monotonic() + 3
+        while dialog._checking and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(0.01)
+        assert not dialog.open_directory.isEnabled()
+        dialog.close()
+        cache.mkdir()
+        settings._show_model_resources()
+        wait_for_directory(app, dialog)
+        assert dialog.rows_layout.count() == 2
+    finally:
+        settings.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        app.processEvents()

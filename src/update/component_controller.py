@@ -19,7 +19,7 @@ from update.component_download import DownloadCancelled, DownloadControl
 from update.component_plan import plan_component_update
 from update.component_release import fetch_component_release, fetch_release_info
 from update.component_staging import prepare_components
-from update.deployment_launch import launch_deployment
+from update.deployment_launch import launch_deployment, retire_deployment
 
 logger = logging.getLogger(f'latexsnipper.{__name__}')
 
@@ -57,6 +57,7 @@ class ComponentUpdateController(QObject):
         self._emit(state)
 
         def run():
+            result = 'cancelled', {}
             try:
                 result = action()
             except DownloadCancelled:
@@ -65,9 +66,11 @@ class ComponentUpdateController(QObject):
                 logger.exception('组件更新任务失败')
                 result = 'failed', {'error': str(exc)}
             finally:
-                self.busy = False
+                if self._request is not None and (self._closed or result[0] in {'failed', 'cancelled'}):
+                    self._retire_request()
                 if self._closed and self._request is None:
                     self._cleanup()
+                self.busy = False
             self._emit(*result)
 
         threading.Thread(target=run, name='component-update', daemon=True).start()
@@ -78,21 +81,19 @@ class ComponentUpdateController(QObject):
             if self.resources is None:
                 self._emit('release', {'release': fetch_release_info()})
                 return 'source', {}
-            tag = self.resources.manifest.release_tag if self.repair and self.resources else None
+            tag = self.resources.manifest.release_tag if self.repair else None
             self.release = fetch_component_release(app_cache_dir() / 'components', control=self._control, tag=tag,
                                                    on_release=lambda info: self._emit('release', {'release': info}))
             self._control.checkpoint()
-            self.plan = None
-            if self.resources is not None:
-                installed = self.resources.manifest
-                target = self.release.catalog.select(*installed.target)
-                damaged = [item.name for item in installed.components if verify_component(self.resources.root / item.name, item)]
-                damaged_bundle = False
-                if installed.platform == 'macos':
-                    from update.macos_transaction import bundle_is_damaged
+            installed = self.resources.manifest
+            target = self.release.catalog.select(*installed.target)
+            damaged = [item.name for item in installed.components if verify_component(self.resources.root / item.name, item)]
+            damaged_bundle = False
+            if installed.platform == 'macos':
+                from update.macos_transaction import bundle_is_damaged
 
-                    damaged_bundle = bundle_is_damaged(self.resources.root)
-                self.plan = plan_component_update(installed, target, damaged_components=damaged, damaged_bundle=damaged_bundle)
+                damaged_bundle = bundle_is_damaged(self.resources.root)
+            self.plan = plan_component_update(installed, target, damaged_components=damaged, damaged_bundle=damaged_bundle)
             return 'available', {'release': self.release, 'plan': self.plan, 'resources': self.resources}
 
         self._run('checking', check)
@@ -170,5 +171,15 @@ class ComponentUpdateController(QObject):
                 (self._request.parent / 'cancel').touch()
             except OSError:
                 logger.exception('写入部署取消标记失败')
+            if not self.busy:
+                self._retire_request()
         elif not self.busy:
             self._cleanup()
+
+    def _retire_request(self) -> None:
+        if self._request is not None:
+            request, self._request = self._request, None
+            # The helper still owns these files until it has stopped.
+            self._directory = None
+            self.staged = None
+            retire_deployment(request)

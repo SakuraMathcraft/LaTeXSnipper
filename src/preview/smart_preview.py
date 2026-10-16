@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import logging
 import html as html_module
+import re
 
 from localization.manager import translate as tr
-from preview.content_fragments import render_formula_content, render_mixed_content
 from preview.math_preview import (
     build_math_html,
     mathjax_loader_script,
@@ -79,7 +79,6 @@ body {{
     border-left: 4px solid {tokens["border_formula"]};
 }}
 .content-block.text-type {{ border-left-color: {tokens["border_text"]}; }}
-.content-block.table-type {{ border-left-color: {tokens["border_table"]}; }}
 .content-block.mixed-type {{ border-left-color: {tokens["border_mixed"]}; }}
 .block-label {{
     font-size: 12px;
@@ -97,14 +96,11 @@ body {{
     color: {tokens["badge_formula_text"]};
 }}
 .type-badge.text {{ background: {tokens["badge_text_bg"]}; color: {tokens["badge_text_text"]}; }}
-.type-badge.table {{ background: {tokens["badge_table_bg"]}; color: {tokens["badge_table_text"]}; }}
 .type-badge.mixed {{ background: {tokens["badge_mixed_bg"]}; color: {tokens["badge_mixed_text"]}; }}
 .block-content {{
     font-size: 14px;
     text-align: center;
 }}
-.document-content {{ text-align: left; overflow-wrap: anywhere; }}
-.document-content > svg {{ display: block; max-width: 100%; height: auto; margin: 8px auto; }}
 .formula-content {{
     text-align: center;
     padding: 0.15em 0.35em;
@@ -125,17 +121,6 @@ body {{
     white-space: pre-wrap;
     word-wrap: break-word;
 }}
-table {{
-    border-collapse: collapse;
-    width: 100%;
-    margin: 8px 0;
-}}
-th, td {{
-    border: 1px solid {tokens["table_border"]};
-    padding: 8px;
-    text-align: left;
-}}
-th {{ background-color: {tokens["th_bg"]}; }}
 .MathJax {{ font-size: 1.4em; }}
 .formula-content mjx-container,
 .block-content mjx-container {{ font-size: 140% !important; }}
@@ -177,9 +162,9 @@ def render_content_block(
         }[content_type]
 
         if content_type == "mathcraft":
-            rendered_content = render_formula_content(content)
+            rendered_content = f'<div class="formula-content">$${content}$$</div>'
         elif content_type == "mathcraft_mixed":
-            rendered_content = f'<div class="document-content">{render_mixed_content(content)}</div>'
+            rendered_content = render_mixed_content(content)
         else:
             rendered_content = (
                 f'<div class="text-content">{html_module.escape(content)}</div>'
@@ -205,3 +190,29 @@ def render_content_block(
             f'<div style="color: {tokens["error_text"]}; padding: 10px; '
             f'background: {tokens["error_bg"]}; border-radius: 4px;">{html_module.escape(error_msg)}</div>'
         )
+
+
+def render_mixed_content(content: str) -> str:
+    try:
+        if not content:
+            return ""
+
+        formula_pattern = r"(\$\$(?:[^$]|\$(?!\$))+?\$\$|\$(?:[^$]|\$(?!\$))+?\$)"
+        parts = re.split(formula_pattern, content)
+        result_parts = []
+
+        for part in parts:
+            if not part:
+                continue
+            if part.startswith("$$") and part.endswith("$$"):
+                result_parts.append(part)
+            elif part.startswith("$") and part.endswith("$"):
+                result_parts.append(part)
+            else:
+                result_parts.append(html_module.escape(part).replace("\n", "<br>"))
+
+        return "".join(result_parts)
+    except Exception as exc:
+        logger.warning("混合内容渲染失败: %s", exc)
+        message = tr("混合内容渲染失败: {error}").format(error=exc)
+        return f'<div style="color: red;">{html_module.escape(message)}</div>'

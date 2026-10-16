@@ -142,12 +142,16 @@ def native_acceptance(directory: Path, work: Path, targets: list[DistributionMan
             system = targets[0].platform
             if system == 'windows':
                 uninstaller = root / 'unins000.exe'
-                if uninstaller.is_file():
-                    subprocess.run([str(uninstaller), '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'], check=True, timeout=900)
+                if not uninstaller.is_file():
+                    raise ManifestError('Installed Windows release has no uninstaller')
+                subprocess.run([str(uninstaller), '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'], check=True, timeout=900)
             elif system == 'linux':
-                subprocess.run(['sudo', 'dpkg', '--purge', 'latexsnipper-application', 'latexsnipper-inference', 'latexsnipper-models', 'latexsnipper'], check=True, timeout=900)
+                subprocess.run(['sudo', 'dpkg', '--purge', 'latexsnipper-inference', 'latexsnipper-models', 'latexsnipper'], check=True, timeout=900)
             else:
                 shutil.rmtree(macos_bundle(root))
+            remaining = [name for name in ('application', 'inference', 'models') if (root / name).exists()]
+            if remaining or installation_manifest(root, system).exists():
+                raise ManifestError(f'Uninstall left owned installation resources: {remaining}')
     return reports
 
 

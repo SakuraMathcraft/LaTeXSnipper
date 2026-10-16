@@ -2,12 +2,17 @@
 
 from pathlib import Path
 import json
+import os
 import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT), str(ROOT / 'src')]
 
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu")
+
+from PyQt6.QtWebEngineCore import QWebEngineSettings
 from PyQt6.QtWebEngineWidgets import QWebEngineView  # noqa: E402,F401
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 from PyQt6.QtCore import QCoreApplication, QEvent, QUrl  # noqa: E402
@@ -17,7 +22,7 @@ from preview.math_preview import build_math_html  # noqa: E402
 from preview.content_preview import build_mixed_content_html  # noqa: E402
 from preview.smart_preview import build_smart_preview_html  # noqa: E402
 from handwriting.latex_preview import build_handwriting_preview_html  # noqa: E402
-from rendering.mathjax_runtime import ASSET_ROOT, loader_script  # noqa: E402
+from rendering.mathjax_runtime import ASSET_ROOT, loader_script, cdn_root  # noqa: E402
 
 
 def main() -> None:
@@ -30,18 +35,15 @@ def main() -> None:
         assert 'data-mjx-error' not in result['svg'] and '<merror' not in result['mathml']
     base = QUrl.fromLocalFile(str(ASSET_ROOT) + '/')
     exported = convert_latex_to('pandoc_html_standalone', r'\[\ce{CO2 + C -> 2 CO}\]')
-    assert ASSET_ROOT.resolve().as_uri() in exported and '\\ce{CO2 + C' in exported
+    assert cdn_root() in exported and '\\ce{CO2 + C' in exported
     pages = [build_math_html(samples[-1]), build_mixed_content_html('混排 $x^2$'),
              build_smart_preview_html([('x', 'Formula', 'mathcraft')]),
              build_handwriting_preview_html('手写结果 $x^2$', 'markdown'),
              exported,
              '<html><head>' + loader_script(font='mathjax-stix2')
              + '</head><body>$\\mathbb{ABC}$</body></html>']
-    document = ('### 试卷片段\n正文 $x<y$，解不等式：\n'
-                '$$\\begin{cases}x+1<2x-1\\\\x-1>0\\end{cases}$$\n'
-                '<svg width="80" height="60"><path d="M0 0 L60 60" stroke="#123456"/></svg>')
-    pages += [build_smart_preview_html([(document, 'Exam', 'mathcraft')]), build_math_html(document)]
     for html in pages:
+        converter._page.settings().setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, html == exported)
         assert converter._wait_for_signal(converter._page.loadFinished,
                                          lambda: converter._page.setHtml(html, base), timeout_ms=15000)
         deadline = time.monotonic() + 15

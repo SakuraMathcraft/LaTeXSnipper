@@ -23,6 +23,7 @@ class ResourceDiagnosticsDialog(QDialog):
         super().__init__(parent)
         self._models = models
         self._report = None
+        self._checking = False
         self.setWindowTitle(tr('应用诊断'))
         self.resize(720, 480)
         self.output = QPlainTextEdit(self)
@@ -39,7 +40,12 @@ class ResourceDiagnosticsDialog(QDialog):
         models.selection_changed.connect(self._render_report)
         if models.model is not None:
             models.model.status_signal.connect(self._render_report)
+        self._inspect_resources()
 
+    def _inspect_resources(self) -> None:
+        if self._checking:
+            return
+        self._checking = True
         def inspect():
             repairable = False
             try:
@@ -66,6 +72,7 @@ class ResourceDiagnosticsDialog(QDialog):
         threading.Thread(target=inspect, name='resource-diagnostics', daemon=True).start()
 
     def _show_report(self, report: dict, repairable: bool) -> None:
+        self._checking = False
         self._report = report
         self._render_report()
         self.repair.setEnabled(repairable)
@@ -82,9 +89,8 @@ class ResourceDiagnosticsDialog(QDialog):
         self.output.setPlainText(json.dumps({**self._report, **runtime}, ensure_ascii=False, indent=2))
 
     def showEvent(self, event) -> None:
-        # The cached window always reads current state. Integrity hashing stays
-        # on its background thread and is not repeated for runtime events.
         self._render_report()
+        self._inspect_resources()
         super().showEvent(event)
 
     def _open_repair(self) -> None:

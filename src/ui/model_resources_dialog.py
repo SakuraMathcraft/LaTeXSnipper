@@ -24,6 +24,7 @@ class ModelResourcesDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._directory: Path | None = None
+        self._checking = False
         self.setWindowTitle(tr('模型资源'))
         self.resize(720, 480)
         layout = QVBoxLayout(self)
@@ -44,6 +45,9 @@ class ModelResourcesDialog(QDialog):
         self._inspect_resources()
 
     def _inspect_resources(self):
+        if self._checking:
+            return
+        self._checking = True
         def inspect():
             try:
                 resources = desktop_model_resources(installed_resources())
@@ -60,7 +64,14 @@ class ModelResourcesDialog(QDialog):
         threading.Thread(target=inspect, name='model-resources', daemon=True).start()
 
     def _apply(self, result, error: str):
+        self._checking = False
+        while self.rows_layout.count():
+            item = self.rows_layout.takeAt(0)
+            if item.widget() is not None:
+                item.widget().deleteLater()
         if error:
+            self._directory = None
+            self.open_directory.setEnabled(False)
             self.description.setText(tr('模型资源检查失败：{error}').format(error=error))
             return
         resources, states = result
@@ -89,6 +100,10 @@ class ModelResourcesDialog(QDialog):
         for model_id, state in states.items():
             status = tr('可用') if state.complete else tr('缺失或损坏')
             self._add_directory_row(f'{names.get(model_id, model_id)} · {status}', state.model_dir)
+
+    def showEvent(self, event):
+        self._inspect_resources()
+        super().showEvent(event)
 
     def _open_directory(self):
         if self._directory is not None:

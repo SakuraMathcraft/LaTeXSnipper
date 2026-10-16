@@ -24,7 +24,7 @@ opening or closing the window does not activate or stop logging.
 
 | Data | Path under app state | Owner |
 |---|---|---|
-| Main settings | `LaTeXSnipper_config.json` | Unified application settings, including recognition preferences, external models, Automation API, theme, rendering, export, and window behavior |
+| Main settings | `LaTeXSnipper_config.json` | Unified application settings, including recognition preferences, external models, Automation API, theme, export, and window behavior |
 | Local secret key | `secret.key` on Linux/macOS; Windows uses DPAPI and does not create this file | `runtime.secret_store`; created when the first persistent secret is encrypted |
 | Automation API discovery | `automation-api.json` | Ephemeral local address and per-session token; created only while the API runs and removed on shutdown |
 | Recognition history | `history.json` | Main window history |
@@ -35,14 +35,10 @@ opening or closing the window does not activate or stop logging.
 |---|---|---|
 | Component downloads | `components/<content-identity>/payload` and `payload.part` | Component downloader; length and SHA256 checked before reuse, interrupted downloads retained for resume |
 | Update staging | `component-update-*` | Update controller; private verified component staging, removed on cancellation/close or after deployment feedback |
-| Deployment handoff | `deployment-*`, `recovery-*` | Independent helper and unelevated watcher; request/result files removed after feedback |
+| Deployment handoff | `deployment-*`, `recovery-*` | Independent helper and unelevated watcher; request/result files removed after feedback or failed-handoff cleanup |
 
 ## Installation Resources
 
-The source and Release workflow connect self-contained components, native
-installation transactions, update and repair. Native installers, signatures and
-hardware OCR must pass GitHub Actions before publication; current acceptance
-limits are recorded in the [implementation status](desktop_runtime_distribution_plan.md).
 The source app uses the developer-selected Python environment directly.
 
 Installation metadata (`distribution.json`) owns the platform, architecture,
@@ -60,12 +56,10 @@ Windows/Linux transactions keep a temporary `.deployment/` journal and backup
 under the resource root. The signed macOS app keeps transaction state beside
 the app in `.<app-name>.deployment/`. A separate lock serializes deployment.
 Validated transactions commit installation metadata last, then remove backups.
+A cleanup failure leaves a completed transaction for a later cleanup attempt; it
+does not undo the committed installation or block normal startup.
 Interrupted transactions are recovered before normal launch. These backups are
 for the active transaction, not a retained history of application versions.
-
-Published manifests include carrier and macOS seal artifact metadata. Installed
-manifests keep the component combination and release tag, without carrier/seal
-artifact fields, so packaging does not create a self-referential hash cycle.
 
 ## Model Weights And Repair Cache
 
@@ -80,8 +74,6 @@ usable, so cached weights cannot shadow valid installed weights.
 The settings **Model resources** dialog shows the installed models, repair
 cache and each model's selected directory and integrity state, with one
 **Open directory** button at the bottom.
-Settings reuses the dialog across repeated opens; it checks resources once when
-created and retains pending or completed results when closed and reopened.
 The button opens the shared cache if cached models are in use;
 otherwise it opens the installed model root. Source desktop workers use the
 same default cache through an explicit cache argument.

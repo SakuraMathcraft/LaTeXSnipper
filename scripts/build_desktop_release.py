@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / 'src'), str(ROOT / 'scripts')]
 
 from runtime.component_archive import extract_archive
-from runtime.component_inventory import inventory_component, verify_component
+from runtime.component_inventory import verify_component
 from runtime.distribution_manifest import Component, DistributionManifest, ManifestError, read_json
 from runtime.installed_resources import current_target
 from update.deployment_transaction import verify_distribution
@@ -41,18 +41,32 @@ def fingerprint(paths: list[Path], configuration: object) -> str:
 def build_inputs(target: str) -> dict[str, str]:
     resources = load_resources(ROOT / 'packaging/runtime/resources.lock.json')
     application = list((ROOT / 'src').rglob('*')) + list((ROOT / 'mathcraft_ocr').rglob('*.py'))
-    application += list(ROOT.glob('requirements*.txt')) + list(ROOT.glob('*.spec'))
+    system = target.split('-')[0]
+    requirements = {'windows': 'requirements.txt', 'linux': 'requirements-linux.txt', 'macos': 'requirements-macos.txt'}[system]
+    application += [ROOT / name for name in (requirements, 'requirements-build.txt',
+                    {'windows': 'LaTeXSnipper.spec', 'linux': 'LaTeXSnipper-linux.spec',
+                     'macos': 'LaTeXSnipper-macos.spec'}[target.split('-')[0]], 'LICENSE')]
     application += [ROOT / 'scripts/build_application_resources.py', ROOT / 'scripts/build_maintenance.spec',
-                    ROOT / 'scripts/build_desktop_release.py', ROOT / 'scripts/build_desktop_resources.py']
+                    ROOT / 'scripts/build_desktop_release.py', ROOT / 'scripts/build_desktop_resources.py',
+                    ROOT / 'scripts/distribution_archives.py', ROOT / 'scripts/distribution_inputs.py']
+    if target.startswith('windows-'):
+        application.append(ROOT / 'scripts/normalize_windows_crt.ps1')
+    if target.startswith('linux-'):
+        application += [ROOT / 'scripts/linux_hotkey_packaging.py', ROOT / 'scripts/latexsnipper-clean-user-data.sh']
+        application += list((ROOT / 'packaging/debian').rglob('*'))
     sources = load_sources(ROOT / 'packaging/runtime/sources.lock.json')
     inference = [ROOT / 'packaging/runtime/dependencies.lock.json', ROOT / 'scripts/build_inference_component.py',
-                 ROOT / 'scripts/distribution_archives.py', ROOT / 'scripts/distribution_inputs.py', ROOT / 'mathcraft_ocr/protocol.py']
+                 ROOT / 'scripts/distribution_archives.py', ROOT / 'scripts/distribution_inputs.py', ROOT / 'mathcraft_ocr/protocol.py',
+                 ROOT / 'src/runtime/inference_probe.py', ROOT / 'src/runtime/component_inventory.py',
+                 ROOT / 'src/runtime/component_archive.py', ROOT / 'src/runtime/distribution_manifest.py',
+                 ROOT / 'src/runtime/processes.py', ROOT / 'scripts/build_desktop_release.py']
+    if target.startswith('macos-'):
+        application.append(ROOT / 'packaging/macos/entitlements.plist')
+        inference.append(ROOT / 'packaging/macos/entitlements.plist')
     return {
-        'application': fingerprint(application, {'target': target, 'pandoc': resources['pandoc'][target],
-                                                 'signer': os.environ.get('CODESIGN_IDENTITY', '')}),
+        'application': fingerprint(application, {'target': target, 'pandoc': resources['pandoc'][target]}),
         'inference': fingerprint(inference, {'target': target, 'sources': sources['targets'][target],
-                                             'versions': {key: sources[key] for key in ('python_version', 'ort_version', 'cuda_version', 'cudnn_version')},
-                                             'signer': os.environ.get('CODESIGN_IDENTITY', '')}),
+                                             'versions': {key: sources[key] for key in ('python_version', 'ort_version', 'cuda_version', 'cudnn_version')}}),
     }
 
 
@@ -71,9 +85,6 @@ def cached_payload(work: Path, name: str, key: str) -> Path | None:
 
 
 def sign_macos_tree(directory: Path) -> None:
-    identity = os.environ.get('CODESIGN_IDENTITY')
-    if not identity:
-        raise ManifestError('A Developer ID Application identity is required for macOS releases')
     magic = {b'\xcf\xfa\xed\xfe', b'\xce\xfa\xed\xfe', b'\xfe\xed\xfa\xcf', b'\xfe\xed\xfa\xce',
              b'\xca\xfe\xba\xbe', b'\xbe\xba\xfe\xca', b'\xca\xfe\xba\xbf'}
     for path in sorted(directory.rglob('*'), key=lambda item: len(item.parts), reverse=True):
@@ -83,10 +94,10 @@ def sign_macos_tree(directory: Path) -> None:
             with path.open('rb') as stream:
                 executable = stream.read(4) in magic
             if executable:
-                run(['codesign', '--force', '--timestamp', '--options', 'runtime', '--entitlements',
-                     ROOT / 'packaging/macos/entitlements.plist', '--sign', identity, path])
+                run(['codesign', '--force', '--entitlements',
+                     ROOT / 'packaging/macos/entitlements.plist', '--sign', '-', path])
         elif path.suffix in {'.framework', '.app'}:
-            run(['codesign', '--force', '--timestamp', '--options', 'runtime', '--sign', identity, path])
+            run(['codesign', '--force', '--sign', '-', path])
 
 
 def validate_windows_signatures(directory: Path) -> None:
@@ -139,34 +150,6 @@ def assemble(args) -> None:
                                           dependencies=ROOT / 'packaging/runtime/dependencies.lock.json', validate_gpu=False))
             if current_target()[0] == 'macos':
                 sign_macos_tree(work / name / 'payload')
-    if current_target()[0] == 'windows':
-        dirty = [name for name in ('application', 'inference-cpu', 'inference-gpu') if not (work / name / 'stamp.json').is_file()]
-        for name in dirty:
-            (work / 'signing').mkdir(exist_ok=True)
-            (work / name / 'payload').rename(work / 'signing' / name)
-        if os.environ.get('GITHUB_OUTPUT'):
-            with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as stream:
-                stream.write(f'signing_required={str(bool(dirty)).lower()}\n')
-
-
-def accept_signatures(args) -> None:
-    work = args.work.resolve()
-    for source in (work / 'signing').iterdir():
-        signed = args.signed / source.name
-        if not signed.is_dir():
-            raise ManifestError(f'Missing signed component: {source.name}')
-        validate_windows_signatures(signed)
-        original = {record.path: record for record in inventory_component(source)}
-        updated = {record.path: record for record in inventory_component(signed)}
-        if original.keys() != updated.keys() or any(
-            record != updated[name] for name, record in original.items() if Path(name).suffix.lower() not in {'.exe', '.dll', '.pyd'}
-        ):
-            raise ManifestError('Signing changed non-executable payloads or their inventory')
-        if source.resolve().parent != (work / 'signing').resolve() or source.is_symlink() or signed.is_symlink():
-            raise ManifestError('Signing output escaped its declared component directories')
-        shutil.rmtree(source)
-        signed.rename(work / source.name / 'payload')
-    shutil.rmtree(work / 'signing')
 
 
 def create_macos_bundle(layout: Path, manifest: DistributionManifest) -> Path:
@@ -197,12 +180,8 @@ def create_macos_bundle(layout: Path, manifest: DistributionManifest) -> Path:
     plist['CFBundleIconFile'] = 'icon.icns'
     with (bundle / 'Contents/Info.plist').open('wb') as stream:
         plistlib.dump(plist, stream)
-    run(['codesign', '--timestamp', '--options', 'runtime', '--sign', os.environ['CODESIGN_IDENTITY'], bundle / 'Contents/MacOS/LaTeXSnipper'])
-    run(['codesign', '--timestamp', '--options', 'runtime', '--sign', os.environ['CODESIGN_IDENTITY'], bundle])
-    archive = layout.parent / 'notarization.zip'
-    run(['ditto', '-c', '-k', '--keepParent', bundle, archive])
-    run(['xcrun', 'notarytool', 'submit', archive, '--keychain-profile', 'latexsnipper-notary', '--wait'])
-    run(['xcrun', 'stapler', 'staple', bundle])
+    run(['codesign', '--force', '--sign', '-', bundle / 'Contents/MacOS/LaTeXSnipper'])
+    run(['codesign', '--force', '--sign', '-', bundle])
     from update.macos_transaction import verify_bundle
 
     verify_bundle(bundle)
@@ -219,8 +198,6 @@ def package(args) -> None:
     output.mkdir(parents=True, exist_ok=True)
     work = args.work.resolve()
     keys = build_inputs(target)
-    if system == 'windows':
-        validate_windows_signatures(work / 'application/payload')
     application = package_component(work / 'application/payload', output, 'application', target, 'common', base_url)
     write_json(work / 'application/stamp.json', {'input': keys['application'], 'component': application.to_dict()})
     models = Component.from_dict(read_json(args.models / 'models.component.json'))
@@ -232,8 +209,6 @@ def package(args) -> None:
     shutil.copy2(model_archive, output / model_archive.name)
     for edition in ('cpu', 'gpu') if system != 'macos' else ('cpu',):
         source = work / f'inference-{edition}/payload'
-        if system == 'windows':
-            validate_windows_signatures(source)
         inference = package_component(source, output, 'inference', target, edition, base_url)
         write_json(work / f'inference-{edition}/stamp.json', {'input': keys['inference'], 'component': inference.to_dict()})
         manifest = DistributionManifest(version, system, architecture, edition, (application, inference, models), release_tag=release_tag)
@@ -266,7 +241,7 @@ def package(args) -> None:
             seal = package_bundle_seal(bundle, output / f'bundle-seal-macos-arm64-{version}.zip', base_url)
             manifest = replace(manifest, bundle_seal=seal)
             # Prove that independently archived components reconstruct the
-            # same signed/notarized bundle, including its stapled ticket.
+            # same bundle with valid local code signatures.
             reconstructed = work / 'reconstructed/LaTeXSnipper.app'
             extract_archive(output / Path(seal.artifact.url).name, reconstructed, component=seal)
             for component in manifest.components:
@@ -281,7 +256,7 @@ def package(args) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('inputs', 'models', 'assemble', 'accept-signatures', 'package', 'finalize-windows', 'catalog'))
+    parser.add_argument('command', choices=('inputs', 'models', 'assemble', 'package', 'finalize-windows', 'catalog'))
     parser.add_argument('--work', type=Path, default=ROOT / 'build/desktop')
     parser.add_argument('--cache', type=Path, default=ROOT / 'build/downloads')
     parser.add_argument('--models', type=Path, default=ROOT / 'build/common-models')
@@ -312,8 +287,6 @@ def main() -> None:
         write_json(args.models / 'models.component.json', component.to_dict())
     elif args.command == 'assemble':
         assemble(args)
-    elif args.command == 'accept-signatures':
-        accept_signatures(args)
     elif args.command == 'package':
         package(args)
     elif args.command == 'finalize-windows':

@@ -76,7 +76,7 @@
       <translation>GPU runtime resource error</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/smart_preview.py" line="152" />
+      <location filename="../../../src/preview/smart_preview.py" line="137" />
       <source>HTML 构建失败</source>
       <translation>HTML build failed</translation>
     </message>
@@ -283,8 +283,8 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>MathCraft Text Recognition</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="81" />
-      <location filename="../../../src/ui/model_resources_dialog.py" line="84" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="92" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="95" />
       <source>MathCraft 缓存</source>
       <translation>MathCraft cache</translation>
     </message>
@@ -564,7 +564,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Start here</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="79" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="90" />
       <source>优先使用安装模型；缺失或损坏时检查 MathCraft 默认缓存，校验通过则复用，否则下载到该缓存。</source>
       <translation>Prefer installed models. If missing or damaged, check the default MathCraft cache and reuse verified weights; otherwise download into that cache.</translation>
     </message>
@@ -607,7 +607,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The new key takes effect after you save the configuration.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/resource_diagnostics.py" line="33" />
+      <location filename="../../../src/ui/resource_diagnostics.py" line="34" />
       <location filename="../../../src/update/update_dialog.py" line="23" />
       <source>修复应用资源</source>
       <translation>Repair app resources</translation>
@@ -653,7 +653,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Select All</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/smart_preview.py" line="174" />
+      <location filename="../../../src/preview/smart_preview.py" line="159" />
       <location filename="../../../src/ui/favorites_window.py" line="267" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="85" />
       <source>公式</source>
@@ -680,12 +680,12 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Formula Favorites</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="86" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="97" />
       <source>公式检测</source>
       <translation>Formula detection</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/math_preview.py" line="250" />
+      <location filename="../../../src/preview/math_preview.py" line="229" />
       <source>公式渲染出错</source>
       <translation>Formula rendering error</translation>
     </message>
@@ -695,7 +695,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Formula rendering failed</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="86" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="97" />
       <source>公式识别</source>
       <translation>Formula recognition</translation>
     </message>
@@ -753,7 +753,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Content is empty</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/smart_preview.py" line="203" />
+      <location filename="../../../src/preview/smart_preview.py" line="188" />
       <source>内容块渲染失败: {error}</source>
       <translation>Content block rendering failed: {error}</translation>
     </message>
@@ -783,8 +783,8 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Failed to write history: {error}</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/latex_preview.py" line="76" />
-      <location filename="../../../src/handwriting/latex_preview.py" line="30" />
+      <location filename="../../../src/handwriting/latex_preview.py" line="143" />
+      <location filename="../../../src/handwriting/latex_preview.py" line="53" />
       <source>写完后会在这里看到预览</source>
       <translation>Your preview will appear here after you write</translation>
     </message>
@@ -867,7 +867,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Cancel</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="90" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="101" />
       <source>可用</source>
       <translation>Available</translation>
     </message>
@@ -1123,7 +1123,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Secure tunnel (recommended)</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="80" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="91" />
       <source>安装模型</source>
       <translation>Installed models</translation>
     </message>
@@ -1446,7 +1446,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>App signature resources</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/resource_diagnostics.py" line="26" />
+      <location filename="../../../src/ui/resource_diagnostics.py" line="27" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="276" />
       <source>应用诊断</source>
       <translation>App diagnostics</translation>
@@ -1713,7 +1713,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Open Main Window</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="39" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="40" />
       <location filename="../../../src/ui/runtime_log_dialog.py" line="51" />
       <source>打开目录</source>
       <translation>Open folder</translation>
@@ -1890,18 +1890,18 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>File</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/smart_preview.py" line="175" />
+      <location filename="../../../src/preview/smart_preview.py" line="160" />
       <location filename="../../../src/ui/favorites_window.py" line="268" />
       <source>文字</source>
       <translation>Text</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="87" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="98" />
       <source>文字检测</source>
       <translation>Text detection</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="87" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="98" />
       <source>文字识别</source>
       <translation>Text recognition</translation>
     </message>
@@ -1911,7 +1911,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Text preview:</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/math_preview.py" line="227" />
+      <location filename="../../../src/preview/math_preview.py" line="206" />
       <source>无公式</source>
       <translation>No formula</translation>
     </message>
@@ -2166,13 +2166,13 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Incomplete model cache</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="27" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="28" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="279" />
       <source>模型资源</source>
       <translation>Model resources</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="64" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="75" />
       <source>模型资源检查失败：{error}</source>
       <translation>Model resource verification failed: {error}</translation>
     </message>
@@ -2272,7 +2272,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Exporting {format}...</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/resource_diagnostics.py" line="30" />
+      <location filename="../../../src/ui/resource_diagnostics.py" line="31" />
       <source>正在校验安装资源，请稍候。</source>
       <translation>Verifying installation resources. Please wait.</translation>
     </message>
@@ -2282,7 +2282,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Verifying and staging components. The current installation remains available.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="30" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="31" />
       <source>正在校验模型资源，请稍候。</source>
       <translation>Verifying model resources. Please wait.</translation>
     </message>
@@ -2392,11 +2392,16 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Dark</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/smart_preview.py" line="176" />
+      <location filename="../../../src/preview/smart_preview.py" line="161" />
       <location filename="../../../src/ui/favorites_window.py" line="269" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="86" />
       <source>混合</source>
       <translation>Mixed</translation>
+    </message>
+    <message>
+      <location filename="../../../src/preview/smart_preview.py" line="217" />
+      <source>混合内容渲染失败: {error}</source>
+      <translation>Mixed content rendering failed: {error}</translation>
     </message>
     <message>
       <location filename="../../../src/ui/predict_result_dialog.py" line="108" />
@@ -2455,7 +2460,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Clear Preview</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="83" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="94" />
       <source>源码桌面端使用 MathCraft 默认缓存，加载前按模型清单校验。</source>
       <translation>The source desktop app uses the default MathCraft cache and verifies weights against the model manifest before loading.</translation>
     </message>
@@ -2638,7 +2643,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The editor is empty</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="90" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="101" />
       <source>缺失或损坏</source>
       <translation>Missing or damaged</translation>
     </message>
@@ -2945,7 +2950,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Choose another {format} combination and retry</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/math_preview.py" line="252" />
+      <location filename="../../../src/preview/math_preview.py" line="231" />
       <source>请检查 MathJax 资源是否正确打包</source>
       <translation>Check that MathJax resources are packaged correctly</translation>
     </message>
@@ -3250,12 +3255,12 @@ Retry with the {hotkey} shortcut.</translation>
     </message>
     <message>
       <location filename="../../../src/preview/smart_preview.py" line="24" />
-      <location filename="../../../src/preview/smart_preview.py" line="153" />
+      <location filename="../../../src/preview/smart_preview.py" line="138" />
       <source>错误:</source>
       <translation>Error:</translation>
     </message>
     <message>
-      <location filename="../../../src/preview/math_preview.py" line="251" />
+      <location filename="../../../src/preview/math_preview.py" line="230" />
       <source>错误信息:</source>
       <translation>Error details:</translation>
     </message>

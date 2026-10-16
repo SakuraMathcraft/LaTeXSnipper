@@ -7,7 +7,8 @@ import pytest
 
 from runtime.component_inventory import inventory_component
 from runtime.distribution_manifest import Artifact, Component, DistributionManifest, ManifestError
-from update.deployment_transaction import DeploymentTransaction, verify_distribution
+from update.deployment_transaction import verify_distribution
+from update.windows_transaction import WindowsDeploymentTransaction
 
 
 def installation(root, version='3.0.0', contents=None):
@@ -35,11 +36,35 @@ def test_business_update_commits_only_changed_components(tmp_path):
     for name in ('inference', 'models'):
         shutil.rmtree(staged / name)
     retained = (root / 'inference/data.bin').stat().st_ino
-    assert DeploymentTransaction(root).apply(staged) == target
+    assert WindowsDeploymentTransaction(root).apply(staged) == target
     assert DistributionManifest.load(root / 'distribution.json') == target
     assert (root / 'inference/data.bin').stat().st_ino == retained
     verify_distribution(root, target)
     assert before.component('application') != target.component('application')
+
+
+def test_committed_cleanup_failure_preserves_success_and_normal_startup(tmp_path, monkeypatch):
+    from update.deployment_transaction import needs_recovery
+
+    root, staged = tmp_path / 'installed', tmp_path / 'staged'
+    installation(root)
+    target = installation(staged, '4.0.0', {name: b'new' for name in ('application', 'inference', 'models')})
+    transaction = WindowsDeploymentTransaction(root)
+    remove = transaction._remove
+
+    def locked_backup(path):
+        if path == transaction.directory / 'backup' and transaction.journal.is_file():
+            raise PermissionError('backup still open')
+        remove(path)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(transaction, '_remove', locked_backup)
+        assert transaction.apply(staged) == target
+        assert not needs_recovery(transaction.directory)
+        assert transaction.recover() == 'committed'
+        verify_distribution(root, target)
+    assert transaction.recover() == 'committed'
+    assert DistributionManifest.load(root / 'distribution.json') == target
 
 
 def test_same_version_repairs_only_damaged_component(tmp_path):
@@ -51,7 +76,7 @@ def test_same_version_repairs_only_damaged_component(tmp_path):
     for name in ('application', 'models'):
         shutil.rmtree(staged / name)
     (root / 'inference/data.bin').write_bytes(b'corrupt')
-    assert DeploymentTransaction(root).apply(staged) == before
+    assert WindowsDeploymentTransaction(root).apply(staged) == before
     verify_distribution(root, before)
 
 
@@ -64,10 +89,10 @@ def test_validation_failure_restores_entire_original_combination(tmp_path):
         raise RuntimeError('worker failed its handshake')
 
     with pytest.raises(RuntimeError, match='handshake'):
-        DeploymentTransaction(root).apply(staged, validate=reject)
+        WindowsDeploymentTransaction(root).apply(staged, validate=reject)
     assert DistributionManifest.load(root / 'distribution.json') == before
     verify_distribution(root, before)
-    assert DeploymentTransaction(root).recover() is None
+    assert WindowsDeploymentTransaction(root).recover() is None
 
 
 class Interrupted(BaseException):
@@ -90,8 +115,8 @@ def test_interrupted_deployment_recovers_complete_combination(tmp_path, boundary
             raise Interrupted()
 
     with pytest.raises(Interrupted):
-        DeploymentTransaction(root).apply(staged, checkpoint=interrupt)
-    transaction = DeploymentTransaction(root)
+        WindowsDeploymentTransaction(root).apply(staged, checkpoint=interrupt)
+    transaction = WindowsDeploymentTransaction(root)
     expected = target if boundary == 'committed' else before
     outcome = 'committed' if boundary == 'committed' else 'rolled-back'
     assert transaction.recover() == outcome
@@ -106,7 +131,7 @@ def test_corrupt_staging_is_rejected_before_installation_changes(tmp_path):
     installation(staged, '4.0.0', {name: b'new' for name in ('application', 'inference', 'models')})
     (staged / 'models/data.bin').write_bytes(b'wrong content')
     with pytest.raises(ManifestError, match='missing or corrupt'):
-        DeploymentTransaction(root).apply(staged)
+        WindowsDeploymentTransaction(root).apply(staged)
     verify_distribution(root, before)
     assert DistributionManifest.load(root / 'distribution.json') == before
 
@@ -121,5 +146,5 @@ def test_update_cannot_change_installed_edition(tmp_path):
     ))
     (staged / 'distribution.json').write_text(json.dumps(target.to_dict()), encoding='utf-8')
     with pytest.raises(ManifestError, match='edition'):
-        DeploymentTransaction(root).apply(staged)
+        WindowsDeploymentTransaction(root).apply(staged)
     verify_distribution(root, before)

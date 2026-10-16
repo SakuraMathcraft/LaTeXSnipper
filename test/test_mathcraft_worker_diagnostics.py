@@ -111,7 +111,7 @@ def test_timeout_preserves_stderr_and_terminates_worker(monkeypatch):
         'sys.stderr.write("before timeout\\n"); sys.stderr.flush(); time.sleep(30)',
     )
     with pytest.raises(RuntimeError) as caught:
-        wrapper._send_worker_request({"action": "warmup"}, timeout_sec=1)
+        wrapper._send_worker_request({"action": "hello"}, timeout_sec=1)
     assert "运行进程超时" in str(caught.value)
     assert "before timeout" in str(caught.value)
     assert classify_mathcraft_failure(str(caught.value))["code"] == "WORKER_TIMEOUT"

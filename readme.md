@@ -42,7 +42,6 @@ English · [简体中文](README.zh-CN.md)
 3. **Recognize and edit.** Use Capture Recognize, Image, PDF, or Handwriting, then review, copy, or export the result.
 
 > [!IMPORTANT]
-> This branch connects self-contained components, native deployment transactions, application updates and repair. Release publication requires GitHub Actions signature, native installation and real OCR gates; the new installers have no CI acceptance results yet. See the [implementation status](docs/desktop_runtime_distribution_plan.md).
 
 Windows/Linux installers provide CPU and NVIDIA GPU editions; macOS uses CPU. Python, inference dependencies, models and Pandoc belong to installation resources. GPU builds carry private CUDA/cuDNN libraries and require a supported NVIDIA GPU and driver. Source development provides its Python packages and PATH Pandoc through standard developer tools.
 

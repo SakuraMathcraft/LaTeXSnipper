@@ -49,7 +49,7 @@ def mac_deployment(tmp_path, monkeypatch):
         assert (candidate / 'Contents/Info.plist').read_text() == identity.version
 
     monkeypatch.setattr(macos_transaction.subprocess, 'run', copy_bundle)
-    # Certificate verification is exercised against real release artifacts in
+    # Native bundle verification is exercised against real release artifacts in
     # CI; this fixture tests namespace and journal semantics independently.
     monkeypatch.setattr(macos_transaction, 'verify_bundle', check_sealed_identity)
     if sys.platform != 'darwin':
@@ -127,13 +127,13 @@ def debian_deployment(tmp_path, monkeypatch):
     database = {item.name: item.content_sha256 for item in before.components}
     fail_next = []
 
-    def build_package(source, component, output):
+    def build_package(source, component, output, **kwargs):
         snapshot = tmp_path / f'package-{len(payloads)}'
         shutil.copytree(source, snapshot)
         output.write_bytes(b'debian fixture')
         payloads[output] = component, snapshot
 
-    def install_packages(resource_root, packages):
+    def install_packages(resource_root, packages, **kwargs):
         for package in packages:
             component, snapshot = payloads[package]
             destination = resource_root / component.name
@@ -147,7 +147,6 @@ def debian_deployment(tmp_path, monkeypatch):
 
     monkeypatch.setattr(debian_transaction, 'build_package', build_package)
     monkeypatch.setattr(debian_transaction, 'install_packages', install_packages)
-    monkeypatch.setattr(debian_transaction, 'remove_packages', lambda resource_root, names: [database.pop(name, None) for name in names])
     return root, staged, before, target, database, fail_next
 
 

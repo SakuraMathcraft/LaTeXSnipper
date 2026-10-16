@@ -2,12 +2,30 @@
 
 from __future__ import annotations
 
-from preview.content_fragments import render_mixed_content
+import html
+import re
+
 from preview.math_preview import mathjax_loader_script, preview_scrollbar_css, preview_theme_tokens
+
+FORMULA_PATTERN = re.compile(r"(\$\$(?:[^$]|\$(?!\$))+?\$\$|\$(?:[^$]|\$(?!\$))+?\$)")
+
+
+def _mixed_content_body(content: str) -> str:
+    parts = FORMULA_PATTERN.split(content or "")
+    result_parts = []
+
+    for part in parts:
+        if (part.startswith("$$") and part.endswith("$$")) or (part.startswith("$") and part.endswith("$")):
+            result_parts.append(part)
+        else:
+            result_parts.append(html.escape(part).replace("\n", "<br>"))
+
+    return "".join(result_parts)
+
 
 def build_mixed_content_html(content: str) -> str:
     tokens = preview_theme_tokens()
-    body_content = render_mixed_content(content or "")
+    body_content = _mixed_content_body(content)
     loader_script = mathjax_loader_script(scale=1.2)
 
     return f'''<!DOCTYPE html>
@@ -39,12 +57,6 @@ padding: 0;
 }}
 .content br {{
    line-height: 1.8;
-}}
-.content > svg {{
-   display: block;
-   max-width: 100%;
-   height: auto;
-   margin: 8px auto;
 }}
 .MathJax, .mjx-container {{
 font-size: 1.45em !important;

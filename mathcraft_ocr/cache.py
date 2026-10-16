@@ -7,7 +7,6 @@ import hashlib
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from functools import lru_cache
 
 from .manifest import Manifest, ModelSpec, model_relative_path
 
@@ -91,8 +90,7 @@ def model_dir(root: str | Path, model_id: str) -> Path:
     return Path(root) / model_id
 
 
-@lru_cache(maxsize=256)
-def _file_digest(path: Path, size: int, modified: int, changed: int) -> str:
+def _file_digest(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open('rb') as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b''):
@@ -101,14 +99,13 @@ def _file_digest(path: Path, size: int, modified: int, changed: int) -> str:
 
 
 def model_file_valid(root: Path, path: str, sha256: str) -> bool:
-    """Validate current content, caching only while the file metadata is unchanged."""
+    """Validate current bytes; filesystem timestamps cannot identify file content."""
     model_relative_path(path)
     file = root / path
     try:
         if file.is_symlink() or not file.resolve(strict=True).is_relative_to(root.resolve()) or not file.is_file():
             return False
-        metadata = file.stat()
-        return not sha256 or _file_digest(file.resolve(), metadata.st_size, metadata.st_mtime_ns, metadata.st_ctime_ns) == sha256
+        return not sha256 or _file_digest(file.resolve()) == sha256
     except (OSError, RuntimeError):
         return False
 

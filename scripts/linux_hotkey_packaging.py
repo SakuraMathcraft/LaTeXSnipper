@@ -71,6 +71,10 @@ PYNPUT_BACKEND_ENV_VARS = (
 )
 
 
+def missing_hotkey_modules(modules) -> list[str]:
+    return sorted(set(REQUIRED_LINUX_HOTKEY_MODULES).difference(modules))
+
+
 def collect_linux_hotkey_modules(
     collect_submodules: Callable[..., list[str]],
 ) -> list[str]:
@@ -89,7 +93,7 @@ def collect_linux_hotkey_modules(
                 os.environ[name] = previous_value
 
     modules = sorted(set(modules))
-    missing = sorted(set(REQUIRED_LINUX_HOTKEY_MODULES).difference(modules))
+    missing = missing_hotkey_modules(modules)
     if missing:
         raise RuntimeError(
             "Failed to collect required Linux hotkey modules: "

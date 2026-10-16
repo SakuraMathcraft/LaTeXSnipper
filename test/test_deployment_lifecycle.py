@@ -9,7 +9,8 @@ import pytest
 from runtime.distribution_manifest import DistributionManifest, ManifestError, read_json
 from runtime import deployment_feedback
 from update import updater_entry
-from update.deployment_transaction import atomic_json, verify_distribution, DeploymentTransaction
+from update.deployment_transaction import atomic_json, verify_distribution
+from update.windows_transaction import WindowsDeploymentTransaction
 from test_deployment_transaction import installation, Interrupted
 
 
@@ -24,8 +25,8 @@ def test_interrupted_first_install_restores_uninstalled_state(tmp_path, boundary
             raise Interrupted()
 
     with pytest.raises(Interrupted):
-        DeploymentTransaction(root).apply(staged, complete=True, checkpoint=interrupt)
-    assert DeploymentTransaction(root).recover() == 'rolled-back'
+        WindowsDeploymentTransaction(root).apply(staged, complete=True, checkpoint=interrupt)
+    assert WindowsDeploymentTransaction(root).recover() == 'rolled-back'
     assert not (root / 'distribution.json').exists()
     assert all(not (root / component.name).exists() for component in target.components)
 
@@ -36,7 +37,7 @@ def test_complete_installer_can_explicitly_replace_cpu_with_gpu(tmp_path):
     original = installation(staged)
     target = replace(original, edition='gpu', components=tuple(replace(item, variant='gpu') if item.name == 'inference' else item for item in original.components))
     atomic_json(staged / 'distribution.json', target.to_dict())
-    assert DeploymentTransaction(root).apply(staged, complete=True) == target
+    assert WindowsDeploymentTransaction(root).apply(staged, complete=True) == target
     verify_distribution(root, target)
 
 
@@ -63,7 +64,7 @@ def test_handoff_authenticates_before_replacement_and_waits_for_ui_exit(tmp_path
 
     monkeypatch.setattr(updater_entry, 'wait_for_exit', wait)
     monkeypatch.setattr(updater_entry, 'validate_installed_worker', lambda root, manifest: verify_distribution(root, manifest))
-    monkeypatch.setattr(updater_entry, 'deployment_transaction', DeploymentTransaction)
+    monkeypatch.setattr(updater_entry, 'deployment_transaction', WindowsDeploymentTransaction)
     request = tmp_path / 'request.json'
     atomic_json(request, {'schema': 1, 'root': str(root), 'staged': str(staged), 'wait_pid': os.getpid() + 1, 'recover': False})
     if authentic:

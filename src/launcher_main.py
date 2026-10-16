@@ -23,7 +23,7 @@ from runtime.installation_layout import deployment_directory, deployment_write_r
 from runtime.processes import hidden_subprocess_kwargs, independent_process_environment
 from runtime.runtime_logging import init_app_logging
 from update.deployment_launch import _start_updater
-from update.deployment_transaction import atomic_json
+from update.deployment_transaction import atomic_json, needs_recovery
 
 logger = logging.getLogger(f'latexsnipper.{__name__}')
 
@@ -32,7 +32,7 @@ def launch_installed(root: Path) -> None:
     executable = 'LaTeXSnipper.exe' if os.name == 'nt' else 'LaTeXSnipper'
     system, _ = current_target()
     transaction = deployment_directory(root, system)
-    if transaction.exists():
+    if needs_recovery(transaction):
         helper_name = 'updater.exe' if os.name == 'nt' else 'updater'
         helper = transaction / helper_name
         if not helper.is_file():

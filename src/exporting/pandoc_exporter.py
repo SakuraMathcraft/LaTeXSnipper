@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from exporting.formula_format_helpers import normalize_latex_for_export
-from rendering.mathjax_runtime import ASSET_ROOT, loader_script
+from rendering.mathjax_runtime import cdn_root, cdn_loader_script
 from localization.manager import mark_for_translation
 from runtime.pandoc_runtime import resolve_pandoc
 from runtime.processes import hidden_subprocess_kwargs
@@ -64,7 +64,6 @@ PANDOC_FORMAT_MAP: dict[str, PandocFormat] = {f.key: f for f in PANDOC_FORMATS}
 
 _available_cache: bool | None = None
 _pandoc_version_cache: str | None = None
-_pandoc_path_cache: str | None = None
 
 
 def _find_pandoc_binary() -> str | None:
@@ -76,13 +75,12 @@ def _find_pandoc_binary() -> str | None:
 
 
 def check_pandoc_available(*, force: bool = False) -> bool:
-    global _available_cache, _pandoc_version_cache, _pandoc_path_cache
+    global _available_cache, _pandoc_version_cache
     if _available_cache is not None and not force:
         return _available_cache
 
     _available_cache = False
     _pandoc_version_cache = None
-    _pandoc_path_cache = None
 
     if force:
         sys.modules.pop("pypandoc", None)
@@ -111,7 +109,6 @@ def check_pandoc_available(*, force: bool = False) -> bool:
         )
         first_line = ver_output.splitlines()[0] if ver_output else ""
         _pandoc_version_cache = first_line.strip()
-        _pandoc_path_cache = str(Path(pandoc_path).resolve())
     except Exception as exc:
         logger.warning('Pandoc 运行检查失败: %s', exc)
         return False
@@ -123,12 +120,6 @@ def check_pandoc_available(*, force: bool = False) -> bool:
 
 def is_available() -> bool:
     return check_pandoc_available()
-
-
-def _subprocess_flags() -> int:
-    if os.name != "nt":
-        return 0
-    return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
 def _wrap_formula_in_document(latex: str) -> str:
@@ -202,12 +193,12 @@ def _looks_like_latex_formula(text: str) -> bool:
 def _ensure_mathjax_script(html: str) -> str:
     # Pandoc preserves TeX in the page; replace its generated loader with our
     # pinned configuration, retaining browser-side typesetting of that source.
-    entry = ASSET_ROOT.resolve().as_uri() + "/startup.js"
+    entry = cdn_root() + "/startup.js"
     pattern = r'<script\b[^>]*\bsrc=[\"\']' + re.escape(entry) + r'[\"\'][^>]*>\s*</script>'
     html, count = re.subn(pattern, "", html, flags=re.IGNORECASE)
     if not count and "math inline" not in html and "math display" not in html:
         return html
-    script = loader_script()
+    script = cdn_loader_script()
     head_end = html.lower().find("</head>")
     return html[:head_end] + script + html[head_end:] if head_end >= 0 else script + html
 
@@ -278,7 +269,7 @@ def convert_latex_to(
         if "--standalone" not in args:
             args.append("--standalone")
         args = [arg for arg in args if arg != "--mathjax" and not arg.startswith("--mathjax=")]
-        args.append("--mathjax=" + ASSET_ROOT.resolve().as_uri() + "/startup.js")
+        args.append("--mathjax=" + cdn_root() + "/startup.js")
 
     if target_key == "pandoc_pdf" and "--pdf-engine" not in " ".join(args):
         engine = _find_pdf_engine()

@@ -4,19 +4,21 @@ import subprocess
 import sys
 
 from exporting.pandoc_exporter import _ensure_mathjax_script
-from rendering.mathjax_runtime import ASSET_ROOT, loader_script
+from rendering.mathjax_runtime import ASSET_ROOT, loader_script, cdn_root
 
 
 def test_pandoc_replaces_pinned_loader_once_and_preserves_source():
     source = r'\(\mathrm{\delta}+\text{中文}\)'
-    html = ('<html><head><script defer src="' + ASSET_ROOT.resolve().as_uri()
+    html = ('<html><head><script defer src="' + cdn_root()
             + '/startup.js"></script></head><body><span class="math inline">'
             + source + '</span></body></html>')
     result = _ensure_mathjax_script(html)
     assert source in result
     assert result.count('LaTeXSnipperMathJax.load(') == 1
     assert '<script defer' not in result
-    assert ASSET_ROOT.resolve().as_uri() in result
+    assert cdn_root() in result
+    assert 'https://cdn.jsdelivr.net/npm/@mathjax' in result
+    assert ASSET_ROOT.resolve().as_uri() not in result
     assert 'officeInput' not in result.split('LaTeXSnipperMathJax.load(')[-1]
 
 

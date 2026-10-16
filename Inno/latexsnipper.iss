@@ -15,7 +15,7 @@ AppPublisher=MathCraft
 AppPublisherURL=https://github.com/SakuraMathcraft/LaTeXSnipper
 DefaultDirName={localappdata}\LaTeXSnipper
 UninstallDisplayIcon={app}\LaTeXSnipper.exe
-ArchitecturesAllowed=x64os
+ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=lowest
 DisableProgramGroupPage=yes
@@ -39,11 +39,23 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; Flags: unchecked
 
 [CustomMessages]
 english.InstallFailure=Resource installation failed. See the runtime log for the deployment and recovery result.
-english.CleanupAppData=Remove LaTeXSnipper settings, history, logs and temporary files?
-english.CleanupModels=Remove the shared MathCraft model cache? This also affects other MathCraft clients.
+english.CleanupAppData=Remove LaTeXSnipper settings, history, logs and temporary files
+english.CleanupModels=Remove the shared MathCraft model cache (also used by other MathCraft clients)
 chinesesimplified.InstallFailure=安装资源部署失败，请查看运行日志中的部署与恢复结果。
-chinesesimplified.CleanupAppData=是否删除 LaTeXSnipper 设置、历史记录、日志和临时文件？
-chinesesimplified.CleanupModels=是否删除共享 MathCraft 模型缓存？这也会影响其他 MathCraft 客户端。
+chinesesimplified.CleanupAppData=删除 LaTeXSnipper 设置、历史记录、日志和临时文件
+chinesesimplified.CleanupModels=删除共享 MathCraft 模型缓存（其他 MathCraft 客户端也会使用）
+
+english.UninstallCleanupTitle=Optional cleanup
+
+english.UninstallCleanupDetail=Settings, history, logs and the shared model cache are kept unless you select them below.
+
+english.UninstallCleanupAction=Uninstall
+
+chinesesimplified.UninstallCleanupTitle=可选清理
+
+chinesesimplified.UninstallCleanupDetail=默认保留设置、历史记录、日志和共享模型缓存，可在下方选择清理。
+
+chinesesimplified.UninstallCleanupAction=卸载
 
 [Files]
 Source: "{#MyBuildDir}\LaTeXSnipper.exe"; DestDir: "{app}"; Flags: onlyifdoesntexist uninsneveruninstall
@@ -70,6 +82,10 @@ Type: files; Name: "{app}\distribution.json"
 Type: files; Name: "{app}\LaTeXSnipper.exe"
 
 [Code]
+var
+  DeleteAppDataOnUninstall: Boolean;
+  DeleteMathCraftModelsOnUninstall: Boolean;
+
 procedure RegisterExtraCloseApplicationsResources;
 begin
   RegisterExtraCloseApplicationsResource(ExpandConstant('{app}\application\LaTeXSnipper.exe'));
@@ -86,15 +102,106 @@ begin
       RaiseException(ExpandConstant('{cm:InstallFailure}'));
 end;
 
-procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+function ConfirmUninstallCleanup(): Boolean;
+var
+  CleanupForm: TSetupForm;
+  TitleLabel: TNewStaticText;
+  DetailLabel: TNewStaticText;
+  AppDataCheckBox: TNewCheckBox;
+  ModelsCheckBox: TNewCheckBox;
+  UninstallButton: TNewButton;
+  CancelButton: TNewButton;
 begin
-  if UninstallSilent then Exit;
-  if CurUninstallStep = usPostUninstall then begin
-    if MsgBox(ExpandConstant('{cm:CleanupAppData}'), mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then begin
-      DelTree(ExpandConstant('{userprofile}\.latexsnipper'), True, True, True);
-      DelTree(ExpandConstant('{tmp}\LaTeXSnipper'), True, True, True);
+  Result := True;
+  if UninstallSilent then
+    Exit;
+
+  CleanupForm := CreateCustomForm(ScaleX(430), ScaleY(190), False, True);
+  try
+    CleanupForm.Caption := CustomMessage('UninstallCleanupTitle');
+
+    TitleLabel := TNewStaticText.Create(CleanupForm);
+    TitleLabel.Parent := CleanupForm;
+    TitleLabel.Left := ScaleX(14);
+    TitleLabel.Top := ScaleY(12);
+    TitleLabel.Width := CleanupForm.ClientWidth - ScaleX(28);
+    TitleLabel.Height := ScaleY(18);
+    TitleLabel.Font.Style := [fsBold];
+    TitleLabel.Caption := CustomMessage('UninstallCleanupTitle');
+
+    DetailLabel := TNewStaticText.Create(CleanupForm);
+    DetailLabel.Parent := CleanupForm;
+    DetailLabel.Left := ScaleX(14);
+    DetailLabel.Top := TitleLabel.Top + ScaleY(24);
+    DetailLabel.Width := CleanupForm.ClientWidth - ScaleX(28);
+    DetailLabel.Height := ScaleY(42);
+    DetailLabel.WordWrap := True;
+    DetailLabel.Caption := CustomMessage('UninstallCleanupDetail');
+
+    AppDataCheckBox := TNewCheckBox.Create(CleanupForm);
+    AppDataCheckBox.Parent := CleanupForm;
+    AppDataCheckBox.Left := ScaleX(14);
+    AppDataCheckBox.Top := DetailLabel.Top + ScaleY(50);
+    AppDataCheckBox.Width := CleanupForm.ClientWidth - ScaleX(28);
+    AppDataCheckBox.Height := ScaleY(20);
+    AppDataCheckBox.Caption := CustomMessage('CleanupAppData');
+
+    ModelsCheckBox := TNewCheckBox.Create(CleanupForm);
+    ModelsCheckBox.Parent := CleanupForm;
+    ModelsCheckBox.Left := ScaleX(14);
+    ModelsCheckBox.Top := AppDataCheckBox.Top + ScaleY(26);
+    ModelsCheckBox.Width := CleanupForm.ClientWidth - ScaleX(28);
+    ModelsCheckBox.Height := ScaleY(20);
+    ModelsCheckBox.Caption := CustomMessage('CleanupModels');
+
+    UninstallButton := TNewButton.Create(CleanupForm);
+    UninstallButton.Parent := CleanupForm;
+    UninstallButton.Width := ScaleX(100);
+    UninstallButton.Height := ScaleY(28);
+    UninstallButton.Left := CleanupForm.ClientWidth - ScaleX(220);
+    UninstallButton.Top := CleanupForm.ClientHeight - ScaleY(36);
+    UninstallButton.Caption := CustomMessage('UninstallCleanupAction');
+    UninstallButton.ModalResult := mrOk;
+
+    CancelButton := TNewButton.Create(CleanupForm);
+    CancelButton.Parent := CleanupForm;
+    CancelButton.Width := ScaleX(100);
+    CancelButton.Height := ScaleY(28);
+    CancelButton.Left := CleanupForm.ClientWidth - ScaleX(112);
+    CancelButton.Top := UninstallButton.Top;
+    CancelButton.Caption := SetupMessage(msgButtonCancel);
+    CancelButton.ModalResult := mrCancel;
+    CleanupForm.ActiveControl := UninstallButton;
+
+    Result := CleanupForm.ShowModal() = mrOk;
+    if Result then
+    begin
+      DeleteAppDataOnUninstall := AppDataCheckBox.Checked;
+      DeleteMathCraftModelsOnUninstall := ModelsCheckBox.Checked;
     end;
-    if MsgBox(ExpandConstant('{cm:CleanupModels}'), mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
-      DelTree(ExpandConstant('{userappdata}\MathCraft\models'), True, True, True);
+  finally
+    CleanupForm.Free;
   end;
+end;
+
+function InitializeUninstall(): Boolean;
+begin
+  DeleteAppDataOnUninstall := False;
+  DeleteMathCraftModelsOnUninstall := False;
+  Result := ConfirmUninstallCleanup();
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var ResultCode: Integer;
+begin
+  if CurUninstallStep <> usUninstall then Exit;
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM "LaTeXSnipper.exe" /T', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Sleep(1200);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM "LaTeXSnipper.exe" /T /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  if DeleteAppDataOnUninstall then begin
+    DelTree(ExpandConstant('{userprofile}\.latexsnipper'), True, True, True);
+    DelTree(ExpandConstant('{tmp}\LaTeXSnipper'), True, True, True);
+  end;
+  if DeleteMathCraftModelsOnUninstall then
+    DelTree(ExpandConstant('{userappdata}\MathCraft\models'), True, True, True);
 end;

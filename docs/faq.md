@@ -1,11 +1,5 @@
 # FAQ
 
-This branch connects self-contained components, native installation and
-deployment transactions, component updates and repair. Release publication
-requires successful GitHub Actions signing, native installation and hardware
-OCR gates. The new installers have no CI acceptance results yet; see the
-[implementation status](desktop_runtime_distribution_plan.md).
-
 ## Where can I download LaTeXSnipper?
 
 Download the latest installers from the [GitHub Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases) page.
@@ -33,7 +27,7 @@ The main differences are platform integration details:
 | Window close / background behavior | Closing the main window hides it to the system tray; use the tray menu to exit. | Closing the main window hides it to the system tray when a tray is available; without a tray, the app asks before exiting. | Closing the main window minimizes it while the app keeps running; Dock/menu Quit exits the app. |
 | Permission model | No explicit screenshot permission is required for the normal capture path. | Wayland compositors can restrict global shortcuts or screenshot capture. | Screen Recording permission is required for screenshots. The native Carbon hotkey path normally does not require Accessibility permission. |
 | Inference runtime | Installed independent Python; CPU or NVIDIA GPU edition. | Installed independent Python; CPU or NVIDIA GPU edition. | Installed independent Python; Apple Silicon CPU edition. |
-| Packaging | Signed Inno installer. | Offline `.tar.gz` carrier installing dpkg-owned components on Debian/Ubuntu. | Signed and notarized `.dmg` / `.app`. |
+| Packaging | Inno installer with optional SignPath signing. | Offline `.tar.gz` carrier installing dpkg-owned components on Debian/Ubuntu. | `.dmg` / `.app` with ad-hoc signing. |
 
 The shortcut UI uses the platform's primary modifier: `Ctrl` on Windows/Linux and `Command` on macOS. macOS system and editing shortcuts such as `Command+Q`, `Command+H`, `Command+M`, `Command+W`, `Command+A`, `Command+C`, `Command+V`, `Command+X`, `Command+Z`, `Command+Space`, `Command+Tab`, and screenshot shortcuts are intentionally rejected; use an `Option+Command` combination when a plain Command shortcut is reserved.
 
@@ -43,7 +37,8 @@ The shortcut UI uses the platform's primary modifier: `Ctrl` on Windows/Linux an
 - Debian/Ubuntu-compatible Linux x86_64: choose the CPU or NVIDIA GPU offline `.tar.gz`, extract it, and run `install.sh`.
 - macOS Apple Silicon: use the CPU `.dmg`, copy the app to Applications, then launch that copy.
 
-Windows and macOS signing is mandatory in the release workflow. GPU builds
+Windows installers are unsigned unless optional SignPath signing succeeds.
+macOS builds use ad-hoc signatures without Developer ID or notarization. GPU builds
 carry private CUDA/cuDNN user-mode libraries and require supported NVIDIA
 hardware and drivers. The desktop app does not require system Python or CUDA
 Toolkit. Linux still requires its declared system GUI libraries.

@@ -12,14 +12,15 @@
       const root = settings.root.replace(/\/$/, '');
       const output = settings.output || 'chtml';
       const font = settings.font || config.defaultFont;
-      const fontRoot = root + '/fonts';
+      const fontRoot = settings.fontRoot || root + '/fonts';
+      const fontVersion = settings.fontVersion || '';
       api.ready = false;
       api.error = '';
       global.MathJax = {
         loader: {
           paths: {mathjax: root, fonts: fontRoot,
-            [font]: fontRoot + '/' + font + '-font',
-            'mathjax-mhchem-extension': fontRoot + '/mathjax-mhchem-font-extension'},
+            [font]: fontRoot + '/' + font + '-font' + fontVersion,
+            'mathjax-mhchem-extension': fontRoot + '/mathjax-mhchem-font-extension' + fontVersion},
           dependencies: {
             ['[mathjax-mhchem-extension]/' + output]: ['[' + font + ']/' + output]
           },
@@ -30,7 +31,7 @@
         },
         output: {
           font,
-          fontPath: '[fonts]/%%FONT%%-font',
+          fontPath: '[fonts]/%%FONT%%-font' + fontVersion,
           scale: settings.scale || 1
         },
         tex: {
@@ -55,7 +56,7 @@
       api.configure(settings);
       const script = document.createElement('script');
       script.src = settings.root.replace(/\/$/, '') + '/startup.js';
-      script.onerror = () => { api.error = 'Bundled MathJax startup.js could not be loaded'; };
+      script.onerror = () => { api.error = 'MathJax startup.js could not be loaded'; };
       document.head.appendChild(script);
     },
     convert(input) {

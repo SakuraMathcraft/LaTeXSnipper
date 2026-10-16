@@ -16,4 +16,6 @@ def deployment_transaction(root: Path) -> DeploymentTransaction:
         from update.macos_transaction import MacOSDeploymentTransaction
 
         return MacOSDeploymentTransaction(root)
-    return DeploymentTransaction(root)
+    from update.windows_transaction import WindowsDeploymentTransaction
+
+    return WindowsDeploymentTransaction(root)
