@@ -1,5 +1,6 @@
 """Verify the real UI import graph in an isolated interpreter."""
 
+import json
 import os
 import subprocess
 import sys
@@ -11,6 +12,54 @@ from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
 
 from ui.controllers.tasks import RecognitionTaskController
+
+
+@pytest.mark.parametrize("missing_pdf", [False, True])
+def test_application_resource_validation_reports_without_opening_the_ui(
+    tmp_path, missing_pdf
+):
+    root = Path(__file__).resolve().parents[1]
+    output = tmp_path / "application-validation.json"
+    code = (
+        "import runpy,sys; "
+        + ("sys.modules['fitz']=None; " if missing_pdf else "")
+        + "sys.argv=sys.argv[1:]; runpy.run_path(sys.argv[0],run_name='__main__')"
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-X",
+            "utf8",
+            "-c",
+            code,
+            str(root / "src/main.py"),
+            "--validate-application",
+            str(output),
+        ],
+        cwd=root,
+        env={
+            **os.environ,
+            "QT_QPA_PLATFORM": "offscreen",
+            "QTWEBENGINE_CHROMIUM_FLAGS": "--disable-gpu --no-sandbox",
+        },
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=60,
+    )
+    report = json.loads(output.read_text(encoding="utf-8"))
+    if missing_pdf:
+        assert result.returncode == 1
+        assert "fitz" in report["error"]
+    else:
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert report == {
+            "pdf": True,
+            "xml": True,
+            "mathjax_svg": True,
+            "mathjax_mathml": True,
+            "network_speed": True,
+        }
 
 
 @pytest.fixture(scope="session")

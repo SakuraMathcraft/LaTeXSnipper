@@ -170,6 +170,9 @@ def test_inference_pruning_keeps_imports_native_libraries_and_metadata(
     native = tmp_path / "native/runtime.dll"
     native.parent.mkdir()
     native.write_bytes(b"GPU runtime")
+    terminfo = tmp_path / "share/terminfo/e/eterm"
+    terminfo.parent.mkdir(parents=True)
+    terminfo.write_bytes(b"terminal database")
     record = site / "core-1.dist-info/RECORD"
     with record.open("w", encoding="utf-8", newline="") as stream:
         csv.writer(stream).writerows(
@@ -190,6 +193,7 @@ def test_inference_pruning_keeps_imports_native_libraries_and_metadata(
             "core-1.dist-info/RECORD",
         }
     assert native.read_bytes() == b"GPU runtime"
+    assert not terminfo.exists()
 
 
 def test_payload_pruning_refuses_paths_outside_staging(tmp_path):
@@ -204,6 +208,34 @@ def test_payload_pruning_refuses_paths_outside_staging(tmp_path):
     with pytest.raises(ValueError, match="escaped"):
         remove_owned(outside, owned)
     assert file.read_bytes() == b"preserve"
+
+
+def test_qt_pruning_preserves_core_links_and_cleans_optional_aliases(tmp_path):
+    from payload_pruning import prune_qt_payload
+
+    qt = tmp_path / "PyQt6/Qt6/lib"
+    for module in ("QtCore", "QtWebSockets"):
+        binary = qt / f"{module}.framework/Versions/A/{module}"
+        binary.parent.mkdir(parents=True)
+        binary.write_bytes(module.encode("utf-8"))
+        try:
+            (tmp_path / module).symlink_to(binary.relative_to(tmp_path))
+            (tmp_path / f"{module}.framework").symlink_to(
+                binary.parents[2].relative_to(tmp_path), target_is_directory=True
+            )
+        except OSError as exc:
+            pytest.skip(f"Symbolic links unavailable: {exc}")
+    prune_qt_payload(tmp_path)
+    assert {
+        path.relative_to(tmp_path).as_posix()
+        for path in tmp_path.rglob("*")
+        if path.is_file() or path.is_symlink()
+    } == {
+        "PyQt6/Qt6/lib/QtCore.framework/Versions/A/QtCore",
+        "QtCore",
+        "QtCore.framework",
+    }
+    assert (tmp_path / "QtCore").read_bytes() == b"QtCore"
 
 
 def test_linux_application_package_owns_its_launchers_and_dependencies(

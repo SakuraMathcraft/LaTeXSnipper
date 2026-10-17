@@ -11,9 +11,23 @@ for _path in (_ROOT_DIR, _SRC_DIR):
         sys.path.insert(0, str(_path))
 
 if len(sys.argv) == 3 and sys.argv[1] == "--validate-application":
-    from runtime.application_validation import validate_application
+    import json
+    import traceback
 
-    validate_application(Path(sys.argv[2]))
+    _validation_output = Path(sys.argv[2])
+    try:
+        from runtime.application_validation import validate_application
+
+        validate_application(_validation_output)
+    except Exception:
+        logging.getLogger("latexsnipper.runtime.application_validation").exception(
+            "Application resource validation failed"
+        )
+        _validation_output.write_text(
+            json.dumps({"error": traceback.format_exc()}, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        raise SystemExit(1) from None
     raise SystemExit(0)
 
 if getattr(sys, "frozen", False):

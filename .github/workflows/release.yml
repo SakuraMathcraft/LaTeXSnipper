@@ -161,6 +161,7 @@ jobs:
         if: always()
         with:
           name: desktop-validation-${{ matrix.system }}
+          if-no-files-found: ignore
           path: |
             build/desktop/*validation.json
 
