@@ -9,10 +9,14 @@ from capture.window_manager import CaptureWindowManager
 
 
 class _Window:
-    def __init__(self, *, visible: bool = True, minimized: bool = False, pinned: bool = False):
+    def __init__(
+        self, *, visible: bool = True, minimized: bool = False, pinned: bool = False
+    ):
         self._visible = visible
         self._state = (
-            Qt.WindowState.WindowMinimized if minimized else Qt.WindowState.WindowNoState
+            Qt.WindowState.WindowMinimized
+            if minimized
+            else Qt.WindowState.WindowNoState
         )
         self._predict_result_pinned = pinned
         self.hidden = 0
@@ -49,7 +53,9 @@ def _install_app(monkeypatch, windows: list[_Window]) -> None:
     )
 
 
-def test_capture_minimizes_only_main_window_and_hides_auxiliary_windows(monkeypatch) -> None:
+def test_capture_minimizes_only_main_window_and_hides_auxiliary_windows(
+    monkeypatch,
+) -> None:
     main = _Window()
     settings = _Window()
     stale_minimized_dialog = _Window(visible=False, minimized=True)

@@ -13,8 +13,7 @@ async function routeHostAssets(page, host) {
     const directory = url.hostname.includes('editor-shared')
       ? resolve(root, 'office_plugin/src/LaTeXSnipper.OfficePlugin.Editor/EditorAssets')
       : resolve(root, `office_plugin/hosts/${host === 'word' ? 'Word' : 'PowerPoint'}AddIn/EditorAssets`);
-    const path = relative.startsWith('vendor/') ? resolve(root, 'src/assets/mathlive', relative)
-      : resolve(directory, relative);
+    const path = resolve(directory, relative);
     const types = {'.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css',
       '.html': 'text/html', '.woff2': 'font/woff2'};
     await route.fulfill({body: await readFile(path), contentType: types[extname(path)] || 'application/octet-stream'});

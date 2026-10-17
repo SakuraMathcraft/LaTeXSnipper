@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from localization.manager import translate as tr
-
 import ctypes
 
 from PyQt6.QtCore import QObject, Qt
@@ -9,6 +7,8 @@ from PyQt6.QtGui import QIcon, QKeySequence
 from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
 
 from capture.overlay import ScreenCaptureOverlay
+from localization.manager import translate as tr
+from platform_services.hotkeys import QHotkey
 from platform_services.protocols import (
     ApplicationMenuHandlers,
     PermissionResult,
@@ -16,7 +16,6 @@ from platform_services.protocols import (
     ScreenshotConfig,
     TrayMenuHandlers,
 )
-from platform_services.hotkeys import QHotkey
 
 
 class WindowsHotkeyProvider(QObject):
@@ -106,7 +105,7 @@ class WindowsSystemProvider:
 
     def show_notification(
         self,
-        tray: QSystemTrayIcon,
+        tray: QSystemTrayIcon | None,
         title: str,
         text: str,
         critical: bool = False,

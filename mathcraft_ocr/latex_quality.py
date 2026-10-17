@@ -1,10 +1,7 @@
-# coding: utf-8
-
 from __future__ import annotations
 
-from collections import Counter
 import re
-
+from collections import Counter
 
 _TOKEN_RE = re.compile(r"\\[A-Za-z]+|[A-Za-z]+|\d+|[^\s]")
 _BEGIN_RE = re.compile(r"\\begin\s*\{\s*([^{}]+)\s*\}")
@@ -60,7 +57,9 @@ def _has_repeated_token_run(text: str) -> bool:
 
 
 def _has_excessive_repeated_token(text: str) -> bool:
-    counts = Counter(token for token in _TOKEN_RE.findall(text) if token in _NOISY_REPEAT_TOKENS)
+    counts = Counter(
+        token for token in _TOKEN_RE.findall(text) if token in _NOISY_REPEAT_TOKENS
+    )
     return any(count >= 18 for count in counts.values())
 
 

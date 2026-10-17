@@ -1,711 +1,213 @@
+"""Component update presentation; task state and installation live in services."""
+
+from __future__ import annotations
+
+from PyQt6.QtCore import QCoreApplication, Qt, QTimer, QUrl
+from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QVBoxLayout
+from qfluentwidgets import (
+    FluentIcon,
+    IndeterminateProgressBar,
+    ProgressBar,
+    PushButton,
+    TextBrowser,
+)
+
 from localization.manager import translate as tr
-import logging
-import html
-import os
-import subprocess
-import sys
-import threading
-from pathlib import Path
-from typing import Dict
+from runtime.product_version import PRODUCT_VERSION
+from ui.window_helpers import show_normal_window
+from update.component_controller import ComponentUpdateController
+from update.component_release import RELEASES_PAGE
 
-from PyQt6.QtCore import QObject, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QFont
-from PyQt6.QtWidgets import (
-    QApplication,
-    QDialog,
-    QHBoxLayout,
-    QLabel,
-    QMessageBox,
-    QVBoxLayout,
-)
-from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition, PushButton, ProgressBar, IndeterminateProgressBar
+_dialog = None
 
-from update.dialog_helpers import (
-    _clear_global,
-    _hidden_subprocess_kwargs,
-    _set_update_dialog,
-    _show_existing_update_dialog,
-    _update_dialog_theme,
-    question_close_only,
-)
-from update.github_release_client import _fetch_release, _session
-from update.installer_cache import (
-    _clear_installer_meta,
-    _compute_file_sha256,
-    _download_paths,
-    _ensure_latest_installer_only,
-    _prune_update_dir,
-    _remove_path,
-    _save_installer_meta,
-)
-from update.installer_launch import (
-    _prepare_app_for_update_exit,
-    _read_signature_status,
-    _schedule_windows_installer,
-)
-from update.release_types import (
-    CONNECT_TIMEOUT,
-    READ_TIMEOUT,
-    ReleaseInfo,
-    __version__,
-    _API_RELEASES,
-    _RELEASES_PAGE,
-    _brief_error_message,
-    _compare_versions,
-    _normalize_sha256,
-)
-from update.remote_image_browser import RemoteImageBrowser
+
+class ComponentUpdateDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        self.setWindowTitle(tr("应用更新"))
+        self.setMinimumSize(560, 400)
+        self.resize(650, 460)
+        self._lifecycle = getattr(getattr(parent, "context", None), "lifecycle", None)
+        self._release_url = RELEASES_PAGE
+        self._has_release_notes = False
+        self._state = "checking"
+        layout = QVBoxLayout(self)
+        layout.addWidget(
+            QLabel(tr("当前版本: {version}").format(version=PRODUCT_VERSION), self)
+        )
+        self.status = QLabel(self)
+        self.status.setWordWrap(True)
+        layout.addWidget(self.status)
+        self.progress = ProgressBar(self, useAni=False)
+        self.progress.setRange(0, 100)
+        layout.addWidget(self.progress)
+        self.busy_progress = IndeterminateProgressBar(self)
+        layout.addWidget(self.busy_progress)
+        self.details = TextBrowser(self)
+        self.details.setOpenExternalLinks(True)
+        self.details.setMarkdown(
+            tr("正在获取发布说明。") + "\n\n" + f"[{tr('发布页面')}]({RELEASES_PAGE})"
+        )
+        layout.addWidget(self.details, 1)
+        row = QHBoxLayout()
+        self.action = PushButton(FluentIcon.DOWNLOAD, tr("下载更新"), self)
+        self.action.clicked.connect(self._act)
+        self.pause = PushButton(FluentIcon.PAUSE, tr("暂停"), self)
+        self.pause.clicked.connect(self._pause)
+        self.link = PushButton(FluentIcon.LINK, tr("发布页面"), self)
+        self.link.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl(self._release_url))
+        )
+        self.cancel = PushButton(FluentIcon.CLOSE, tr("关闭"), self)
+        self.cancel.clicked.connect(self.close)
+        for button in (self.action, self.pause, self.link, self.cancel):
+            row.addWidget(button)
+        layout.addLayout(row)
+        self.controller = ComponentUpdateController(self)
+        self.controller.changed.connect(self._render)
+        self.controller.check()
+
+    def _render(self, state: str, data: dict) -> None:
+        if state == "release":
+            self._show_release_notes(data["release"])
+            return
+        if state == "progress":
+            total = data["total"]
+            self.progress.setValue(int(data["done"] * 100 / total) if total else 100)
+            return
+        self._state = state
+        messages = {
+            "source": tr(
+                "源码运行使用开发者环境，请通过源码更新；安装包可在发布页面获取。"
+            ),
+            "checking": tr("正在检查发行组件，请稍候。"),
+            "downloading": tr("正在下载所需组件。"),
+            "verifying": tr("正在校验并暂存组件，当前安装仍可使用。"),
+            "paused": tr("下载已暂停。"),
+            "ready": tr("组件已校验完成。安装时应用将退出并自动重新打开。"),
+            "handoff": tr("正在准备独立安装进程；如有系统权限提示，请完成授权。"),
+            "handoff-ready": tr("正在退出应用并安装已校验的组件。"),
+            "cancelled": tr("更新已取消，当前安装未改变。"),
+            "failed": tr("更新失败：{error}").format(error=data.get("error", "")),
+        }
+        busy = state in {"checking", "verifying", "handoff", "handoff-ready"}
+        self.busy_progress.setVisible(busy)
+        self.busy_progress.start() if busy else self.busy_progress.stop()
+        self.progress.setVisible(state in {"downloading", "paused", "ready"})
+        if state == "checking":
+            self.progress.setValue(0)
+        self.action.setEnabled(state in {"available", "ready", "failed", "cancelled"})
+        self.pause.setEnabled(state in {"downloading", "paused"})
+        self.pause.setText(tr("继续") if state == "paused" else tr("暂停"))
+        self.action.setText(
+            tr("退出并安装")
+            if state == "ready"
+            else tr("重新检查")
+            if state in {"failed", "cancelled"}
+            else tr("下载更新")
+        )
+        if state == "available":
+            release, plan, resources = data["release"], data["plan"], data["resources"]
+            self._show_release_notes(release)
+            if (
+                not plan.downloads
+                and not plan.seal_required
+                and plan.target.version == resources.manifest.version
+            ):
+                self.status.setText(tr("当前发行组件已完整且为最新版本。"))
+                self.action.setEnabled(False)
+            else:
+                names = {
+                    "application": tr("应用"),
+                    "inference": tr("推理环境"),
+                    "models": tr("模型"),
+                }
+                summary = ", ".join(names[item.name] for item in plan.downloads)
+                if plan.seal_required:
+                    summary = ", ".join(filter(None, (summary, tr("应用签名资源"))))
+                if not summary:
+                    summary = tr("发行信息")
+                self.status.setText(
+                    tr(
+                        "目标版本 {version}；需要更新：{components}；下载约 {size:.1f} MB。"
+                    ).format(
+                        version=plan.target.version,
+                        components=summary,
+                        size=plan.download_bytes / 1048576,
+                    )
+                )
+        else:
+            self.status.setText(messages.get(state, state))
+            if state == "failed" and not self._has_release_notes:
+                self.details.setPlainText(messages["failed"])
+        if state == "handoff-ready":
+            self.cancel.setEnabled(False)
+            QTimer.singleShot(0, self._exit_for_install)
+
+    def _show_release_notes(self, release) -> None:
+        self._release_url = release.url
+        self._has_release_notes = True
+        document = self.details.document()
+        assert document is not None
+        document.setBaseUrl(QUrl(release.url + "/"))
+        notes = release.notes.strip() or tr("此版本未提供发布说明。")
+        self.details.setMarkdown(
+            f"## {release.tag}\n\n{notes}\n\n[{tr('发布页面')}]({release.url})"
+        )
+
+    def _act(self) -> None:
+        if self._state == "ready":
+            if self._lifecycle is None:
+                self._render(
+                    "failed", {"error": tr("应用退出服务不可用，安装未开始。")}
+                )
+                return
+            self.controller.deploy()
+        elif self._state in {"failed", "cancelled"}:
+            self.controller.check()
+        else:
+            self.controller.prepare()
+
+    def _pause(self) -> None:
+        self.controller.pause()
+
+    def _exit_for_install(self) -> None:
+        if self._lifecycle is None:
+            self._state = "failed"
+            self.status.setText(tr("应用退出服务不可用，安装未开始。"))
+            self.controller.close()
+            self.cancel.setEnabled(True)
+            return
+        self._lifecycle.prepare_restart()
+        QCoreApplication.quit()
+
+    def closeEvent(self, event) -> None:
+        if self._state == "handoff-ready":
+            event.ignore()
+            return
+        self.controller.close()
+        _clear_dialog(self)
+        super().closeEvent(event)
+
+
+def _clear_dialog(owner) -> None:
+    global _dialog
+    if _dialog is owner:
+        _dialog = None
 
 
 def check_update_dialog(parent=None):
-    existing = _show_existing_update_dialog()
-    if existing is not None:
-        return existing
-
-    dlg = QDialog(parent)
-    dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
-    dlg.setWindowTitle(tr("检查更新"))
-    dlg.setWindowFlags(
-        (
-            dlg.windowFlags()
-            | Qt.WindowType.CustomizeWindowHint
-            | Qt.WindowType.WindowTitleHint
-            | Qt.WindowType.WindowSystemMenuHint
-            | Qt.WindowType.WindowCloseButtonHint
-        )
-        & ~Qt.WindowType.WindowMinimizeButtonHint
-        & ~Qt.WindowType.WindowContextHelpButtonHint
-        & ~Qt.WindowType.WindowMinMaxButtonsHint
-    )
-    dlg.setWindowFlag(Qt.WindowType.WindowMinimizeButtonHint, False)
-    dlg.resize(650, 520)
-    theme = _update_dialog_theme()
-    dlg.setModal(False)
-    dlg.setWindowModality(Qt.WindowModality.NonModal)
-    _set_update_dialog(dlg)
-    dlg.destroyed.connect(_clear_global)
-
-    lay = QVBoxLayout(dlg)
-    title = QLabel(tr("版本更新"))
-    title_font = QFont(title.font())
-    title_font.setPointSize(max(title_font.pointSize(), 14))
-    title_font.setBold(True)
-    title.setFont(title_font)
-    lay.addWidget(title)
-    lbl_current = QLabel(tr("当前版本: {version}").format(version=__version__))
-    lay.addWidget(lbl_current)
-    lbl_status = QLabel(tr("正在联网获取最新版本信息，请保持与 GitHub 的连接畅通..."))
-    lay.addWidget(lbl_status)
-    bar = ProgressBar(dlg, useAni=False)
-    bar.setRange(0, 100)
-    busy_bar = IndeterminateProgressBar(dlg)
-    lay.addWidget(bar)
-    lay.addWidget(busy_bar)
-
-    def set_progress_busy(busy: bool) -> None:
-        bar.setVisible(not busy)
-        busy_bar.setVisible(busy)
-        if busy:
-            busy_bar.start()
-        else:
-            busy_bar.stop()
-
-    set_progress_busy(True)
-
-    txt = RemoteImageBrowser()
-    txt.setOpenExternalLinks(True)
-    txt.setPlaceholderText(tr("变更日志 / 诊断输出..."))
-    lay.addWidget(txt, 1)
-
-    btn_row = QHBoxLayout()
-    btn_row.addStretch()
-    btn_download = PushButton(FluentIcon.DOWNLOAD, tr("下载并安装"))
-    btn_open = PushButton(FluentIcon.LINK, tr("打开链接"))
-    btn_copy = PushButton(FluentIcon.COPY, tr("复制链接"))
-    btn_retry = PushButton(FluentIcon.SYNC, tr("重新检查"))
-    btn_close = PushButton(FluentIcon.CLOSE, tr("关闭"))
-    for b in (btn_download, btn_open, btn_copy, btn_retry, btn_close):
-        b.setFixedHeight(32)
-        btn_row.addWidget(b)
-    btn_download.setEnabled(False)
-    btn_open.setEnabled(False)
-    btn_copy.setEnabled(False)
-    btn_retry.setEnabled(False)
-    lay.addLayout(btn_row)
-
-    state = {
-        "done": False,
-        "info": None,
-        "aborted": False,
-        "downloading": False,
-        "pause_requested": False,
-        "closing": False,
-        "fallback_url": _RELEASES_PAGE,
-    }
-    watchdog = QTimer(dlg)
-    watchdog.setSingleShot(True)
-
-    class _ResultEmitter(QObject):
-        done = pyqtSignal(object, object, object)
-        download_progress = pyqtSignal(int, int, object)
-        download_done = pyqtSignal(object, object)
-
-    emitter = _ResultEmitter(
-        dlg
-    )  # Bind to the parent object so it disconnects automatically on destruction.
-
-    def safe_ui(fn):
-        if state["aborted"] or state["done"] or (not dlg.isVisible()):
-            return
+    global _dialog
+    if _dialog is not None:
         try:
-            fn()
+            show_normal_window(_dialog)
+            return _dialog
         except RuntimeError:
-            pass
-
-    def safe_emit(signal, *args):
-        try:
-            signal.emit(*args)
-        except RuntimeError:
-            pass
-
-    def safe_emit_signal(obj, signal_name: str, *args):
-        try:
-            signal = getattr(obj, signal_name)
-        except RuntimeError:
-            return
-        safe_emit(signal, *args)
-
-    def watchdog_timeout():
-        if state["aborted"] or state["done"] or (not dlg.isVisible()):
-            return
-        state["done"] = True
-        set_progress_busy(False)
-        lbl_status.setText(tr("获取超时，可重新检查。"))
-        txt.start_new_html(
-            "<pre>"
-            + html.escape(
-                tr(
-                    "超出设定: connect={connect}s read={read}s\n可点“重新检查”再次发起。"
-                ).format(connect=CONNECT_TIMEOUT, read=READ_TIMEOUT)
-            )
-            + "</pre>"
-        )
-        btn_open.setEnabled(True)
-        btn_copy.setEnabled(True)
-        btn_retry.setEnabled(True)
-
-    watchdog.timeout.connect(watchdog_timeout)
-
-    def render_changelog(changelog: str):
-        if not changelog:
-            txt.start_new_html(f"<p>{html.escape(tr('(无变更日志)'))}</p>")
-            return
-        css = f"""
-body{{font-family:'Microsoft YaHei UI','Segoe UI',sans-serif;font-size:12px;line-height:1.55;color:{theme["text"]};}}
-pre{{white-space:pre-wrap;overflow-wrap:anywhere;}}
-code,pre{{font-family:Consolas,'Microsoft YaHei',monospace;}}
-img{{max-width:100%;}}
-table{{border-collapse:collapse;}}
-table,th,td{{border:1px solid {theme["border"]};padding:4px;}}
-a{{color:{theme["accent"]};}}
-"""
-        txt.start_new_markdown(changelog, css)
-
-    def on_result(info, err, diag):
-        if diag:
-            logging.getLogger(__name__).debug("更新检查诊断: %s", diag)
-        if state["aborted"] or state["done"] or (not dlg.isVisible()):
-            return
-        state["done"] = True
-        watchdog.stop()
-        set_progress_busy(False)
-        dlg.unsetCursor()
-        if err:
-            message = _brief_error_message(err)
-            lbl_status.setText(
-                tr("暂时无法确认更新：{message}").format(message=message)
-            )
-            lines = [
-                f"<p>{html.escape(tr('暂时无法获取更新信息。可稍后重试，或直接打开 GitHub Releases 页面查看。'))}</p>",
-                "<ul>",
-            ]
-            shown_diag = False
-            for u, e in diag:
-                if u == "RATE_LIMIT":
-                    continue
-                if u == "EMPTY_RELEASES":
-                    lines.append(
-                        f"<li>{html.escape(tr('GitHub API 本次返回了空发布列表，但这不代表项目没有发布版本。'))}</li>"
-                    )
-                    shown_diag = True
-                    continue
-                if u == "CACHE":
-                    lines.append(
-                        f"<li>{html.escape(tr('已改用本地缓存的发布信息。'))}</li>"
-                    )
-                    shown_diag = True
-                    continue
-                lines.append(
-                    f"<li>{html.escape(str(u))}: {html.escape(_brief_error_message(e))}</li>"
-                )
-                shown_diag = True
-            if not shown_diag:
-                lines.append(
-                    f"<li>{html.escape(tr('来源'))}: {html.escape(_API_RELEASES)}</li>"
-                )
-            if not any(k == "RATE_LIMIT" for k, _ in diag):
-                lines.append(
-                    f"<li>{html.escape(tr('建议：检查网络、代理或 DNS；也可以直接打开发布页。'))}</li>"
-                )
-            lines.append("</ul>")
-            txt.start_new_html("".join(lines))
-            btn_open.setEnabled(True)
-            btn_copy.setEnabled(True)
-            btn_retry.setEnabled(True)
-            return
-
-        state["info"] = info
-        cmp = _compare_versions(info.latest, __version__)
-        if cmp > 0:
-            lbl_status.setText(
-                tr("发现新版本: {latest} (当前 {current})").format(
-                    latest=info.latest, current=__version__
-                )
-            )
-        elif cmp == 0:
-            lbl_status.setText(
-                tr("已经是最新版本: {version}").format(version=info.latest)
-            )
-        else:
-            lbl_status.setText(
-                tr("当前版本高于线上稳定版本: {latest} (当前 {current})").format(
-                    latest=info.latest, current=__version__
-                )
-            )
-        render_changelog(info.changelog)
-
-        # Rate-limit hint.
-        rate_msg = next((m for k, m in diag if k == "RATE_LIMIT"), None)
-        if rate_msg:
-            lbl_status.setText(lbl_status.text() + tr("（GitHub 限频）"))
-            warn_html = (
-                f"<div style='color:{theme['warn_text']};font-size:12px;"
-                f"border:1px solid {theme['warn_border']};background:{theme['warn_bg']};"
-                "padding:6px;border-radius:4px;margin-bottom:8px;'>"
-                f"⚠ {html.escape(tr('{message}；建议稍后重试或设置 GITHUB_TOKEN。').format(message=rate_msg))}</div>"
-            )
-            current = txt.toHtml()
-            txt.start_new_html(warn_html + current)
-
-        _refresh_download_button()
-        btn_open.setEnabled(True)
-        btn_copy.setEnabled(True)
-        btn_retry.setEnabled(True)
-
-    emitter.done.connect(lambda i, e, d: safe_ui(lambda: on_result(i, e, d)))
-
-    def _refresh_download_button() -> None:
-        info = state.get("info")
-        if not info:
-            btn_download.setEnabled(False)
-            return
-        url, dest, tmp_path = _download_paths(info)
-        has_valid_local = _ensure_latest_installer_only(info) if url else False
-        btn_download.setEnabled(bool(url))
-        if not url:
-            btn_download.setText(tr("无安装包"))
-        elif os.path.exists(tmp_path) and not os.path.exists(dest):
-            btn_download.setText(tr("继续下载"))
-        elif has_valid_local:
-            btn_download.setText(tr("安装已下载"))
-        elif _compare_versions(info.latest, __version__) > 0:
-            btn_download.setText(tr("下载并安装"))
-        else:
-            btn_download.setText(tr("重新下载"))
-
-    def _confirm_install(path: str, sha256_hex: str, signature_status: str) -> bool:
-        name = Path(path).name or path
-        msg = tr(
-            "已下载更新包：{name}\n\nSHA256:\n{sha256}\n\n签名状态：{signature}\n\n是否立即启动安装程序？"
-        ).format(
-            name=name, sha256=sha256_hex, signature=signature_status
-        )
-        ret = question_close_only(
-            dlg,
-            tr("确认安装更新"),
-            msg,
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.Yes,
-        )
-        return ret == QMessageBox.StandardButton.Yes
-
-    def _maybe_launch_installer(path: str):
-        if not path or not Path(path).is_file():
-            InfoBar.error(
-                title=tr("安装包不存在"),
-                content=tr("未找到下载完成的安装包：{path}").format(path=path),
-                parent=dlg,
-                duration=4000,
-                position=InfoBarPosition.TOP,
-            )
-            return
-        ext = Path(path).suffix.lower()
-        logging.info("更新包下载完成，开始校验：%s", Path(path).name)
-        lbl_status.setText(tr("验证中..."))
-        try:
-            sha256_hex = _compute_file_sha256(path)
-        except OSError as error:
-            logging.exception("更新包读取失败，无法计算 SHA256")
-            lbl_status.setText(tr("下载校验失败"))
-            InfoBar.error(
-                title=tr("下载校验失败"),
-                content=_brief_error_message(error),
-                parent=dlg,
-                duration=4500,
-                position=InfoBarPosition.TOP,
-            )
-            return
-        info = state.get("info")
-        expected_sha256 = (
-            _normalize_sha256(info.asset_sha256)
-            if isinstance(info, ReleaseInfo)
-            else ""
-        )
-        if expected_sha256 and sha256_hex.lower() != expected_sha256:
-            _clear_installer_meta()
-            _remove_path(path)
-            lbl_status.setText(tr("下载校验失败：安装包 SHA256 与线上发布信息不一致"))
-            InfoBar.error(
-                title=tr("下载校验失败"),
-                content=tr("安装包 SHA256 与线上发布信息不一致，请重新下载。"),
-                parent=dlg,
-                duration=4500,
-                position=InfoBarPosition.TOP,
-            )
-            return
-        logging.info("更新包 SHA256 校验通过：%s", Path(path).name)
-        signature_status = _read_signature_status(path)
-        logging.info("更新包签名检查完成：%s", signature_status)
-        if isinstance(info, ReleaseInfo):
-            _save_installer_meta(info, path, sha256_hex)
-        if os.name != "nt" or not getattr(sys, "frozen", False) or ext != ".exe":
-            lbl_status.setText(tr("下载完成: {path}").format(path=path))
-            InfoBar.success(
-                title=tr("更新已下载"),
-                content=tr("已下载到 {path}，SHA256 已生成").format(path=path),
-                parent=dlg,
-                duration=3500,
-                position=InfoBarPosition.TOP,
-            )
-            return
-        if not _confirm_install(path, sha256_hex, signature_status):
-            lbl_status.setText(tr("安装已取消，更新包保留在本地"))
-            InfoBar.info(
-                title=tr("已取消安装"),
-                content=tr("更新包已保留：{path}").format(path=path),
-                parent=dlg,
-                duration=3500,
-                position=InfoBarPosition.TOP,
-            )
-            return
-        try:
-            _schedule_windows_installer(path)
-            logging.info("更新安装器启动任务已创建：%s", Path(path).name)
-        except Exception:
-            logging.exception("无法创建更新安装器启动任务，尝试直接启动")
-            try:
-                subprocess.Popen([path], close_fds=True, **_hidden_subprocess_kwargs())
-            except Exception as launch_error:
-                logging.exception("更新安装器启动失败")
-                InfoBar.error(
-                    title=tr("启动安装器失败"),
-                    content=_brief_error_message(launch_error),
-                    parent=dlg,
-                    duration=4000,
-                    position=InfoBarPosition.TOP,
-                )
-                lbl_status.setText(tr("启动安装器失败"))
-                return
-        lbl_status.setText(tr("下载完成，正在退出程序并启动安装器..."))
-        _prepare_app_for_update_exit()
-        app = QApplication.instance()
-        if app is not None:
-            QTimer.singleShot(0, app.quit)
-
-    def _on_download_progress(cur: int, total: int, path: object):
-        if state["aborted"] or (not dlg.isVisible()):
-            return
-        set_progress_busy(total <= 0)
-        name = Path(str(path or "")).name or tr("更新包")
-        if total > 0:
-            pct = max(0, min(100, cur * 100 // total))
-            bar.setValue(pct)
-            lbl_status.setText(
-                tr("正在下载 {name} ({percent}% , {current}/{total} 字节)").format(
-                    name=name, percent=pct, current=cur, total=total
-                )
-            )
-        else:
-            lbl_status.setText(tr("正在下载 {name}...").format(name=name))
-
-    def _on_download_done(path: object, err: object):
-        state["downloading"] = False
-        if state["aborted"] or (not dlg.isVisible()):
-            return
-        if err == "__paused__":
-            _refresh_download_button()
-            btn_open.setEnabled(bool(state.get("info")))
-            btn_copy.setEnabled(bool(state.get("info")))
-            btn_retry.setEnabled(True)
-            dlg.unsetCursor()
-            set_progress_busy(False)
-            lbl_status.setText(tr("下载已暂停，可稍后继续下载。"))
-            InfoBar.info(
-                title=tr("下载已暂停"),
-                content=tr("更新包已保留，下次打开可继续下载。"),
-                parent=dlg,
-                duration=3200,
-                position=InfoBarPosition.TOP,
-            )
-            return
-        if err:
-            message = _brief_error_message(err, context="download")
-            _refresh_download_button()
-            btn_open.setEnabled(bool(state.get("info")))
-            btn_copy.setEnabled(bool(state.get("info")))
-            btn_retry.setEnabled(True)
-            dlg.unsetCursor()
-            set_progress_busy(False)
-            lbl_status.setText(tr("下载失败：{message}").format(message=message))
-            InfoBar.error(
-                title=tr("下载失败"),
-                content=message,
-                parent=dlg,
-                duration=4000,
-                position=InfoBarPosition.TOP,
-            )
-            return
-        set_progress_busy(False)
-        bar.setValue(100)
-        _maybe_launch_installer(str(path or ""))
-        _refresh_download_button()
-        btn_open.setEnabled(bool(state.get("info")))
-        btn_copy.setEnabled(bool(state.get("info")))
-        btn_retry.setEnabled(True)
-        dlg.unsetCursor()
-
-    emitter.download_progress.connect(
-        lambda cur, total, path: _on_download_progress(cur, total, path)
-    )
-    emitter.download_done.connect(lambda path, err: _on_download_done(path, err))
-
-    def worker():
-        info, err, diag = _fetch_release()
-        # Emit after the thread finishes; if the dialog was destroyed, the emitter was destroyed too, so skip.
-        safe_emit_signal(emitter, "done", info, err, diag)
-
-    def start_fetch():
-        state["done"] = False
-        state["aborted"] = False
-        state["closing"] = False
-        state["info"] = None
-        lbl_status.setText(
-            tr("正在联网获取最新版本信息，请保持与 GitHub 的连接畅通...")
-        )
-        txt.start_new_html(
-            f"<p style='color:#777;'>{html.escape(tr('正在获取...'))}</p>"
-        )
-        set_progress_busy(True)
-        bar.setValue(0)
-        btn_open.setEnabled(False)
-        btn_copy.setEnabled(False)
-        btn_retry.setEnabled(False)
-        dlg.setCursor(Qt.CursorShape.BusyCursor)
-        total_wait_ms = max((CONNECT_TIMEOUT + READ_TIMEOUT) * 1000 + 1000, 10000)
-        watchdog.start(total_wait_ms)
-        threading.Thread(target=worker, daemon=True).start()
-
-    def _current_update_link() -> str:
-        if state["info"]:
-            return (
-                state["info"].asset_url
-                or state["info"].url
-                or state.get("fallback_url", "")
-            )
-        return str(state.get("fallback_url", "") or "")
-
-    def do_open():
-        link = _current_update_link()
-        if link:
-            import webbrowser
-
-            webbrowser.open(link)
-
-    def do_copy():
-        link = _current_update_link()
-        if link:
-            try:
-                QApplication.clipboard().setText(link)
-                InfoBar.success(
-                    title=tr("已复制"),
-                    content=tr("下载链接已复制到剪贴板。"),
-                    parent=dlg,
-                    duration=2200,
-                    position=InfoBarPosition.TOP,
-                )
-            except Exception as e:
-                InfoBar.error(
-                    title=tr("复制失败"),
-                    content=_brief_error_message(e),
-                    parent=dlg,
-                    duration=3000,
-                    position=InfoBarPosition.TOP,
-                )
-
-    def do_download():
-        info = state.get("info")
-        if not info:
-            return
-        url, dest, tmp_path = _download_paths(info)
-        if not url:
-            InfoBar.warning(
-                title=tr("无可下载资产"),
-                content=tr("当前版本仅提供网页链接，请手动下载。"),
-                parent=dlg,
-                duration=3000,
-                position=InfoBarPosition.TOP,
-            )
-            return
-        valid_local = _ensure_latest_installer_only(info)
-        if valid_local and os.path.exists(dest):
-            _maybe_launch_installer(dest)
-            return
-        if os.path.exists(dest):
-            ret = question_close_only(
-                dlg,
-                tr("安装包已存在"),
-                tr("检测到已存在安装包，是否继续重新下载并覆盖？"),
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
-            )
-            if ret != QMessageBox.StandardButton.Yes:
-                return
-        _prune_update_dir(info)
-        btn_download.setEnabled(False)
-        btn_open.setEnabled(False)
-        btn_copy.setEnabled(False)
-        btn_retry.setEnabled(False)
-        dlg.setCursor(Qt.CursorShape.BusyCursor)
-        set_progress_busy(False)
-        bar.setValue(0)
-        lbl_status.setText(tr("正在下载更新包..."))
-        state["downloading"] = True
-        state["pause_requested"] = False
-
-        class _PauseDownload(Exception):
-            pass
-
-        def worker_download():
-            try:
-                existing = os.path.getsize(tmp_path) if os.path.exists(tmp_path) else 0
-                headers: Dict[str, str] = {}
-                file_mode = "ab" if existing > 0 else "wb"
-                if existing > 0:
-                    headers["Range"] = f"bytes={existing}-"
-                with _session.get(
-                    url, stream=True, timeout=(CONNECT_TIMEOUT, 60), headers=headers
-                ) as r:
-                    r.raise_for_status()
-                    if existing > 0 and r.status_code == 200:
-                        existing = 0
-                        file_mode = "wb"
-                    reported = int(r.headers.get("Content-Length", "0") or "0")
-                    total = (
-                        existing + reported
-                        if existing > 0 and r.status_code == 206
-                        else reported
-                    )
-                    cur = existing
-                    with open(tmp_path, file_mode) as f:
-                        for chunk in r.iter_content(chunk_size=1024 * 128):
-                            if state["pause_requested"]:
-                                raise _PauseDownload()
-                            if not chunk:
-                                continue
-                            f.write(chunk)
-                            cur += len(chunk)
-                            safe_emit_signal(
-                                emitter, "download_progress", cur, total, dest
-                            )
-                if os.path.exists(dest):
-                    try:
-                        os.remove(dest)
-                    except Exception:
-                        pass
-                os.replace(tmp_path, dest)
-                safe_emit_signal(emitter, "download_done", dest, None)
-            except _PauseDownload:
-                safe_emit_signal(emitter, "download_done", dest, "__paused__")
-            except Exception as e:
-                safe_emit_signal(
-                    emitter,
-                    "download_done",
-                    dest,
-                    _brief_error_message(e, context="download"),
-                )
-
-        threading.Thread(target=worker_download, daemon=True).start()
-
-    def abort_and_close():
-        if state["closing"]:
-            return
-        if state["downloading"]:
-            ret = question_close_only(
-                dlg,
-                tr("确认关闭"),
-                tr("关闭该窗口会暂停下载，是否继续？"),
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
-            )
-            if ret != QMessageBox.StandardButton.Yes:
-                return
-        state["closing"] = True
-        state["pause_requested"] = state["downloading"]
-        state["aborted"] = True
-        _clear_global()
-        dlg.close()
-
-    # Custom ESC handling: abort instead of crashing.
-    orig_key = dlg.keyPressEvent
-
-    def _keyPress(ev):
-        if ev.key() == Qt.Key.Key_Escape:
-            abort_and_close()
-            ev.accept()
-            return
-        orig_key(ev)
-
-    dlg.keyPressEvent = _keyPress
-
-    orig_close_event = dlg.closeEvent
-
-    def _close_event(ev):
-        if not state["closing"]:
-            abort_and_close()
-            ev.ignore()
-            return
-        orig_close_event(ev)
-
-    dlg.closeEvent = _close_event
-
-    btn_download.clicked.connect(do_download)
-    btn_open.clicked.connect(do_open)
-    btn_copy.clicked.connect(do_copy)
-    btn_retry.clicked.connect(start_fetch)
-    btn_close.clicked.connect(abort_and_close)
-
-    start_fetch()
-    dlg.show()
-    dlg.raise_()
-    dlg.activateWindow()
-    return dlg
+            _dialog = None
+    dialog = ComponentUpdateDialog(parent)
+    _dialog = dialog
+    dialog.destroyed.connect(lambda: _clear_dialog(dialog))
+    show_normal_window(dialog)
+    return dialog

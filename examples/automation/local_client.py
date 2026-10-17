@@ -14,10 +14,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
-
+from typing import Any
 
 TERMINAL_STATES = {"completed", "failed", "canceled"}
 CLIPBOARD_MIME_TYPES = (

@@ -215,6 +215,27 @@ python benchmarks\mathcraft_ocr\visualization\make_openstax_block_gallery.py `
 Generated OpenStax page images and overlays remain under `./benchmark-data`
 because they are derived from licensed OpenStax PDF content.
 
+## Formula inference performance
+
+Measure warm encoder/decoder inference on individual images and batches using
+the selected Python environment and local formula-recognition models:
+
+```powershell
+python benchmarks/mathcraft_ocr/runners/benchmark_formula_inference.py `
+  --model-dir ./models/mathcraft-formula-rec `
+  --images-dir ./benchmark-data/formulas `
+  --provider cuda --batch-size 4 --warmup 2 --repeats 5 `
+  --output ./benchmark-data/runs/formula-inference.json
+```
+
+Use `--provider cpu` for CPU measurements. `--native-dir` can preload a private
+CUDA/cuDNN library directory. `--reference` accepts a saved
+directory containing `formula_recognizer.py` and `formula_inference.py` for an
+alternating comparison in the same process; model weights and backend remain
+identical, and text and confidence are checked across implementations. Results include input hashes, per-run
+latency, medians and p95 estimates. Use more repetitions for tail-latency analysis.
+These measurements cover formula inference, not the entire PDF or mixed-page pipeline.
+
 ## Portable benchmark environment
 
 Run examples from the repository root. `./benchmark-data` is an example external-data directory; use `-DataRoot` to choose its location. The PowerShell runners resolve the checkout from the script location and use the active `python`; inference runners accept `-PythonPath`, and CDM runners accept `-Python`. Install CDM tools on PATH or pass `-PathPrepend` with your own tool directories. No drive letter or developer environment is required.

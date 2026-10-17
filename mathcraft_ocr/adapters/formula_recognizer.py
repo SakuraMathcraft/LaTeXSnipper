@@ -1,16 +1,18 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import json
 import os
+from collections.abc import Sequence
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from PIL import Image
 
 from .common import create_session
+from .formula_inference import FormulaDecoder, encode_formula
+from .formula_model import last_token_decoder
 
 
 def _disable_transformers_framework_imports() -> None:
@@ -35,13 +37,18 @@ def _softmax(logits: np.ndarray) -> np.ndarray:
 
 
 @lru_cache(maxsize=8)
-def _load_processor(model_dir: str):
+def _load_processor(model_dir: str) -> Any:
     _disable_transformers_framework_imports()
     _disable_transformers_torchvision_probe()
     from transformers import AutoTokenizer, TrOCRProcessor, ViTImageProcessor
 
-    image_processor = ViTImageProcessor.from_pretrained(model_dir, use_fast=False)
-    tokenizer = AutoTokenizer.from_pretrained(model_dir, use_fast=True)
+    # Model directories are local and their files are verified by the OCR runtime.
+    image_processor = ViTImageProcessor.from_pretrained(  # nosec B615
+        model_dir, use_fast=False, local_files_only=True
+    )
+    tokenizer = AutoTokenizer.from_pretrained(  # nosec B615
+        model_dir, use_fast=True, local_files_only=True
+    )
     return TrOCRProcessor(image_processor=image_processor, tokenizer=tokenizer)
 
 
@@ -54,7 +61,7 @@ def warmup_formula_recognizer(model_dir: str | Path, provider_info) -> None:
     if not decoder.is_file():
         raise FileNotFoundError(f"missing decoder model under {root}")
     create_session(encoder, provider_info)
-    create_session(decoder, provider_info)
+    create_session(decoder, provider_info, model_transform=last_token_decoder)
 
 
 def _load_generation_ids(model_dir: Path, tokenizer) -> tuple[int, int | None]:
@@ -72,7 +79,9 @@ def _load_generation_ids(model_dir: Path, tokenizer) -> tuple[int, int | None]:
         eos_id = data.get("eos_token_id", eos_id)
         decoder_config = data.get("decoder")
         if isinstance(decoder_config, dict):
-            decoder_start_id = decoder_config.get("decoder_start_token_id", decoder_start_id)
+            decoder_start_id = decoder_config.get(
+                "decoder_start_token_id", decoder_start_id
+            )
             eos_id = decoder_config.get("eos_token_id", eos_id)
         if decoder_start_id is not None and eos_id is not None:
             break
@@ -101,7 +110,7 @@ def recognize_formula_image(
 
 
 def recognize_formula_images(
-    images: list[Image.Image | np.ndarray],
+    images: Sequence[Image.Image | np.ndarray],
     model_dir: str | Path,
     provider_info,
     *,
@@ -112,17 +121,25 @@ def recognize_formula_images(
     root = Path(model_dir)
     processor = _load_processor(str(root))
     encoder_session = create_session(root / "encoder_model.onnx", provider_info)
-    decoder_session = create_session(root / "decoder_model.onnx", provider_info)
+    decoder_session = create_session(
+        root / "decoder_model.onnx", provider_info, model_transform=last_token_decoder
+    )
 
-    pil_images = [image if isinstance(image, Image.Image) else Image.fromarray(image) for image in images]
+    pil_images = [
+        image if isinstance(image, Image.Image) else Image.fromarray(image)
+        for image in images
+    ]
     features = processor(images=pil_images, return_tensors="np")
     pixel_values = np.asarray(features["pixel_values"], dtype=np.float32)
 
-    encoder_input_name = encoder_session.get_inputs()[0].name
-    encoder_hidden_states = encoder_session.run(
-        None,
-        {encoder_input_name: pixel_values},
-    )[0]
+    cuda_device_id = (
+        int(provider_info.device_id or 0)
+        if provider_info.active_provider == "CUDAExecutionProvider"
+        else None
+    )
+    encoder_hidden_states = encode_formula(
+        encoder_session, pixel_values, cuda_device_id
+    )
 
     tokenizer = processor.tokenizer
     decoder_start_id, eos_id = _load_generation_ids(root, tokenizer)
@@ -132,10 +149,11 @@ def recognize_formula_images(
         decoder_start_id=decoder_start_id,
         eos_id=eos_id,
         max_new_tokens=max_new_tokens,
+        cuda_device_id=cuda_device_id,
     )
 
     results: list[tuple[str, float]] = []
-    for row, (ids, scores) in enumerate(zip(token_ids, token_scores)):
+    for row, (ids, scores) in enumerate(zip(token_ids, token_scores, strict=False)):
         text = tokenizer.decode(ids, skip_special_tokens=True).strip()
         score = float(sum(scores) / len(scores)) if scores else 0.0
         if stopped_for_repetition[row]:
@@ -146,30 +164,22 @@ def recognize_formula_images(
 
 def _generate_formula_tokens(
     decoder_session,
-    encoder_hidden_states: np.ndarray,
+    encoder_hidden_states,
     *,
     decoder_start_id: int,
     eos_id: int | None,
     max_new_tokens: int,
+    cuda_device_id: int | None = None,
 ) -> tuple[list[list[int]], list[list[float]], np.ndarray]:
-    batch_size = int(encoder_hidden_states.shape[0])
+    decoder = FormulaDecoder(decoder_session, encoder_hidden_states, cuda_device_id)
+    batch_size = decoder.batch_size
     active_indices = np.arange(batch_size, dtype=np.int64)
     active_input_ids = np.full((batch_size, 1), decoder_start_id, dtype=np.int64)
-    active_hidden_states = encoder_hidden_states
     token_ids: list[list[int]] = [[] for _ in range(batch_size)]
     token_scores: list[list[float]] = [[] for _ in range(batch_size)]
     stopped_for_repetition = np.zeros((batch_size,), dtype=bool)
-    decoder_inputs = decoder_session.get_inputs()
-    input_ids_name = decoder_inputs[0].name
-    hidden_states_name = decoder_inputs[1].name
-
     for _ in range(max_new_tokens):
-        inputs = {
-            input_ids_name: active_input_ids,
-            hidden_states_name: active_hidden_states,
-        }
-        logits = decoder_session.run(None, inputs)[0]
-        step_logits = logits[:, -1, :]
+        step_logits = decoder.step(active_input_ids)
         step_probs = _softmax(step_logits)
         next_tokens = np.argmax(step_probs, axis=1).astype(np.int64)
         keep_active_rows: list[int] = []
@@ -195,7 +205,7 @@ def _generate_formula_tokens(
             ],
             axis=1,
         )
-        active_hidden_states = active_hidden_states[keep_active_rows]
+        decoder.retain(keep_active_rows)
         active_indices = active_indices[keep_active_rows]
 
     return token_ids, token_scores, stopped_for_repetition

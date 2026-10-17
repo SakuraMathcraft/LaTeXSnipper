@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import argparse
@@ -9,9 +7,15 @@ from pathlib import Path
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Create an HTML gallery for render consistency pairs.")
+    parser = argparse.ArgumentParser(
+        description="Create an HTML gallery for render consistency pairs."
+    )
     parser.add_argument("--rows", required=True, help="render_unimer_samples row CSV.")
-    parser.add_argument("--image-dir", required=True, help="Directory containing *_pred.png and *_target.png.")
+    parser.add_argument(
+        "--image-dir",
+        required=True,
+        help="Directory containing *_pred.png and *_target.png.",
+    )
     parser.add_argument("--output", required=True, help="Output HTML file.")
     parser.add_argument("--limit", type=int, default=40)
     args = parser.parse_args(argv)
@@ -35,8 +39,8 @@ def main(argv: list[str] | None = None) -> int:
         cards.append(
             f"""
             <section class="card">
-              <h2>{html.escape(sample_id)} <span>{html.escape(row['subset'])}</span></h2>
-              <p>text sim={float(row['text_similarity']):.4f}, pixel={float(row['pixel_similarity']):.4f}, ssim={float(row['global_ssim']):.4f}</p>
+              <h2>{html.escape(sample_id)} <span>{html.escape(row["subset"])}</span></h2>
+              <p>text sim={float(row["text_similarity"]):.4f}, pixel={float(row["pixel_similarity"]):.4f}, ssim={float(row["global_ssim"]):.4f}</p>
               <div class="pair">
                 <figure><figcaption>MathCraft</figcaption><img src="{html.escape(pred_src)}"></figure>
                 <figure><figcaption>Target</figcaption><img src="{html.escape(target_src)}"></figure>
@@ -66,7 +70,7 @@ img {{ max-width: 100%; border: 1px solid #ddd; background: white; }}
 </head>
 <body>
 <h1>MathCraft Render Consistency Gallery</h1>
-{''.join(cards)}
+{"".join(cards)}
 </body>
 </html>
 """,

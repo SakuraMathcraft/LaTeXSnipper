@@ -18,7 +18,7 @@ _APP_STATE_DIR_CACHE: pathlib.Path | None = None
 def resource_path(relative_path):
     """Return an absolute resource path for source and PyInstaller modes."""
     if hasattr(sys, "_MEIPASS"):
-        return os.path.join(sys._MEIPASS, relative_path)
+        return os.path.join(getattr(sys, "_MEIPASS", ""), relative_path)
     return str(get_app_root() / relative_path)
 
 
@@ -77,22 +77,6 @@ def app_temp_dir() -> pathlib.Path:
     return p
 
 
-def app_tools_dir() -> pathlib.Path:
-    p = app_state_dir() / "tools"
-    try:
-        p.mkdir(parents=True, exist_ok=True)
-    except Exception:
-        pass
-    return p
-
-
-def app_tool_dir(tool_name: str) -> pathlib.Path:
-    name = str(tool_name or "").strip()
-    if not name or any(sep in name for sep in ("/", "\\")):
-        raise ValueError("tool_name must be a single directory name")
-    return app_tools_dir() / name
-
-
 def app_config_path() -> pathlib.Path:
     return app_state_dir() / CONFIG_FILENAME
 
@@ -100,7 +84,7 @@ def app_config_path() -> pathlib.Path:
 def get_app_root() -> pathlib.Path:
     """Return the PyInstaller internal root or the source directory."""
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        return pathlib.Path(sys._MEIPASS)
+        return pathlib.Path(getattr(sys, "_MEIPASS", ""))
     return pathlib.Path(__file__).resolve().parent.parent
 
 

@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -31,7 +29,9 @@ def warmup_formula_detector(model_dir: str | Path, provider_info) -> None:
     create_session(candidates[0], provider_info)
 
 
-def _letterbox(image: np.ndarray, target_size: int = 768) -> tuple[np.ndarray, float, tuple[float, float]]:
+def _letterbox(
+    image: np.ndarray, target_size: int = 768
+) -> tuple[np.ndarray, float, tuple[float, float]]:
     height, width = image.shape[:2]
     scale = min(target_size / width, target_size / height)
     new_w = int(round(width * scale))
@@ -70,7 +70,9 @@ def _nms_xyxy(boxes: np.ndarray, scores: np.ndarray, iou_threshold: float) -> li
         inter_h = np.maximum(0.0, yy2 - yy1)
         intersection = inter_w * inter_h
         union = areas[current] + areas[rest] - intersection
-        iou = np.divide(intersection, union, out=np.zeros_like(intersection), where=union > 0)
+        iou = np.divide(
+            intersection, union, out=np.zeros_like(intersection), where=union > 0
+        )
         order = rest[iou <= iou_threshold]
     return keep
 
@@ -125,7 +127,9 @@ def detect_formula_boxes(
             FormulaBox(
                 box=((x1, y1), (x2, y1), (x2, y2), (x1, y2)),
                 score=float(scores[index]),
-                label=labels[int(class_ids[index])] if int(class_ids[index]) < len(labels) else str(int(class_ids[index])),
+                label=labels[int(class_ids[index])]
+                if int(class_ids[index]) < len(labels)
+                else str(int(class_ids[index])),
             )
         )
     return tuple(results)

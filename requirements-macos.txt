@@ -4,6 +4,4 @@
 -r requirements.txt
 
 # The screenshot fallback uses the built-in screencapture command.
-# Optional external tools:
-#   LaTeX renderer: MacTeX or BasicTeX
-#   Pandoc export backend: pandoc
+# Source development uses PATH Pandoc. PDF export may use an external TeX engine.

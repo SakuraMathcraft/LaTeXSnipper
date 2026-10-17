@@ -38,3 +38,5 @@ npm run test:browser
 MathLive 与源码均可用 Escape 后再按 Tab 离开编辑器；预览往返在源码未改动时恢复原编辑目标与选区。字号组合输入纳入编辑保护。字体面板在外部点击或 Escape 时关闭，避免原生字体下拉列表因短暂失焦而无法选中；真实输入法与 Office 内下拉交互仍待宿主验收。
 
 常用中的完整公式在空白编辑器中直接通过源码同步加载；外层全局颜色投影同样用于磁贴预览，避免 MathLive 将带颜色的多行环境插入为不可见的嵌套数组。
+
+MathLive 运行库、字体和许可证由 Office 的 `EditorAssets/vendor` 自己持有，随 `EditorSharedAssets` 打包；浏览器回归读取同一目录。

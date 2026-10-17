@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import argparse
@@ -7,8 +5,12 @@ from pathlib import Path
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Combine JSONL shards without re-encoding damage.")
-    parser.add_argument("--list-file", required=True, help="UTF-8 text file containing shard paths.")
+    parser = argparse.ArgumentParser(
+        description="Combine JSONL shards without re-encoding damage."
+    )
+    parser.add_argument(
+        "--list-file", required=True, help="UTF-8 text file containing shard paths."
+    )
     parser.add_argument("--output", required=True, help="Combined JSONL output path.")
     args = parser.parse_args(argv)
 

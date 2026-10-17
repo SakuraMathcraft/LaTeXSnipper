@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import argparse
@@ -34,10 +32,22 @@ def main(argv: list[str] | None = None) -> int:
         description="Run the official UniMERNet CDM runtime in resumable shards."
     )
     parser.add_argument("--input", required=True, help="Official CDM JSON input.")
-    parser.add_argument("--output-dir", required=True, help="Output directory for CDM shard runs.")
-    parser.add_argument("--cdm-dir", required=True, help="Official UniMERNet cdm directory.")
-    parser.add_argument("--python", required=True, help="Python executable for the official CDM runtime.")
-    parser.add_argument("--path-prepend", default="", help="Extra PATH prefix for ImageMagick/Ghostscript/shims.")
+    parser.add_argument(
+        "--output-dir", required=True, help="Output directory for CDM shard runs."
+    )
+    parser.add_argument(
+        "--cdm-dir", required=True, help="Official UniMERNet cdm directory."
+    )
+    parser.add_argument(
+        "--python",
+        required=True,
+        help="Python executable for the official CDM runtime.",
+    )
+    parser.add_argument(
+        "--path-prepend",
+        default="",
+        help="Extra PATH prefix for ImageMagick/Ghostscript/shims.",
+    )
     parser.add_argument("--shard-size", type=int, default=100)
     parser.add_argument("--pools", type=int, default=1)
     parser.add_argument("--start-offset", type=int, default=0)
@@ -51,7 +61,9 @@ def main(argv: list[str] | None = None) -> int:
     cdm_dir = Path(args.cdm_dir).resolve()
     python_path = Path(args.python).resolve()
 
-    validate_args(input_path, output_dir, cdm_dir, python_path, args.shard_size, args.pools)
+    validate_args(
+        input_path, output_dir, cdm_dir, python_path, args.shard_size, args.pools
+    )
 
     rows = read_cdm_input(input_path)
     selected_rows = select_rows(rows, args.start_offset, args.limit)
@@ -81,11 +93,17 @@ def main(argv: list[str] | None = None) -> int:
         metrics_path = shard_metrics_path(output_dir, shard_input)
         state = completed_state(metrics_path, len(shard.rows))
         if state == "complete" and not args.force:
-            print(f"[skip] shard={shard.index}/{len(shards)} rows={len(shard.rows)} path={metrics_path}")
-            write_combined_outputs(output_dir, input_path.stem, shards, shard_csv_path, summary_path)
+            print(
+                f"[skip] shard={shard.index}/{len(shards)} rows={len(shard.rows)} path={metrics_path}"
+            )
+            write_combined_outputs(
+                output_dir, input_path.stem, shards, shard_csv_path, summary_path
+            )
             continue
         if state == "partial":
-            print(f"[rerun] shard={shard.index}/{len(shards)} partial metrics={metrics_path}")
+            print(
+                f"[rerun] shard={shard.index}/{len(shards)} partial metrics={metrics_path}"
+            )
 
         before_percent = percent(shard.start - args.start_offset, total_rows)
         print(
@@ -106,19 +124,27 @@ def main(argv: list[str] | None = None) -> int:
         elapsed = time.monotonic() - shard_started_at
         processed_this_run += len(shard.rows)
         if completed_state(metrics_path, len(shard.rows)) != "complete":
-            raise RuntimeError(f"Official CDM shard did not finish cleanly: {metrics_path}")
+            raise RuntimeError(
+                f"Official CDM shard did not finish cleanly: {metrics_path}"
+            )
 
         done_rows = min(total_rows, shard.end - args.start_offset)
         rows_per_second = speed(processed_this_run, time.monotonic() - started_at)
-        eta_seconds = (total_rows - done_rows) / rows_per_second if rows_per_second > 0 else 0.0
+        eta_seconds = (
+            (total_rows - done_rows) / rows_per_second if rows_per_second > 0 else 0.0
+        )
         print(
             f"[done-shard] shard={shard.index}/{len(shards)} rows={len(shard.rows)} "
             f"elapsed={format_seconds(elapsed)} progress={percent(done_rows, total_rows)}% "
             f"speed={rows_per_second:.3f} rows/s eta={format_seconds(eta_seconds)}"
         )
-        write_combined_outputs(output_dir, input_path.stem, shards, shard_csv_path, summary_path)
+        write_combined_outputs(
+            output_dir, input_path.stem, shards, shard_csv_path, summary_path
+        )
 
-    combined = write_combined_outputs(output_dir, input_path.stem, shards, shard_csv_path, summary_path)
+    combined = write_combined_outputs(
+        output_dir, input_path.stem, shards, shard_csv_path, summary_path
+    )
     print(
         f"[done] rows={combined['evaluated_rows']} mean_score={combined['mean_score']} "
         f"exp_rate={combined['exp_rate']} summary={summary_path}"
@@ -167,7 +193,9 @@ def read_cdm_input(path: Path) -> list[dict[str, str]]:
     return rows
 
 
-def select_rows(rows: list[dict[str, str]], start_offset: int, limit: int) -> list[dict[str, str]]:
+def select_rows(
+    rows: list[dict[str, str]], start_offset: int, limit: int
+) -> list[dict[str, str]]:
     if start_offset < 0:
         raise ValueError("start-offset must be non-negative.")
     if limit < 0:
@@ -178,7 +206,9 @@ def select_rows(rows: list[dict[str, str]], start_offset: int, limit: int) -> li
     return rows[start_offset:end]
 
 
-def make_shards(rows: list[dict[str, str]], base_offset: int, shard_size: int) -> list[Shard]:
+def make_shards(
+    rows: list[dict[str, str]], base_offset: int, shard_size: int
+) -> list[Shard]:
     shards: list[Shard] = []
     for local_start in range(0, len(rows), shard_size):
         local_end = min(len(rows), local_start + shard_size)
@@ -219,7 +249,9 @@ def read_metrics(metrics_path: Path) -> dict[str, Any]:
         raise FileNotFoundError(metrics_path)
     metrics = json.loads(metrics_path.read_text(encoding="utf-8-sig"))
     if not isinstance(metrics.get("details"), dict):
-        raise ValueError(f"Official CDM metrics file has no details object: {metrics_path}")
+        raise ValueError(
+            f"Official CDM metrics file has no details object: {metrics_path}"
+        )
     return metrics
 
 
@@ -227,7 +259,9 @@ def completion_marker_path(metrics_path: Path) -> Path:
     return metrics_path.parent / ".mathcraft_cdm_complete.json"
 
 
-def write_completion_marker(metrics_path: Path, expected_rows: int, metrics: dict[str, Any]) -> None:
+def write_completion_marker(
+    metrics_path: Path, expected_rows: int, metrics: dict[str, Any]
+) -> None:
     details = metrics.get("details", {})
     marker = {
         "expected_rows": expected_rows,
@@ -295,7 +329,9 @@ def write_combined_outputs(
 
     summary = {
         "mean_score": round(sum(scores) / len(scores), 3) if scores else 0.0,
-        "exp_rate": round(sum(1 for score in scores if score == 1.0) / len(scores), 3) if scores else 0.0,
+        "exp_rate": round(sum(1 for score in scores if score == 1.0) / len(scores), 3)
+        if scores
+        else 0.0,
         "evaluated_rows": len(scores),
         "expected_rows": sum(len(shard.rows) for shard in shards),
         "completed_shards": sum(1 for row in shard_rows if row["state"] == "complete"),
@@ -303,7 +339,9 @@ def write_combined_outputs(
         "details": details,
     }
     write_shard_csv(shard_csv_path, shard_rows)
-    summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    summary_path.write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     return summary
 
 
@@ -320,7 +358,9 @@ def shard_csv_row(
         "end_exclusive": shard.end,
         "expected_rows": len(shard.rows),
         "evaluated_rows": len(details) if isinstance(details, dict) else 0,
-        "skipped_rows": len(shard.rows) - len(details) if isinstance(details, dict) else len(shard.rows),
+        "skipped_rows": len(shard.rows) - len(details)
+        if isinstance(details, dict)
+        else len(shard.rows),
         "state": state,
         "mean_score": metrics.get("mean_score", "") if metrics else "",
         "exp_rate": metrics.get("exp_rate", "") if metrics else "",

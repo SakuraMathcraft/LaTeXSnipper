@@ -1,12 +1,9 @@
-# coding: utf-8
 # ruff: noqa: E402
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
 import sys
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -16,39 +13,34 @@ if str(SRC) not in sys.path:
 from runtime import pandoc_runtime
 
 
-def test_pandoc_path_persists_in_app_config(tmp_path, monkeypatch) -> None:
-    cfg_path = tmp_path / "LaTeXSnipper_config.json"
-    pandoc_exe = tmp_path / "pandoc.exe"
-    pandoc_exe.write_text("stub", encoding="utf-8")
-
-    monkeypatch.setattr(pandoc_runtime, "app_config_path", lambda: cfg_path)
-
-    pandoc_runtime.save_configured_pandoc_path(pandoc_exe)
-
-    data = json.loads(cfg_path.read_text(encoding="utf-8"))
-    assert data[pandoc_runtime.PANDOC_EXECUTABLE_CONFIG_KEY] == str(pandoc_exe.resolve())
-    assert pandoc_runtime.load_configured_pandoc_path() == pandoc_exe
-
-    pandoc_runtime.clear_configured_pandoc_path()
-    cleaned = json.loads(cfg_path.read_text(encoding="utf-8"))
-    assert pandoc_runtime.PANDOC_EXECUTABLE_CONFIG_KEY not in cleaned
+def test_development_pandoc_uses_path(tmp_path, monkeypatch):
+    pandoc = tmp_path / "pandoc"
+    monkeypatch.setattr(pandoc_runtime, "installed_resources", lambda: None)
+    monkeypatch.setattr(pandoc_runtime.shutil, "which", lambda name: str(pandoc))
+    assert pandoc_runtime.resolve_pandoc() == pandoc
 
 
-def test_missing_configured_pandoc_path_is_ignored(tmp_path, monkeypatch) -> None:
-    cfg_path = tmp_path / "LaTeXSnipper_config.json"
-    cfg_path.write_text(
-        json.dumps({pandoc_runtime.PANDOC_EXECUTABLE_CONFIG_KEY: str(tmp_path / "missing.exe")}),
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(pandoc_runtime, "app_config_path", lambda: cfg_path)
+def test_packaged_pandoc_uses_verified_application_resource(tmp_path, monkeypatch):
+    from test_installed_resources import installed
 
-    assert pandoc_runtime.load_configured_pandoc_path() is None
+    resources = installed(tmp_path, monkeypatch)
+    monkeypatch.setattr(pandoc_runtime, "installed_resources", lambda: resources)
+    assert pandoc_runtime.resolve_pandoc() == tmp_path / "application/pandoc/pandoc.exe"
+    (tmp_path / "application/pandoc/pandoc.exe").write_bytes(b"corrupt")
+    import pytest
+
+    from runtime.distribution_manifest import ManifestError
+
+    with pytest.raises(ManifestError, match="missing or corrupt"):
+        pandoc_runtime.resolve_pandoc()
 
 
 def test_pandoc_exporter_reports_unavailable_without_a_binary(monkeypatch) -> None:
     from exporting import pandoc_exporter
 
-    monkeypatch.setattr(pandoc_exporter.importlib.util, "find_spec", lambda _name: object())
+    monkeypatch.setattr(
+        pandoc_exporter.importlib.util, "find_spec", lambda _name: object()
+    )
     monkeypatch.setattr(pandoc_exporter, "_find_pandoc_binary", lambda: None)
 
     assert not pandoc_exporter.check_pandoc_available(force=True)

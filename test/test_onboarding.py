@@ -1,6 +1,9 @@
 """Behavioral coverage for the shared native onboarding flow."""
 
-from PyQt6.QtCore import QPoint, pyqtSignal, Qt
+from types import SimpleNamespace
+
+import pytest
+from PyQt6.QtCore import QPoint, Qt, pyqtSignal
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import (
     QApplication,
@@ -10,9 +13,8 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-import pytest
 
-from ui.onboarding_controller import AUTO_SHOW_KEY, OnboardingController
+from ui.controllers.onboarding import AUTO_SHOW_KEY, OnboardingController
 
 
 class Config:
@@ -32,7 +34,6 @@ class Host(QMainWindow):
     def __init__(self):
         super().__init__()
         self.cfg = Config()
-        self._model_warmup_in_progress = False
         self.setCentralWidget(QWidget())
         layout = QVBoxLayout(self.centralWidget())
         for name in (
@@ -48,7 +49,13 @@ class Host(QMainWindow):
             setattr(self, name, widget)
             layout.addWidget(widget)
         self.resize(1180, 720)
-        self.onboarding = OnboardingController(self)
+        self.onboarding = OnboardingController(
+            self,
+            self.cfg,
+            SimpleNamespace(warming_up=False),
+            SimpleNamespace(changed=self.modelStatusChanged),
+            self,
+        )
 
     def set_shortcut(self):
         self.shortcut_window = QDialog(self)
@@ -123,21 +130,21 @@ def test_model_busy_only_affects_preparation_ring(host):
     tour.start()
     for _ in range(3):
         tour.advance()
-    host._model_warmup_in_progress = True
+    host.onboarding.models.warming_up = True
     host.modelStatusChanged.emit()
     assert tour.surface.ring.isVisible()
-    host._model_warmup_in_progress = False
+    host.onboarding.models.warming_up = False
     host.modelStatusChanged.emit()
     assert not tour.surface.ring.isVisible()
     tour.advance()
     tour.advance()
     title = tour.surface.title.text()
-    host._model_warmup_in_progress = True
+    host.onboarding.models.warming_up = True
     host.modelStatusChanged.emit()
     assert tour.surface.title.text() == title
     assert not tour.surface.ring.isVisible()
     tour.advance()
-    assert host._model_warmup_in_progress
+    assert host.onboarding.models.warming_up
 
 
 def test_shortcut_pause_resume_and_single_instance(host):
@@ -192,7 +199,7 @@ def test_spotlights_align_with_nested_widgets_after_move_and_resize(host, origin
     host.onboarding.advance()
     QApplication.processEvents()
     surface = host.onboarding.surface
-    for widget, rect in zip(surface.targets, surface.target_rects()):
+    for widget, rect in zip(surface.targets, surface.target_rects(), strict=False):
         actual = surface.mapToGlobal(rect.topLeft().toPoint() + QPoint(5, 5))
         assert actual == widget.mapToGlobal(QPoint())
         assert rect.width() == widget.width() + 10
@@ -215,7 +222,7 @@ def test_spotlights_align_with_nested_widgets_after_move_and_resize(host, origin
 def test_combined_support_opens_readme_for_current_ui_language(
     host, monkeypatch, language, page, fragment
 ):
-    import ui.onboarding_controller as controller
+    import ui.controllers.onboarding as controller
 
     opened = []
     monkeypatch.setattr(controller, "current_ui_language", lambda: language)
@@ -242,6 +249,7 @@ def test_window_destruction_does_not_access_deleted_qt_objects(
     qt_app, monkeypatch, with_auxiliary
 ):
     import sys
+
     from PyQt6 import sip
     from PyQt6.QtCore import QEvent
 

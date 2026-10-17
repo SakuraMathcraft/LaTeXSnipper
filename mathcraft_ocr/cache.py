@@ -1,23 +1,32 @@
-# coding: utf-8
-
 from __future__ import annotations
 
+import hashlib
 import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from .manifest import Manifest, ModelSpec
+from .manifest import Manifest, ModelSpec, model_relative_path
 
 
 def default_user_models_dir() -> Path:
-    appdata = os.environ.get("APPDATA", "")
-    if appdata:
-        return Path(appdata) / "MathCraft" / "models"
+    if sys.platform == "win32":
+        appdata = os.environ.get("APPDATA", "").strip()
+        root = Path(appdata) if appdata else Path.home() / "AppData/Roaming"
+        return root / "MathCraft/models"
     if sys.platform == "darwin":
-        return Path.home() / "Library" / "Application Support" / "LaTeXSnipper" / "MathCraft" / "models"
+        return (
+            Path.home()
+            / "Library"
+            / "Application Support"
+            / "LaTeXSnipper"
+            / "MathCraft"
+            / "models"
+        )
     xdg_data_home = os.environ.get("XDG_DATA_HOME", "").strip()
-    data_root = Path(xdg_data_home) if xdg_data_home else Path.home() / ".local" / "share"
+    data_root = (
+        Path(xdg_data_home) if xdg_data_home else Path.home() / ".local" / "share"
+    )
     return data_root / "LaTeXSnipper" / "MathCraft" / "models"
 
 
@@ -84,7 +93,32 @@ class ModelCacheState:
 
 
 def model_dir(root: str | Path, model_id: str) -> Path:
+    model_relative_path(model_id)
     return Path(root) / model_id
+
+
+def _file_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def model_file_valid(root: Path, path: str, sha256: str) -> bool:
+    """Validate current bytes; filesystem timestamps cannot identify file content."""
+    model_relative_path(path)
+    file = root / path
+    try:
+        if (
+            file.is_symlink()
+            or not file.resolve(strict=True).is_relative_to(root.resolve())
+            or not file.is_file()
+        ):
+            return False
+        return not sha256 or _file_digest(file.resolve()) == sha256
+    except (OSError, RuntimeError):
+        return False
 
 
 def inspect_model_cache(root: str | Path, spec: ModelSpec) -> ModelCacheState:
@@ -93,8 +127,7 @@ def inspect_model_cache(root: str | Path, spec: ModelSpec) -> ModelCacheState:
     missing: list[str] = []
     if exists:
         for file_spec in spec.files:
-            file_path = target / file_spec.path
-            if not file_path.is_file():
+            if not model_file_valid(target, file_spec.path, file_spec.sha256):
                 missing.append(file_spec.path)
     else:
         missing = [item.path for item in spec.files]
@@ -107,11 +140,15 @@ def inspect_model_cache(root: str | Path, spec: ModelSpec) -> ModelCacheState:
     )
 
 
-def inspect_model_roots(roots: tuple[Path, ...] | list[Path], spec: ModelSpec) -> ModelCacheState:
-    states = [inspect_model_cache(root, spec) for root in roots]
-    for state in states:
+def inspect_model_roots(
+    roots: tuple[Path, ...] | list[Path], spec: ModelSpec
+) -> ModelCacheState:
+    states = []
+    for root in roots:
+        state = inspect_model_cache(root, spec)
         if state.complete:
             return state
+        states.append(state)
     for state in states:
         if state.exists:
             return state

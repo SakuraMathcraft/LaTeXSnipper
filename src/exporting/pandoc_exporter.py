@@ -14,11 +14,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from exporting.formula_format_helpers import normalize_latex_for_export
-from rendering.mathjax_runtime import cdn_roots, loader_script
 from localization.manager import mark_for_translation
-from runtime.pandoc_runtime import load_configured_pandoc_path, save_configured_pandoc_path
+from rendering.mathjax_runtime import cdn_loader_script, cdn_root
+from runtime.pandoc_runtime import resolve_pandoc
+from runtime.processes import hidden_subprocess_kwargs
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 class PandocNotAvailable(RuntimeError):
@@ -41,10 +42,16 @@ class PandocFormat:
 
 
 PANDOC_FORMATS: tuple[PandocFormat, ...] = (
-    PandocFormat("pandoc_docx", "Word (.docx)", "docx", ".docx", requires_output_file=True),
+    PandocFormat(
+        "pandoc_docx", "Word (.docx)", "docx", ".docx", requires_output_file=True
+    ),
     PandocFormat("pandoc_odt", "ODT (.odt)", "odt", ".odt", requires_output_file=True),
-    PandocFormat("pandoc_pptx", "PowerPoint (.pptx)", "pptx", ".pptx", requires_output_file=True),
-    PandocFormat("pandoc_epub", "EPUB (.epub)", "epub", ".epub", requires_output_file=True),
+    PandocFormat(
+        "pandoc_pptx", "PowerPoint (.pptx)", "pptx", ".pptx", requires_output_file=True
+    ),
+    PandocFormat(
+        "pandoc_epub", "EPUB (.epub)", "epub", ".epub", requires_output_file=True
+    ),
     PandocFormat("pandoc_pdf", "PDF (.pdf)", "pdf", ".pdf", requires_output_file=True),
     PandocFormat(
         "pandoc_html_standalone",
@@ -63,40 +70,23 @@ PANDOC_FORMAT_MAP: dict[str, PandocFormat] = {f.key: f for f in PANDOC_FORMATS}
 
 _available_cache: bool | None = None
 _pandoc_version_cache: str | None = None
-_pandoc_path_cache: str | None = None
-
-
-def _append_to_path_once(directory: Path) -> None:
-    path_value = os.environ.get("PATH", "")
-    dir_str = str(directory)
-    entries = [os.path.normcase(os.path.abspath(item)) for item in path_value.split(os.pathsep) if item]
-    key = os.path.normcase(os.path.abspath(dir_str))
-    if key not in entries:
-        os.environ["PATH"] = dir_str + os.pathsep + path_value
 
 
 def _find_pandoc_binary() -> str | None:
-    configured = load_configured_pandoc_path()
-    if configured is not None:
-        _append_to_path_once(configured.parent)
-        os.environ["PYPANDOC_PANDOC"] = str(configured)
-        return str(configured)
-
-    found = shutil.which("pandoc")
-    if found:
-        os.environ["PYPANDOC_PANDOC"] = found
-        return found
+    path = resolve_pandoc()
+    if path is not None:
+        os.environ["PYPANDOC_PANDOC"] = str(path)
+        return str(path)
     return None
 
 
 def check_pandoc_available(*, force: bool = False) -> bool:
-    global _available_cache, _pandoc_version_cache, _pandoc_path_cache
+    global _available_cache, _pandoc_version_cache
     if _available_cache is not None and not force:
         return _available_cache
 
     _available_cache = False
     _pandoc_version_cache = None
-    _pandoc_path_cache = None
 
     if force:
         sys.modules.pop("pypandoc", None)
@@ -105,7 +95,11 @@ def check_pandoc_available(*, force: bool = False) -> bool:
         logger.debug("pypandoc is not installed – Pandoc export disabled")
         return False
 
-    pandoc_path = _find_pandoc_binary()
+    try:
+        pandoc_path = _find_pandoc_binary()
+    except (OSError, ValueError) as exc:
+        logger.warning("Pandoc 安装资源不可用: %s", exc)
+        return False
 
     if not pandoc_path:
         logger.debug("pandoc binary not found – Pandoc export disabled")
@@ -116,16 +110,15 @@ def check_pandoc_available(*, force: bool = False) -> bool:
             [pandoc_path, "--version"],
             stderr=subprocess.STDOUT,
             text=True,
+            encoding="utf-8",
             timeout=10,
-            **_hidden_subprocess_kwargs(),
+            **hidden_subprocess_kwargs(),
         )
         first_line = ver_output.splitlines()[0] if ver_output else ""
         _pandoc_version_cache = first_line.strip()
-        _pandoc_path_cache = str(Path(pandoc_path).resolve())
-        save_configured_pandoc_path(_pandoc_path_cache)
-    except Exception:
-        _pandoc_version_cache = "(unknown version)"
-        _pandoc_path_cache = str(pandoc_path)
+    except Exception as exc:
+        logger.warning("Pandoc 运行检查失败: %s", exc)
+        return False
 
     _available_cache = True
     logger.debug("Pandoc 可用: %s", _pandoc_version_cache)
@@ -134,26 +127,6 @@ def check_pandoc_available(*, force: bool = False) -> bool:
 
 def is_available() -> bool:
     return check_pandoc_available()
-
-
-def _subprocess_flags() -> int:
-    if os.name != "nt":
-        return 0
-    return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
-
-
-def _hidden_subprocess_kwargs() -> dict:
-    if os.name != "nt":
-        return {}
-    kwargs = {"creationflags": _subprocess_flags()}
-    try:
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = subprocess.SW_HIDE
-        kwargs["startupinfo"] = startupinfo
-    except Exception:
-        pass
-    return kwargs
 
 
 def _wrap_formula_in_document(latex: str) -> str:
@@ -201,6 +174,7 @@ def _pdf_text_font_args() -> list[str]:
 
 def _preprocess_for_pptx(text: str) -> str:
     import re
+
     lines = text.split("\n")
     result = []
     for line in lines:
@@ -217,7 +191,9 @@ def _looks_like_latex_formula(text: str) -> bool:
     source = text.strip()
     if not source:
         return False
-    if source.startswith(("\\[", "$$", "\\begin{", "\\frac", "\\sum", "\\int", "\\lim")):
+    if source.startswith(
+        ("\\[", "$$", "\\begin{", "\\frac", "\\sum", "\\int", "\\lim")
+    ):
         return True
     if "\\" in source:
         return True
@@ -227,14 +203,18 @@ def _looks_like_latex_formula(text: str) -> bool:
 def _ensure_mathjax_script(html: str) -> str:
     # Pandoc preserves TeX in the page; replace its generated loader with our
     # pinned configuration, retaining browser-side typesetting of that source.
-    entry = cdn_roots()[0] + "/startup.js"
-    pattern = r'<script\b[^>]*\bsrc=[\"\']' + re.escape(entry) + r'[\"\'][^>]*>\s*</script>'
+    entry = cdn_root() + "/startup.js"
+    pattern = (
+        r"<script\b[^>]*\bsrc=[\"\']" + re.escape(entry) + r"[\"\'][^>]*>\s*</script>"
+    )
     html, count = re.subn(pattern, "", html, flags=re.IGNORECASE)
     if not count and "math inline" not in html and "math display" not in html:
         return html
-    script = loader_script(root=cdn_roots()[0])
+    script = cdn_loader_script()
     head_end = html.lower().find("</head>")
-    return html[:head_end] + script + html[head_end:] if head_end >= 0 else script + html
+    return (
+        html[:head_end] + script + html[head_end:] if head_end >= 0 else script + html
+    )
 
 
 def _read_valid_file_output(path: str, target_key: str) -> bytes | None:
@@ -256,9 +236,7 @@ def convert_latex_to(
     input_format: str | None = None,
 ) -> str | bytes:
     if not is_available():
-        raise PandocNotAvailable(
-            "Pandoc 导出不可用。"
-        )
+        raise PandocNotAvailable("Pandoc 导出不可用。")
 
     fmt = PANDOC_FORMAT_MAP.get(target_key)
     if fmt is None:
@@ -268,7 +246,11 @@ def convert_latex_to(
 
     is_complete_doc = (latex or "").strip().startswith("\\documentclass")
     has_inline_math = "$" in (latex or "")
-    is_text_content = has_inline_math and not is_complete_doc and not (latex or "").strip().startswith("\\[")
+    is_text_content = (
+        has_inline_math
+        and not is_complete_doc
+        and not (latex or "").strip().startswith("\\[")
+    )
 
     if input_format is not None:
         src = (latex or "").strip()
@@ -302,24 +284,24 @@ def convert_latex_to(
     if target_key == "pandoc_html_standalone":
         if "--standalone" not in args:
             args.append("--standalone")
-        args = [arg for arg in args if arg != "--mathjax" and not arg.startswith("--mathjax=")]
-        args.append("--mathjax=" + cdn_roots()[0] + "/startup.js")
+        args = [
+            arg
+            for arg in args
+            if arg != "--mathjax" and not arg.startswith("--mathjax=")
+        ]
+        args.append("--mathjax=" + cdn_root() + "/startup.js")
 
     if target_key == "pandoc_pdf" and "--pdf-engine" not in " ".join(args):
         engine = _find_pdf_engine()
         if engine:
             args.extend(["--pdf-engine", engine])
         else:
-            raise PandocConversionError(
-                "未找到 LaTeX 引擎，无法导出 PDF。"
-            )
+            raise PandocConversionError("未找到 LaTeX 引擎，无法导出 PDF。")
         if is_text_content and "--pdf-engine" in args:
             args.extend(_pdf_text_font_args())
 
     if fmt.requires_output_file:
-        with tempfile.NamedTemporaryFile(
-            suffix=fmt.extension, delete=False
-        ) as tmp:
+        with tempfile.NamedTemporaryFile(suffix=fmt.extension, delete=False) as tmp:
             tmp_path = tmp.name
         try:
             pypandoc.convert_text(

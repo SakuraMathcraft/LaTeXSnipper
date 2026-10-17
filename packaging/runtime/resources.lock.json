@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "model_format": 1,
+  "model_manifest": {
+    "url": "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v1.0.0/models.v1.json",
+    "sha256": "4e714c89793c6fdec54f1cf08f17cd182f77e2810ddfe54dbc841521719d541b",
+    "size": 2872
+  },
+  "models": {
+    "mathcraft-formula-det": {
+      "url": "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v1.0.0/mathcraft-formula-det.zip",
+      "sha256": "484c5f1a02d97cb8d4429960ab8b0c7129472e0258b60d5214483e00bb74e2fb",
+      "size": 67531517
+    },
+    "mathcraft-formula-rec": {
+      "url": "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v1.0.0/mathcraft-formula-rec.zip",
+      "sha256": "807dd2d1ac40454424404b31a73d4242c37c76edf176ab544540028da20ec43f",
+      "size": 108795631
+    },
+    "mathcraft-text-det": {
+      "url": "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v1.0.0/mathcraft-text-det.zip",
+      "sha256": "e4fb2c8efa95716825469a6fc04aac3715045ce7ca8dc78fccf79b5e82db3f08",
+      "size": 4533780
+    },
+    "mathcraft-text-rec": {
+      "url": "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v1.0.0/mathcraft-text-rec.zip",
+      "sha256": "e39a42e2256b8d97e14cd662e41165eec7b657b310c0d03c29be6935f3ca42dd",
+      "size": 14102746
+    }
+  },
+  "pandoc_version": "3.12.1",
+  "pandoc": {
+    "windows-x86_64": {
+      "url": "https://github.com/jgm/pandoc/releases/download/3.12.1/pandoc-3.12.1-windows-x86_64.zip",
+      "sha256": "6ef431cb20b2c24a0371fc19200dc49d452be54b1b5c9239f3462841ef53e587",
+      "size": 42154914
+    },
+    "linux-x86_64": {
+      "url": "https://github.com/jgm/pandoc/releases/download/3.12.1/pandoc-3.12.1-linux-amd64.tar.gz",
+      "sha256": "d0c90410e90204c9ca83b8539fac5c7aed01fd537207e4585849f8abc5df20b8",
+      "size": 35363545
+    },
+    "macos-arm64": {
+      "url": "https://github.com/jgm/pandoc/releases/download/3.12.1/pandoc-3.12.1-arm64-macOS.zip",
+      "sha256": "c2146cf33a583f3ac93eccddf1bb662371d5cfcce1aad1c87ad860cca1435d46",
+      "size": 42313957
+    }
+  },
+  "licenses": {
+    "models": {
+      "url": "https://raw.githubusercontent.com/SakuraMathcraft/MathCraft-Models/142272d6d230305b407988678b961f3fc8158d67/LICENSE",
+      "sha256": "33a2f383e04675c9acc27601fb77da5e6eaec1b5488b0debc31446fca22c27e5",
+      "size": 1066
+    },
+    "pandoc": {
+      "url": "https://raw.githubusercontent.com/jgm/pandoc/e51c9c6054c8f4ec5c3209d5abe10939dfe2963e/COPYING.md",
+      "sha256": "3ebfbf9235b049d384cdba5a66a1a3434bb544391e720b76faa8e1b3ee61a4e5",
+      "size": 17763
+    }
+  }
+}

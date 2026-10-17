@@ -1,16 +1,17 @@
-# coding: utf-8
 # ruff: noqa: E402
 
-from pathlib import Path
 import sys
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from recognition.postprocessing.mathcraft_document import compose_mathcraft_markdown_document, compose_mathcraft_markdown_pages
+from recognition.postprocessing.mathcraft_document import (
+    compose_mathcraft_markdown_document,
+    compose_mathcraft_markdown_pages,
+)
 
 
 def test_document_engine_promotes_title_and_sections() -> None:
@@ -85,7 +86,10 @@ def test_document_engine_formats_theorem_leads_and_hyphenation() -> None:
         ]
     )
     assert "The classification is useful." in text
-    assert "**Theorem 2.1 (Stone-Weierstrass Approximation Theorem).** Let $X$ be compact." in text
+    assert (
+        "**Theorem 2.1 (Stone-Weierstrass Approximation Theorem).** Let $X$ be compact."
+        in text
+    )
 
 
 def test_document_engine_repairs_split_fi_ligature_text() -> None:
@@ -486,7 +490,9 @@ def test_document_engine_prefers_runtime_line_order_and_display_flag() -> None:
             }
         ]
     )
-    assert text.index("left one") < text.index("$$\nx = y\n$$") < text.index("right one")
+    assert (
+        text.index("left one") < text.index("$$\nx = y\n$$") < text.index("right one")
+    )
 
 
 def test_document_engine_keeps_centered_formula_between_left_column_lines() -> None:

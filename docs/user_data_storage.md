@@ -1,8 +1,8 @@
 # User Data Storage Map
 
 This document tracks where LaTeXSnipper writes user data, runtime state, caches,
-and temporary files. Keep new app-managed writes under the shared helpers in
-`src/runtime/app_paths.py`.
+and temporary files. Desktop application state uses the shared helpers in
+`src/runtime/app_paths.py`; packaged model weights belong to the installation.
 
 ## Shared Roots
 
@@ -10,84 +10,87 @@ and temporary files. Keep new app-managed writes under the shared helpers in
 |---|---|---|---|
 | App state | `%USERPROFILE%\.latexsnipper` | `~/.latexsnipper` | `~/Library/Application Support/LaTeXSnipper` |
 | App logs | `%USERPROFILE%\.latexsnipper\logs` | `~/.latexsnipper/logs` | `~/Library/Logs/LaTeXSnipper` |
+| App cache | `%USERPROFILE%\.latexsnipper\cache` | `~/.latexsnipper/cache` | `~/Library/Caches/LaTeXSnipper` |
 | App temp | `%TEMP%\LaTeXSnipper` | `$TMPDIR/LaTeXSnipper` or `/tmp/LaTeXSnipper` | `$TMPDIR/LaTeXSnipper` |
 
 ## Persistent App State
 
+Application diagnostics use Python's standard `logging` API. `app.log` stores
+`INFO` and higher levels as `[date time] [LEVEL] message` with bounded rotation.
+`runtime-session.log` is reset after the instance lock is acquired and includes
+application `DEBUG` diagnostics as `[LEVEL] message`. It also captures raw
+third-party stdout/stderr. The runtime log window only reads this session file;
+opening or closing the window does not activate or stop logging.
+
 | Data | Path under app state | Owner |
 |---|---|---|
-| Main settings | `LaTeXSnipper_config.json` | Unified application settings, including dependency root, recognition backends, external models, Automation API, theme, rendering, export, and window behavior |
+| Main settings | `LaTeXSnipper_config.json` | Unified application settings, including recognition preferences, external models, Automation API, theme, export, and window behavior |
 | Local secret key | `secret.key` on Linux/macOS; Windows uses DPAPI and does not create this file | `runtime.secret_store`; created when the first persistent secret is encrypted |
 | Automation API discovery | `automation-api.json` | Ephemeral local address and per-session token; created only while the API runs and removed on shutdown |
 | Recognition history | `history.json` | Main window history |
 | Favorites | `favorites.json` | Favorites window |
 | Single-instance lock | `instance.lock` | Runtime single-instance guard |
-| Release cache | `release_etag_cache.json` | Update checker |
-| Downloaded update package | `updates/` | Update installer and `installer_meta.json` cache; old packages are pruned |
 
-## Dependency Runtime
+| Data | Path under app cache | Owner |
+|---|---|---|
+| Component downloads | `components/<content-identity>/payload` and `payload.part` | Component downloader; length and SHA256 checked before reuse, interrupted downloads retained for resume |
+| Update staging | `component-update-*` | Update controller; private verified component staging, removed on cancellation/close or after deployment feedback |
+| Deployment handoff | `deployment-*`, `recovery-*` | Independent helper and unelevated watcher; request/result files removed after feedback or failed-handoff cleanup |
 
-`install_base_dir` in `LaTeXSnipper_config.json` is the active dependency root.
-Users can change it from Dependency Management or settings. LaTeXSnipper records
-only the current active root and does not keep a cleanup history of previous
-user-selected dependency roots.
+## Installation Resources
 
-Pandoc does not follow the active dependency root. It is an app-managed shared
-tool under `<app-state>/tools`, so deploying it once keeps it available after
-the user switches Python dependency roots.
+The source app uses the developer-selected Python environment directly.
 
-| Data | Windows | Linux | macOS | Cleanup owner |
-|---|---|---|---|---|
-| Bundled Windows Python template | `<install-dir>\_internal\deps\python311` | Not bundled | Not bundled | Windows uninstaller removes installed `_internal` unconditionally |
-| Active dependency Python | `<dependency-root>\python` or another reusable Python/venv selected by the user | `<dependency-root>/python` or another reusable Python/venv selected by the user | `<dependency-root>/python` or another reusable Python/venv selected by the user | Not removed automatically after the user changes the dependency root |
-| Default packaged dependency root | Windows starts with installed `_internal\deps` for the bundled Python template | `~/.latexsnipper/deps` | `~/Library/Application Support/LaTeXSnipper/deps` | Windows `_internal` is removed by the uninstaller; Linux/macOS default app-state deps are removed only when app data is removed |
-| Dependency layer state | `<dependency-root>\.deps_state.json` | `<dependency-root>/.deps_state.json` | `<dependency-root>/.deps_state.json` | Stays with the selected dependency root |
-| App-managed Pandoc binary | `%USERPROFILE%\.latexsnipper\tools\pandoc` | `~/.latexsnipper/tools/pandoc` | `~/Library/Application Support/LaTeXSnipper/tools/pandoc` | Dependency cleanup checkbox/script |
+Installation metadata (`distribution.json`) owns the platform, architecture,
+CPU/GPU edition and immutable application/inference/models component identities.
+Windows resource lookup uses the installation root with `application/`,
+`inference/`, `models/` and `distribution.json`. Linux components are owned by
+dpkg under `/usr/lib/latexsnipper`; mutable metadata is stored outside the
+package payload at `/var/lib/latexsnipper/distribution.json`. macOS uses
+`LaTeXSnipper.app/Contents/Resources/desktop` for the three components and
+metadata; the outer signed app is rebuilt and verified as a whole.
+These resources are not user configuration or writable dependency environments.
+The application component owns `pandoc/` and the worker implementation.
 
-Dependency cleanup deliberately avoids user-selected external Python roots.
-If a user switches `install_base_dir` to a full Python installation, a venv, or
-a broad directory such as `D:\deps` or `~/deps`, uninstall will not delete it.
-Shared tools are removed from `<app-state>/tools`, not from dependency roots.
-
-Linux/macOS dependency bootstrap uses system Python `>=3.10,<3.14` only to
-create the isolated dependency environment. The packaged app itself does not run
-on the user's system Python.
+Windows/Linux transactions keep a temporary `.deployment/` journal and backup
+under the resource root. The signed macOS app keeps transaction state beside
+the app in `.<app-name>.deployment/`. A separate lock serializes deployment.
+Validated transactions commit installation metadata last, then remove backups.
+A cleanup failure leaves a completed transaction for a later cleanup attempt; it
+does not undo the committed installation or block normal startup.
+Interrupted transactions are recovered before normal launch. These backups are
+for the active transaction, not a retained history of application versions.
 
 ## Model Weights
 
-| Data | Current path |
-|---|---|
-| MathCraft OCR models on Windows | `%APPDATA%\MathCraft\models` |
-| MathCraft OCR models on Linux | `${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper/MathCraft/models` |
-| MathCraft OCR models on macOS | `~/Library/Application Support/LaTeXSnipper/MathCraft/models` |
+Packaged workers read only the installed model component and its
+`models.v1.json`, verifying model files against their declared digests. Automatic
+model downloads are disabled. Missing or corrupt weights require component
+replacement through App updates; the worker never repairs installed files or
+uses an external model cache.
 
-The MathCraft model cache is owned by `mathcraft_ocr.cache`. The settings UI
-opens the same directory that `mathcraft_ocr.cache` resolves. `MATHCRAFT_HOME`
-can explicitly override the model root.
+Source desktop workers and the standalone library use the platform default
+model cache:
+Windows `%APPDATA%/MathCraft/models`, Linux
+`${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper/MathCraft/models`, and macOS
+`~/Library/Application Support/LaTeXSnipper/MathCraft/models`. The standalone
+library also supports its explicit cache argument and `MATHCRAFT_HOME`;
+source desktop workers explicitly use the platform default cache regardless
+of that override. Packaged desktop workers do not use this cache.
+
+Component payload caches use component platform/architecture/variant/identity
+and validate size and SHA256 before reuse. Interrupted transfers retain `.part`
+files. Update staging is separate from the installed components and is removed
+after its task finishes; payload caches remain available for verified reuse.
 
 ## Temporary Files And Caches
 
 | Data | Path | Cleanup |
 |---|---|---|
-| Document PDF preview build files | `<app-temp>/doc-preview` | Cleared when the preview window is created |
-| Poppler SVG preview files | `<app-temp>/poppler-svg` | Cleared between preview sessions |
 | External PDF image assets | `<app-temp>/pdf-assets/latest` | Cleaned by the PDF worker after processing |
 | Screenshot CLI capture files | System temp files with `latexsnipper_cap_` / `latexsnipper_bg_` prefixes | Deleted immediately after use |
 | MathCraft worker input image | System temp PNG | Deleted after each request |
 | Automation API jobs | Memory only | Images released after execution; completed results expire by TTL/retention cap and all state is released on exit |
-| Settings environment terminal launchers and session state | System temp directory: `LaTeXSnipper/environment-terminal/` | Launchers are overwritten and retained; session records are cleared on normal POSIX exit or when detected as stale. Remaining files persist until external temp cleanup. |
-
-## Directory Creation Summary
-
-| Directory | Created when | Notes |
-|---|---|---|
-| App state root | First config/state access | Contains settings, history, locks, update cache, and shared tools |
-| App log root | Runtime logging/preflight starts | Uses the platform log path listed above |
-| App temp root | Preview, PDF asset, or launcher helpers run | Grouped under `LaTeXSnipper` in the OS temp directory |
-| Dependency root | Dependency bootstrap or user path switch | Can be changed repeatedly; only the current root is stored in config |
-| `<dependency-root>/python` | Dependency Python/venv creation | Windows bundled runtime lives under installed `_internal\deps\python311` unless the user switches roots |
-| `<app-state>/tools/pandoc` | Pandoc layer install | Shared app-managed tool; independent from the selected Python dependency root |
-| MathCraft model cache | MathCraft OCR model download/use | `MATHCRAFT_HOME` can intentionally redirect this outside standard roots |
 
 ## User-Chosen Output
 
@@ -96,16 +99,16 @@ to paths selected by the user through save dialogs or explicit path settings.
 
 ## Uninstall Cleanup
 
-LaTeXSnipper preserves user data by default during uninstall so updates and
-reinstalls keep settings, history, user-selected dependency environments, shared
-tools, and model weights.
-
-| Platform | Cleanup entry |
-|---|---|
-| Windows | Before the standard Inno uninstall confirmation, the uninstaller prompts for three optional cleanup choices: app data/logs/temp, app-managed shared tools, and MathCraft model weights. After the standard uninstall confirmation is accepted, it asks Windows/Inno to close LaTeXSnipper, force-closes any remaining `LaTeXSnipper.exe`, then runs selected cleanup before the main install payload is removed. The installed `<install-dir>\_internal` directory is removed unconditionally as part of uninstall. User-selected external Python roots are never read from config or deleted. |
-| Linux `.deb` | Package removal does not delete home-directory data. Run `latexsnipper-clean-user-data --deps` and any other needed cleanup options before `apt purge`, or remove the documented user data roots manually. The script removes shared tools under the app state root and does not read or delete `install_base_dir`. |
-| macOS `.dmg` | Moving the `.app` to Trash removes the app bundle only. The app bundle includes `Contents/Resources/Uninstall User Data.command`; the `.dmg` also exposes `Uninstall User Data.command` next to the app. The script follows the same current-user cleanup policy as Linux. |
-
-Custom `MATHCRAFT_HOME` directories are never deleted automatically because
-they may point outside LaTeXSnipper-owned storage. Dependency tools created by
-LaTeXSnipper are grouped under `<app-state>/tools`.
+The platform installer owns removal of installation components. User settings,
+history, logs and update caches are separate user data. The shared MathCraft
+cache also serves the standalone library and is not an installation component.
+Windows uninstall owns the installation components and offers separate app-data
+and shared-model-cache cleanup choices. Linux uses dpkg removal/purge of the
+three component packages; macOS removes the app. While installed, Linux provides
+`latexsnipper-clean-user-data` with separate app-data and shared-model-cache
+options. The repository script `scripts/latexsnipper-clean-user-data.sh` supports
+both Linux and macOS; it is not deployed inside the macOS app. On macOS, user
+data can also be removed manually using the paths above after quitting the app.
+Uninstall leaves user data unless explicitly selected for cleanup.
+User-selected export paths and external tool installations remain outside the
+resource lifecycle.

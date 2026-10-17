@@ -1,6 +1,9 @@
-# coding: utf-8
-
-from .results import FormulaRecognitionResult, MathCraftBlock, MixedRecognitionResult, OCRRegion
+from .results import (
+    FormulaRecognitionResult,
+    MathCraftBlock,
+    MixedRecognitionResult,
+    OCRRegion,
+)
 from .runtime import MathCraftRuntime, WarmupComponentStatus, WarmupPlan
 
 __all__ = [

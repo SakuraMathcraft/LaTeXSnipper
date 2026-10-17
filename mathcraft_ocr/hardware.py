@@ -1,17 +1,15 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import ctypes
-from dataclasses import dataclass
-from functools import lru_cache
 import json
 import os
 import subprocess
 import sys
+from dataclasses import dataclass
+from functools import lru_cache
 
 from .devices import query_dxgi_adapters, query_nvidia_devices, select_nvidia_device
-from .providers import GPU_PROVIDER_NAMES, ProviderInfo
+from .providers import ACCELERATOR_PROVIDER_NAMES, ProviderInfo
 
 
 @dataclass(frozen=True)
@@ -37,7 +35,9 @@ def detect_hardware_info(provider_info: ProviderInfo | None = None) -> HardwareI
     if active in {"CUDAExecutionProvider", "TensorrtExecutionProvider"}:
         gpu_name, gpu_total_mb, gpu_free_mb, gpu_driver = _query_nvidia_smi(device_id)
     elif active == "DmlExecutionProvider":
-        adapter = next((item for item in query_dxgi_adapters() if item.index == device_id), None)
+        adapter = next(
+            (item for item in query_dxgi_adapters() if item.index == device_id), None
+        )
         if adapter is not None:
             gpu_name = adapter.name
             gpu_total_mb = adapter.dedicated_memory_mb
@@ -105,7 +105,7 @@ def _macos_vm_stat_memory_status() -> tuple[int, int]:
             capture_output=True,
             text=True,
             encoding="utf-8",
-            errors="replace",
+            errors="backslashreplace",
             timeout=2.0,
         )
     except Exception:
@@ -116,8 +116,13 @@ def _macos_vm_stat_memory_status() -> tuple[int, int]:
     free_pages = 0
     for raw_line in proc.stdout.splitlines():
         line = raw_line.strip()
-        if line.startswith("Mach Virtual Memory Statistics:") and "page size of" in line:
-            page_size = _safe_int(line.rsplit("page size of", 1)[-1].split("bytes", 1)[0])
+        if (
+            line.startswith("Mach Virtual Memory Statistics:")
+            and "page size of" in line
+        ):
+            page_size = _safe_int(
+                line.rsplit("page size of", 1)[-1].split("bytes", 1)[0]
+            )
             if page_size <= 0:
                 page_size = 4096
             continue
@@ -135,7 +140,7 @@ def choose_rec_batch_num(
 ) -> int:
     hw = hardware or detect_hardware_info()
     active = str(provider_info.active_provider or "")
-    if provider_info.device == "gpu" and active in GPU_PROVIDER_NAMES:
+    if provider_info.device == "gpu" and active in ACCELERATOR_PROVIDER_NAMES:
         free_vram = max(0, int(hw.gpu_free_memory_mb or 0))
         if free_vram >= 8192:
             return 24
@@ -208,13 +213,13 @@ def _run_powershell_json(command: str) -> object | None:
                 "-ExecutionPolicy",
                 "Bypass",
                 "-Command",
-                command,
+                "$OutputEncoding = [Console]::OutputEncoding = "
+                "[System.Text.UTF8Encoding]::new($false); " + command,
             ],
             check=False,
             capture_output=True,
             text=True,
             encoding="utf-8",
-            errors="replace",
             timeout=3.0,
         )
     except Exception:

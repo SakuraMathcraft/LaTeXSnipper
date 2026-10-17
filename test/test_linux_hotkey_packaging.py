@@ -1,27 +1,23 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import re
-import shutil
 import subprocess
 import sys
-import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
-
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = ROOT / "scripts"
 VERIFIER = ROOT / "scripts" / "verify_linux_hotkey_archive.py"
-PACKAGE_COMMON = ROOT / "scripts" / "package_common.sh"
-BASH = shutil.which("bash")
+
+
 if str(SCRIPTS_DIR) in sys.path:
     sys.path.remove(str(SCRIPTS_DIR))
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import linux_hotkey_packaging  # noqa: E402
-
 
 PYNPUT_MODULES = (
     "pynput",
@@ -134,9 +130,7 @@ class LinuxHotkeyModuleCollectorTests(unittest.TestCase):
         }
         with mock.patch.dict(os.environ, original, clear=True):
             with self.assertRaisesRegex(RuntimeError, "collector failed"):
-                linux_hotkey_packaging.collect_linux_hotkey_modules(
-                    failing_collector
-                )
+                linux_hotkey_packaging.collect_linux_hotkey_modules(failing_collector)
             self.assertEqual(os.environ["PYNPUT_BACKEND"], "xorg")
             self.assertNotIn("PYNPUT_BACKEND_KEYBOARD", os.environ)
             self.assertEqual(os.environ["PYNPUT_BACKEND_MOUSE"], "uinput")
@@ -160,46 +154,17 @@ class LinuxHotkeyArchiveVerifierTests(unittest.TestCase):
     def test_rejects_each_missing_required_module(self) -> None:
         for missing_module in EXPECTED_REQUIRED_MODULES:
             with self.subTest(missing_module=missing_module):
-                result = self._run_verifier(
-                    EXPECTED_REQUIRED_MODULES - {missing_module}
+                self.assertEqual(
+                    linux_hotkey_packaging.missing_hotkey_modules(
+                        EXPECTED_REQUIRED_MODULES - {missing_module}
+                    ),
+                    [missing_module],
                 )
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn(missing_module, result.stderr)
 
-
-class DebianPackageArtifactCleanupTests(unittest.TestCase):
-    @unittest.skipUnless(
-        sys.platform.startswith("linux") and BASH,
-        "Linux and bash are required for Debian packaging tests",
-    )
-    def test_removes_only_requested_stale_package_outputs(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            output_directory = Path(temporary_directory)
-            deb_path = output_directory / "LaTeXSnipper_2.6.0_amd64.deb"
-            checksum_path = output_directory / "SHA256SUMS-linux.txt"
-            unrelated_path = output_directory / "keep.txt"
-            for path in (deb_path, checksum_path, unrelated_path):
-                path.write_text("stale", encoding="utf-8")
-
-            result = subprocess.run(
-                [
-                    BASH,
-                    "-c",
-                    'source "$1"; clear_debian_package_outputs "$2" "$3"',
-                    "bash",
-                    str(PACKAGE_COMMON),
-                    str(deb_path),
-                    str(checksum_path),
-                ],
-                text=True,
-                capture_output=True,
-                check=False,
-            )
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertFalse(deb_path.exists())
-            self.assertFalse(checksum_path.exists())
-            self.assertTrue(unrelated_path.exists())
+    def test_cli_reports_missing_module(self) -> None:
+        result = self._run_verifier(EXPECTED_REQUIRED_MODULES - {"Xlib.ext.record"})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Xlib.ext.record", result.stderr)
 
 
 if __name__ == "__main__":

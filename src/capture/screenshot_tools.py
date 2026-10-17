@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
 
+logger = logging.getLogger(f"latexsnipper.{__name__}")
+
 LINUX_SCREENSHOT_TOOLS: dict[str, dict] = {
     "maim": {
-        "cmds": [["maim", "-x", "{x}", "-y", "{y}", "-w", "{w}", "-h", "{h}", "{output}"]],
+        "cmds": [
+            ["maim", "-x", "{x}", "-y", "{y}", "-w", "{w}", "-h", "{h}", "{output}"]
+        ],
         "env": "x11",
     },
     "import": {
@@ -46,7 +51,9 @@ LINUX_SCREENSHOT_TOOLS: dict[str, dict] = {
         "env": "wayland",
     },
     "screencapture": {
-        "cmds": [["screencapture", "-x", "-R", "{x},{y},{w},{h}", "-t", "png", "{output}"]],
+        "cmds": [
+            ["screencapture", "-x", "-R", "{x},{y},{w},{h}", "-t", "png", "{output}"]
+        ],
         "env": "macos",
     },
 }
@@ -56,7 +63,10 @@ def detect_display_env() -> str:
     """Return the active display environment."""
     if sys.platform == "darwin":
         return "macos"
-    if os.environ.get("WAYLAND_DISPLAY") or os.environ.get("XDG_SESSION_TYPE") == "wayland":
+    if (
+        os.environ.get("WAYLAND_DISPLAY")
+        or os.environ.get("XDG_SESSION_TYPE") == "wayland"
+    ):
         return "wayland"
     if os.environ.get("DISPLAY"):
         return "x11"
@@ -133,9 +143,25 @@ def find_screenshot_tool(preferred: str | None = None) -> str | None:
     if env == "macos":
         priority = ["screencapture"]
     elif env == "wayland":
-        priority = ["gnome-screenshot", "flameshot", "spectacle", "grim", "maim", "import", "scrot"]
+        priority = [
+            "gnome-screenshot",
+            "flameshot",
+            "spectacle",
+            "grim",
+            "maim",
+            "import",
+            "scrot",
+        ]
     else:
-        priority = ["maim", "import", "scrot", "gnome-screenshot", "flameshot", "spectacle", "grim"]
+        priority = [
+            "maim",
+            "import",
+            "scrot",
+            "gnome-screenshot",
+            "flameshot",
+            "spectacle",
+            "grim",
+        ]
 
     for tool in priority:
         if tool in available:
@@ -145,7 +171,10 @@ def find_screenshot_tool(preferred: str | None = None) -> str | None:
 
 def _try_screenshot_cmd(
     cmd_template: list[str],
-    x: int, y: int, width: int, height: int,
+    x: int,
+    y: int,
+    width: int,
+    height: int,
 ):
     """Run one screenshot command template and return a QImage or None."""
     from PyQt6.QtGui import QImage
@@ -161,8 +190,13 @@ def _try_screenshot_cmd(
         ]
 
         subprocess.run(
-            cmd, timeout=15, check=True,
-            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
+            cmd,
+            timeout=15,
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
         )
 
         image = QImage(tmp_path)
@@ -184,15 +218,17 @@ def _try_screenshot_cmd(
     except subprocess.CalledProcessError as exc:
         tool_name = cmd_template[0] if cmd_template else "screenshot tool"
         detail = str(exc.stderr or "").strip().replace("\n", " ")
-        print(f"[WARN] 截图工具 {tool_name} 返回 {exc.returncode}: {detail[:500]}")
+        logger.warning(
+            "截图工具 %s 返回 %s: %s", tool_name, exc.returncode, detail[:500]
+        )
         return None
     except subprocess.TimeoutExpired:
         tool_name = cmd_template[0] if cmd_template else "screenshot tool"
-        print(f"[WARN] 截图工具 {tool_name} 超时（15 秒）")
+        logger.warning("截图工具 %s 超时（15 秒）", tool_name)
         return None
     except Exception as exc:
         tool_name = cmd_template[0] if cmd_template else "screenshot tool"
-        print(f"[WARN] 截图工具 {tool_name} 启动失败: {exc}")
+        logger.warning("截图工具 %s 启动失败: %s", tool_name, exc)
         return None
     finally:
         if tmp_path:
@@ -203,7 +239,10 @@ def _try_screenshot_cmd(
 
 
 def _capture_region_with_cli_tools(
-    x: int, y: int, width: int, height: int,
+    x: int,
+    y: int,
+    width: int,
+    height: int,
     preferred_tool: str | None = None,
 ):
     """Capture a region with command-line tools and return ``(image, tool_name)``."""
@@ -245,7 +284,11 @@ def wayland_overlay_background():
         try:
             fd, tmp_path = tempfile.mkstemp(suffix=".png", prefix="latexsnipper_bg_")
             os.close(fd)
-            cmd = [tool_path, "-f", tmp_path] if tool_name == "gnome-screenshot" else [tool_path, tmp_path]
+            cmd = (
+                [tool_path, "-f", tmp_path]
+                if tool_name == "gnome-screenshot"
+                else [tool_path, tmp_path]
+            )
             subprocess.run(
                 cmd,
                 timeout=10,
@@ -298,7 +341,12 @@ def capture_region_with_tools(
         return None, ""
 
     if screen_geometry is None:
-        cropped = wayland_img.copy(x, y, min(width, wayland_img.width() - x), min(height, wayland_img.height() - y))
+        cropped = wayland_img.copy(
+            x,
+            y,
+            min(width, wayland_img.width() - x),
+            min(height, wayland_img.height() - y),
+        )
         return cropped, "xdg-desktop-portal"
 
     sx, sy, sw, sh = screen_geometry
@@ -314,13 +362,16 @@ def capture_region_with_tools(
         return None, ""
     return wayland_img.copy(crop_x, crop_y, crop_w, crop_h), "xdg-desktop-portal"
 
+
 def wayland_screenshot_via_portal():
     """Capture through org.freedesktop.portal.Screenshot on Wayland."""
     from PyQt6.QtGui import QImage
 
     try:
         import dbus  # type: ignore[reportMissingImports]
-        from dbus.mainloop.glib import DBusGMainLoop  # type: ignore[reportMissingImports]
+        from dbus.mainloop.glib import (  # pyright: ignore[reportMissingImports]
+            DBusGMainLoop,
+        )
     except ImportError:
         return None
 

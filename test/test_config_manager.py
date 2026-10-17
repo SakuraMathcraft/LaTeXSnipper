@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 from runtime.config_manager import ConfigManager
 
 

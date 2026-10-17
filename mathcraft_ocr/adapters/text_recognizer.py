@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import logging
@@ -11,9 +9,8 @@ from rapidocr import EngineType, LangRec, ModelType, OCRVersion
 from rapidocr.ch_ppocr_rec import TextRecInput, TextRecognizer
 from rapidocr.utils.typings import TaskType
 
-from .common import create_session
 from ..providers import ProviderInfo
-
+from .common import create_session
 
 logging.getLogger("RapidOCR").setLevel(logging.WARNING)
 
@@ -56,7 +53,11 @@ def recognize_pp_text_lines(
     recognizer.rec_batch_num = min(max(len(images_bgr), 1), max_batch)
     rec_input = TextRecInput(img=images_bgr, return_word_box=False)
     output = recognizer(rec_input)
-    return [(str(text), float(score)) for text, score in zip(output.txts, output.scores)]
+    assert output.txts is not None and output.scores is not None
+    return [
+        (str(text), float(score))
+        for text, score in zip(output.txts, output.scores, strict=False)
+    ]
 
 
 def _create_pp_text_recognizer(model_dir: Path, provider_info) -> TextRecognizer:
@@ -66,13 +67,15 @@ def _create_pp_text_recognizer(model_dir: Path, provider_info) -> TextRecognizer
 
 @lru_cache(maxsize=8)
 def _create_pp_text_recognizer_cached(
-    model_dir: str,
+    model_path_text: str,
     provider_info: ProviderInfo,
 ) -> TextRecognizer:
-    model_dir = Path(model_dir)
+    model_dir = Path(model_path_text)
     model_candidates = sorted(model_dir.glob("**/*rec*.onnx"))
     if not model_candidates:
-        raise FileNotFoundError(f"no PP-OCR recognizer onnx file found under {model_dir}")
+        raise FileNotFoundError(
+            f"no PP-OCR recognizer onnx file found under {model_dir}"
+        )
     model_path = model_candidates[0]
     dict_path = _find_pp_vocab(model_dir)
     if dict_path is None:
@@ -82,21 +85,23 @@ def _create_pp_text_recognizer_cached(
     is_v5 = "v5" in model_name or "v5" in model_dir.name
     is_english = dict_path.name == "en_dict.txt"
     session = create_session(model_path, provider_info)
-    config = _Config({
-        "engine_type": EngineType.ONNXRUNTIME,
-        "lang_type": LangRec.EN if is_english else LangRec.CH,
-        "model_type": ModelType.SERVER if is_server else ModelType.MOBILE,
-        "ocr_version": OCRVersion.PPOCRV5 if is_v5 else OCRVersion.PPOCRV4,
-        "task_type": TaskType.REC,
-        "model_path": str(model_path),
-        "model_dir": None,
-        "rec_keys_path": str(dict_path),
-        "rec_img_shape": [3, 48, 320],
-        "rec_batch_num": 6,
-        "font_path": None,
-        "session": session,
-        "engine_cfg": {},
-    })
+    config = _Config(
+        {
+            "engine_type": EngineType.ONNXRUNTIME,
+            "lang_type": LangRec.EN if is_english else LangRec.CH,
+            "model_type": ModelType.SERVER if is_server else ModelType.MOBILE,
+            "ocr_version": OCRVersion.PPOCRV5 if is_v5 else OCRVersion.PPOCRV4,
+            "task_type": TaskType.REC,
+            "model_path": str(model_path),
+            "model_dir": None,
+            "rec_keys_path": str(dict_path),
+            "rec_img_shape": [3, 48, 320],
+            "rec_batch_num": 6,
+            "font_path": None,
+            "session": session,
+            "engine_cfg": {},
+        }
+    )
     return TextRecognizer(config)
 
 

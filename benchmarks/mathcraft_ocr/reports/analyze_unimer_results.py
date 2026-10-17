@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import argparse
@@ -25,10 +23,16 @@ TOKEN_RE = re.compile(r"\\[A-Za-z]+|\\.|[A-Za-z]+|\d+|[^\s]")
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Analyze MathCraft OCR results on UniMER-Test.")
+    parser = argparse.ArgumentParser(
+        description="Analyze MathCraft OCR results on UniMER-Test."
+    )
     parser.add_argument("--results", required=True, help="MathCraft JSONL result file.")
-    parser.add_argument("--manifest", required=True, help="UniMER-Test manifest JSONL file.")
-    parser.add_argument("--output-dir", required=True, help="Directory for CSV/Markdown outputs.")
+    parser.add_argument(
+        "--manifest", required=True, help="UniMER-Test manifest JSONL file."
+    )
+    parser.add_argument(
+        "--output-dir", required=True, help="Directory for CSV/Markdown outputs."
+    )
     args = parser.parse_args(argv)
 
     result_path = Path(args.results)
@@ -84,7 +88,9 @@ def _compute_metrics(
         target_row = manifest.get(sample_id, {})
         tags = target_row.get("tags", [])
         subset = str(tags[1]) if isinstance(tags, list) and len(tags) > 1 else "unknown"
-        subset_name = str(tags[2]) if isinstance(tags, list) and len(tags) > 2 else subset
+        subset_name = (
+            str(tags[2]) if isinstance(tags, list) and len(tags) > 2 else subset
+        )
         prediction = str(row.get("text", ""))
         target = str(target_row.get("target_latex", ""))
         norm_prediction = normalize_latex(prediction)
@@ -173,12 +179,14 @@ def normalized_edit_distance(left: str | list[str], right: str | list[str]) -> f
     return edit_distance(left, right) / max(len(left), len(right), 1)
 
 
-def corpus_bleu(predictions: list[list[str]], references: list[list[str]], max_order: int = 4) -> float:
+def corpus_bleu(
+    predictions: list[list[str]], references: list[list[str]], max_order: int = 4
+) -> float:
     matches_by_order = [0] * max_order
     possible_matches_by_order = [0] * max_order
     prediction_length = 0
     reference_length = 0
-    for prediction, reference in zip(predictions, references):
+    for prediction, reference in zip(predictions, references, strict=False):
         prediction_length += len(prediction)
         reference_length += len(reference)
         reference_ngram_counts = _ngram_counts(reference, max_order)
@@ -207,7 +215,9 @@ def corpus_bleu(predictions: list[list[str]], references: list[list[str]], max_o
             else 0.0
             for i in range(max_order)
         ]
-        geo_mean = math.exp(sum(math.log(max(value, 1e-12)) for value in smooth_precisions) / max_order)
+        geo_mean = math.exp(
+            sum(math.log(max(value, 1e-12)) for value in smooth_precisions) / max_order
+        )
     ratio = prediction_length / max(reference_length, 1)
     brevity_penalty = 1.0 if ratio > 1.0 else math.exp(1.0 - 1.0 / max(ratio, 1e-12))
     return brevity_penalty * geo_mean
@@ -243,22 +253,52 @@ def _subset_rows(metrics: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "fail": sum(1 for item in items if not item["ok"]),
                 "empty": sum(1 for item in items if item["empty"]),
                 "norm_exact": sum(1 for item in items if item["norm_exact"]),
-                "norm_exact_rate": _rate(sum(1 for item in items if item["norm_exact"]), len(items)),
+                "norm_exact_rate": _rate(
+                    sum(1 for item in items if item["norm_exact"]), len(items)
+                ),
                 "compact_exact": sum(1 for item in items if item["compact_exact"]),
                 "compact_exact_rate": _rate(
                     sum(1 for item in items if item["compact_exact"]),
                     len(items),
                 ),
                 "bleu4": round(corpus_bleu(predictions, references), 6),
-                "avg_char_ned": round(mean(float(item["char_normalized_edit_distance"]) for item in items), 6),
-                "median_char_ned": round(median(float(item["char_normalized_edit_distance"]) for item in items), 6),
-                "avg_token_ned": round(mean(float(item["token_normalized_edit_distance"]) for item in items), 6),
-                "median_token_ned": round(median(float(item["token_normalized_edit_distance"]) for item in items), 6),
+                "avg_char_ned": round(
+                    mean(
+                        float(item["char_normalized_edit_distance"]) for item in items
+                    ),
+                    6,
+                ),
+                "median_char_ned": round(
+                    median(
+                        float(item["char_normalized_edit_distance"]) for item in items
+                    ),
+                    6,
+                ),
+                "avg_token_ned": round(
+                    mean(
+                        float(item["token_normalized_edit_distance"]) for item in items
+                    ),
+                    6,
+                ),
+                "median_token_ned": round(
+                    median(
+                        float(item["token_normalized_edit_distance"]) for item in items
+                    ),
+                    6,
+                ),
                 "avg_similarity": round(mean(similarities), 6) if similarities else 0.0,
-                "median_similarity": round(median(similarities), 6) if similarities else 0.0,
-                "similarity_ge_090": _rate(sum(1 for value in similarities if value >= 0.90), len(items)),
-                "similarity_ge_095": _rate(sum(1 for value in similarities if value >= 0.95), len(items)),
-                "similarity_ge_098": _rate(sum(1 for value in similarities if value >= 0.98), len(items)),
+                "median_similarity": round(median(similarities), 6)
+                if similarities
+                else 0.0,
+                "similarity_ge_090": _rate(
+                    sum(1 for value in similarities if value >= 0.90), len(items)
+                ),
+                "similarity_ge_095": _rate(
+                    sum(1 for value in similarities if value >= 0.95), len(items)
+                ),
+                "similarity_ge_098": _rate(
+                    sum(1 for value in similarities if value >= 0.98), len(items)
+                ),
                 "latency_p50_ms": _percentile(latencies, 50),
                 "latency_p90_ms": _percentile(latencies, 90),
                 "latency_p95_ms": _percentile(latencies, 95),
@@ -359,7 +399,9 @@ def _write_examples(path: Path, metrics: list[dict[str, Any]]) -> None:
             ],
             "low_similarity": [
                 _example(item)
-                for item in sorted(items, key=lambda item: float(item["similarity"]))[:5]
+                for item in sorted(items, key=lambda item: float(item["similarity"]))[
+                    :5
+                ]
             ],
         }
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")

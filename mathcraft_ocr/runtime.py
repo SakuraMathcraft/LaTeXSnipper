@@ -1,12 +1,14 @@
-# coding: utf-8
-
 from __future__ import annotations
 
+import sys
+import traceback
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-import sys
-import traceback
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import numpy as np
 
 from rapidocr.utils.process_img import get_rotate_crop_image
 
@@ -21,7 +23,13 @@ from .adapters.text_recognizer import (
     recognize_pp_text_lines,
     warmup_pp_text_recognizer,
 )
-from .cache import ModelCacheState, inspect_manifest_roots, resolve_model_roots, resolve_user_models_dir
+from .cache import (
+    ModelCacheState,
+    inspect_manifest_roots,
+    inspect_model_roots,
+    resolve_model_roots,
+    resolve_user_models_dir,
+)
 from .doctor import DoctorReport, run_doctor
 from .downloader import download_model_archive
 from .error_patterns import looks_like_cuda_runtime_error, looks_like_gpu_provider_error
@@ -58,8 +66,19 @@ from .profiles import (
     TEXT_DETECTOR_ID,
     TEXT_RECOGNIZER_ID,
 )
-from .providers import ProviderInfo, ProviderRequest, confirm_provider_device
-from .results import Box4P, FormulaRecognitionResult, MathCraftBlock, MixedRecognitionResult, OCRRegion
+from .providers import (
+    ProviderInfo,
+    ProviderRequest,
+    confirm_provider_device,
+    detect_providers,
+)
+from .results import (
+    Box4P,
+    FormulaRecognitionResult,
+    MathCraftBlock,
+    MixedRecognitionResult,
+    OCRRegion,
+)
 
 
 @dataclass(frozen=True)
@@ -75,6 +94,7 @@ class WarmupComponentStatus:
 class WarmupPlan:
     profile: str
     required_models: tuple[str, ...]
+    model_dirs: dict[str, Path]
     missing_models: tuple[str, ...]
     unsupported_models: tuple[str, ...]
     component_statuses: tuple[WarmupComponentStatus, ...]
@@ -108,7 +128,9 @@ class MathCraftRuntime:
         auto_download: bool = True,
     ) -> None:
         self.cache_dir = resolve_user_models_dir(cache_dir)
-        self.bundled_models_dir = Path(bundled_models_dir) if bundled_models_dir else None
+        self.bundled_models_dir = (
+            Path(bundled_models_dir) if bundled_models_dir else None
+        )
         self.model_roots = resolve_model_roots(cache_dir, bundled_models_dir)
         self.provider_preference = provider_preference
         self.providers = tuple(providers) if providers is not None else None
@@ -126,10 +148,6 @@ class MathCraftRuntime:
         return inspect_manifest_roots(
             self.model_roots, self.manifest, include_optional=include_optional
         )
-
-    def _resolve_model_dir(self, model_id: str) -> Path:
-        states = self.check_models()
-        return states[model_id].model_dir
 
     def get_runtime_info(self) -> DoctorReport:
         return run_doctor(
@@ -170,7 +188,12 @@ class MathCraftRuntime:
         self,
         model_ids: tuple[str, ...],
     ) -> dict[str, ModelCacheState]:
-        states = self.check_models()
+        states = {
+            model_id: inspect_model_roots(
+                self.model_roots, self.manifest.models[model_id]
+            )
+            for model_id in model_ids
+        }
         broken_or_missing = [
             model_id
             for model_id in model_ids
@@ -182,7 +205,11 @@ class MathCraftRuntime:
         for model_id in broken_or_missing:
             spec = self.manifest.models[model_id]
             state = states[model_id]
-            missing_files = ", ".join(state.missing_files) if state.missing_files else "unknown files"
+            missing_files = (
+                ", ".join(state.missing_files)
+                if state.missing_files
+                else "unknown files"
+            )
             self._record_cache_event(
                 f"model {model_id} incomplete under {state.model_dir}; missing: {missing_files}; downloading"
             )
@@ -192,13 +219,22 @@ class MathCraftRuntime:
                 timeout=None,
                 progress_callback=self._record_cache_event,
             )
-            self._record_cache_event(f"model {model_id} downloaded to {self.cache_dir / model_id}")
+            self._record_cache_event(
+                f"model {model_id} downloaded to {self.cache_dir / model_id}"
+            )
         self.clear_warmup_cache()
-        return self.check_models()
+        return {
+            model_id: inspect_model_roots(
+                self.model_roots, self.manifest.models[model_id]
+            )
+            if model_id in broken_or_missing
+            else state
+            for model_id, state in states.items()
+        }
 
     def _repair_model_cache(self, model_id: str):
         if not self.auto_download:
-            return self.check_models()[model_id]
+            return inspect_model_roots(self.model_roots, self.manifest.models[model_id])
         spec = self.manifest.models[model_id]
         self._record_cache_event(f"model {model_id} failed warmup, redownloading")
         download_model_archive(
@@ -207,9 +243,11 @@ class MathCraftRuntime:
             timeout=None,
             progress_callback=self._record_cache_event,
         )
-        self._record_cache_event(f"model {model_id} repaired to {self.cache_dir / model_id}")
+        self._record_cache_event(
+            f"model {model_id} repaired to {self.cache_dir / model_id}"
+        )
         self.clear_warmup_cache()
-        return self.check_models()[model_id]
+        return inspect_model_roots(self.model_roots, spec)
 
     @staticmethod
     def _looks_like_broken_model_error(exc: Exception) -> bool:
@@ -257,6 +295,7 @@ class MathCraftRuntime:
         text, score = self._recognize_formula_rgb(
             rgb,
             plan.provider_info,
+            model_dir=plan.model_dirs[FORMULA_RECOGNIZER_ID],
             max_new_tokens=max_new_tokens,
         )
         return FormulaRecognitionResult(
@@ -280,7 +319,7 @@ class MathCraftRuntime:
         bgr = rgb_to_bgr(rgb)
         detected_text_boxes, _scores = detect_text_boxes(
             bgr,
-            self._resolve_model_dir(TEXT_DETECTOR_ID),
+            plan.model_dirs[TEXT_DETECTOR_ID],
             plan.provider_info,
         )
         regions: list[OCRRegion] = []
@@ -297,11 +336,13 @@ class MathCraftRuntime:
             ]
             rec_results = recognize_pp_text_lines(
                 crops,
-                self._resolve_model_dir(TEXT_RECOGNIZER_ID),
+                plan.model_dirs[TEXT_RECOGNIZER_ID],
                 plan.provider_info,
                 rec_batch_num=self._rec_batch_num(plan.provider_info),
             )
-            for (_detected_box, box), (text, score) in zip(text_candidates, rec_results):
+            for (_detected_box, box), (text, score) in zip(
+                text_candidates, rec_results, strict=False
+            ):
                 cleaned_text = text.strip()
                 if not cleaned_text or score < min_text_score:
                     continue
@@ -343,7 +384,7 @@ class MathCraftRuntime:
         bgr = rgb_to_bgr(rgb)
         formula_boxes = detect_formula_boxes(
             rgb,
-            self._resolve_model_dir(FORMULA_DETECTOR_ID),
+            plan.model_dirs[FORMULA_DETECTOR_ID],
             plan.provider_info,
         )
         formula_boxes = tuple(
@@ -365,6 +406,7 @@ class MathCraftRuntime:
             formula_text, formula_score = self._recognize_formula_rgb(
                 rgb,
                 plan.provider_info,
+                model_dir=plan.model_dirs[FORMULA_RECOGNIZER_ID],
                 max_new_tokens=max_formula_new_tokens,
             )
             formula_block = MathCraftBlock(
@@ -386,12 +428,14 @@ class MathCraftRuntime:
                 provider=plan.provider_info.active_provider,
             )
         masked_bgr = rgb_to_bgr(
-            mask_boxes(rgb, formula_block_boxes, margin=_formula_mask_margin(width, height))
+            mask_boxes(
+                rgb, formula_block_boxes, margin=_formula_mask_margin(width, height)
+            )
         )
 
         detected_text_boxes, _scores = detect_text_boxes(
             bgr,
-            self._resolve_model_dir(TEXT_DETECTOR_ID),
+            plan.model_dirs[TEXT_DETECTOR_ID],
             plan.provider_info,
         )
         text_regions: list[OCRRegion] = []
@@ -403,7 +447,9 @@ class MathCraftRuntime:
                 continue
             text_segments.extend(
                 segment
-                for segment in split_text_box_around_formulas(text_box, formula_block_boxes)
+                for segment in split_text_box_around_formulas(
+                    text_box, formula_block_boxes
+                )
                 if is_informative_ocr_box(masked_bgr, segment.box)
             )
         if text_segments:
@@ -413,11 +459,11 @@ class MathCraftRuntime:
             ]
             rec_results = recognize_pp_text_lines(
                 crops,
-                self._resolve_model_dir(TEXT_RECOGNIZER_ID),
+                plan.model_dirs[TEXT_RECOGNIZER_ID],
                 plan.provider_info,
                 rec_batch_num=self._rec_batch_num(plan.provider_info),
             )
-            for segment, (text, score) in zip(text_segments, rec_results):
+            for segment, (text, score) in zip(text_segments, rec_results, strict=False):
                 cleaned_text = text.strip()
                 if not cleaned_text or score < min_text_score:
                     continue
@@ -432,7 +478,7 @@ class MathCraftRuntime:
                         source="text_rec",
                     )
                 )
-        formula_jobs: list[tuple[int, int, object]] = []
+        formula_jobs: list[tuple[int, int, np.ndarray]] = []
         formula_line_groups: list[tuple[FormulaLineGroup, ...]] = []
         grouped_formula_results: list[list[list[tuple[str, float]]]] = []
         for index, formula_box in enumerate(formula_boxes):
@@ -443,7 +489,8 @@ class MathCraftRuntime:
                 grouped_formula_results.append([[] for _line_group in line_groups])
                 for line_index, line_group in enumerate(line_groups):
                     formula_jobs.extend(
-                        (index, line_index, segment.image) for segment in line_group.crops
+                        (index, line_index, segment.image)
+                        for segment in line_group.crops
                     )
             else:
                 grouped_formula_results.append([[]])
@@ -451,22 +498,27 @@ class MathCraftRuntime:
 
         formula_job_results = recognize_formula_images(
             [image for _index, _line_index, image in formula_jobs],
-            self._resolve_model_dir(FORMULA_RECOGNIZER_ID),
+            plan.model_dirs[FORMULA_RECOGNIZER_ID],
             plan.provider_info,
             max_new_tokens=max_formula_new_tokens,
         )
-        for (index, line_index, _image), result in zip(formula_jobs, formula_job_results):
+        for (index, line_index, _image), result in zip(
+            formula_jobs, formula_job_results, strict=False
+        ):
             grouped_formula_results[index][line_index].append(result)
 
         for formula_box, line_groups, formula_results in zip(
             formula_boxes,
             formula_line_groups,
             grouped_formula_results,
+            strict=False,
         ):
             if not formula_results:
                 continue
             if line_groups:
-                formula_text, formula_score = _merge_formula_group_results(formula_results)
+                formula_text, formula_score = _merge_formula_group_results(
+                    formula_results
+                )
             else:
                 formula_text, formula_score = formula_results[0][0]
             blocks.append(
@@ -480,18 +532,25 @@ class MathCraftRuntime:
                 )
             )
         if not blocks:
-            formula = self.recognize_formula(rgb)
+            formula_text, formula_score = self._recognize_formula_rgb(
+                rgb,
+                plan.provider_info,
+                model_dir=plan.model_dirs[FORMULA_RECOGNIZER_ID],
+                max_new_tokens=max_formula_new_tokens,
+            )
             blocks.append(
                 MathCraftBlock(
                     kind="formula",
                     box=_full_image_box(rgb),
-                    text=formula.text,
-                    score=formula.score,
+                    text=formula_text,
+                    score=formula_score,
                     source="formula_fallback",
-                    confidence_flags=latex_quality_flags(formula.text),
+                    confidence_flags=latex_quality_flags(formula_text),
                 )
             )
-        blocks = list(resolve_formula_text_conflicts(blocks, image_size=(int(width), int(height))))
+        blocks = list(
+            resolve_formula_text_conflicts(blocks, image_size=(int(width), int(height)))
+        )
         ordered_blocks = annotate_blocks(blocks, image_size=(int(width), int(height)))
         regions = tuple(text_regions)
         merged = merge_blocks_text(ordered_blocks)
@@ -507,9 +566,9 @@ class MathCraftRuntime:
         rgb,
         provider_info: ProviderInfo,
         *,
+        model_dir: Path,
         max_new_tokens: int,
     ) -> tuple[str, float]:
-        model_dir = self._resolve_model_dir(FORMULA_RECOGNIZER_ID)
         line_groups = split_formula_line_groups(rgb)
         if line_groups:
             flat_crops = [
@@ -517,13 +576,11 @@ class MathCraftRuntime:
                 for line_group in line_groups
                 for segment in line_group.crops
             ]
-            flat_results = (
-                recognize_formula_images(
-                    flat_crops,
-                    model_dir,
-                    provider_info,
-                    max_new_tokens=max_new_tokens,
-                )
+            flat_results = recognize_formula_images(
+                flat_crops,
+                model_dir,
+                provider_info,
+                max_new_tokens=max_new_tokens,
             )
             grouped_results: list[list[tuple[str, float]]] = []
             offset = 0
@@ -571,9 +628,14 @@ class MathCraftRuntime:
         if cached and cached.ready and cached.required_models == model_ids:
             return cached
 
+        # Validate before loading a profile, not on every inference using its
+        # initialized sessions. Explicit model checks always inspect current bytes.
         self._cache_events = []
         states = self._ensure_selected_models(model_ids)
-        report = self.get_runtime_info()
+        model_dirs = {model_id: state.model_dir for model_id, state in states.items()}
+        provider_info = detect_providers(
+            prefer=self.provider_preference, providers=self.providers
+        )
         missing: list[str] = []
         unsupported: list[str] = []
         component_statuses: list[WarmupComponentStatus] = []
@@ -605,7 +667,7 @@ class MathCraftRuntime:
                 )
                 continue
             try:
-                handler(state.model_dir, report.provider_info)
+                handler(state.model_dir, provider_info)
                 component_statuses.append(
                     WarmupComponentStatus(model_id=model_id, ready=True, detail="ok")
                 )
@@ -613,7 +675,8 @@ class MathCraftRuntime:
                 if self._looks_like_broken_model_error(exc):
                     try:
                         repaired_state = self._repair_model_cache(model_id)
-                        handler(repaired_state.model_dir, report.provider_info)
+                        handler(repaired_state.model_dir, provider_info)
+                        model_dirs[model_id] = repaired_state.model_dir
                         component_statuses.append(
                             WarmupComponentStatus(
                                 model_id=model_id,
@@ -624,19 +687,21 @@ class MathCraftRuntime:
                         continue
                     except Exception as repair_exc:
                         exc = repair_exc
-                component_statuses.append(WarmupComponentStatus(
-                    model_id=model_id,
-                    ready=False,
-                    detail=str(exc),
-                    error_type=type(exc).__name__,
-                    traceback="".join(traceback.format_exception(exc)),
-                ))
-        provider_info = report.provider_info
+                component_statuses.append(
+                    WarmupComponentStatus(
+                        model_id=model_id,
+                        ready=False,
+                        detail=str(exc),
+                        error_type=type(exc).__name__,
+                        traceback="".join(traceback.format_exception(exc)),
+                    )
+                )
         if any(item.ready for item in component_statuses):
             provider_info = confirm_provider_device(provider_info)
         plan = WarmupPlan(
             profile=profile,
             required_models=model_ids,
+            model_dirs=model_dirs,
             missing_models=tuple(missing),
             unsupported_models=tuple(unsupported),
             component_statuses=tuple(component_statuses),
@@ -670,7 +735,12 @@ class MathCraftRuntime:
 
 def _full_image_box(image) -> Box4P:
     height, width = image.shape[:2]
-    return ((0.0, 0.0), (float(width), 0.0), (float(width), float(height)), (0.0, float(height)))
+    return (
+        (0.0, 0.0),
+        (float(width), 0.0),
+        (float(width), float(height)),
+        (0.0, float(height)),
+    )
 
 
 def _is_formula_dominant_image(rgb, formula_boxes) -> bool:
@@ -683,7 +753,9 @@ def _is_formula_dominant_image(rgb, formula_boxes) -> bool:
     return coverage >= _FORMULA_DOMINANT_MIN_INK_COVERAGE
 
 
-def _merge_formula_group_results(results: list[list[tuple[str, float]]]) -> tuple[str, float]:
+def _merge_formula_group_results(
+    results: list[list[tuple[str, float]]],
+) -> tuple[str, float]:
     lines = [compose_formula_line([text for text, _score in line]) for line in results]
     text = compose_aligned_formula(lines)
     scores = [float(score) for line in results for _text, score in line]
@@ -701,7 +773,9 @@ def _repair_uncertain_segmented_lines(
     max_new_tokens: int,
 ) -> list[list[tuple[str, float]]]:
     repaired = [list(line_results) for line_results in grouped_results]
-    for index, (line_group, line_results) in enumerate(zip(line_groups, grouped_results)):
+    for index, (line_group, line_results) in enumerate(
+        zip(line_groups, grouped_results, strict=False)
+    ):
         if len(line_group.crops) <= 1:
             continue
         line_text = compose_formula_line([text for text, _score in line_results])
@@ -733,7 +807,7 @@ def _repair_uncertain_segmented_lines(
     return repaired
 
 
-def _crop_formula_line_group(rgb, line_group) -> object:
+def _crop_formula_line_group(rgb, line_group) -> np.ndarray:
     left = min(crop.box[0] for crop in line_group.crops)
     top = min(crop.box[1] for crop in line_group.crops)
     right = max(crop.box[2] for crop in line_group.crops)

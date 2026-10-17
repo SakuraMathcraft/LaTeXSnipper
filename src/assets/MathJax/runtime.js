@@ -10,13 +10,10 @@
     error: '',
     configure(settings = {}) {
       const root = settings.root.replace(/\/$/, '');
-      const remote = /^https?:/.test(root) && !settings.localFonts;
       const output = settings.output || 'chtml';
       const font = settings.font || config.defaultFont;
-      const fontRoot = remote
-        ? (root.includes('/npm/') ? root.split('/npm/')[0] + '/npm/@mathjax' : new URL(root).origin + '/@mathjax')
-        : root + '/fonts';
-      const fontVersion = remote ? '@' + config.version : '';
+      const fontRoot = settings.fontRoot || root + '/fonts';
+      const fontVersion = settings.fontVersion || '';
       api.ready = false;
       api.error = '';
       global.MathJax = {
@@ -56,21 +53,11 @@
       return global.MathJax;
     },
     load(settings) {
-      // Retry a missing entry point before any MathJax modules have executed.
-      const roots = [settings.root, ...(settings.fallbackRoots || [])];
-      function attempt() {
-        const root = roots.shift();
-        api.configure({...settings, root});
-        const script = document.createElement('script');
-        script.src = root.replace(/\/$/, '') + '/startup.js';
-        script.onerror = () => {
-          script.remove();
-          if (roots.length) attempt();
-          else api.error = 'MathJax startup.js could not be loaded';
-        };
-        document.head.appendChild(script);
-      }
-      attempt();
+      api.configure(settings);
+      const script = document.createElement('script');
+      script.src = settings.root.replace(/\/$/, '') + '/startup.js';
+      script.onerror = () => { api.error = 'MathJax startup.js could not be loaded'; };
+      document.head.appendChild(script);
     },
     convert(input) {
       const run = async () => {

@@ -7,7 +7,6 @@
 # environment permissions.
 pynput>=1.7.6
 
-# Optional runtime screenshot tools are detected by the app but not installed by
-# Dependency Management:
+# Optional system screenshot tools detected by the app:
 #   Wayland: grim
 #   X11: maim or gnome-screenshot

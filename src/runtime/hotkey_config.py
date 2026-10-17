@@ -78,7 +78,9 @@ def _normalize_macos_token(part: str) -> str:
 def _normalize_macos_hotkey(value: str | None) -> str | None:
     if not value:
         return None
-    parts = [_normalize_macos_token(part) for part in str(value).split("+") if part.strip()]
+    parts = [
+        _normalize_macos_token(part) for part in str(value).split("+") if part.strip()
+    ]
     if len(parts) not in {2, 3, 4}:
         return None
     if len(set(parts)) != len(parts):
@@ -94,7 +96,10 @@ def _normalize_macos_hotkey(value: str | None) -> str | None:
     has_shift = "SHIFT" in parts
     if not has_command:
         return None
-    if key in _MACOS_RESERVED_COMMAND_KEYS or key in _MACOS_RESERVED_COMMAND_NON_LETTERS:
+    if (
+        key in _MACOS_RESERVED_COMMAND_KEYS
+        or key in _MACOS_RESERVED_COMMAND_NON_LETTERS
+    ):
         return None
     if not has_option and key in _MACOS_EDITING_COMMAND_KEYS:
         return None

@@ -1,188 +1,53 @@
 #!/bin/sh
 set -eu
-
-APP_NAME="LaTeXSnipper"
-
-usage() {
-    printf 'Usage: %s [--app-data] [--deps] [--models] [--all] [--yes]\n' "${0##*/}"
-    cat <<'EOF'
-
-Removes LaTeXSnipper user-owned data for the current user only.
-By default the script asks interactively. Package uninstall does not run this
-script automatically because Linux/macOS uninstall commands may run as root or
-from a different user account.
-
-Options:
-  --app-data  Remove settings, history, logs, dependency state, and temp files.
-  --deps      Remove app-managed shared tools.
-  --models    Remove MathCraft model weights from the default platform cache.
-  --all       Remove app data, shared tools, and model weights.
-  --yes       Do not ask for confirmation.
-EOF
-}
-
-remove_app_data=false
-remove_deps=false
-remove_models=false
-assume_yes=false
-
-while [ "$#" -gt 0 ]; do
-    case "$1" in
-        --app-data)
-            remove_app_data=true
-            ;;
-        --deps)
-            remove_deps=true
-            ;;
-        --models)
-            remove_models=true
-            ;;
-        --all)
-            remove_app_data=true
-            remove_deps=true
-            remove_models=true
-            ;;
-        --yes|-y)
-            assume_yes=true
-            ;;
-        --help|-h)
-            usage
-            exit 0
-            ;;
-        *)
-            echo "Unknown option: $1" >&2
-            usage >&2
-            exit 2
-            ;;
+app_data=false
+models=false
+confirm=true
+for option in "$@"; do
+    case "$option" in
+        --app-data) app_data=true ;;
+        --models) models=true ;;
+        --all) app_data=true; models=true ;;
+        --yes) confirm=false ;;
+        --help) printf 'Usage: %s [--app-data] [--models] [--all] [--yes]\n' "$0"; exit 0 ;;
+        *) printf 'Unknown option: %s\n' "$option" >&2; exit 2 ;;
     esac
-    shift
 done
-
-is_macos=false
-if [ "$(uname -s)" = "Darwin" ]; then
-    is_macos=true
+if [ "$app_data" = false ] && [ "$models" = false ]; then
+    printf 'Choose --app-data, --models or --all. Shared models affect other MathCraft clients.\n' >&2
+    exit 2
 fi
-
-xdg_data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
-tmp_root="${TMPDIR:-/tmp}"
-
-if [ "$is_macos" = "true" ]; then
-    app_state="$HOME/Library/Application Support/$APP_NAME"
-    log_dir="$HOME/Library/Logs/$APP_NAME"
-    model_dir="$HOME/Library/Application Support/$APP_NAME/MathCraft/models"
+if [ "$confirm" = true ]; then
+    printf 'Remove the selected current-user data? [y/N] '
+    read -r answer
+    [ "$answer" = y ] || [ "$answer" = Y ] || exit 0
+fi
+if [ "$(uname -s)" = Darwin ]; then
+    state="$HOME/Library/Application Support/LaTeXSnipper"
+    cache="$HOME/Library/Caches/LaTeXSnipper"
+    logs="$HOME/Library/Logs/LaTeXSnipper"
+    model_root="$state/MathCraft/models"
 else
-    app_state="$HOME/.latexsnipper"
-    log_dir="$HOME/.latexsnipper/logs"
-    model_dir="$xdg_data_home/$APP_NAME/MathCraft/models"
+    state="$HOME/.latexsnipper"
+    cache="$state/cache"
+    logs="$state/logs"
+    model_root="${XDG_DATA_HOME:-$HOME/.local/share}/LaTeXSnipper/MathCraft/models"
 fi
-temp_dir="$tmp_root/$APP_NAME"
-
-ask_yes_no() {
-    prompt="$1"
-    if [ "$assume_yes" = "true" ]; then
-        return 0
+if [ "$app_data" = true ]; then
+    # macOS keeps the shared model cache below its application support root.
+    # An app-data-only cleanup preserves that cache explicitly.
+    if [ -L "$state" ]; then
+        rm -f -- "$state"
+    elif [ -d "$state" ]; then
+        for path in "$state"/* "$state"/.[!.]* "$state"/..?*; do
+            [ -e "$path" ] || [ -L "$path" ] || continue
+            [ "${path##*/}" != MathCraft ] || [ "$models" = true ] || continue
+            rm -rf -- "$path"
+        done
     fi
-    printf '%s [y/N] ' "$prompt"
-    if ! IFS= read -r answer; then
-        answer=""
-    fi
-    case "$answer" in
-        y|Y|yes|YES|Yes)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
-remove_path() {
-    path="$1"
-    label="$2"
-    if [ -e "$path" ]; then
-        rm -rf "$path"
-        printf 'Removed %s: %s\n' "$label" "$path"
-    else
-        printf 'Skipped %s; not found: %s\n' "$label" "$path"
-    fi
-}
-
-remove_children_except() {
-    directory="$1"
-    keep_first="$2"
-    keep_second="$3"
-
-    for path in "$directory"/* "$directory"/.[!.]* "$directory"/..?*; do
-        if [ ! -e "$path" ] && [ ! -L "$path" ]; then
-            continue
-        fi
-        name=${path##*/}
-        if { [ -n "$keep_first" ] && [ "$name" = "$keep_first" ]; } || \
-           { [ -n "$keep_second" ] && [ "$name" = "$keep_second" ]; }; then
-            continue
-        fi
-        rm -rf -- "$path"
-    done
-}
-
-remove_app_state_data() {
-    if [ ! -d "$app_state" ]; then
-        printf 'Skipped app state; not found: %s\n' "$app_state"
-        return
-    fi
-
-    if [ "$remove_deps" = "true" ] && { [ "$is_macos" = "false" ] || [ "$remove_models" = "true" ]; }; then
-        remove_path "$app_state" "app state"
-        return
-    fi
-
-    if [ "$remove_deps" = "false" ] && [ "$is_macos" = "true" ] && [ "$remove_models" = "false" ]; then
-        remove_children_except "$app_state" "tools" "MathCraft"
-    elif [ "$remove_deps" = "false" ]; then
-        remove_children_except "$app_state" "tools" ""
-    else
-        remove_children_except "$app_state" "MathCraft" ""
-    fi
-
-    if [ "$is_macos" = "true" ] && [ "$remove_models" = "false" ] && [ -d "$app_state/MathCraft" ]; then
-        remove_children_except "$app_state/MathCraft" "models" ""
-    fi
-
-    printf 'Removed selected app state data: %s\n' "$app_state"
-}
-
-if [ "$remove_app_data" = "false" ] && [ "$remove_deps" = "false" ] && [ "$remove_models" = "false" ]; then
-    if ask_yes_no "Remove LaTeXSnipper settings, history, logs, dependency state, and temp files?"; then
-        remove_app_data=true
-    fi
-    if ask_yes_no "Remove app-managed shared tools?"; then
-        remove_deps=true
-    fi
-    if ask_yes_no "Remove MathCraft model weights from the default cache?"; then
-        remove_models=true
-    fi
+    rm -rf -- "$cache" "$logs" "${TMPDIR:-/tmp}/LaTeXSnipper"
 fi
-
-if [ "$remove_app_data" = "true" ]; then
-    remove_app_state_data
-    if [ "$is_macos" = "true" ]; then
-        remove_path "$log_dir" "logs"
-    fi
-    remove_path "$temp_dir" "temporary files"
+if [ "$models" = true ]; then
+    rm -rf -- "$model_root"
 fi
-
-if [ "$remove_deps" = "true" ] && [ "$remove_app_data" = "false" ]; then
-    remove_path "$app_state/tools" "shared dependency tools"
-fi
-
-if [ "$remove_models" = "true" ] && { [ "$is_macos" = "false" ] || [ "$remove_app_data" = "false" ]; }; then
-    remove_path "$model_dir" "MathCraft model weights"
-fi
-
-cat <<EOF
-
-Done.
-Custom MATHCRAFT_HOME directories are not removed automatically. App-managed
-shared tools created by LaTeXSnipper are grouped under the app state tools
-directory.
-EOF
+printf 'Selected data removed. Custom library cache directories are preserved.\n'

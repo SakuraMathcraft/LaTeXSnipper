@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from localization.manager import translate as tr
-
 import os
 import subprocess
 from pathlib import Path
@@ -20,8 +18,9 @@ from PyQt6.QtWidgets import (
 )
 from qfluentwidgets import FluentIcon, PushButton
 
-from preview.math_preview import dialog_theme_tokens, is_dark_ui
+from localization.manager import translate as tr
 from runtime.app_paths import resource_path
+from ui.theme_tokens import dialog_theme_tokens, is_dark_ui
 
 
 class RuntimeLogDialog(QDialog):
@@ -135,7 +134,7 @@ class RuntimeLogDialog(QDialog):
 
     def _poll_file(self, _initial: bool = False):
         try:
-            with self._log_file.open("r", encoding="utf-8", errors="ignore") as f:
+            with self._log_file.open("r", encoding="utf-8") as f:
                 f.seek(self._pos)
                 chunk = f.read()
                 self._pos = f.tell()

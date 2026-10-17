@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import argparse
@@ -14,7 +12,7 @@ from .serialization import (
     mixed_result_to_json,
     warmup_plan_to_json,
 )
-
+from .text_io import utf8_stream
 
 _PROVIDER_HELP = "auto, cpu, gpu, cuda, tensorrt, directml, coreml, or openvino"
 
@@ -36,7 +34,9 @@ def _resolve_ocr_output_path(args: argparse.Namespace) -> Path | None:
 def _write_ocr_output(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
-    print(f"[MATHCRAFT_OUTPUT] written to {path.resolve()}", file=sys.stderr, flush=True)
+    print(
+        f"[MATHCRAFT_OUTPUT] written to {path.resolve()}", file=sys.stderr, flush=True
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -68,6 +68,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    utf8_stream(sys.stdin)
+    utf8_stream(sys.stdout)
+    utf8_stream(sys.stderr, errors="backslashreplace")
     parser = build_parser()
     args = parser.parse_args(argv)
 
@@ -117,7 +120,9 @@ def main(argv: list[str] | None = None) -> int:
             result = runtime.recognize_mixed(args.image)
             data = mixed_result_to_json(result)
             text = result.text
-        payload = json.dumps(data, ensure_ascii=False, indent=2) if args.as_json else text
+        payload = (
+            json.dumps(data, ensure_ascii=False, indent=2) if args.as_json else text
+        )
         output_path = _resolve_ocr_output_path(args)
         if output_path:
             _write_ocr_output(output_path, payload)

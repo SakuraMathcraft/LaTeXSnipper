@@ -23,11 +23,19 @@ def ensure_std_streams() -> None:
         return False
 
     if _is_bad(getattr(sys, "stdout", None)):
-        if hasattr(sys, "__stdout__") and sys.__stdout__ is not None and not getattr(sys.__stdout__, "closed", False):
+        if (
+            hasattr(sys, "__stdout__")
+            and sys.__stdout__ is not None
+            and not getattr(sys.__stdout__, "closed", False)
+        ):
             sys.stdout = sys.__stdout__
 
     if _is_bad(getattr(sys, "stderr", None)):
-        if hasattr(sys, "__stderr__") and sys.__stderr__ is not None and not getattr(sys.__stderr__, "closed", False):
+        if (
+            hasattr(sys, "__stderr__")
+            and sys.__stderr__ is not None
+            and not getattr(sys.__stderr__, "closed", False)
+        ):
             sys.stderr = sys.__stderr__
 
     if _is_bad(getattr(sys, "stdout", None)):

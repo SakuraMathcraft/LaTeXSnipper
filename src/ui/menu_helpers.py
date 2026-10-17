@@ -6,7 +6,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QWidgetAction
 from qfluentwidgets import PushButton, RoundMenu
 
-from preview.math_preview import is_dark_ui
+from ui.theme_tokens import is_dark_ui
 
 
 def action_btn_style() -> str:

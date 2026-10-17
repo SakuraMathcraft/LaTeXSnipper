@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import argparse
@@ -45,9 +43,14 @@ DEFAULT_PAGES = {
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Create MathCraft page-level manifest from OpenStax PDFs.")
+    parser = argparse.ArgumentParser(
+        description="Create MathCraft page-level manifest from OpenStax PDFs."
+    )
     parser.add_argument("--data-root", required=True)
-    parser.add_argument("--output", help="Defaults to manifests/openstax_mixed_gpu_144dpi.jsonl under --data-root")
+    parser.add_argument(
+        "--output",
+        help="Defaults to manifests/openstax_mixed_gpu_144dpi.jsonl under --data-root",
+    )
     parser.add_argument(
         "--pages",
         default=",".join(f"{key}:{value}" for key, value in DEFAULT_PAGES.items()),
@@ -59,7 +62,11 @@ def main(argv: list[str] | None = None) -> int:
     data_root = Path(args.data_root)
     raw_dir = data_root / "raw" / "openstax"
     image_dir = data_root / "processed" / "openstax_pages"
-    output = Path(args.output) if args.output else data_root / "manifests" / "openstax_mixed_gpu_144dpi.jsonl"
+    output = (
+        Path(args.output)
+        if args.output
+        else data_root / "manifests" / "openstax_mixed_gpu_144dpi.jsonl"
+    )
     raw_dir.mkdir(parents=True, exist_ok=True)
     image_dir.mkdir(parents=True, exist_ok=True)
     output.parent.mkdir(parents=True, exist_ok=True)

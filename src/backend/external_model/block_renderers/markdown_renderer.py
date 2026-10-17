@@ -48,13 +48,23 @@ def render_markdown_document(doc: StructuredDocument) -> str:
                 if table_md:
                     chunks.append(table_md)
                 elif block.asset_id:
-                    asset = next((item for item in doc.assets if item.asset_id == block.asset_id), None)
+                    asset = next(
+                        (
+                            item
+                            for item in doc.assets
+                            if item.asset_id == block.asset_id
+                        ),
+                        None,
+                    )
                     if asset:
                         alt = block.caption or asset.caption or "表格"
                         chunks.append(f"![{alt}]({asset.rel_path})")
                 continue
             if kind in ("figure", "image", "table_snapshot"):
-                asset = next((item for item in doc.assets if item.asset_id == block.asset_id), None)
+                asset = next(
+                    (item for item in doc.assets if item.asset_id == block.asset_id),
+                    None,
+                )
                 if asset:
                     alt = block.caption or asset.caption or "图片"
                     chunks.append(f"![{alt}]({asset.rel_path})")

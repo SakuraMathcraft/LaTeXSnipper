@@ -1,9 +1,13 @@
 import pytest
 
 from preview.content_preview import build_mixed_content_html
-from preview.math_preview import MATHJAX_CDN_URL, MATHJAX_CDN_URL_BACKUP, build_math_html
+from preview.math_preview import build_math_html
 from preview.smart_preview import build_smart_preview_html
-from runtime.content_types import content_type_for_external_output, content_type_for_mathcraft
+from rendering.mathjax_runtime import ASSET_ROOT
+from runtime.content_types import (
+    content_type_for_external_output,
+    content_type_for_mathcraft,
+)
 
 
 def test_local_and_external_results_share_rendering_semantics():
@@ -31,24 +35,21 @@ def test_mixed_content_escapes_text_and_preserves_formulas():
     assert "$$z=2$$" in html
 
 
-def test_mixed_content_mathjax_loader_falls_back_to_backup_cdn():
+def test_mixed_content_uses_bundled_mathjax_runtime():
     html = build_mixed_content_html("$x$")
 
     assert "LaTeXSnipperMathJax.load" in html
-    assert MATHJAX_CDN_URL.rsplit("/", 1)[0] in html
-    assert MATHJAX_CDN_URL_BACKUP.rsplit("/", 1)[0] in html
+    assert ASSET_ROOT.resolve().as_uri() in html
     assert '"output": "chtml"' in html
     assert '"scale": 1.2' in html
 
 
-def test_smart_preview_uses_shared_mathjax_fallback_loader():
+def test_smart_preview_uses_bundled_mathjax_runtime():
     html = build_smart_preview_html(
         [("$x$", "Formula", "mathcraft")],
-        lambda content: f'<div class="formula-content">$${content}$$</div>',
     )
 
-    assert MATHJAX_CDN_URL.rsplit("/", 1)[0] in html
-    assert MATHJAX_CDN_URL_BACKUP.rsplit("/", 1)[0] in html
+    assert ASSET_ROOT.resolve().as_uri() in html
     assert "LaTeXSnipperMathJax.load" in html
     assert "color-scheme:" in html
     assert "::-webkit-scrollbar-thumb" in html

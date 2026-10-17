@@ -6,7 +6,6 @@ import re
 import time
 from pathlib import Path
 
-
 APP_LOG_MAX_BYTES = 2 * 1024 * 1024
 APP_LOG_BACKUP_COUNT = 3
 CRASH_LOG_MAX_BYTES = 2 * 1024 * 1024

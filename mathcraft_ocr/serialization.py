@@ -1,8 +1,12 @@
-# coding: utf-8
-
 from __future__ import annotations
 
-from .results import Box4P, FormulaRecognitionResult, MathCraftBlock, MixedRecognitionResult, OCRRegion
+from .results import (
+    Box4P,
+    FormulaRecognitionResult,
+    MathCraftBlock,
+    MixedRecognitionResult,
+    OCRRegion,
+)
 
 
 def box_to_json(box: Box4P) -> list[list[float]]:

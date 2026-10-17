@@ -1,35 +1,45 @@
 {
     "pythonVersion": "3.11",
-    "typeCheckingMode": "off",
-    "reportMissingImports": "error",
+    "pythonPlatform": "All",
+    "typeCheckingMode": "basic",
     "include": [
-        "src"
+        "src",
+        "mathcraft_ocr",
+        "scripts",
+        "tools/mathjax"
     ],
     "extraPaths": [
         ".",
-        "src"
+        "src",
+        "scripts"
     ],
     "exclude": [
         "**/__pycache__",
         "build",
         "dist",
+        "mathcraft_ocr/vendor",
         ".venv"
     ],
-    "reportUnusedImport": "warning",
-    "reportUnusedVariable": "warning",
-    "reportUnusedFunction": "none",
-    "reportUnusedClass": "warning",
-    "reportGeneralTypeIssues": "none",
-    "reportOptionalMemberAccess": "none",
-    "reportAttributeAccessIssue": "none",
-    "reportArgumentType": "none",
-    "reportAssignmentType": "none",
     "executionEnvironments": [
+        {
+            "root": "src/ui",
+            "reportAttributeAccessIssue": "none",
+            "reportOptionalMemberAccess": "none"
+        },
+        {
+            "root": "src/handwriting",
+            "reportOptionalMemberAccess": "none"
+        },
         {
             "root": "src",
             "extraPaths": [
-                "."
+                ".",
+                "scripts"
             ]
+        },
+        {
+            "root": "mathcraft_ocr",
+            "pythonVersion": "3.10"
         }
     ]
 }

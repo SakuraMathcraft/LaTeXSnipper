@@ -8,7 +8,9 @@ from pathlib import Path
 from runtime.content_types import normalize_content_type
 
 
-def load_history_store(path: str | Path) -> tuple[list[str], dict[str, str], dict[str, str]]:
+def load_history_store(
+    path: str | Path,
+) -> tuple[list[str], dict[str, str], dict[str, str]]:
     target = Path(path)
     if not target.exists():
         return [], {}, {}
@@ -21,7 +23,11 @@ def load_history_store(path: str | Path) -> tuple[list[str], dict[str, str], dic
     history = [str(x) for x in raw_history if isinstance(x, (str, int, float))]
 
     raw_names = data.get("formula_names", {})
-    formula_names = {str(k): str(v) for k, v in raw_names.items()} if isinstance(raw_names, dict) else {}
+    formula_names = (
+        {str(k): str(v) for k, v in raw_names.items()}
+        if isinstance(raw_names, dict)
+        else {}
+    )
 
     raw_types = data.get("formula_types", {})
     formula_types = (

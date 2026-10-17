@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from localization.manager import translate as tr
-
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QDialog,
@@ -14,7 +12,8 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
-from preview.math_preview import dialog_theme_tokens
+from localization.manager import translate as tr
+from ui.theme_tokens import dialog_theme_tokens
 from ui.window_helpers import apply_app_window_icon
 
 

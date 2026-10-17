@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from typing import cast
+
 from PIL import Image, ImageFilter
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtGui import QImage
 
-from backend.external_model import ExternalModelClient, ExternalModelConfig
+from backend.external_model import ExternalModelConfig
 from localization.manager import translate as tr
 from recognition.error_messages import (
     recognition_error_code_message,
@@ -39,14 +41,12 @@ class HandwritingRecognitionWorker(QObject):
 
     def __init__(
         self,
-        model_wrapper,
+        coordinator: RecognitionJobCoordinator,
         image: QImage,
         model_name: str = "mathcraft",
         external_config: ExternalModelConfig | None = None,
-        coordinator: RecognitionJobCoordinator | None = None,
     ):
         super().__init__()
-        self.model_wrapper = model_wrapper
         self.image = image
         self.model_name = model_name
         self.external_config = external_config
@@ -56,9 +56,11 @@ class HandwritingRecognitionWorker(QObject):
 
     def cancel(self) -> None:
         self._cancelled = True
-        if self.coordinator is not None and self._job_id:
+        if self._job_id:
             try:
-                self.coordinator.cancel(self._job_id, principal_id="desktop-handwriting")
+                self.coordinator.cancel(
+                    cast(str, self._job_id), principal_id="desktop-handwriting"
+                )
             except Exception:
                 pass
 
@@ -74,76 +76,75 @@ class HandwritingRecognitionWorker(QObject):
                 if self.external_config is None:
                     self.failed.emit(tr("外部模型未配置"))
                     return
-                if self.coordinator is None:
-                    result_obj = ExternalModelClient(self.external_config).predict(pil_img)
-                    result = result_obj.best_text(self.external_config.resolved_output_mode()).strip()
-                else:
-                    mode = {
-                        "ocr_formula_v1": "formula",
-                        "ocr_text_v1": "text",
-                    }.get(self.external_config.prompt_template, "mixed")
-                    job = self.coordinator.submit(
-                        [RecognitionItemInput(image=validated_rgb_image(pil_img))],
-                        principal_id="desktop-handwriting",
-                        source=JobSource.HANDWRITING,
-                        mode=mode,
-                        timeout_seconds=self.external_config.normalized_timeout(),
-                        input_type="handwriting_canvas",
-                        backend="external",
-                        external_config=self.external_config,
+                mode = {
+                    "ocr_formula_v1": "formula",
+                    "ocr_text_v1": "text",
+                }.get(self.external_config.prompt_template, "mixed")
+                job = self.coordinator.submit(
+                    [RecognitionItemInput(image=validated_rgb_image(pil_img))],
+                    principal_id="desktop-handwriting",
+                    source=JobSource.HANDWRITING,
+                    mode=mode,
+                    timeout_seconds=self.external_config.normalized_timeout(),
+                    input_type="handwriting_canvas",
+                    backend="external",
+                    external_config=self.external_config,
+                )
+                self._job_id = job["id"]
+                if self._cancelled:
+                    self.coordinator.cancel(
+                        cast(str, self._job_id), principal_id="desktop-handwriting"
                     )
-                    self._job_id = job["id"]
-                    if self._cancelled:
-                        self.coordinator.cancel(self._job_id, principal_id="desktop-handwriting")
-                    snapshot = self.coordinator.wait(
-                        job["id"], principal_id="desktop-handwriting", timeout=None
-                    )
-                    item = snapshot["items"][0]
-                    if item["state"] != "completed":
-                        error = item.get("error") or {}
-                        raise RuntimeError(
-                            recognition_error_code_message(
-                                error.get("code"), "external_model"
-                            )
+                snapshot = self.coordinator.wait(
+                    job["id"], principal_id="desktop-handwriting", timeout=None
+                )
+                item = snapshot["items"][0]
+                if item["state"] != "completed":
+                    error = item.get("error") or {}
+                    raise RuntimeError(
+                        recognition_error_code_message(
+                            error.get("code"), "external_model"
                         )
-                    result = str(item["text"]).strip()
+                    )
+                result = str(item["text"]).strip()
             else:
-                if self.coordinator is None:
-                    result = (self.model_wrapper.predict(pil_img, model_name=model_name) or "").strip()
-                else:
-                    mode = {
-                        "mathcraft": "formula",
-                        "mathcraft_text": "text",
-                        "mathcraft_mixed": "mixed",
-                    }.get(model_name, "formula")
-                    job = self.coordinator.submit(
-                        [RecognitionItemInput(image=validated_rgb_image(pil_img))],
-                        principal_id="desktop-handwriting",
-                        source=JobSource.HANDWRITING,
-                        mode=mode,
-                        timeout_seconds=300,
-                        input_type="handwriting_canvas",
+                mode = {
+                    "mathcraft": "formula",
+                    "mathcraft_text": "text",
+                    "mathcraft_mixed": "mixed",
+                }.get(model_name, "formula")
+                job = self.coordinator.submit(
+                    [RecognitionItemInput(image=validated_rgb_image(pil_img))],
+                    principal_id="desktop-handwriting",
+                    source=JobSource.HANDWRITING,
+                    mode=mode,
+                    timeout_seconds=300,
+                    input_type="handwriting_canvas",
+                )
+                self._job_id = job["id"]
+                if self._cancelled:
+                    self.coordinator.cancel(
+                        cast(str, self._job_id), principal_id="desktop-handwriting"
                     )
-                    self._job_id = job["id"]
-                    if self._cancelled:
-                        self.coordinator.cancel(self._job_id, principal_id="desktop-handwriting")
-                    snapshot = self.coordinator.wait(
-                        job["id"], principal_id="desktop-handwriting", timeout=None
+                snapshot = self.coordinator.wait(
+                    job["id"], principal_id="desktop-handwriting", timeout=None
+                )
+                item = snapshot["items"][0]
+                if item["state"] != "completed":
+                    error = item.get("error") or {}
+                    raise RuntimeError(
+                        recognition_error_code_message(error.get("code"), "mathcraft")
                     )
-                    item = snapshot["items"][0]
-                    if item["state"] != "completed":
-                        error = item.get("error") or {}
-                        raise RuntimeError(
-                            recognition_error_code_message(
-                                error.get("code"), "mathcraft"
-                            )
-                        )
-                    result = str(item["text"]).strip()
+                result = str(item["text"]).strip()
 
             if not str(result or "").strip():
                 self.failed.emit(tr("识别结果为空"))
                 return
             self.finished.emit(str(result).strip())
         except Exception as exc:
-            backend = "external_model" if str(self.model_name).strip().lower() == "external_model" else "mathcraft"
+            backend = (
+                "external_model"
+                if str(self.model_name).strip().lower() == "external_model"
+                else "mathcraft"
+            )
             self.failed.emit(recognition_failure_user_message(exc, backend))

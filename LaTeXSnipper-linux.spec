@@ -29,6 +29,7 @@ if str(SCRIPTS) in sys.path:
 sys.path.insert(0, str(SCRIPTS))
 
 from linux_hotkey_packaging import collect_linux_hotkey_modules
+from payload_pruning import prune_qt_payload
 
 print(f"[SPEC] output name: {APP_NAME}")
 
@@ -79,33 +80,6 @@ if QT6_PLUGINS.exists():
 # ---------------------------------------------------------------------------
 # Data collection helpers
 # ---------------------------------------------------------------------------
-def _collect_tree_as_datas(src_root: Path, dest_prefix: str):
-    """Collect a directory tree as PyInstaller datas tuples."""
-    out = []
-    if not src_root.exists():
-        return out
-    for p in src_root.rglob("*"):
-        if not p.is_file():
-            continue
-        if p.suffix.lower() in {".pyc", ".pyo"} or "__pycache__" in p.parts:
-            continue
-        rel_parent = p.relative_to(src_root).parent
-        if str(rel_parent) == ".":
-            dest_dir = dest_prefix
-        else:
-            dest_dir = f"{dest_prefix}/{str(rel_parent).replace(os.sep, '/')}"
-        out.append((str(p), dest_dir))
-    return out
-
-
-# ---------------------------------------------------------------------------
-# MathCraft OCR package
-# ---------------------------------------------------------------------------
-MATHCRAFT_OCR_SRC = ROOT / "mathcraft_ocr"
-if MATHCRAFT_OCR_SRC.exists():
-    extra_datas += _collect_tree_as_datas(MATHCRAFT_OCR_SRC, "mathcraft_ocr")
-    print(f"[SPEC] include MathCraft OCR package: {MATHCRAFT_OCR_SRC}")
-
 # ---------------------------------------------------------------------------
 # certifi certificate bundle
 # ---------------------------------------------------------------------------
@@ -167,12 +141,6 @@ a = Analysis(
 
         # Application submodules
         "editor",
-        "editor.workbench_bridge",
-        "editor.workbench_window",
-        "editor.latex_snippet_panel",
-        "bootstrap",
-        "bootstrap.deps_pip_runner",
-        "bootstrap.deps_state",
         "exporting",
         "exporting.formula_converters",
         "exporting.formula_export",
@@ -202,14 +170,12 @@ a = Analysis(
         "handwriting.stroke_store",
         "handwriting.tools",
         "handwriting.types",
-        "preview.document.pdf_fitz",
-        "preview.document.pdf_poppler",
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        # Runtime deps are managed by the user dependency environment.
+        # Inference dependencies belong to the independent inference component.
         "_polars_runtime_32",
         "_polars_runtime_64",
         "_polars_runtime_compat",
@@ -233,8 +199,6 @@ a = Analysis(
         "propcache",
         "yarl",
         "ctranslate2",
-        "lxml",
-        "fitz",
         "shapely",
         "pyclipper",
         "yaml",
@@ -310,7 +274,7 @@ def _prune_collect_tree_linux(dist_root: Path):
     remove_prefixes = (
         "aiohttp", "frozenlist", "multidict", "propcache", "yarl",
         "ctranslate2", "cv2", "rapidocr",
-        "numpy", "numpy.libs", "lxml", "fitz",
+        "numpy", "numpy.libs",
         "shapely", "pyclipper",
         "yaml", "markupsafe", "pydantic_core",
         "regex", "safetensors", "sentencepiece",
@@ -328,191 +292,7 @@ def _prune_collect_tree_linux(dist_root: Path):
         except Exception as exc:
             print(f"[SPEC] prune skip {child}: {exc}")
 
-    _prune_qt_webengine_payload(dist_root)
-
-
-def _prune_qt_webengine_payload(dist_root: Path):
-    """Trim optional Qt WebEngine payload while keeping runtime-critical files."""
-    qt_roots = [
-        dist_root / "PyQt6" / "Qt6",
-        dist_root / "Qt6",
-    ]
-
-    def _qt_name_aliases(stem: str) -> set[str]:
-        aliases = {stem}
-        if stem.startswith("Qt6"):
-            aliases.add("Qt" + stem[3:])
-        return aliases
-
-    def _remove_optional_qt_libraries(qt_root: Path, stems: set[str]) -> None:
-        for library_dir in (qt_root / "bin", qt_root / "lib"):
-            if not library_dir.exists():
-                continue
-            for stem in stems:
-                for alias in _qt_name_aliases(stem):
-                    candidates = [
-                        library_dir / f"{alias}.dll",
-                        library_dir / f"lib{alias}.so",
-                        library_dir / f"lib{alias}.dylib",
-                        library_dir / f"{alias}.dylib",
-                        library_dir / f"{alias}.framework",
-                    ]
-                    candidates.extend(library_dir.glob(f"lib{alias}.so.*"))
-                    for child in candidates:
-                        if not child.exists():
-                            continue
-                        try:
-                            if child.is_dir():
-                                shutil.rmtree(child, ignore_errors=True)
-                            else:
-                                child.unlink(missing_ok=True)
-                        except Exception:
-                            pass
-
-    def _remove_optional_qt_plugins(plugins_dir: Path, relative_paths: set[Path]) -> None:
-        for relative_path in relative_paths:
-            plugin_dir = plugins_dir / relative_path.parent
-            if not plugin_dir.exists():
-                continue
-            stem = relative_path.stem
-            for child in (
-                plugin_dir / f"{stem}.dll",
-                plugin_dir / f"lib{stem}.so",
-                plugin_dir / f"lib{stem}.dylib",
-                plugin_dir / f"{stem}.dylib",
-            ):
-                if not child.exists():
-                    continue
-                try:
-                    child.unlink(missing_ok=True)
-                except Exception:
-                    pass
-
-    for qt_root in qt_roots:
-        if not qt_root.exists():
-            continue
-
-        resources_dir = qt_root / "resources"
-        if resources_dir.exists():
-            for name in ("qtwebengine_devtools_resources.pak",):
-                child = resources_dir / name
-                if child.exists():
-                    try:
-                        child.unlink(missing_ok=True)
-                    except Exception:
-                        pass
-            for pattern in ("*.debug.pak", "*.debug.bin"):
-                for child in resources_dir.glob(pattern):
-                    try:
-                        child.unlink(missing_ok=True)
-                    except Exception:
-                        pass
-
-        qml_dir = qt_root / "qml"
-        if qml_dir.exists():
-            shutil.rmtree(qml_dir, ignore_errors=True)
-
-        translations_dir = qt_root / "translations"
-        if translations_dir.exists():
-            keep_translation_markers = ("_zh_CN", "_zh_TW", "_en")
-            for child in translations_dir.iterdir():
-                if child.name == "qtwebengine_locales":
-                    continue
-                if child.is_file() and child.suffix.lower() == ".qm" and any(
-                    marker in child.stem for marker in keep_translation_markers
-                ):
-                    continue
-                try:
-                    if child.is_dir():
-                        shutil.rmtree(child, ignore_errors=True)
-                    else:
-                        child.unlink(missing_ok=True)
-                except Exception:
-                    pass
-
-        locales_dir = qt_root / "translations" / "qtwebengine_locales"
-        if locales_dir.exists():
-            keep_locales = {"en-US.pak", "zh-CN.pak"}
-            for child in locales_dir.glob("*.pak"):
-                if child.name in keep_locales:
-                    continue
-                try:
-                    child.unlink(missing_ok=True)
-                except Exception:
-                    pass
-
-        bin_dir = qt_root / "bin"
-        if bin_dir.exists():
-            removable_bins = {
-                "Qt6Pdf.dll",
-                "Qt6PdfQuick.dll",
-                "Qt6WebEngineQuick.dll",
-                "Qt6WebEngineQuickDelegatesQml.dll",
-                "Qt6Quick3D.dll",
-                "Qt6Quick3DAssetImport.dll",
-                "Qt6Quick3DAssetUtils.dll",
-                "Qt6Quick3DEffects.dll",
-                "Qt6Quick3DHelpers.dll",
-                "Qt6Quick3DHelpersImpl.dll",
-                "Qt6Quick3DParticles.dll",
-                "Qt6Quick3DPhysics.dll",
-                "Qt6Quick3DPhysicsHelpers.dll",
-                "Qt6Quick3DRuntimeRender.dll",
-                "Qt6Quick3DSpatialAudio.dll",
-                "Qt6Quick3DUtils.dll",
-                "Qt6Quick3DXr.dll",
-                "Qt6Multimedia.dll",
-                "Qt6MultimediaQuick.dll",
-                "Qt6Sensors.dll",
-                "Qt6SensorsQuick.dll",
-                "Qt6RemoteObjects.dll",
-                "Qt6RemoteObjectsQml.dll",
-                "Qt6SerialPort.dll",
-                "Qt6TextToSpeech.dll",
-                "Qt6StateMachine.dll",
-                "Qt6StateMachineQml.dll",
-                "Qt6QuickTest.dll",
-                "Qt6Test.dll",
-                "Qt6WebSockets.dll",
-                "Qt6SpatialAudio.dll",
-                "Qt6QuickControls2Imagine.dll",
-                "Qt6QuickControls2ImagineStyleImpl.dll",
-                "Qt6QuickControls2Material.dll",
-                "Qt6QuickControls2MaterialStyleImpl.dll",
-                "Qt6QuickControls2Universal.dll",
-                "Qt6QuickControls2UniversalStyleImpl.dll",
-            }
-            for name in removable_bins:
-                child = bin_dir / name
-                if child.exists():
-                    try:
-                        child.unlink(missing_ok=True)
-                    except Exception:
-                        pass
-            _remove_optional_qt_libraries(qt_root, {Path(name).stem for name in removable_bins})
-
-        plugins_dir = qt_root / "plugins"
-        removable_plugins = {
-            Path("generic/qtuiotouchplugin.dll"),
-            Path("imageformats/qicns.dll"),
-            Path("imageformats/qpdf.dll"),
-            Path("imageformats/qtga.dll"),
-            Path("imageformats/qwbmp.dll"),
-            Path("platforms/qminimal.dll"),
-            Path("platforms/qoffscreen.dll"),
-            Path("position/qtposition_nmea.dll"),
-            Path("position/qtposition_positionpoll.dll"),
-            Path("position/qtposition_winrt.dll"),
-        }
-        for relative_path in removable_plugins:
-            child = plugins_dir / relative_path
-            if not child.exists():
-                continue
-            try:
-                child.unlink(missing_ok=True)
-            except Exception:
-                pass
-        _remove_optional_qt_plugins(plugins_dir, removable_plugins)
+    prune_qt_payload(dist_root)
 
 
 _prune_collect_tree_linux(Path(DISTPATH) / APP_NAME / "_internal")

@@ -1,6 +1,3 @@
-# coding: utf-8
-
-
 from exporting.document_output import wrap_document_output
 
 

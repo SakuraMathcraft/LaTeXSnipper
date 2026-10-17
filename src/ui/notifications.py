@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from localization.manager import translate as tr
 from qfluentwidgets import InfoBar, InfoBarPosition
+
+from localization.manager import translate as tr
 
 
 def show_user_notice(title: str, message: str, parent) -> None:

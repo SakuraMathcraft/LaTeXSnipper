@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import html as html_module
+import logging
 import re
-from collections.abc import Callable
 
 from localization.manager import translate as tr
 from preview.math_preview import (
@@ -15,8 +15,7 @@ from preview.math_preview import (
 )
 from runtime.content_types import normalize_content_type
 
-
-FormulaRenderer = Callable[[str], str]
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 def build_preview_error_html(error: Exception | str) -> str:
@@ -44,7 +43,7 @@ def build_preview_error_html(error: Exception | str) -> str:
 </body></html>"""
 
 
-def build_smart_preview_html(items: list, formula_renderer: FormulaRenderer) -> str:
+def build_smart_preview_html(items: list) -> str:
     """Build the main history/editor preview HTML for mixed content types."""
     try:
         tokens = preview_theme_tokens()
@@ -52,11 +51,13 @@ def build_smart_preview_html(items: list, formula_renderer: FormulaRenderer) -> 
             return build_math_html("", center_viewport=True)
 
         body_content = "\n".join(
-            render_content_block(content, label, content_type, formula_renderer)
+            render_content_block(content, label, content_type)
             for content, label, content_type in items
         )
 
-        mathjax_config = mathjax_loader_script(options={"processHtmlClass": "formula-content"})
+        mathjax_config = mathjax_loader_script(
+            options={"processHtmlClass": "formula-content"}
+        )
 
         return f"""<!DOCTYPE html>
 <html>
@@ -80,7 +81,6 @@ body {{
     border-left: 4px solid {tokens["border_formula"]};
 }}
 .content-block.text-type {{ border-left-color: {tokens["border_text"]}; }}
-.content-block.table-type {{ border-left-color: {tokens["border_table"]}; }}
 .content-block.mixed-type {{ border-left-color: {tokens["border_mixed"]}; }}
 .block-label {{
     font-size: 12px;
@@ -98,7 +98,6 @@ body {{
     color: {tokens["badge_formula_text"]};
 }}
 .type-badge.text {{ background: {tokens["badge_text_bg"]}; color: {tokens["badge_text_text"]}; }}
-.type-badge.table {{ background: {tokens["badge_table_bg"]}; color: {tokens["badge_table_text"]}; }}
 .type-badge.mixed {{ background: {tokens["badge_mixed_bg"]}; color: {tokens["badge_mixed_text"]}; }}
 .block-content {{
     font-size: 14px;
@@ -120,50 +119,10 @@ body {{
     display: block;
     margin: 0 auto;
 }}
-.formula-content.latex-svg svg {{
-    display: block;
-    margin: 0 auto;
-    max-width: calc(100% / 1.25);
-    height: auto;
-    transform: scale(1.25);
-    transform-origin: center center;
-}}
-.formula-content.latex-svg {{
-    color: {tokens["latex_formula_text"]};
-    padding-top: 0.25em;
-    padding-bottom: 0.25em;
-}}
-.formula-content.latex-svg svg[fill]:not([fill="none"]),
-.formula-content.latex-svg svg *[fill]:not([fill="none"]) {{
-    fill: currentColor !important;
-}}
-.formula-content.latex-svg svg[stroke]:not([stroke="none"]),
-.formula-content.latex-svg svg *[stroke]:not([stroke="none"]) {{
-    stroke: currentColor !important;
-}}
-.formula-content.latex-svg svg[style*="fill:"]:not([style*="fill:none"]):not([style*="fill: none"]),
-.formula-content.latex-svg svg *[style*="fill:"]:not([style*="fill:none"]):not([style*="fill: none"]) {{
-    fill: currentColor !important;
-}}
-.formula-content.latex-svg svg[style*="stroke:"]:not([style*="stroke:none"]):not([style*="stroke: none"]),
-.formula-content.latex-svg svg *[style*="stroke:"]:not([style*="stroke:none"]):not([style*="stroke: none"]) {{
-    stroke: currentColor !important;
-}}
 .text-content {{
     white-space: pre-wrap;
     word-wrap: break-word;
 }}
-table {{
-    border-collapse: collapse;
-    width: 100%;
-    margin: 8px 0;
-}}
-th, td {{
-    border: 1px solid {tokens["table_border"]};
-    padding: 8px;
-    text-align: left;
-}}
-th {{ background-color: {tokens["th_bg"]}; }}
 .MathJax {{ font-size: 1.4em; }}
 .formula-content mjx-container,
 .block-content mjx-container {{ font-size: 140% !important; }}
@@ -192,7 +151,6 @@ def render_content_block(
     content: str,
     label: str,
     content_type: str,
-    formula_renderer: FormulaRenderer,
 ) -> str:
     try:
         content = "" if content is None else str(content)
@@ -206,7 +164,7 @@ def render_content_block(
         }[content_type]
 
         if content_type == "mathcraft":
-            rendered_content = formula_renderer(content)
+            rendered_content = f'<div class="formula-content">$${content}$$</div>'
         elif content_type == "mathcraft_mixed":
             rendered_content = render_mixed_content(content)
         else:
@@ -227,36 +185,13 @@ def render_content_block(
 </div>'''
         return result
     except Exception as exc:
-        print(f"[WARN] 预览内容块渲染失败: {exc}")
+        logger.warning("预览内容块渲染失败: %s", exc)
         tokens = preview_theme_tokens()
         error_msg = tr("内容块渲染失败: {error}").format(error=exc)
         return (
             f'<div style="color: {tokens["error_text"]}; padding: 10px; '
             f'background: {tokens["error_bg"]}; border-radius: 4px;">{html_module.escape(error_msg)}</div>'
         )
-
-
-def render_formula_content_html(
-    content: str,
-    *,
-    render_mode: str | None,
-    cache_key: str,
-    has_cached_svg: bool,
-    cached_svg: str,
-    namespace_svg_ids: Callable[[str, str], str],
-    schedule_render: Callable[[str], None],
-) -> str:
-    try:
-        if render_mode and render_mode.startswith("latex_"):
-            if has_cached_svg:
-                if cached_svg:
-                    safe_svg = namespace_svg_ids(cached_svg, cache_key)
-                    return f'<div class="formula-content latex-svg">{safe_svg}</div>'
-                return f'<div class="formula-content">$${content}$$</div>'
-            schedule_render(content)
-        return f'<div class="formula-content">$${content}$$</div>'
-    except Exception:
-        return f'<div class="formula-content">$${content}$$</div>'
 
 
 def render_mixed_content(content: str) -> str:
@@ -280,6 +215,6 @@ def render_mixed_content(content: str) -> str:
 
         return "".join(result_parts)
     except Exception as exc:
-        print(f"[WARN] 混合内容渲染失败: {exc}")
+        logger.warning("混合内容渲染失败: %s", exc)
         message = tr("混合内容渲染失败: {error}").format(error=exc)
         return f'<div style="color: red;">{html_module.escape(message)}</div>'

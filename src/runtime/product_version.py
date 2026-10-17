@@ -1,21 +1,24 @@
 from __future__ import annotations
 
-from pathlib import Path
 import re
 import sys
-
+from pathlib import Path
 
 _PRODUCT_VERSION_PATTERN = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 
 
 def _version_file() -> Path:
-    if getattr(sys, "frozen", False):
-        bundle_root = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
-        return bundle_root / "VERSION"
     return Path(__file__).resolve().parents[2] / "VERSION"
 
 
 def read_product_version() -> str:
+    if getattr(sys, "frozen", False):
+        from runtime.distribution_manifest import DistributionManifest
+        from runtime.installation_layout import installation_manifest
+
+        system = {"win32": "windows", "linux": "linux", "darwin": "macos"}[sys.platform]
+        root = Path(sys.executable).resolve().parent.parent
+        return DistributionManifest.load(installation_manifest(root, system)).version
     path = _version_file()
     try:
         version = path.read_text(encoding="utf-8").strip()
@@ -30,7 +33,8 @@ def product_version_numbers(version: str) -> tuple[int, int, int, int]:
     match = _PRODUCT_VERSION_PATTERN.fullmatch(version)
     if not match:
         raise ValueError(f"Invalid product version: {version!r}")
-    return *(int(part) for part in match.groups()), 0
+    major, minor, patch = match.groups()
+    return int(major), int(minor), int(patch), 0
 
 
 def write_windows_version_info(path: Path, version: str) -> None:

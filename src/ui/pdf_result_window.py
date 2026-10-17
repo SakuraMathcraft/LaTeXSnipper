@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from localization.manager import translate as tr
-
 import base64
 import pathlib
 import re
 import shutil
-from typing import Callable
+from collections.abc import Callable
 
 import pyperclip
 from PyQt6.QtCore import QEvent, Qt
@@ -21,6 +19,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 from qfluentwidgets import BodyLabel, FluentIcon, InfoBar, InfoBarPosition, PushButton
+
+from localization.manager import translate as tr
 
 
 class PdfResultWindow(QMainWindow):

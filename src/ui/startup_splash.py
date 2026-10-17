@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 
 from PyQt6.QtCore import QRect, Qt
@@ -11,8 +12,9 @@ from PyQt6.QtWidgets import QApplication, QLabel, QWidget
 from localization.manager import translate as tr
 from runtime.app_paths import resource_path
 
+logger = logging.getLogger(f"latexsnipper.{__name__}")
+
 _STARTUP_SPLASH = None
-_FORCE_ENTERED = False
 
 
 class StartupDialog(QWidget):
@@ -124,7 +126,7 @@ def create_startup_splash(app):
         app.processEvents()
         return splash
     except Exception as e:
-        print(f"[WARN] 启动画面初始化失败: {e}")
+        logger.warning("启动画面初始化失败: %s", e)
         return None
 
 
@@ -190,47 +192,3 @@ def finish_startup_splash(splash, window=None):
             _STARTUP_SPLASH = None
     except Exception:
         pass
-
-
-def hide_startup_splash_for_modal():
-    """Hide the startup splash before showing dependency dialogs."""
-    splash = _STARTUP_SPLASH
-    if not splash:
-        return
-    try:
-        if splash.isVisible():
-            splash.hide()
-            app = QApplication.instance()
-            if app is not None:
-                app.processEvents()
-    except Exception:
-        pass
-
-
-def mark_startup_force_entered():
-    global _FORCE_ENTERED
-    _FORCE_ENTERED = True
-    app = QApplication.instance()
-    if app is not None:
-        return take_startup_splash(app, tr("正在跳过依赖安装并进入主程序..."))
-    return ensure_startup_splash(tr("正在跳过依赖安装并进入主程序..."))
-
-
-def startup_force_enter_pending() -> bool:
-    return _FORCE_ENTERED
-
-
-def startup_status_message(default: str) -> str:
-    return (
-        tr("正在跳过依赖安装并进入主程序...")
-        if startup_force_enter_pending()
-        else default
-    )
-
-
-def startup_deps_resume_message() -> str:
-    global _FORCE_ENTERED
-    if _FORCE_ENTERED:
-        _FORCE_ENTERED = False
-        return tr("正在跳过依赖安装并进入主程序...")
-    return tr("加载界面组件...")

@@ -6,9 +6,13 @@ import datetime
 import faulthandler
 import os
 
-from runtime.linux_graphics_runtime import apply_linux_graphics_fallbacks
 from runtime.app_paths import app_log_dir
-from runtime.log_lifecycle import CRASH_LOG_BACKUP_COUNT, CRASH_LOG_MAX_BYTES, rotate_before_append
+from runtime.linux_graphics_runtime import apply_linux_graphics_fallbacks
+from runtime.log_lifecycle import (
+    CRASH_LOG_BACKUP_COUNT,
+    CRASH_LOG_MAX_BYTES,
+    rotate_before_append,
+)
 from runtime.native_runtime import configure_native_runtime_environment
 
 _CRASH_FH = None
@@ -18,8 +22,8 @@ def pre_bootstrap_runtime() -> None:
     """Apply process-wide safeguards before the heavier startup modules load."""
     global _CRASH_FH
 
-    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
-    os.environ.setdefault("PYTHONUTF8", "1")
+    os.environ["PYTHONIOENCODING"] = "utf-8"
+    os.environ["PYTHONUTF8"] = "1"
     configure_native_runtime_environment()
 
     apply_linux_graphics_fallbacks()
@@ -35,7 +39,9 @@ def pre_bootstrap_runtime() -> None:
 
     try:
         _CRASH_FH = open(crash_log, "a", encoding="utf-8", buffering=1)
-        _CRASH_FH.write(f"\n=== LaTeXSnipper start {datetime.datetime.now().isoformat()} ===\n")
+        _CRASH_FH.write(
+            f"\n=== LaTeXSnipper start {datetime.datetime.now().isoformat()} ===\n"
+        )
         faulthandler.enable(all_threads=True, file=_CRASH_FH)
     except Exception:
         try:

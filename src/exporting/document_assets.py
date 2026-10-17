@@ -11,10 +11,9 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 
-from PyQt6.QtCore import QByteArray, QBuffer, QIODevice
+from PyQt6.QtCore import QBuffer, QByteArray, QIODevice
 from PyQt6.QtGui import QImage, QPainter
 from PyQt6.QtSvg import QSvgRenderer
-
 
 _SVG_TAG_RE = re.compile(r"(?is)<(?P<close>/?)svg\b[^>]*>")
 _CODE_FENCE_RE = re.compile(r"(?is)```[ \t]*([^\r\n]*)\r?\n?(.*?)```")
@@ -70,7 +69,9 @@ def supports_document_assets(format_key: str) -> bool:
     return format_key in _PANDOC_IMAGE_FORMATS
 
 
-def prepare_pandoc_document(text: str, output_path: str | Path) -> PreparedPandocDocument:
+def prepare_pandoc_document(
+    text: str, output_path: str | Path
+) -> PreparedPandocDocument:
     """Extract valid SVG blocks, render PNG fallbacks, and rewrite document image links."""
     source = str(text or "")
     regions = _find_svg_regions(source)
@@ -86,7 +87,7 @@ def prepare_pandoc_document(text: str, output_path: str | Path) -> PreparedPando
     cursor = 0
 
     for region in regions:
-        rewritten.append(source[cursor:region.start])
+        rewritten.append(source[cursor : region.start])
         cursor = region.end
         if region.svg_text is None:
             skipped += 1
@@ -122,22 +123,32 @@ def _find_svg_regions(source: str) -> list[_SvgRegion]:
 
     for match in _CODE_FENCE_RE.finditer(source):
         excluded_spans.append((match.start(), match.end()))
-        language = match.group(1).strip().split(maxsplit=1)[0].lower() if match.group(1).strip() else ""
+        language = (
+            match.group(1).strip().split(maxsplit=1)[0].lower()
+            if match.group(1).strip()
+            else ""
+        )
         if language not in {"svg", "xml"}:
             continue
         inner = match.group(2)
         if "<svg" not in inner.lower() and "</svg" not in inner.lower():
             continue
         inner_regions = _scan_raw_svg_regions(inner, base_offset=0)
-        complete = [region.svg_text for region in inner_regions if region.svg_text is not None]
-        if len(complete) == 1 and all(region.svg_text is not None for region in inner_regions):
+        complete = [
+            region.svg_text for region in inner_regions if region.svg_text is not None
+        ]
+        if len(complete) == 1 and all(
+            region.svg_text is not None for region in inner_regions
+        ):
             regions.append(_SvgRegion(match.start(), match.end(), complete[0]))
         else:
             regions.append(_SvgRegion(match.start(), match.end(), None))
 
     for match in _INLINE_CODE_RE.finditer(source):
         span = (match.start(), match.end())
-        if not any(start <= span[0] and span[1] <= end for start, end in excluded_spans):
+        if not any(
+            start <= span[0] and span[1] <= end for start, end in excluded_spans
+        ):
             excluded_spans.append(span)
 
     cursor = 0
@@ -146,7 +157,9 @@ def _find_svg_regions(source: str) -> list[_SvgRegion]:
             cursor = max(cursor, end)
             continue
         if cursor < start:
-            regions.extend(_scan_raw_svg_regions(source[cursor:start], base_offset=cursor))
+            regions.extend(
+                _scan_raw_svg_regions(source[cursor:start], base_offset=cursor)
+            )
         cursor = end
     if cursor < len(source):
         regions.extend(_scan_raw_svg_regions(source[cursor:], base_offset=cursor))
@@ -165,7 +178,11 @@ def _scan_raw_svg_regions(text: str, *, base_offset: int) -> list[_SvgRegion]:
         tag = match.group(0)
         if is_close:
             if depth == 0:
-                regions.append(_SvgRegion(base_offset + match.start(), base_offset + match.end(), None))
+                regions.append(
+                    _SvgRegion(
+                        base_offset + match.start(), base_offset + match.end(), None
+                    )
+                )
                 continue
             depth -= 1
             if depth == 0 and outer_start is not None:
@@ -188,7 +205,7 @@ def _scan_raw_svg_regions(text: str, *, base_offset: int) -> list[_SvgRegion]:
                     _SvgRegion(
                         base_offset + outer_start,
                         base_offset + match.end(),
-                        text[outer_start:match.end()],
+                        text[outer_start : match.end()],
                     )
                 )
                 outer_start = None
@@ -196,7 +213,9 @@ def _scan_raw_svg_regions(text: str, *, base_offset: int) -> list[_SvgRegion]:
         depth += 1
 
     if depth > 0 and outer_start is not None:
-        regions.append(_SvgRegion(base_offset + outer_start, base_offset + len(text), None))
+        regions.append(
+            _SvgRegion(base_offset + outer_start, base_offset + len(text), None)
+        )
     return regions
 
 
@@ -209,7 +228,8 @@ def _validate_svg(svg_text: str) -> bytes:
     if not source or "<!doctype" in lowered or "<!entity" in lowered:
         raise ValueError("SVG document declarations are not allowed")
 
-    root = ET.fromstring(source)
+    # Size is bounded and DTD/entity declarations have been rejected above.
+    root = ET.fromstring(source)  # nosec B314
     if _local_name(root.tag) != "svg":
         raise ValueError("SVG root element is missing")
 
@@ -234,7 +254,11 @@ def _validate_svg(svg_text: str) -> bytes:
             lowered_value = value.lower()
             if name.startswith("on"):
                 raise ValueError(f"Unsafe SVG event attribute: {name}")
-            if name in _EXTERNAL_REFERENCE_ATTRIBUTES and value and not value.startswith("#"):
+            if (
+                name in _EXTERNAL_REFERENCE_ATTRIBUTES
+                and value
+                and not value.startswith("#")
+            ):
                 raise ValueError(f"External SVG reference is not allowed: {value}")
             if "@import" in lowered_value:
                 raise ValueError("External SVG styles are not allowed")
@@ -249,7 +273,9 @@ def _local_name(name: str) -> str:
     return str(name).rsplit("}", 1)[-1].split(":", 1)[-1].lower()
 
 
-def _write_svg_asset(svg_bytes: bytes, asset_dir: Path, index: int) -> ExportedImageAsset:
+def _write_svg_asset(
+    svg_bytes: bytes, asset_dir: Path, index: int
+) -> ExportedImageAsset:
     digest = hashlib.sha256(svg_bytes).hexdigest()[:12]
     base_name = f"image_{index:03d}_{digest}"
     svg_path = asset_dir / f"{base_name}.svg"
@@ -297,7 +323,7 @@ def _render_svg_png(svg_bytes: bytes) -> bytes:
     try:
         if not image.save(buffer, "PNG"):
             raise RuntimeError("Unable to encode rendered SVG as PNG")
-        return bytes(buffer.data())
+        return buffer.data().data()
     finally:
         buffer.close()
 

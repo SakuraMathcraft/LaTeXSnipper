@@ -1,9 +1,19 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QPoint, QPointF, QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QCursor, QImage, QMouseEvent, QPainter, QPainterPath, QPaintEvent, QPen, QPixmap, QWheelEvent
+from PyQt6.QtGui import (
+    QColor,
+    QCursor,
+    QImage,
+    QMouseEvent,
+    QPainter,
+    QPainterPath,
+    QPaintEvent,
+    QPen,
+    QPixmap,
+    QWheelEvent,
+)
 from PyQt6.QtWidgets import QSizePolicy, QWidget
-
 from qfluentwidgets import FluentIcon
 
 from .stroke_store import StrokeStore
@@ -147,7 +157,12 @@ class InkCanvas(QWidget):
         bounds = self.content_bounding_rect()
         if bounds.isNull() or bounds.isEmpty():
             return CanvasExportResult(image=None, bounds=QRectF(), is_empty=True)
-        padded = bounds.adjusted(-self.canvas_margin, -self.canvas_margin, self.canvas_margin, self.canvas_margin)
+        padded = bounds.adjusted(
+            -self.canvas_margin,
+            -self.canvas_margin,
+            self.canvas_margin,
+            self.canvas_margin,
+        )
         width = max(1, int(round(padded.width())))
         height = max(1, int(round(padded.height())))
         image = QImage(width, height, QImage.Format.Format_ARGB32)
@@ -225,13 +240,23 @@ class InkCanvas(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.fillRect(self.rect(), QColor(self._ui_tokens["canvas_bg"]))
         painter.scale(self._zoom, self._zoom)
-        self._paint_grid(painter, QRectF(0, 0, self._logical_width, self._logical_height), export_mode=False)
+        self._paint_grid(
+            painter,
+            QRectF(0, 0, self._logical_width, self._logical_height),
+            export_mode=False,
+        )
         for stroke in self.store.strokes:
             self._paint_stroke(painter, stroke, export_mode=False)
         if self.current_stroke is not None:
             self._paint_stroke(painter, self.current_stroke, export_mode=False)
         if not self.selection_path.isEmpty():
-            pen = QPen(QColor(self._ui_tokens["selection_border"]), 1.6, Qt.PenStyle.DashLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+            pen = QPen(
+                QColor(self._ui_tokens["selection_border"]),
+                1.6,
+                Qt.PenStyle.DashLine,
+                Qt.PenCapStyle.RoundCap,
+                Qt.PenJoinStyle.RoundJoin,
+            )
             painter.setPen(pen)
             painter.setBrush(QColor(*self._ui_tokens["selection_fill"]))
             painter.drawPath(self.selection_path)
@@ -319,7 +344,9 @@ class InkCanvas(QWidget):
     def _begin_interaction(self, pos: QPointF, pressure: float | None) -> None:
         self._is_dragging = True
         if self.current_tool == HandwritingTool.WRITE:
-            self.current_stroke = InkStroke.from_points([QPointF(pos)], width=self._resolve_pen_width(pressure))
+            self.current_stroke = InkStroke.from_points(
+                [QPointF(pos)], width=self._resolve_pen_width(pressure)
+            )
             return
         elif self.current_tool == HandwritingTool.ERASE:
             self._erase_at(pos)
@@ -330,14 +357,19 @@ class InkCanvas(QWidget):
             self.selectionChanged.emit(True)
 
     def _continue_interaction(self, pos: QPointF, pressure: float | None) -> None:
-        if self.current_tool == HandwritingTool.WRITE and self.current_stroke is not None:
+        if (
+            self.current_tool == HandwritingTool.WRITE
+            and self.current_stroke is not None
+        ):
             self.current_stroke.points.append(QPointF(pos))
             self.current_stroke.width = self._resolve_pen_width(pressure)
             self.current_stroke.rebuild_geometry()
             self.update()
             return
         if self.current_tool == HandwritingTool.WRITE and self.current_stroke is None:
-            self.current_stroke = InkStroke.from_points([QPointF(pos)], width=self._resolve_pen_width(pressure))
+            self.current_stroke = InkStroke.from_points(
+                [QPointF(pos)], width=self._resolve_pen_width(pressure)
+            )
             self.update()
             return
         if self.current_tool == HandwritingTool.ERASE:
@@ -345,14 +377,19 @@ class InkCanvas(QWidget):
             return
         if self.current_tool == HandwritingTool.SELECT_CORRECT:
             self.selection_points.append(QPointF(pos))
-            self.selection_rect = self.selection_rect.united(QRectF(pos, pos).normalized())
+            self.selection_rect = self.selection_rect.united(
+                QRectF(pos, pos).normalized()
+            )
             self.selection_path = self._build_selection_path(closed=False)
             self.update()
             return
 
     def _finish_interaction(self) -> None:
         self._is_dragging = False
-        if self.current_tool == HandwritingTool.WRITE and self.current_stroke is not None:
+        if (
+            self.current_tool == HandwritingTool.WRITE
+            and self.current_stroke is not None
+        ):
             if len(self.current_stroke.points) == 1:
                 p = self.current_stroke.points[0]
                 self.current_stroke.points.append(QPointF(p.x() + 0.1, p.y() + 0.1))
@@ -382,7 +419,9 @@ class InkCanvas(QWidget):
             painter.drawLine(int(rect.left()), y, int(rect.right()), y)
         painter.restore()
 
-    def _paint_stroke(self, painter: QPainter, stroke: InkStroke, export_mode: bool) -> None:
+    def _paint_stroke(
+        self, painter: QPainter, stroke: InkStroke, export_mode: bool
+    ) -> None:
         outline = stroke.outline_path
         if outline.isEmpty() and stroke.points:
             stroke.rebuild_geometry()

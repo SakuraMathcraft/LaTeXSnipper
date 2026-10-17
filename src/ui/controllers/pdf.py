@@ -1,27 +1,37 @@
-"""PDF recognition controller mixin for the main window."""
+"""PdfRecognitionController and related helpers."""
 
 from __future__ import annotations
 
-from localization.manager import translate as tr
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from recognition.jobs import RecognitionJobCoordinator
+    from ui.controllers.model_runtime import ModelRuntimeController
+    from ui.controllers.predict_result import RecognitionResultController
+    from ui.controllers.status import StatusController
+    from ui.controllers.tasks import RecognitionTaskController
+    from ui.main_window import MainWindow
+import logging
 from pathlib import Path
 
-from PyQt6.QtCore import QThread, QTimer, Qt
-from PyQt6.QtWidgets import QApplication, QDialog, QInputDialog, QProgressDialog
+from PyQt6.QtCore import QObject, Qt, QTimer
+from PyQt6.QtWidgets import QDialog, QInputDialog, QProgressDialog
 from qfluentwidgets import ProgressBar
 
+from localization.manager import translate as tr
 from recognition.external_pdf_worker import ExternalModelPdfWorker
-from ui.notifications import show_user_notice
-from preview.math_preview import is_dark_ui
 from recognition.model_policy import EXTERNAL_MODEL, resolve_document_recognition_model
+from recognition.workers import PdfPredictWorker
+from ui.controllers.file_drop import file_kind
+from ui.notifications import show_user_notice
 from ui.pdf_options_dialog import prompt_pdf_output_options
 from ui.pdf_result_window import PdfResultWindow
-from ui.window_helpers import (
-    apply_app_window_icon as _apply_app_window_icon,
-    select_open_file_with_icon as _select_open_file_with_icon,
-    select_save_file_with_icon as _select_save_file_with_icon,
-)
-from recognition.workers import PdfPredictWorker
+from ui.theme_tokens import is_dark_ui
+from ui.window_helpers import apply_app_window_icon as _apply_app_window_icon
+from ui.window_helpers import select_open_file_with_icon as _select_open_file_with_icon
+from ui.window_helpers import select_save_file_with_icon as _select_save_file_with_icon
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 def parse_pdf_page_range(text: str, total_pages: int) -> tuple[int, int]:
@@ -44,63 +54,84 @@ def parse_pdf_page_range(text: str, total_pages: int) -> tuple[int, int]:
         raise ValueError(tr("起始页不能大于结束页。"))
     if end > total:
         raise ValueError(tr("页码不能超过 PDF 总页数 {total}。").format(total=total))
-    return start, end
+    return (start, end)
 
 
-class PdfRecognitionControllerMixin:
+class PdfRecognitionController(QObject):
+    def __init__(
+        self,
+        view: MainWindow,
+        coordinator: RecognitionJobCoordinator,
+        models: ModelRuntimeController,
+        results: RecognitionResultController,
+        status: StatusController,
+        tasks: RecognitionTaskController,
+    ):
+        super().__init__(view)
+        self.view = view
+        self.coordinator = coordinator
+        self.models = models
+        self.results = results
+        self.status = status
+        self.tasks = tasks
+        self.pdf_progress = None
+        self._pdf_output_format = None
+        self._pdf_doc_style = None
+        self._pdf_dpi = None
+        self._pdf_structured_result = None
+        self._pdf_result_window = None
+        self._pdf_progress_text = ""
+
     def _prompt_pdf_output_options(self, recognition_model: str):
         external_cfg = (
-            self._get_external_model_config()
+            self.models.external_config()
             if recognition_model == EXTERNAL_MODEL
             else None
         )
-        return prompt_pdf_output_options(self, recognition_model, external_cfg)
+        return prompt_pdf_output_options(self.view, recognition_model, external_cfg)
 
-    def _upload_pdf_recognition(self):
+    def select_pdf(self):
         """Upload a PDF and recognize it as Markdown or LaTeX document output."""
         file_path, _ = _select_open_file_with_icon(
-            self,
-            tr("选择 PDF 文件"),
-            "",
-            tr("PDF 文件 (*.pdf);;所有文件 (*.*)"),
+            self.view, tr("选择 PDF 文件"), "", tr("PDF 文件 (*.pdf);;所有文件 (*.*)")
         )
         if not file_path:
             return
-        self._recognize_pdf_file(Path(file_path))
+        self.recognize_file(Path(file_path))
 
-    def _recognize_pdf_file(self, file_path: str | Path):
+    def recognize_file(self, file_path: str | Path):
         """Recognize a local PDF file selected by dialog or dropped onto the window."""
-        self._next_predict_result_screen_index = None
         path = Path(file_path)
         if not path.is_file():
             show_user_notice(
-                tr("错误"), tr("PDF 文件不存在: {path}").format(path=path), self
+                tr("错误"), tr("PDF 文件不存在: {path}").format(path=path), self.view
             )
             return
-        if self._drop_file_kind(path) != "pdf":
-            show_user_notice(tr("提示"), tr("请拖入或选择 PDF 文件。"), self)
+        if file_kind(path) != "pdf":
+            show_user_notice(tr("提示"), tr("请拖入或选择 PDF 文件。"), self.view)
             return
         recognition_model = resolve_document_recognition_model(
-            self._get_preferred_model_for_predict()
+            self.models.current_model
         )
-        if not self.model and recognition_model != EXTERNAL_MODEL:
-            show_user_notice(tr("错误"), tr("模型未初始化"), self)
+        if not self.models.model and recognition_model != EXTERNAL_MODEL:
+            show_user_notice(tr("错误"), tr("模型未初始化"), self.view)
             return
-        if (
-            recognition_model == EXTERNAL_MODEL
-            and not self._is_external_model_configured()
+        if recognition_model == EXTERNAL_MODEL and (
+            not self.models.external_configured()
         ):
-            show_user_notice(tr("提示"), tr("外部模型未配置，请先完成必要配置。"), self)
+            show_user_notice(
+                tr("提示"), tr("外部模型未配置，请先完成必要配置。"), self.view
+            )
             return
         try:
-            import fitz  # PyMuPDF
+            import fitz
         except Exception as e:
             show_user_notice(
                 tr("错误"),
-                tr("缺少 PyMuPDF 依赖: {error}\n请在依赖环境中安装 pymupdf。").format(
-                    error=e
-                ),
-                self,
+                tr(
+                    "PDF 处理资源不可用: {error}\n请查看应用诊断，并通过“应用更新”修复应用组件。"
+                ).format(error=e),
+                self.view,
             )
             return
         try:
@@ -109,12 +140,11 @@ class PdfRecognitionControllerMixin:
             doc.close()
         except Exception as e:
             show_user_notice(
-                tr("错误"), tr("PDF 打开失败: {error}").format(error=e), self
+                tr("错误"), tr("PDF 打开失败: {error}").format(error=e), self.view
             )
             return
-
         default_pages = min(total_pages, 5) if total_pages > 0 else 1
-        page_dlg = QInputDialog(self)
+        page_dlg = QInputDialog(self.view)
         page_dlg.setWindowTitle(tr("选择页码"))
         page_dlg.setLabelText(
             tr("PDF 共 {total} 页，输入识别页码或范围：").format(total=total_pages)
@@ -146,11 +176,10 @@ class PdfRecognitionControllerMixin:
                 page_dlg.textValue(), total_pages
             )
         except ValueError as exc:
-            show_user_notice(tr("提示"), str(exc), self)
+            show_user_notice(tr("提示"), str(exc), self.view)
             return
         page_indices = list(range(page_start - 1, page_end))
         pages = len(page_indices)
-
         opts = self._prompt_pdf_output_options(recognition_model)
         if not opts:
             return
@@ -159,58 +188,50 @@ class PdfRecognitionControllerMixin:
         self._pdf_doc_style = doc_mode
         self._pdf_dpi = dpi
         self._pdf_structured_result = None
-
-        if self.is_recognition_busy(source="main"):
-            self._show_recognition_busy_info()
+        if self.tasks.is_busy(source="main"):
+            self.results.show_busy()
             return
-
-        self._recognition_cancel_requested = False
-        self._predict_busy = True
-        self.set_model_status(tr("识别中..."))
-
-        self.pdf_predict_thread = QThread()
+        self.status.set_model_status(tr("识别中..."))
         if recognition_model == EXTERNAL_MODEL:
-            config = self._get_external_model_config()
+            config = self.models.external_config()
             if doc_mode != "parse":
                 config.prompt_template = (
                     "ocr_document_page_v1"
                     if fmt_key == "markdown"
                     else "ocr_document_latex_v1"
                 )
-            self.pdf_predict_worker = ExternalModelPdfWorker(
+            worker = ExternalModelPdfWorker(
+                self.coordinator,
                 config,
                 str(path),
                 page_indices,
                 fmt_key,
                 dpi,
                 doc_mode,
-                coordinator=getattr(self, "recognition_coordinator", None),
             )
         else:
             if dpi is None:
                 raise RuntimeError(tr("内置 PDF 识别缺少渲染 DPI"))
-            self.pdf_predict_worker = PdfPredictWorker(
-                self.model,
+            worker = PdfPredictWorker(
+                self.coordinator,
                 str(path),
                 page_indices,
                 recognition_model,
                 fmt_key,
                 dpi,
-                coordinator=getattr(self, "recognition_coordinator", None),
             )
-        self.pdf_predict_worker.moveToThread(self.pdf_predict_thread)
-
         progress_text = (
             tr("正在解析 PDF 文档结构...")
             if doc_mode == "parse"
             else tr("正在识别 PDF...")
         )
         self._pdf_progress_text = progress_text
-        self.pdf_progress = QProgressDialog(progress_text, tr("取消"), 0, pages, self)
+        self.pdf_progress = QProgressDialog(
+            progress_text, tr("取消"), 0, pages, self.view
+        )
         progress_bar = ProgressBar(self.pdf_progress)
         progress_bar.setRange(0, pages)
         self.pdf_progress.setBar(progress_bar)
-
         self.pdf_progress.setWindowModality(Qt.WindowModality.NonModal)
         self.pdf_progress.setMinimumDuration(0)
         self.pdf_progress.setWindowFlags(
@@ -228,22 +249,8 @@ class PdfRecognitionControllerMixin:
         )
         self.pdf_progress.setFixedSize(420, 120)
         self.pdf_progress.canceled.connect(self._on_pdf_cancel_requested)
-        self.pdf_predict_worker.progress.connect(self._on_pdf_progress)
-
-        def _cleanup():
-            self._predict_busy = False
-            self._release_pdf_progress()
-
-            self.pdf_predict_worker = None
-            self.pdf_predict_thread = None
-
-        self.pdf_predict_thread.started.connect(self.pdf_predict_worker.run)
-        self.pdf_predict_worker.finished.connect(self._on_pdf_predict_ok)
-        self.pdf_predict_worker.failed.connect(self._on_pdf_predict_fail)
-        self.pdf_predict_worker.finished.connect(self.pdf_predict_thread.quit)
-        self.pdf_predict_worker.failed.connect(self.pdf_predict_thread.quit)
-        self.pdf_predict_thread.finished.connect(_cleanup)
-        self.pdf_predict_thread.start()
+        worker.progress.connect(self._on_pdf_progress)
+        self.tasks.start(worker, self._on_pdf_predict_ok, self._on_pdf_predict_fail)
         try:
             self.pdf_progress.show()
         except Exception:
@@ -275,13 +282,7 @@ class PdfRecognitionControllerMixin:
         except Exception:
             pass
         try:
-            app = QApplication.instance()
-            if app:
-                app.processEvents()
-        except Exception:
-            pass
-        try:
-            self.setEnabled(True)
+            self.view.setEnabled(True)
         except Exception:
             pass
 
@@ -299,29 +300,11 @@ class PdfRecognitionControllerMixin:
                 pass
 
     def _on_pdf_cancel_requested(self):
-        self._recognition_cancel_requested = True
-        if self.pdf_predict_worker:
-            try:
-                self.pdf_predict_worker.cancel()
-            except Exception:
-                pass
-        model = getattr(self, "model", None)
-        if model and hasattr(model, "_stop_mathcraft_worker"):
-            try:
-                model._stop_mathcraft_worker()
-            except Exception:
-                pass
-        if self.pdf_progress:
-            try:
-                self.pdf_progress.setLabelText(tr("正在取消识别..."))
-            except Exception:
-                pass
-        if self.pdf_predict_thread:
-            try:
-                self.pdf_predict_thread.requestInterruption()
-            except Exception:
-                pass
-        self.show_action_status(tr("已取消"), level="info", auto_clear_ms=3000)
+        self.tasks.cancel()
+        self.models.stop_worker()
+        if self.pdf_progress is not None:
+            self.pdf_progress.setLabelText(tr("正在取消识别..."))
+        self.status.show_action_status(tr("已取消"), level="info", auto_clear_ms=3000)
 
     def _wrap_document_output(self, content: str, fmt_key: str, style_key: str) -> str:
         from exporting.document_output import wrap_document_output
@@ -333,8 +316,8 @@ class PdfRecognitionControllerMixin:
     ):
         if not self._pdf_result_window:
             self._pdf_result_window = PdfResultWindow(
-                status_cb=self.set_action_status,
-                window_icon=self.icon,
+                status_cb=self.status.set_action_status,
+                window_icon=self.view.icon,
                 select_save_file=_select_save_file_with_icon,
                 warning_dialog=show_user_notice,
                 is_dark_ui=is_dark_ui,
@@ -347,34 +330,31 @@ class PdfRecognitionControllerMixin:
         self._pdf_result_window.activateWindow()
 
     def _on_pdf_predict_ok(self, content: str):
-        self._recognition_cancel_requested = False
-        if isinstance(self.pdf_predict_worker, ExternalModelPdfWorker):
-            used = self._get_external_model_display_name(
-                config=self.pdf_predict_worker.config
-            )
+        self.tasks.clear_cancellation()
+        if isinstance(self.tasks.worker, ExternalModelPdfWorker):
+            used = self.models.external_display_name(config=self.tasks.worker.config)
         else:
-            used = self.pdf_predict_worker.model_name
-        self.set_model_status(tr("完成"))
-        self.set_action_status(tr("PDF 识别完成"), auto_clear_ms=3500)
+            used = self.tasks.worker.model_name
+        self.status.set_model_status(tr("完成"))
+        self.status.set_action_status(tr("PDF 识别完成"), auto_clear_ms=3500)
         self._release_pdf_progress()
-        elapsed = self.pdf_predict_worker.elapsed
+        elapsed = self.tasks.worker.elapsed
         if elapsed is not None:
-            print(f"[INFO] PDF 识别完成 model={used} time={elapsed:.2f}s")
+            logger.info("PDF 识别完成 model=%s time=%ss", used, f"{elapsed:.2f}")
         else:
-            print(f"[INFO] PDF 识别完成 model={used}")
+            logger.info("PDF 识别完成 model=%s", used)
         fmt_key = self._pdf_output_format or "markdown"
         style_key = self._pdf_doc_style or "document"
         structured_result = getattr(
-            getattr(self, "pdf_predict_worker", None), "structured_result", None
+            getattr(self.tasks, "worker", None), "structured_result", None
         )
         self._pdf_structured_result = (
             structured_result if isinstance(structured_result, dict) else None
         )
         doc = self._wrap_document_output(content, fmt_key, style_key)
         if not doc:
-            show_user_notice(tr("提示"), tr("识别结果为空"), self)
+            show_user_notice(tr("提示"), tr("识别结果为空"), self.view)
             return
-
         QTimer.singleShot(
             0,
             lambda d=doc, f=fmt_key, s=self._pdf_structured_result: (
@@ -384,27 +364,35 @@ class PdfRecognitionControllerMixin:
 
     def _on_pdf_predict_fail(self, msg: str):
         self._release_pdf_progress()
-        if self._is_user_cancelled_recognition_error(msg):
+        if self.results._is_user_cancelled_recognition_error(msg):
             try:
-                print(f"[DEBUG] PDF 识别已中断: {msg}")
+                logger.debug("PDF 识别已中断: %s", msg)
             except Exception:
                 pass
-            self._show_recognition_cancelled_infobar()
+            self.results.show_cancelled()
             return
-        self.set_model_status(tr("失败"))
-        if isinstance(self.pdf_predict_worker, ExternalModelPdfWorker):
-            used = self._get_external_model_display_name(
-                config=self.pdf_predict_worker.config
+        self.status.set_model_status(tr("失败"))
+        if isinstance(self.tasks.worker, ExternalModelPdfWorker):
+            used = self.models.external_display_name(config=self.tasks.worker.config)
+        else:
+            used = self.tasks.worker.model_name
+        elapsed = self.tasks.worker.elapsed
+        if elapsed is not None:
+            logger.error(
+                "PDF 识别失败 model=%s time=%ss err=%s", used, f"{elapsed:.2f}", msg
             )
         else:
-            used = self.pdf_predict_worker.model_name
-        elapsed = self.pdf_predict_worker.elapsed
-        if elapsed is not None:
-            print(f"[ERR] PDF 识别失败 model={used} time={elapsed:.2f}s err={msg}")
-        else:
-            print(f"[ERR] PDF 识别失败 model={used} err={msg}")
-
-        content = self._recognition_failure_content(
-            msg, worker_attr="pdf_predict_worker"
+            logger.error("PDF 识别失败 model=%s err=%s", used, msg)
+        content = self.results.failure_content(
+            msg, external_model=isinstance(self.tasks.worker, ExternalModelPdfWorker)
         )
-        self._show_recognition_failure_notice(content)
+        self.results._show_recognition_failure_notice(content)
+
+    def task_state_changed(self):
+        if not self.tasks.busy:
+            self._release_pdf_progress()
+
+    def shutdown(self):
+        self._release_pdf_progress()
+        if self._pdf_result_window is not None:
+            self._pdf_result_window.close()

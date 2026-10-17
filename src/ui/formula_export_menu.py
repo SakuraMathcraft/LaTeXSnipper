@@ -4,16 +4,16 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+from typing import Literal
 
-from localization.manager import translate as tr
 from PyQt6.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import QApplication
 from qfluentwidgets import Action
 
 from exporting.formula_export import build_formula_export, get_all_export_format_specs
+from localization.manager import translate as tr
 
-
-StatusCallback = Callable[[str, str], None]
+StatusCallback = Callable[[str, Literal["success", "info", "warning", "error"]], None]
 _active_export_threads: list[QThread] = []
 _active_export_tasks: list[QObject] = []
 
@@ -93,7 +93,9 @@ class _PandocExportTask(QObject):
         self._status_callback = status_callback
 
     @pyqtSlot(str, str)
-    def report_finished(self, message: str, level: str) -> None:
+    def report_finished(
+        self, message: str, level: Literal["success", "info", "warning", "error"]
+    ) -> None:
         if self._status_callback is not None:
             self._status_callback(message, level)
 
@@ -149,8 +151,11 @@ def export_formula_to_clipboard(
 
     if format_type in PANDOC_FORMAT_MAP:
         return _handle_pandoc_file_export(
-            format_type, latex, tr(PANDOC_FORMAT_MAP[format_type].label),
-            parent=parent, status_callback=status_callback,
+            format_type,
+            latex,
+            tr(PANDOC_FORMAT_MAP[format_type].label),
+            parent=parent,
+            status_callback=status_callback,
         )
 
     result, format_name = build_formula_export(
@@ -187,6 +192,7 @@ def _handle_pandoc_file_export(
     status_callback: StatusCallback | None = None,
 ) -> tuple[bool, str]:
     from PyQt6.QtWidgets import QFileDialog
+
     from exporting.pandoc_exporter import PANDOC_FORMAT_MAP
 
     fmt = PANDOC_FORMAT_MAP.get(format_key)
@@ -232,6 +238,7 @@ def show_formula_export_menu(
     empty_hint: str | None = None,
 ) -> None:
     empty_hint = empty_hint or tr("内容为空")
+
     def current_text() -> str:
         try:
             if callable(text_source):

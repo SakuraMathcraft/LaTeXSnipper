@@ -1,7 +1,6 @@
 # pyright: reportMissingImports=false
 
 import unittest
-from unittest import mock
 
 
 class TestRecognitionErrors(unittest.TestCase):
@@ -30,29 +29,6 @@ class TestRecognitionErrors(unittest.TestCase):
             "onnxruntime dependency is incomplete: missing get_available_providers "
             "(origin=<namespace package>)"
         )
-        self.assertEqual(info["code"], "ONNXRUNTIME_BROKEN")
-
-    def test_mathcraft_failure_classifier_reports_broken_onnxruntime_without_patterns_module(
-        self,
-    ):
-        from backend.mathcraft.model import classify_mathcraft_failure
-
-        real_import = __import__
-
-        def _blocked_import(name, globals=None, locals=None, fromlist=(), level=0):
-            if (
-                name == "mathcraft_ocr.error_patterns"
-                and "looks_like_onnxruntime_install_error" in fromlist
-            ):
-                raise ImportError("simulated missing new error pattern")
-            return real_import(name, globals, locals, fromlist, level)
-
-        with mock.patch("builtins.__import__", side_effect=_blocked_import):
-            info = classify_mathcraft_failure(
-                "onnxruntime dependency is incomplete: missing get_available_providers "
-                "(origin=<namespace package>)"
-            )
-
         self.assertEqual(info["code"], "ONNXRUNTIME_BROKEN")
 
     def test_mathcraft_failure_classifier_ignores_empty_missing_cache(self):
@@ -90,7 +66,7 @@ class TestRecognitionErrors(unittest.TestCase):
         message = recognition_failure_user_message(
             "CUDAExecutionProvider failed", "mathcraft"
         )
-        self.assertIn("CUDA", message)
+        self.assertIn("GPU", message)
 
     def test_empty_recognition_failure_message_is_preserved(self):
         from recognition.error_messages import recognition_failure_user_message

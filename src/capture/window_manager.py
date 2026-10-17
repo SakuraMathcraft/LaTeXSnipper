@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ctypes
 import os
+from typing import cast
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication
@@ -14,7 +15,7 @@ class CaptureWindowManager:
         self._owner = owner
 
     def prepare(self, *, preserve_pinned_result: bool = False) -> bool:
-        app = QApplication.instance()
+        app = cast("QApplication | None", QApplication.instance())
         if app is None:
             return False
         changed = False
@@ -22,13 +23,17 @@ class CaptureWindowManager:
             try:
                 if widget is None or widget is self._owner:
                     continue
-                if preserve_pinned_result and bool(getattr(widget, "_predict_result_pinned", False)):
+                if preserve_pinned_result and bool(
+                    getattr(widget, "_predict_result_pinned", False)
+                ):
                     continue
                 if widget.isVisible():
                     widget.hide()
                     changed = True
                 if widget.isMinimized():
-                    widget.setWindowState(widget.windowState() & ~Qt.WindowState.WindowMinimized)
+                    widget.setWindowState(
+                        widget.windowState() & ~Qt.WindowState.WindowMinimized
+                    )
                     changed = True
             except Exception:
                 continue
@@ -42,7 +47,7 @@ class CaptureWindowManager:
 
     @staticmethod
     def flush_desktop() -> None:
-        app = QApplication.instance()
+        app = cast("QApplication | None", QApplication.instance())
         if app is not None:
             app.processEvents()
         if os.name == "nt":

@@ -1,11 +1,12 @@
 # pyright: reportMissingImports=false
 
-import os
+import io
+import json
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 from PIL import Image
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -18,40 +19,34 @@ def _nonblank_test_image() -> Image.Image:
 
 
 class TestMathcraftBackend(unittest.TestCase):
-    def test_subprocess_env_isolates_dependency_python_runtime(self):
-        from backend.mathcraft.model import (
-            ModelWrapper,
-            _worker_code_roots,
-            get_deps_python,
-        )
-        from runtime.dependency_python import python_env_root
+    def test_worker_handshake_is_available_to_diagnostics_until_stopped(self):
+        from backend.mathcraft.model import ModelWrapper
 
         wrapper = ModelWrapper(auto_warmup=False)
-        env = wrapper._build_subprocess_env()
-
-        self.assertNotIn("PYTHONPATH", env)
-        self.assertEqual(env["PYTHONNOUSERSITE"], "1")
-        self.assertIn(ROOT, _worker_code_roots())
-
-        if os.name == "nt":
-            path_entries = [
-                Path(item) for item in env["PATH"].split(os.pathsep) if item
-            ]
-            deps_root = python_env_root(get_deps_python())
-            expected_prefix = [deps_root]
-            for child in (
-                deps_root / "DLLs",
-                deps_root / "Library" / "bin",
-                deps_root / "Scripts",
-            ):
-                if child.exists():
-                    expected_prefix.append(child)
-            self.assertGreaterEqual(len(path_entries), len(expected_prefix))
-            self.assertEqual(path_entries[: len(expected_prefix)], expected_prefix)
-
-        worker_code = wrapper._worker_argv()[-1]
-        self.assertIn("HTTPSHandler", worker_code)
-        self.assertIn("site-packages", worker_code)
+        hello = {
+            "worker_protocol": 1,
+            "model_format": 1,
+            "python_version": "3.11.17",
+            "ort_version": "1.26.0",
+        }
+        responses = [
+            {"protocol": 1, "id": "mathcraft-1", "ok": True, "result": hello},
+            {"protocol": 1, "id": "mathcraft-2", "ok": True, "result": {"ready": True}},
+        ]
+        wrapper._worker = SimpleNamespace(
+            stdin=io.StringIO(),
+            stdout=io.StringIO(
+                "\n".join(json.dumps(item) for item in responses) + "\n"
+            ),
+        )
+        wrapper._ensure_worker = lambda: True
+        try:
+            assert wrapper._send_worker_request({"action": "warmup"}) == {"ready": True}
+            assert wrapper.runtime_info == hello
+        finally:
+            wrapper._worker = None
+            wrapper.stop()
+        assert wrapper.runtime_info == {}
 
     def test_unknown_modes_are_rejected(self):
         from backend.mathcraft.model import ModelWrapper

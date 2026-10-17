@@ -1,7 +1,4 @@
-# coding: utf-8
-
 from __future__ import annotations
-
 
 RELATION_COMMANDS = (
     r"\leqslant",

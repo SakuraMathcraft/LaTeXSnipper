@@ -1,6 +1,5 @@
 from .schemas import ExternalModelConfig
 
-
 PROMPTS = {
     "ocr_formula_v1": (
         "Recognize the visible formula or math-heavy content in the image. "
@@ -37,25 +36,6 @@ PROMPTS = {
         "Do not output a complete document, explain, summarize, rewrite, add code fences, or add prefixes."
     ),
 }
-
-
-def build_math_document_prompt(recognized_text: str) -> str:
-    base = (
-        "Convert the handwritten mathematical content in the image into a complete compilable XeLaTeX document. "
-        "Return .tex source only: no explanations, notes, markdown code fences, or prefixes. "
-        "Use \\documentclass[UTF8]{ctexart}; include a preamble and \\begin{document}...\\end{document}. "
-        "Use only common math packages unless the image clearly requires diagrams. "
-        "Preserve the original math, ordinary text, labels, and annotations. "
-        "For uncertain content, add a TeX comment % TODO: ... instead of inventing content."
-    )
-    draft = str(recognized_text or "").strip()
-    if not draft:
-        return base
-    return (
-        base
-        + "\n\nRecognized draft text for reference. The image is authoritative:\n"
-        + draft
-    )
 
 
 def build_prompt(config: ExternalModelConfig) -> str:

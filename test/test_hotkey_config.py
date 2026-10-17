@@ -6,6 +6,8 @@ from runtime.hotkey_config import (
     normalize_hotkey,
     normalize_hotkey_or_default,
 )
+
+
 def test_normalize_hotkey_accepts_ctrl_letter() -> None:
     assert normalize_hotkey("Ctrl+F") == "Ctrl+F"
     assert normalize_hotkey(" control + f ") == "Ctrl+F"

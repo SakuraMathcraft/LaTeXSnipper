@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 import os
-
+from collections.abc import Callable
 
 REQUIRED_LINUX_HOTKEY_MODULES = (
     "pynput",
@@ -71,12 +70,14 @@ PYNPUT_BACKEND_ENV_VARS = (
 )
 
 
+def missing_hotkey_modules(modules) -> list[str]:
+    return sorted(set(REQUIRED_LINUX_HOTKEY_MODULES).difference(modules))
+
+
 def collect_linux_hotkey_modules(
     collect_submodules: Callable[..., list[str]],
 ) -> list[str]:
-    previous_backends = {
-        name: os.environ.get(name) for name in PYNPUT_BACKEND_ENV_VARS
-    }
+    previous_backends = {name: os.environ.get(name) for name in PYNPUT_BACKEND_ENV_VARS}
     os.environ.update({name: "dummy" for name in PYNPUT_BACKEND_ENV_VARS})
     try:
         modules = collect_submodules("pynput", on_error="raise")
@@ -89,10 +90,9 @@ def collect_linux_hotkey_modules(
                 os.environ[name] = previous_value
 
     modules = sorted(set(modules))
-    missing = sorted(set(REQUIRED_LINUX_HOTKEY_MODULES).difference(modules))
+    missing = missing_hotkey_modules(modules)
     if missing:
         raise RuntimeError(
-            "Failed to collect required Linux hotkey modules: "
-            + ", ".join(missing)
+            "Failed to collect required Linux hotkey modules: " + ", ".join(missing)
         )
     return modules

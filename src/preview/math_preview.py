@@ -2,39 +2,15 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-import sys
+import logging
+
+from PyQt6.QtCore import QUrl
 
 from localization.manager import translate as tr
-from PyQt6.QtCore import QUrl
-from PyQt6.QtWidgets import QApplication
+from rendering.mathjax_runtime import ASSET_ROOT, loader_script
+from ui.theme_tokens import is_dark_ui
 
-from rendering.mathjax_runtime import cdn_roots, loader_script
-
-APP_DIR: Path | None = None
-
-MATHJAX_CDN_URL = cdn_roots()[0] + "/startup.js"
-MATHJAX_CDN_URL_BACKUP = cdn_roots()[1] + "/startup.js"
-
-def configure_math_preview_runtime(app_dir: Path | str | None) -> None:
-    global APP_DIR
-    APP_DIR = Path(app_dir) if app_dir else None
-
-
-def is_dark_ui() -> bool:
-    try:
-        import qfluentwidgets as qfw
-
-        fn = getattr(qfw, "isDarkTheme", None)
-        if callable(fn):
-            return bool(fn())
-    except Exception:
-        pass
-    app = QApplication.instance()
-    if app is None:
-        return False
-    c = app.palette().window().color()
-    return ((c.red() + c.green() + c.blue()) / 3.0) < 128
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 def preview_theme_tokens() -> dict:
@@ -42,7 +18,6 @@ def preview_theme_tokens() -> dict:
         return {
             "body_bg": "#14171d",
             "body_text": "#e8ebf0",
-            "latex_formula_text": "#ffffff",
             "panel_bg": "#1d222b",
             "label_text": "#8ec5ff",
             "label_bg": "#1e334a",
@@ -52,18 +27,14 @@ def preview_theme_tokens() -> dict:
             "pre_bg": "#342b20",
             "border_formula": "#63a5ff",
             "border_text": "#72d68e",
-            "border_table": "#ffb35c",
             "border_mixed": "#d8a4ff",
             "badge_formula_bg": "#23374d",
             "badge_formula_text": "#9fd1ff",
             "badge_text_bg": "#213328",
             "badge_text_text": "#88d5a3",
-            "badge_table_bg": "#3a2a18",
-            "badge_table_text": "#ffbf7a",
             "badge_mixed_bg": "#35253f",
             "badge_mixed_text": "#e4bcff",
             "table_border": "#3e4958",
-            "th_bg": "#27303b",
             "scrollbar_track": "#1b1f27",
             "scrollbar_thumb": "#6f7782",
             "scrollbar_thumb_hover": "#8b949e",
@@ -71,7 +42,6 @@ def preview_theme_tokens() -> dict:
     return {
         "body_bg": "#fafafa",
         "body_text": "#1f2328",
-        "latex_formula_text": "#1f2328",
         "panel_bg": "#f8f9fa",
         "label_text": "#1976d2",
         "label_bg": "#e3f2fd",
@@ -81,57 +51,17 @@ def preview_theme_tokens() -> dict:
         "pre_bg": "#fff3e0",
         "border_formula": "#1976d2",
         "border_text": "#43a047",
-        "border_table": "#f57c00",
         "border_mixed": "#7b1fa2",
         "badge_formula_bg": "#e3f2fd",
         "badge_formula_text": "#1976d2",
         "badge_text_bg": "#e8f5e9",
         "badge_text_text": "#43a047",
-        "badge_table_bg": "#fff3e0",
-        "badge_table_text": "#f57c00",
         "badge_mixed_bg": "#f3e5f5",
         "badge_mixed_text": "#7b1fa2",
         "table_border": "#dddddd",
-        "th_bg": "#f2f2f2",
         "scrollbar_track": "#f0f0f0",
         "scrollbar_thumb": "#b8b8b8",
         "scrollbar_thumb_hover": "#969696",
-    }
-
-
-def formula_label_theme_tokens() -> dict:
-    if is_dark_ui():
-        return {
-            "text": "#d7dee9",
-            "tooltip_bg": "#27303b",
-            "tooltip_text": "#eef3f8",
-            "tooltip_border": "#4d5a6b",
-        }
-    return {
-        "text": "#333333",
-        "tooltip_bg": "#ffffff",
-        "tooltip_text": "#1f2328",
-        "tooltip_border": "#cfd6df",
-    }
-
-
-def dialog_theme_tokens() -> dict:
-    if is_dark_ui():
-        return {
-            "window_bg": "#1b1f27",
-            "panel_bg": "#232934",
-            "text": "#e7ebf0",
-            "muted": "#a9b3bf",
-            "border": "#465162",
-            "accent": "#8ec5ff",
-        }
-    return {
-        "window_bg": "#ffffff",
-        "panel_bg": "#f7f9fc",
-        "text": "#222222",
-        "muted": "#666666",
-        "border": "#d0d7de",
-        "accent": "#1976d2",
     }
 
 
@@ -246,62 +176,9 @@ __MATHJAX_LOADER_SCRIPT__
 """
 
 
-def _current_render_mode() -> str:
-    try:
-        from rendering.latex import get_document_render_mode
-
-        return get_document_render_mode()
-    except Exception as exc:
-        print(f"[WARN] 获取渲染模式失败: {exc}")
-    return "auto"
-
-
-def _mathjax_base_dir() -> tuple[Path, str]:
-    if APP_DIR and str(APP_DIR).strip():
-        return Path(APP_DIR), "本地资源"
-
-    if getattr(sys, "frozen", False):
-        exe_dir = Path(sys.executable).resolve().parent
-        meipass = getattr(sys, "_MEIPASS", "")
-        candidates = [
-            (exe_dir / "_internal", "_internal"),
-            (exe_dir, "exe 同级"),
-            (exe_dir.parent / "src", "父目录 src"),
-        ]
-        if meipass:
-            candidates.insert(0, (Path(meipass), "_MEIPASS"))
-        for candidate, label in candidates:
-            if candidate and (candidate / "assets").exists():
-                return candidate, label
-
-    return Path(__file__).resolve().parents[1], "__file__"
-
-
 def get_mathjax_base_url() -> QUrl:
-    """Return the MathJax base URL used by setHtml."""
-    try:
-        mode = _current_render_mode()
-        if mode == "mathjax_cdn":
-            return QUrl(MATHJAX_CDN_URL.rsplit("/", 1)[0] + "/")
-
-        actual_app_dir, _ = _mathjax_base_dir()
-        runtime_dir = actual_app_dir / "assets" / "MathJax"
-        tex_chtml = runtime_dir / "startup.js"
-        if not tex_chtml.exists():
-            print(f"[WARN] MathJax 文件缺失: {tex_chtml}")
-
-        url = QUrl.fromLocalFile(str(runtime_dir) + "/")
-        url_str = url.toString()
-        if not url_str.startswith("file:///"):
-            print(f"[ERR] URL 格式异常，应以 file:/// 开头: {url_str}")
-
-        return url
-    except Exception as exc:
-        print(f"[ERR] 获取 MathJax 地址失败: {exc}")
-        import traceback
-
-        traceback.print_exc()
-        return QUrl.fromLocalFile("/")
+    """Return the bundled runtime URL for desktop previews."""
+    return QUrl.fromLocalFile(str(ASSET_ROOT) + "/")
 
 
 def build_math_html(
@@ -327,14 +204,12 @@ def build_math_html(
         if not formula_html:
             formula_html = (
                 f'<div class="math-container" style="color:{tokens["muted_text"]};">'
-                f'{tr("无公式")}</div>'
+                f"{tr('无公式')}</div>"
             )
 
         html = MATHJAX_HTML_TEMPLATE.replace("__FORMULAS__", formula_html)
         replacements = {
-            "__MATHJAX_LOADER_SCRIPT__": mathjax_loader_script(
-                scale=1.15
-            ),
+            "__MATHJAX_LOADER_SCRIPT__": mathjax_loader_script(scale=1.15),
             "__BODY_CLASS__": "viewport-centered" if center_viewport else "",
             "__SCROLLBAR_CSS__": preview_scrollbar_css(tokens),
             "__BODY_BG__": tokens["body_bg"],
@@ -348,10 +223,7 @@ def build_math_html(
             html = html.replace(key, value)
         return html
     except Exception as exc:
-        print(f"[ERR] 构建公式预览页面失败: {exc}")
-        import traceback
-
-        traceback.print_exc()
+        logger.exception("构建公式预览页面失败: %s", exc)
         tokens = preview_theme_tokens()
         title = tr("公式渲染出错")
         error_label = tr("错误信息:")

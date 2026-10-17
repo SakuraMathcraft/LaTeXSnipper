@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import argparse
@@ -10,7 +8,6 @@ from pathlib import Path
 from typing import Any
 
 from PIL import Image, ImageDraw, ImageFont
-
 
 TEXT_COLOR = (31, 119, 180)
 FORMULA_COLOR = (214, 39, 40)
@@ -35,11 +32,23 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Create OpenStax block-detection figure assets from MathCraft mixed-page results."
     )
-    parser.add_argument("--results", required=True, help="OpenStax mixed-page result JSONL.")
-    parser.add_argument("--output-dir", required=True, help="Directory for generated PNG and HTML assets.")
-    parser.add_argument("--samples", nargs="*", default=[], help="Optional explicit sample ids.")
-    parser.add_argument("--limit", type=int, default=6, help="Number of auto-selected pages.")
-    parser.add_argument("--max-width", type=int, default=1800, help="Maximum width for each full panel.")
+    parser.add_argument(
+        "--results", required=True, help="OpenStax mixed-page result JSONL."
+    )
+    parser.add_argument(
+        "--output-dir",
+        required=True,
+        help="Directory for generated PNG and HTML assets.",
+    )
+    parser.add_argument(
+        "--samples", nargs="*", default=[], help="Optional explicit sample ids."
+    )
+    parser.add_argument(
+        "--limit", type=int, default=6, help="Number of auto-selected pages."
+    )
+    parser.add_argument(
+        "--max-width", type=int, default=1800, help="Maximum width for each full panel."
+    )
     args = parser.parse_args(argv)
 
     records = load_records(Path(args.results))
@@ -59,7 +68,11 @@ def main(argv: list[str] | None = None) -> int:
         make_panel(record, overlay_path, panel_path, max_width=args.max_width)
         rel_panel = panel_path.name
         formula_count = sum(1 for block in record.blocks if is_formula_block(block))
-        display_count = sum(1 for block in record.blocks if is_formula_block(block) and block.get("is_display"))
+        display_count = sum(
+            1
+            for block in record.blocks
+            if is_formula_block(block) and block.get("is_display")
+        )
         gallery_rows.append(
             {
                 "sample_id": record.sample_id,
@@ -128,7 +141,9 @@ def parse_openstax_sample_id(sample_id: str) -> tuple[str, int | None]:
         return source_id, None
 
 
-def select_records(records: list[PageRecord], *, sample_ids: set[str], limit: int) -> list[PageRecord]:
+def select_records(
+    records: list[PageRecord], *, sample_ids: set[str], limit: int
+) -> list[PageRecord]:
     if sample_ids:
         by_id = {record.sample_id: record for record in records}
         missing = sorted(sample_ids.difference(by_id))
@@ -161,7 +176,9 @@ def select_records(records: list[PageRecord], *, sample_ids: set[str], limit: in
     return selected
 
 
-def add_first(selected: list[PageRecord], candidates: list[PageRecord], *, limit: int) -> None:
+def add_first(
+    selected: list[PageRecord], candidates: list[PageRecord], *, limit: int
+) -> None:
     for record in candidates:
         if record not in selected:
             selected.append(record)
@@ -170,14 +187,24 @@ def add_first(selected: list[PageRecord], candidates: list[PageRecord], *, limit
 
 def record_score(record: PageRecord) -> tuple[int, int, int, float]:
     formula_count = sum(1 for block in record.blocks if is_formula_block(block))
-    display_count = sum(1 for block in record.blocks if is_formula_block(block) and block.get("is_display"))
-    heading_count = sum(1 for block in record.blocks if str(block.get("role")) == "heading")
+    display_count = sum(
+        1
+        for block in record.blocks
+        if is_formula_block(block) and block.get("is_display")
+    )
+    heading_count = sum(
+        1 for block in record.blocks if str(block.get("role")) == "heading"
+    )
     return formula_count, display_count, heading_count, -record.latency_ms
 
 
 def display_record_score(record: PageRecord) -> tuple[int, int, int, float]:
     formula_count = sum(1 for block in record.blocks if is_formula_block(block))
-    display_count = sum(1 for block in record.blocks if is_formula_block(block) and block.get("is_display"))
+    display_count = sum(
+        1
+        for block in record.blocks
+        if is_formula_block(block) and block.get("is_display")
+    )
     block_count = len(record.blocks)
     return display_count, formula_count, block_count, -record.latency_ms
 
@@ -186,7 +213,10 @@ def make_overlay(record: PageRecord, output: Path, *, max_width: int) -> None:
     image = Image.open(record.image_path).convert("RGB")
     scale = min(1.0, max_width / float(image.width))
     if scale != 1.0:
-        image = image.resize((int(image.width * scale), int(image.height * scale)), Image.Resampling.LANCZOS)
+        image = image.resize(
+            (int(image.width * scale), int(image.height * scale)),
+            Image.Resampling.LANCZOS,
+        )
     draw = ImageDraw.Draw(image, "RGBA")
     font = load_font(max(12, int(15 * scale)))
 
@@ -204,14 +234,26 @@ def make_overlay(record: PageRecord, output: Path, *, max_width: int) -> None:
         label_w = label_box[2] - label_box[0]
         label_h = label_box[3] - label_box[1]
         x1, y1, _x2, _y2 = box
-        label_rect = (x1, max(0, y1 - label_h - 4), x1 + label_w + 6, max(label_h + 4, y1))
+        label_rect = (
+            x1,
+            max(0, y1 - label_h - 4),
+            x1 + label_w + 6,
+            max(label_h + 4, y1),
+        )
         draw.rectangle(label_rect, fill=(*color, 210))
-        draw.text((label_rect[0] + 3, label_rect[1] + 2), label, font=font, fill=(255, 255, 255, 255))
+        draw.text(
+            (label_rect[0] + 3, label_rect[1] + 2),
+            label,
+            font=font,
+            fill=(255, 255, 255, 255),
+        )
 
     image.save(output)
 
 
-def make_panel(record: PageRecord, overlay_path: Path, output: Path, *, max_width: int) -> None:
+def make_panel(
+    record: PageRecord, overlay_path: Path, output: Path, *, max_width: int
+) -> None:
     original = Image.open(record.image_path).convert("RGB")
     overlay = Image.open(overlay_path).convert("RGB")
     half_width = max_width // 2
@@ -228,7 +270,11 @@ def make_panel(record: PageRecord, overlay_path: Path, output: Path, *, max_widt
     panel = Image.new("RGB", (panel_w, panel_h), PANEL_BACKGROUND)
     draw = ImageDraw.Draw(panel)
     formula_count = sum(1 for block in record.blocks if is_formula_block(block))
-    display_count = sum(1 for block in record.blocks if is_formula_block(block) and block.get("is_display"))
+    display_count = sum(
+        1
+        for block in record.blocks
+        if is_formula_block(block) and block.get("is_display")
+    )
     title = f"{record.sample_id}: public OpenStax page-level mixed OCR"
     meta = (
         f"{len(record.blocks)} blocks, {formula_count} formula blocks, "
@@ -240,7 +286,10 @@ def make_panel(record: PageRecord, overlay_path: Path, output: Path, *, max_widt
     y = header_h
     panel.paste(original, (margin, y))
     panel.paste(overlay, (margin + original.width + gap, y))
-    draw.rectangle((margin, y, margin + original.width - 1, y + original.height - 1), outline=PANEL_BORDER)
+    draw.rectangle(
+        (margin, y, margin + original.width - 1, y + original.height - 1),
+        outline=PANEL_BORDER,
+    )
     draw.rectangle(
         (
             margin + original.width + gap,
@@ -307,7 +356,12 @@ def block_label(index: int, block: dict[str, Any]) -> str:
 def is_formula_block(block: dict[str, Any]) -> bool:
     source = str(block.get("source") or "")
     kind = str(block.get("kind") or "")
-    return source.startswith("formula_") or kind in {"formula", "embedding", "isolated", "display_formula"}
+    return source.startswith("formula_") or kind in {
+        "formula",
+        "embedding",
+        "isolated",
+        "display_formula",
+    }
 
 
 def load_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
@@ -358,7 +412,7 @@ img {{ max-width: 100%; border: 1px solid #ddd; background: #fff; }}
 <h1>MathCraft OpenStax Block Gallery</h1>
 <p class="note">Page images are rendered from public OpenStax PDFs and should be used with attribution
 according to the relevant OpenStax license. Generated overlays visualize MathCraft mixed runtime blocks.</p>
-{''.join(cards)}
+{"".join(cards)}
 </body>
 </html>
 """,

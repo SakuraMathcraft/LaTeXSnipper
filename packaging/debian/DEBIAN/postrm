@@ -3,6 +3,11 @@ set -e
 
 case "$1" in
     remove|purge)
+        rm -rf /var/lib/latexsnipper
+        if [ "${LATEXSNIPPER_DEPLOYMENT_ACTIVE:-}" != 1 ]; then
+            rm -rf /usr/lib/latexsnipper/.deployment
+            rm -f /usr/lib/latexsnipper/.deployment.lock
+        fi
         if command -v update-desktop-database >/dev/null 2>&1; then
             update-desktop-database -q /usr/share/applications || true
         fi

@@ -1,10 +1,7 @@
-# coding: utf-8
-
 from __future__ import annotations
 
-from dataclasses import dataclass
-from dataclasses import replace
 import re
+from dataclasses import dataclass, replace
 
 import numpy as np
 
@@ -156,7 +153,10 @@ def is_informative_ocr_box(
     crop = image[top:bottom, left:right]
     if crop.size == 0:
         return False
-    if float(np.mean(crop)) >= blank_mean_threshold and float(np.std(crop)) <= blank_std_threshold:
+    if (
+        float(np.mean(crop)) >= blank_mean_threshold
+        and float(np.std(crop)) <= blank_std_threshold
+    ):
         return False
     return True
 
@@ -211,7 +211,8 @@ def resolve_formula_text_conflicts(
     formula_blocks = tuple(
         block
         for block in blocks
-        if block.kind in {"formula", "embedding", "inline_formula", "isolated", "display_formula"}
+        if block.kind
+        in {"formula", "embedding", "inline_formula", "isolated", "display_formula"}
         or block.source == "formula_rec"
     )
     if not formula_blocks:
@@ -246,14 +247,18 @@ def group_blocks_into_lines(
 ) -> tuple[tuple[MathCraftBlock, ...], ...]:
     if two_column_layout is None:
         two_column_layout = _is_two_column_layout(blocks, image_size=image_size)
-    sorted_blocks = sorted(blocks, key=lambda block: _block_sort_key(block, two_column_layout))
+    sorted_blocks = sorted(
+        blocks, key=lambda block: _block_sort_key(block, two_column_layout)
+    )
     lines: list[list[MathCraftBlock]] = []
     for block in sorted_blocks:
         best_line: list[MathCraftBlock] | None = None
         best_overlap = 0.0
         for line in lines:
             line_box = _union_box([item.box for item in line])
-            if not _same_layout_region(line[0], block, line_box, two_column_layout=two_column_layout):
+            if not _same_layout_region(
+                line[0], block, line_box, two_column_layout=two_column_layout
+            ):
                 continue
             overlap = y_overlap_ratio(line_box, block.box)
             if overlap > best_overlap:
@@ -265,7 +270,9 @@ def group_blocks_into_lines(
             best_line.append(block)
     return tuple(
         tuple(sorted(line, key=lambda item: box_to_xyxy(item.box)[0]))
-        for line in sorted(lines, key=lambda line: _line_sort_key(line, two_column_layout))
+        for line in sorted(
+            lines, key=lambda line: _line_sort_key(line, two_column_layout)
+        )
     )
 
 
@@ -289,7 +296,9 @@ def annotate_blocks(
         image_size=image_size,
         two_column_layout=two_column_layout,
     )
-    line_infos = _annotate_lines(lines, image_size=image_size, two_column_layout=two_column_layout)
+    line_infos = _annotate_lines(
+        lines, image_size=image_size, two_column_layout=two_column_layout
+    )
     annotated: list[MathCraftBlock] = []
     reading_order = 0
     for line_id, line_info in enumerate(line_infos):
@@ -318,7 +327,9 @@ def annotate_blocks(
                         )
                     ),
                     role=block.role or block_role,
-                    column=block.column if block.column is not None else line_info.column,
+                    column=block.column
+                    if block.column is not None
+                    else line_info.column,
                     paragraph_id=(
                         block.paragraph_id
                         if block.paragraph_id is not None
@@ -341,7 +352,10 @@ def merge_blocks_text(
     lines = group_blocks_into_lines(blocks)
     line_texts: list[str] = []
     for line in lines:
-        if _line_role(line, _union_box([block.box for block in line]), image_size=None) in _CONTENT_NOISE_ROLES:
+        if (
+            _line_role(line, _union_box([block.box for block in line]), image_size=None)
+            in _CONTENT_NOISE_ROLES
+        ):
             continue
         parts: list[str] = []
         has_isolated = False
@@ -363,7 +377,9 @@ def merge_blocks_text(
             if has_isolated:
                 merged = line_sep + merged + line_sep
             line_texts.append(merged)
-    return _collapse_line_separators(line_sep.join(line_texts), line_sep=line_sep).strip()
+    return _collapse_line_separators(
+        line_sep.join(line_texts), line_sep=line_sep
+    ).strip()
 
 
 def _annotate_lines(
@@ -391,7 +407,7 @@ def _annotate_lines(
     paragraph_ids = _assign_paragraph_ids(base_infos)
     return tuple(
         replace(info, paragraph_id=paragraph_id)
-        for info, paragraph_id in zip(base_infos, paragraph_ids)
+        for info, paragraph_id in zip(base_infos, paragraph_ids, strict=False)
     )
 
 
@@ -441,7 +457,9 @@ def _should_merge_line_into_paragraph(
     vertical_gap = cy1 - py2
     if vertical_gap < 0 or vertical_gap > median_height * 1.8:
         return False
-    if abs(px1 - cx1) > median_height * 2.2 and not _line_text(previous.blocks).rstrip().endswith("-"):
+    if abs(px1 - cx1) > median_height * 2.2 and not _line_text(
+        previous.blocks
+    ).rstrip().endswith("-"):
         return False
     text = _line_text(previous.blocks).strip()
     current_text = _line_text(current.blocks).strip()
@@ -527,7 +545,12 @@ def _is_two_column_layout(
         for block in blocks
     )
     if len(candidates) < 6:
-        if has_center_display and left_count >= 2 and right_count >= 1 and wide_count == 0:
+        if (
+            has_center_display
+            and left_count >= 2
+            and right_count >= 1
+            and wide_count == 0
+        ):
             return True
         return left_count >= 2 and right_count >= 2 and wide_count == 0
     return left_count >= 3 and right_count >= 3
@@ -573,14 +596,12 @@ def _has_repeated_midline_continuations(
             for block in ordered
         )
         midline_gaps = []
-        for previous, current in zip(ordered, ordered[1:]):
+        for previous, current in zip(ordered, ordered[1:], strict=False):
             previous_x2 = box_to_xyxy(previous.box)[2]
             current_x1 = box_to_xyxy(current.box)[0]
             if previous_x2 <= page_width * 0.55 and current_x1 >= page_width * 0.45:
                 midline_gaps.append(max(0.0, current_x1 - previous_x2))
-        if spans_midline or (
-            midline_gaps and max(midline_gaps) <= page_width * 0.003
-        ):
+        if spans_midline or (midline_gaps and max(midline_gaps) <= page_width * 0.003):
             continuation_count += 1
             if continuation_count >= 2:
                 return True
@@ -630,7 +651,10 @@ def _same_layout_region(
         lx1, _ly1, lx2, _ly2 = box_to_xyxy(line_box)
         sx1, _sy1, sx2, _sy2 = box_to_xyxy(second.box)
         gap = max(0.0, max(lx1, sx1) - min(lx2, sx2))
-        return y_overlap_ratio(line_box, second.box) >= 0.45 and gap <= float(size[0]) * 0.08
+        return (
+            y_overlap_ratio(line_box, second.box) >= 0.45
+            and gap <= float(size[0]) * 0.08
+        )
     if _is_display_formula_like(first) or _is_display_formula_like(second):
         return False
     return False
@@ -655,7 +679,11 @@ def _block_column(block: MathCraftBlock) -> int:
 
 
 def _is_inline_formula_like(block: MathCraftBlock) -> bool:
-    return block.kind in {"embedding", "formula", "inline_formula"} and block.kind not in {
+    return block.kind in {
+        "embedding",
+        "formula",
+        "inline_formula",
+    } and block.kind not in {
         "isolated",
         "display_formula",
     }
@@ -663,7 +691,8 @@ def _is_inline_formula_like(block: MathCraftBlock) -> bool:
 
 def _is_display_formula_like(block: MathCraftBlock) -> bool:
     return block.kind in {"isolated", "display_formula"} or (
-        block.source == "formula_rec" and block.kind not in {"embedding", "inline_formula"}
+        block.source == "formula_rec"
+        and block.kind not in {"embedding", "inline_formula"}
     )
 
 
@@ -695,8 +724,7 @@ def _line_column(
     if width >= page_width * 0.7 or _crosses_page_midline(x1, x2, page_width):
         return 0
     centers = [
-        (box_to_xyxy(block.box)[0] + box_to_xyxy(block.box)[2]) / 2.0
-        for block in line
+        (box_to_xyxy(block.box)[0] + box_to_xyxy(block.box)[2]) / 2.0 for block in line
     ]
     return 1 if float(np.median(centers)) >= midline else 0
 
@@ -708,6 +736,7 @@ def _is_display_formula_line(
 ) -> bool:
     if not line:
         return False
+    first = line[0]
     if any(block.is_display is True for block in line):
         return all(
             block.is_display is True
@@ -724,13 +753,16 @@ def _is_display_formula_line(
     non_formula_blocks = [
         block
         for block in line
-        if block not in formula_blocks and block.role not in {"formula_anchor", "formula_label"}
+        if block not in formula_blocks
+        and block.role not in {"formula_anchor", "formula_label"}
     ]
     if len(formula_blocks) == 1 and not non_formula_blocks:
-        return _is_display_formula_block(formula_blocks[0], (formula_blocks[0],), image_size=image_size)
+        return _is_display_formula_block(
+            formula_blocks[0], (formula_blocks[0],), image_size=image_size
+        )
     if len(line) > 1:
         return False
-    return _is_display_formula_block(line[0], line, image_size=image_size)
+    return _is_display_formula_block(first, line, image_size=image_size)
 
 
 def _line_role(
@@ -795,7 +827,9 @@ def _line_confidence_flags(
 
 
 def _line_text(line: tuple[MathCraftBlock, ...] | list[MathCraftBlock]) -> str:
-    return _smart_join([block.text.strip() for block in line if block.text.strip()]).strip()
+    return _smart_join(
+        [block.text.strip() for block in line if block.text.strip()]
+    ).strip()
 
 
 def _is_margin_page_number(
@@ -810,7 +844,9 @@ def _is_margin_page_number(
         return True
     _x1, y1, _x2, y2 = box_to_xyxy(line_box)
     center_y = (y1 + y2) / 2.0
-    return center_y < float(image_size[1]) * 0.12 or center_y > float(image_size[1]) * 0.88
+    return (
+        center_y < float(image_size[1]) * 0.12 or center_y > float(image_size[1]) * 0.88
+    )
 
 
 def _margin_role(
@@ -830,9 +866,16 @@ def _margin_role(
     line = text.strip()
     if _RUNNING_HEADER_RE.match(line) or _JOURNAL_RUNNING_HEADER_RE.match(line):
         return "header" if top else "footer"
-    if top and len(line) <= 96 and ":" in line and _looks_like_running_header_fragment(line):
+    if (
+        top
+        and len(line) <= 96
+        and ":" in line
+        and _looks_like_running_header_fragment(line)
+    ):
         return "header"
-    if len(line) <= 80 and (line.isupper() or re.match(r"^CHAPTER\s+\d+", line, flags=re.IGNORECASE)):
+    if len(line) <= 80 and (
+        line.isupper() or re.match(r"^CHAPTER\s+\d+", line, flags=re.IGNORECASE)
+    ):
         return "header" if top else "footer"
     return ""
 
@@ -860,8 +903,12 @@ def _looks_like_running_header_fragment(text: str) -> bool:
     letters = [char for char in line if char.isalpha()]
     if not letters:
         return False
-    uppercase_ratio = sum(1 for char in letters if char.isupper()) / max(1, len(letters))
-    return uppercase_ratio >= 0.55 or bool(re.search(r"\bet\s+al\.", line, flags=re.IGNORECASE))
+    uppercase_ratio = sum(1 for char in letters if char.isupper()) / max(
+        1, len(letters)
+    )
+    return uppercase_ratio >= 0.55 or bool(
+        re.search(r"\bet\s+al\.", line, flags=re.IGNORECASE)
+    )
 
 
 def _is_display_formula_block(
@@ -906,11 +953,18 @@ def _is_formula_adjacent(
         fx1, fy1, fx2, fy2 = box_to_xyxy(formula.box)
         vertical_gap = max(0.0, max(fy1 - by2, by1 - fy2))
         overlaps_y = y_overlap_ratio(block.box, formula.box) >= 0.15
-        overlaps_x = max(0.0, min(bx2, fx2) - max(bx1, fx1)) >= min(bx2 - bx1, fx2 - fx1) * 0.1
-        center_close = page_width > 0 and abs(block_center_x - ((fx1 + fx2) / 2.0)) <= page_width * 0.16
+        overlaps_x = (
+            max(0.0, min(bx2, fx2) - max(bx1, fx1)) >= min(bx2 - bx1, fx2 - fx1) * 0.1
+        )
+        center_close = (
+            page_width > 0
+            and abs(block_center_x - ((fx1 + fx2) / 2.0)) <= page_width * 0.16
+        )
         horizontal_gap = min(abs(bx2 - fx1), abs(fx2 - bx1))
         beside_formula = page_width > 0 and horizontal_gap <= page_width * 0.06
-        if vertical_gap <= block_height * 2.2 and (overlaps_x or center_close or beside_formula):
+        if vertical_gap <= block_height * 2.2 and (
+            overlaps_x or center_close or beside_formula
+        ):
             return True
         if overlaps_y and (overlaps_x or beside_formula):
             return True

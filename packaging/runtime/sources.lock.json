@@ -1,0 +1,210 @@
+{
+  "cuda_version": "12.8.0",
+  "cudnn_version": "9.8.0.87",
+  "ort_version": "1.26.0",
+  "python_version": "3.11.17",
+  "schema": 1,
+  "targets": {
+    "linux-x86_64": {
+      "minimum_driver": [
+        570,
+        26
+      ],
+      "native_libraries": [
+        {
+          "artifact": {
+            "sha256": "5bd3ac35ea8e8ab880e595d5054ee373abf6d9e53dcb8cef0a5c75358dbc0ae2",
+            "size": 1343152,
+            "url": "https://developer.download.nvidia.com/compute/cuda/redist/cuda_cudart/linux-x86_64/cuda_cudart-linux-x86_64-12.8.57-archive.tar.xz"
+          },
+          "license": "CUDA Toolkit",
+          "name": "cuda_cudart",
+          "version": "12.8.57"
+        },
+        {
+          "artifact": {
+            "sha256": "d634d545a670a43337741e1672b63ef9b989aaba15823f27ee4b4c7f43d790bb",
+            "size": 961034640,
+            "url": "https://developer.download.nvidia.com/compute/cuda/redist/libcublas/linux-x86_64/libcublas-linux-x86_64-12.8.3.14-archive.tar.xz"
+          },
+          "license": "CUDA Toolkit",
+          "name": "libcublas",
+          "version": "12.8.3.14"
+        },
+        {
+          "artifact": {
+            "sha256": "04f54ccb47b8785cd47fbaa6c78cda1521950841a2dbac1d95d7ba6a414bb22b",
+            "size": 448672836,
+            "url": "https://developer.download.nvidia.com/compute/cuda/redist/libcufft/linux-x86_64/libcufft-linux-x86_64-11.3.3.41-archive.tar.xz"
+          },
+          "license": "CUDA Toolkit",
+          "name": "libcufft",
+          "version": "11.3.3.41"
+        },
+        {
+          "artifact": {
+            "sha256": "91923b0e38dc3d0e14c667800ebf95ee7cd290387effc7a0a559144004b5504f",
+            "size": 88575908,
+            "url": "https://developer.download.nvidia.com/compute/cuda/redist/libcurand/linux-x86_64/libcurand-linux-x86_64-10.3.9.55-archive.tar.xz"
+          },
+          "license": "CUDA Toolkit",
+          "name": "libcurand",
+          "version": "10.3.9.55"
+        },
+        {
+          "artifact": {
+            "sha256": "df1df922d6af3a01ccfbf4db9125b2c20b9b23bbd4a737be9d2261b241ae77c0",
+            "size": 114553236,
+            "url": "https://developer.download.nvidia.com/compute/cuda/redist/cuda_nvrtc/linux-x86_64/cuda_nvrtc-linux-x86_64-12.8.61-archive.tar.xz"
+          },
+          "license": "CUDA Toolkit",
+          "name": "cuda_nvrtc",
+          "version": "12.8.61"
+        },
+        {
+          "artifact": {
+            "sha256": "522ac9a54f9a83bdaeb0f6fbdf9a030c379f53f1bb628d0a554fd33003c3a485",
+            "size": 53983560,
+            "url": "https://developer.download.nvidia.com/compute/cuda/redist/libnvjitlink/linux-x86_64/libnvjitlink-linux-x86_64-12.8.61-archive.tar.xz"
+          },
+          "license": "CUDA Toolkit",
+          "name": "libnvjitlink",
+          "version": "12.8.61"
+        },
+        {
+          "artifact": {
+            "sha256": "321b9b33bb1287404d93d5672d352f16feabc4b220ac6ae0b86e4b27f257dcf4",
+            "size": 923946888,
+            "url": "https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-x86_64/cudnn-linux-x86_64-9.8.0.87_cuda12-archive.tar.xz"
+          },
+          "license": "cudnn",
+          "name": "cudnn",
+          "version": "9.8.0.87"
+        }
+      ],
+      "ort_cpu": {
+        "sha256": "11a8df4dcfe9ad5ff0bd71a7571dbed019fabc7594676c89fe8b86ea029c246f",
+        "size": 18176043,
+        "url": "https://files.pythonhosted.org/packages/b6/3f/8de630f595daf6ce884d4dd95afd2a60e70ec6572e52bfee3aa2229befab/onnxruntime-1.26.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl"
+      },
+      "ort_gpu": {
+        "sha256": "4fa231294c2643911d2a7d16469c4808b0bdcdc4b5f4063d3a53744ce25b683a",
+        "size": 276956564,
+        "url": "https://files.pythonhosted.org/packages/dc/0f/696b4f94a282952239ffed39db78cb17a00ad993acd929cfac010a09759b/onnxruntime_gpu-1.26.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl"
+      },
+      "python": {
+        "sha256": "89db7607ebadb77a64709d159b86555d995368ec385a2ab33b00477790c543b0",
+        "size": 30808475,
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261009/cpython-3.11.17%2B20261009-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz"
+      }
+    },
+    "macos-arm64": {
+      "minimum_driver": null,
+      "native_libraries": [],
+      "ort_cpu": {
+        "sha256": "ee1109ef4ef27cad90e823399e61e03b3c6c7bfe0fb820b4baf3678c15be8b3c",
+        "size": 18005108,
+        "url": "https://files.pythonhosted.org/packages/d4/81/29a9eb470994a75eb7b3ccf32be314d7c66675a00ac7b50294816cc2db27/onnxruntime-1.26.0-cp311-cp311-macosx_14_0_arm64.whl"
+      },
+      "ort_gpu": null,
+      "python": {
+        "sha256": "f58d38af4680fbf9f89c329e732b7cca1bd06ff7a93884798b27d541bee138f6",
+        "size": 26977724,
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261009/cpython-3.11.17%2B20261009-aarch64-apple-darwin-install_only_stripped.tar.gz"
+      }
+    },
+    "windows-x86_64": {
+      "minimum_driver": [
+        570,
+        65
+      ],
+      "native_libraries": [
+        {
+          "artifact": {
+            "sha256": "2c7aa62a195d79229d4381c8bd0174a30502cf3d8124c6e94ee50a7fc8a1e9f4",
+            "size": 3034859,
+            "url": "https://developer.download.nvidia.com/compute/cuda/redist/cuda_cudart/windows-x86_64/cuda_cudart-windows-x86_64-12.8.57-archive.zip"
+          },
+          "license": "CUDA Toolkit",
+          "name": "cuda_cudart",
+          "version": "12.8.57"
+        },
+        {
+          "artifact": {
+            "sha256": "a2f990cf61f0086d942632f2455727240baa9378c2e9fa2bdda56ef81f6cf8ad",
+            "size": 574528660,
+            "url": "https://developer.download.nvidia.com/compute/cuda/redist/libcublas/windows-x86_64/libcublas-windows-x86_64-12.8.3.14-archive.zip"
+          },
+          "license": "CUDA Toolkit",
+          "name": "libcublas",
+          "version": "12.8.3.14"
+        },
+        {
+          "artifact": {
+            "sha256": "04969fc26520dc085665bf6256d793ddceb277bd6f2401093fded781d9fa7151",
+            "size": 190566082,
+            "url": "https://developer.download.nvidia.com/compute/cuda/redist/libcufft/windows-x86_64/libcufft-windows-x86_64-11.3.3.41-archive.zip"
+          },
+          "license": "CUDA Toolkit",
+          "name": "libcufft",
+          "version": "11.3.3.41"
+        },
+        {
+          "artifact": {
+            "sha256": "239172718cca32f153ef6fd27e3950795463732b0f24df6282ba6bf207a9c29d",
+            "size": 61952615,
+            "url": "https://developer.download.nvidia.com/compute/cuda/redist/libcurand/windows-x86_64/libcurand-windows-x86_64-10.3.9.55-archive.zip"
+          },
+          "license": "CUDA Toolkit",
+          "name": "libcurand",
+          "version": "10.3.9.55"
+        },
+        {
+          "artifact": {
+            "sha256": "e43603b09f8a52d681ceb814c00b655af19da53692ab91671dabbf8071c8f93d",
+            "size": 305553480,
+            "url": "https://developer.download.nvidia.com/compute/cuda/redist/cuda_nvrtc/windows-x86_64/cuda_nvrtc-windows-x86_64-12.8.61-archive.zip"
+          },
+          "license": "CUDA Toolkit",
+          "name": "cuda_nvrtc",
+          "version": "12.8.61"
+        },
+        {
+          "artifact": {
+            "sha256": "8258afaadbd9744d87070525067c497041dd52c6b22d11ba7297421fc8f6f39d",
+            "size": 257312022,
+            "url": "https://developer.download.nvidia.com/compute/cuda/redist/libnvjitlink/windows-x86_64/libnvjitlink-windows-x86_64-12.8.61-archive.zip"
+          },
+          "license": "CUDA Toolkit",
+          "name": "libnvjitlink",
+          "version": "12.8.61"
+        },
+        {
+          "artifact": {
+            "sha256": "d8a23705e3884b137b7e05449fb2b61bfa524e7cfc3fda80743d633f423c6ce4",
+            "size": 675349654,
+            "url": "https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/windows-x86_64/cudnn-windows-x86_64-9.8.0.87_cuda12-archive.zip"
+          },
+          "license": "cudnn",
+          "name": "cudnn",
+          "version": "9.8.0.87"
+        }
+      ],
+      "ort_cpu": {
+        "sha256": "e6456718125fd777c673f3b78d4a9ab58d6adea641e9afae85ee6444f0e0e9a9",
+        "size": 13023165,
+        "url": "https://files.pythonhosted.org/packages/9c/21/9f041de20787cd85498bd48e0ec4d098bf2a6c486e25b24b8dae1bf492b2/onnxruntime-1.26.0-cp311-cp311-win_amd64.whl"
+      },
+      "ort_gpu": {
+        "sha256": "cc5329aad02d9745cc3ae9cdb185bfa1aad242a7bf89b8c471280002ec40f98a",
+        "size": 226539455,
+        "url": "https://files.pythonhosted.org/packages/ef/26/a417b7a1cdbbf56a389bfcd399255be23f30e5721e3e519472fe8dde9c99/onnxruntime_gpu-1.26.0-cp311-cp311-win_amd64.whl"
+      },
+      "python": {
+        "sha256": "c3045115465bb4aa7d1ca6bfe6ce311ba157d726d768bbb3520fad2580831c3f",
+        "size": 25224082,
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261009/cpython-3.11.17%2B20261009-x86_64-pc-windows-msvc-install_only_stripped.tar.gz"
+      }
+    }
+  }
+}

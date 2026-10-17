@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import argparse
@@ -11,7 +9,6 @@ import tempfile
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
-
 
 TEX_TEMPLATE = r"""\documentclass[12pt]{article}
 \usepackage[utf8]{inputenc}
@@ -26,12 +23,20 @@ TEX_TEMPLATE = r"""\documentclass[12pt]{article}
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Measure LaTeX render success for formula OCR results.")
+    parser = argparse.ArgumentParser(
+        description="Measure LaTeX render success for formula OCR results."
+    )
     parser.add_argument("--results", required=True, help="MathCraft JSONL result file.")
-    parser.add_argument("--manifest", required=True, help="Formula manifest JSONL file.")
+    parser.add_argument(
+        "--manifest", required=True, help="Formula manifest JSONL file."
+    )
     parser.add_argument("--output-dir", required=True, help="Output directory.")
     parser.add_argument("--limit", type=int, default=0, help="Optional row limit.")
-    parser.add_argument("--force", action="store_true", help="Recompute rows already present in the CSV.")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Recompute rows already present in the CSV.",
+    )
     args = parser.parse_args(argv)
 
     pdflatex = shutil.which("pdflatex")
@@ -62,7 +67,9 @@ def main(argv: list[str] | None = None) -> int:
             prediction = str(result.get("text", ""))
             target = str(target_row.get("target_latex", ""))
             print(f"[render] {index}/{len(pending)} {sample_id}")
-            pred = render_latex(prediction, work_root / f"{sample_id}_pred", pdflatex=pdflatex)
+            pred = render_latex(
+                prediction, work_root / f"{sample_id}_pred", pdflatex=pdflatex
+            )
             gt = render_latex(target, work_root / f"{sample_id}_gt", pdflatex=pdflatex)
             rows.append(
                 {
@@ -157,15 +164,25 @@ def summary_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             {
                 "subset": subset,
                 "count": len(items),
-                "prediction_render_ok": sum(as_bool(item["prediction_render_ok"]) for item in items),
+                "prediction_render_ok": sum(
+                    as_bool(item["prediction_render_ok"]) for item in items
+                ),
                 "prediction_render_rate": rate(
                     sum(as_bool(item["prediction_render_ok"]) for item in items),
                     len(items),
                 ),
-                "target_render_ok": sum(as_bool(item["target_render_ok"]) for item in items),
-                "target_render_rate": rate(sum(as_bool(item["target_render_ok"]) for item in items), len(items)),
-                "both_render_ok": sum(as_bool(item["both_render_ok"]) for item in items),
-                "both_render_rate": rate(sum(as_bool(item["both_render_ok"]) for item in items), len(items)),
+                "target_render_ok": sum(
+                    as_bool(item["target_render_ok"]) for item in items
+                ),
+                "target_render_rate": rate(
+                    sum(as_bool(item["target_render_ok"]) for item in items), len(items)
+                ),
+                "both_render_ok": sum(
+                    as_bool(item["both_render_ok"]) for item in items
+                ),
+                "both_render_rate": rate(
+                    sum(as_bool(item["both_render_ok"]) for item in items), len(items)
+                ),
             }
         )
     return output

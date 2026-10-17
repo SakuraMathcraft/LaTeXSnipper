@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import pytest
@@ -40,12 +38,15 @@ def stub_mathjax_conversion(monkeypatch):
                 '<math xmlns="http://www.w3.org/1998/Math/MathML">'
                 "<msup><mi>x</mi><mn>2</mn></msup></math>"
             )
-        return {"mathml": mathml, "svg": '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0"/></svg>'}
+        return {
+            "mathml": mathml,
+            "svg": '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0"/></svg>',
+        }
 
     monkeypatch.setattr(formula_converters, "convert_latex_with_mathjax", convert)
 
 
-def test_mathjax_exports_mathlive_horizontal_strike() -> None:
+def test_mathjax_exports_horizontal_strike() -> None:
     mathml = latex_to_mathml(r"\enclose{horizontalstrike}{x+y}")
     assert '<menclose notation="horizontalstrike">' in mathml
 

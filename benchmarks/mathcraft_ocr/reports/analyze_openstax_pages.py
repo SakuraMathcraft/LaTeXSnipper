@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import argparse
@@ -12,7 +10,9 @@ from typing import Any
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Analyze MathCraft OCR page-level OpenStax results.")
+    parser = argparse.ArgumentParser(
+        description="Analyze MathCraft OCR page-level OpenStax results."
+    )
     parser.add_argument("--results", required=True)
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--output-dir", required=True)
@@ -20,7 +20,9 @@ def main(argv: list[str] | None = None) -> int:
 
     rows = _read_jsonl(Path(args.results))
     manifest = {str(row.get("id")): row for row in _read_jsonl(Path(args.manifest))}
-    metrics = [_page_metrics(row, manifest.get(str(row.get("sample_id")), {})) for row in rows]
+    metrics = [
+        _page_metrics(row, manifest.get(str(row.get("sample_id")), {})) for row in rows
+    ]
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -76,8 +78,12 @@ def _page_metrics(row: dict[str, Any], manifest_row: dict[str, Any]) -> dict[str
         "block_count": len(blocks),
         "text_block_count": len(text_blocks),
         "formula_block_count": len(formula_blocks),
-        "display_formula_count": sum(1 for block in formula_blocks if block.get("is_display")),
-        "inline_formula_count": sum(1 for block in formula_blocks if block.get("is_display") is False),
+        "display_formula_count": sum(
+            1 for block in formula_blocks if block.get("is_display")
+        ),
+        "inline_formula_count": sum(
+            1 for block in formula_blocks if block.get("is_display") is False
+        ),
         "low_score_blocks": flags.get("low_score", 0),
         "quality_flag_count": sum(flags.values()),
         "quality_flags": " ".join(sorted(flags)),
@@ -104,9 +110,15 @@ def _summary_rows(metrics: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "avg_latency_ms": round(mean(latencies), 3) if latencies else 0.0,
                 "median_latency_ms": round(median(latencies), 3) if latencies else 0.0,
                 "max_latency_ms": round(max(latencies), 3) if latencies else 0.0,
-                "avg_blocks": round(mean(float(item["block_count"]) for item in items), 3),
-                "avg_formula_blocks": round(mean(float(item["formula_block_count"]) for item in items), 3),
-                "avg_low_score_blocks": round(mean(float(item["low_score_blocks"]) for item in items), 3),
+                "avg_blocks": round(
+                    mean(float(item["block_count"]) for item in items), 3
+                ),
+                "avg_formula_blocks": round(
+                    mean(float(item["formula_block_count"]) for item in items), 3
+                ),
+                "avg_low_score_blocks": round(
+                    mean(float(item["low_score_blocks"]) for item in items), 3
+                ),
             }
         )
     return rows

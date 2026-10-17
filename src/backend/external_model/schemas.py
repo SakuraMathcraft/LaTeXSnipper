@@ -3,7 +3,6 @@ from dataclasses import dataclass
 
 from runtime.secret_store import decrypt_secret, encrypt_secret
 
-
 DEFAULT_CONFIG = {
     "external_model_provider": "ollama",
     "external_model_base_url": "http://127.0.0.1:11434",
@@ -106,6 +105,7 @@ class ExternalModelConfig:
             "external_model_mineru_test_endpoint": self.normalized_mineru_test_endpoint(),
         }
 
+
 @dataclass(slots=True)
 class ExternalModelResult:
     text: str = ""
@@ -121,7 +121,9 @@ class ExternalModelResult:
         text = str(value or "").strip("\n")
         if not text.startswith("```"):
             return text
-        match = re.fullmatch(r"```[ \t]*([A-Za-z0-9_+-]*)[ \t]*\n?(.*?)\n?```", text, flags=re.DOTALL)
+        match = re.fullmatch(
+            r"```[ \t]*([A-Za-z0-9_+-]*)[ \t]*\n?(.*?)\n?```", text, flags=re.DOTALL
+        )
         if not match:
             return text
         inner = (match.group(2) or "").strip("\n")
@@ -148,7 +150,7 @@ class ExternalModelResult:
         pairs = (("$$", "$$"), (r"\[", r"\]"), (r"\(", r"\)"))
         for left, right in pairs:
             if text.startswith(left) and text.endswith(right):
-                inner = text[len(left): len(text) - len(right)].strip()
+                inner = text[len(left) : len(text) - len(right)].strip()
                 has_nested_delimiter = left in inner or right in inner
                 if inner and not has_nested_delimiter:
                     return inner
@@ -157,24 +159,45 @@ class ExternalModelResult:
     def best_text(self, output_mode: str) -> str:
         mode = output_mode.strip().lower()
         if mode == "latex":
-            return self._normalize_latex_text(self.latex or self.markdown or self.text or "")
+            return self._normalize_latex_text(
+                self.latex or self.markdown or self.text or ""
+            )
         if mode == "markdown":
-            return self._normalize_common_text(self.markdown or self.text or self.latex or "")
+            return self._normalize_common_text(
+                self.markdown or self.text or self.latex or ""
+            )
         if mode == "text":
-            return self._normalize_common_text(self.text or self.markdown or self.latex or "")
+            return self._normalize_common_text(
+                self.text or self.markdown or self.latex or ""
+            )
         raise ValueError(f"Unsupported external output mode: {output_mode!r}")
 
 
 def load_config_from_mapping(mapping) -> ExternalModelConfig:
     return ExternalModelConfig(
         provider=str(get_config_value(mapping, "external_model_provider") or "ollama"),
-        base_url=str(get_config_value(mapping, "external_model_base_url") or "http://127.0.0.1:11434"),
+        base_url=str(
+            get_config_value(mapping, "external_model_base_url")
+            or "http://127.0.0.1:11434"
+        ),
         model_name=str(get_config_value(mapping, "external_model_model_name") or ""),
-        api_key=decrypt_secret(str(get_config_value(mapping, "external_model_api_key_enc") or "")),
+        api_key=decrypt_secret(
+            str(get_config_value(mapping, "external_model_api_key_enc") or "")
+        ),
         timeout_sec=int(get_config_value(mapping, "external_model_timeout_sec") or 60),
-        prompt_template=str(get_config_value(mapping, "external_model_prompt_template") or "ocr_formula_v1"),
-        custom_prompt=str(get_config_value(mapping, "external_model_custom_prompt") or ""),
+        prompt_template=str(
+            get_config_value(mapping, "external_model_prompt_template")
+            or "ocr_formula_v1"
+        ),
+        custom_prompt=str(
+            get_config_value(mapping, "external_model_custom_prompt") or ""
+        ),
         preset=str(get_config_value(mapping, "external_model_preset") or ""),
-        mineru_endpoint=str(get_config_value(mapping, "external_model_mineru_endpoint") or "/file_parse"),
-        mineru_test_endpoint=str(get_config_value(mapping, "external_model_mineru_test_endpoint") or "/health"),
+        mineru_endpoint=str(
+            get_config_value(mapping, "external_model_mineru_endpoint") or "/file_parse"
+        ),
+        mineru_test_endpoint=str(
+            get_config_value(mapping, "external_model_mineru_test_endpoint")
+            or "/health"
+        ),
     )

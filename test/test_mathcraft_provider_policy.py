@@ -1,11 +1,7 @@
 # pyright: reportMissingImports=false
 
-import json
-import os
-import tempfile
 import unittest
 from unittest import mock
-from pathlib import Path
 
 
 class TestMathcraftProviderPolicy(unittest.TestCase):
@@ -70,34 +66,3 @@ class TestMathcraftProviderPolicy(unittest.TestCase):
         self.assertEqual(info.active_provider, "CPUExecutionProvider")
         self.assertEqual(info.device, "cpu")
         self.assertFalse(info.gpu_requested)
-
-    def test_mathcraft_provider_prefers_installed_gpu_layer(self):
-        from backend.mathcraft.model import _infer_provider_preference_from_deps_state
-        from mathcraft_ocr.providers import GPU_PROVIDER_NAMES
-
-        self.assertEqual(GPU_PROVIDER_NAMES[0], "CUDAExecutionProvider")
-        with tempfile.TemporaryDirectory() as d:
-            root = Path(d)
-            pyexe = root / "python" / "python.exe"
-            pyexe.parent.mkdir()
-            pyexe.write_text("", encoding="utf-8")
-            (root / ".deps_state.json").write_text(
-                json.dumps({"installed_layers": ["BASIC", "CORE", "MATHCRAFT_GPU"]}),
-                encoding="utf-8",
-            )
-            self.assertEqual(
-                _infer_provider_preference_from_deps_state(str(pyexe)), "gpu"
-            )
-
-    def test_explicit_mathcraft_provider_env_wins(self):
-        from backend.mathcraft.model import resolve_mathcraft_provider_preference
-
-        old = os.environ.get("MATHCRAFT_PROVIDER")
-        os.environ["MATHCRAFT_PROVIDER"] = "cpu"
-        try:
-            self.assertEqual(resolve_mathcraft_provider_preference(), "cpu")
-        finally:
-            if old is None:
-                os.environ.pop("MATHCRAFT_PROVIDER", None)
-            else:
-                os.environ["MATHCRAFT_PROVIDER"] = old

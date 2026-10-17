@@ -13,7 +13,7 @@ class SettingsThemeMixin:
             return bool(isDarkTheme())
         except Exception:
             pal = self.palette().window().color()
-            return ((pal.red() + pal.green() + pal.blue()) / 3.0) < 128
+            return (pal.red() + pal.green() + pal.blue()) / 3.0 < 128
 
     def _normalize_theme_mode(self, value: str | None) -> str:
         mode = str(value or "auto").strip().lower()
@@ -22,10 +22,9 @@ class SettingsThemeMixin:
     def _init_theme_mode_combo(self):
         mode = "auto"
         try:
-            if self.parent() and hasattr(self.parent(), "cfg"):
-                mode = self._normalize_theme_mode(
-                    self.parent().cfg.get("theme_mode", "auto")
-                )
+            mode = self._normalize_theme_mode(
+                self.context.cfg.get("theme_mode", "auto")
+            )
         except Exception:
             mode = "auto"
         try:
@@ -42,13 +41,11 @@ class SettingsThemeMixin:
             value = self.theme_mode_combo.itemData(index)
             mode = self._normalize_theme_mode(value)
         try:
-            if self.parent() and hasattr(self.parent(), "cfg"):
-                self.parent().cfg.set("theme_mode", mode)
+            self.context.cfg.set("theme_mode", mode)
         except Exception:
             pass
         try:
-            if self.parent() and hasattr(self.parent(), "apply_app_theme_mode"):
-                self.parent().apply_app_theme_mode(mode, refresh_preview=True)
+            self.context.theme.apply_mode(mode, refresh_preview=True)
         except Exception:
             pass
         mapping = {"light": tr("浅色"), "dark": tr("深色"), "auto": tr("跟随系统")}
@@ -61,10 +58,9 @@ class SettingsThemeMixin:
     def _init_ui_language_combo(self) -> None:
         language = "auto"
         try:
-            if self.parent() and hasattr(self.parent(), "cfg"):
-                language = normalize_ui_language(
-                    self.parent().cfg.get("ui_language", "auto")
-                )
+            language = normalize_ui_language(
+                self.context.cfg.get("ui_language", "auto")
+            )
         except Exception:
             language = "auto"
         try:
@@ -80,14 +76,11 @@ class SettingsThemeMixin:
         if index >= 0:
             language = normalize_ui_language(self.ui_language_combo.itemData(index))
         try:
-            if self.parent() and hasattr(self.parent(), "cfg"):
-                self.parent().cfg.set("ui_language", language)
+            self.context.cfg.set("ui_language", language)
         except Exception:
             pass
         self._show_info(
-            tr("界面语言已保存"),
-            tr("重新启动 LaTeXSnipper 后生效。"),
-            "info",
+            tr("界面语言已保存"), tr("重新启动 LaTeXSnipper 后生效。"), "info"
         )
 
     def _theme_tokens(self) -> dict:
@@ -149,10 +142,6 @@ class SettingsThemeMixin:
         if hasattr(self, "lbl_model_desc") and self.lbl_model_desc is not None:
             self.lbl_model_desc.setStyleSheet(
                 f"color: {t['muted']}; font-size: 11px; padding: 4px;"
-            )
-        if hasattr(self, "lbl_latex_desc") and self.lbl_latex_desc is not None:
-            self.lbl_latex_desc.setStyleSheet(
-                f"color: {t['muted']}; font-size: 10px; padding: 4px;"
             )
         if hasattr(self, "lbl_compute_mode") and self.lbl_compute_mode is not None:
             self.lbl_compute_mode.setStyleSheet(

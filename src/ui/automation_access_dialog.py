@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from localization.manager import mark_for_translation, translate as tr
-
-from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QApplication,
     QDialog,
@@ -36,7 +34,9 @@ from integration.automation import (
     AutomationApiSettings,
     AutomationApiSettingsError,
 )
-from ui.automation_api_controller import (
+from localization.manager import mark_for_translation
+from localization.manager import translate as tr
+from ui.controllers.automation_api import (
     AUTOMATION_API_ACCESS_SCOPE_KEY,
     AUTOMATION_API_ALLOWED_ORIGINS_KEY,
     AUTOMATION_API_BIND_ADDRESS_KEY,
@@ -51,7 +51,6 @@ from ui.automation_api_controller import (
 )
 from ui.settings_dialog_helpers import _select_open_file_with_icon
 from ui.window_helpers import apply_no_minimize_window_flags
-
 
 _AUTOMATION_SETTINGS_ERROR_MESSAGES = frozenset(
     (
@@ -68,10 +67,11 @@ _AUTOMATION_SETTINGS_ERROR_MESSAGES = frozenset(
 
 
 class AutomationAccessDialog(QDialog):
-    def __init__(self, window, parent=None) -> None:
+    def __init__(self, config, controller, parent=None, *, on_saved=None) -> None:
         super().__init__(parent)
-        self._window = window
-        self._cfg = window.cfg
+        self._controller = controller
+        self._cfg = config
+        self._on_saved = on_saved
         self.setWindowTitle(tr("自动化接口"))
         self.resize(500, 480)
         self.setMinimumWidth(500)
@@ -306,7 +306,7 @@ class AutomationAccessDialog(QDialog):
         self.remote_ack.setChecked(
             bool(self._cfg.get(AUTOMATION_API_REMOTE_WARNING_ACKNOWLEDGED_KEY, False))
         )
-        self.status.setText(self._window.automation_api.automation_api_status_text())
+        self.status.setText(self._controller.automation_api_status_text())
         self._sync_visibility()
 
     def _sync_visibility(self, *_args) -> None:
@@ -343,7 +343,7 @@ class AutomationAccessDialog(QDialog):
         )
 
     def _notify_parent(self, title: str, content: str, level: str) -> None:
-        notify = getattr(self.parent(), "_show_info", None)
+        notify = self._on_saved
         if callable(notify):
             notify(title, content, level)
         else:
@@ -402,7 +402,7 @@ class AutomationAccessDialog(QDialog):
         try:
             AutomationApiSettings(
                 host=str(values[AUTOMATION_API_BIND_ADDRESS_KEY]),
-                port=int(values[AUTOMATION_API_PORT_KEY]),
+                port=self.port.value(),
                 access_scope=str(values[AUTOMATION_API_ACCESS_SCOPE_KEY]),
                 remote_security=str(values[AUTOMATION_API_REMOTE_SECURITY_KEY]),
                 remote_key=str(values[AUTOMATION_API_REMOTE_KEY]),
@@ -433,9 +433,7 @@ class AutomationAccessDialog(QDialog):
         def done(ok: bool, message: str) -> None:
             self.save_button.setEnabled(True)
             self.save_button.setText(tr("保存"))
-            self.status.setText(
-                self._window.automation_api.automation_api_status_text()
-            )
+            self.status.setText(self._controller.automation_api_status_text())
             if not ok:
                 self._show_info(tr("自动化接口启动失败"), message, "error")
                 return
@@ -445,9 +443,7 @@ class AutomationAccessDialog(QDialog):
             self.accept()
 
         try:
-            self._window.automation_api.update_automation_api_settings_async(
-                values, done
-            )
+            self._controller.update_automation_api_settings_async(values, done)
         except Exception:
             self.save_button.setEnabled(True)
             self.save_button.setText(tr("保存"))

@@ -6,50 +6,31 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from PyQt6.QtCore import QCoreApplication, Qt
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
-from localization.manager import install_application_translators, translate as tr
-from preview.math_preview import configure_math_preview_runtime
-from runtime.app_paths import resource_path
-from runtime.runtime_logging import start_runtime_log_session
+from localization.manager import install_application_translators
+from localization.manager import translate as tr
+from runtime.app_paths import get_app_root, resource_path
 from runtime.native_runtime import configure_native_runtime_environment
-from application.python_runtime_resolver import (
-    APP_DIR,
-    _append_private_site_packages,
-    _clean_bad_env,
-    _find_install_base_python,
-    _in_ide,
-    _initial_deps_dir,
-    _is_packaged_mode,
-    _relaunch_with,
-    _same_exe,
-    _sanitize_sys_path,
-    ensure_full_python_or_prompt,
-    resolve_install_base_dir,
-)
+from runtime.runtime_logging import start_runtime_log_session
 from runtime.single_instance import (
     ensure_single_instance,
     release_single_instance_lock,
 )
-from application.dependency_controller import ensure_deps
-from ui.startup_splash import (
-    ensure_startup_splash,
-    hide_startup_splash_for_modal,
-    mark_startup_force_entered,
-)
 from runtime.webengine_runtime import configure_default_webengine_profile
+from ui.startup_splash import ensure_startup_splash
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 @dataclass(frozen=True)
 class BootstrapContext:
     app: QApplication
     app_dir: Path
-    base_dir: Path
-    deps_dir: Path
-    target_python: str
 
 
 _BOOTSTRAP_CONTEXT: BootstrapContext | None = None
@@ -60,7 +41,9 @@ def _ensure_qt_application() -> QApplication:
         QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
     except Exception:
         pass
-    return QApplication.instance() or QApplication(sys.argv)
+    return cast("QApplication | None", QApplication.instance()) or QApplication(
+        sys.argv
+    )
 
 
 def _show_already_running_message(app: QApplication) -> None:
@@ -79,7 +62,7 @@ def _show_already_running_message(app: QApplication) -> None:
             msg.setWindowIcon(icon)
         msg.exec()
     except Exception:
-        print("[INFO] 检测到已有实例，本次启动已取消")
+        logger.info("检测到已有实例，本次启动已取消")
 
 
 def _ensure_single_instance(app: QApplication) -> None:
@@ -98,89 +81,6 @@ def _ensure_src_path() -> None:
         sys.path.insert(0, src_dir)
 
 
-def _prepare_python_runtime(install_base_dir: Path) -> tuple[Path, str]:
-    base_dir = Path(install_base_dir)
-    _clean_bad_env()
-
-    ensure_startup_splash(tr("准备运行环境..."))
-    target_py = ensure_full_python_or_prompt(base_dir)
-    if not target_py:
-        print("[ERR] 未找到可用的完整依赖环境 Python。")
-        raise SystemExit(2)
-
-    os.environ["LATEXSNIPPER_PYEXE"] = target_py
-    os.environ["LATEXSNIPPER_INSTALL_BASE_DIR"] = str(base_dir)
-    os.environ.setdefault("PYTHONNOUSERSITE", "1" if os.name == "nt" else "0")
-    os.environ.pop("PYTHONHOME", None)
-    os.environ.pop("PYTHONPATH", None)
-    os.environ.pop("MATHCRAFT_HOME", None)
-
-    if not _in_ide() and not _is_packaged_mode():
-        if not _same_exe(sys.executable, target_py):
-            _relaunch_with(target_py)
-    elif _in_ide():
-        logging.getLogger(__name__).debug("IDE 中运行，保持当前解释器并使用私有依赖路径")
-
-    return base_dir, target_py
-
-
-def _prepare_python_runtime_for_dependency_management(
-    install_base_dir: Path,
-) -> tuple[Path, str]:
-    """Prepare only the runtime state needed for dependency management."""
-    base_dir = Path(install_base_dir)
-    _clean_bad_env()
-
-    py_exe_path = _find_install_base_python(base_dir)
-    target_py = (
-        str(py_exe_path)
-        if py_exe_path is not None and py_exe_path.exists()
-        else sys.executable
-    )
-
-    os.environ["LATEXSNIPPER_PYEXE"] = target_py
-    os.environ["LATEXSNIPPER_INSTALL_BASE_DIR"] = str(base_dir)
-    os.environ.setdefault("PYTHONNOUSERSITE", "1" if os.name == "nt" else "0")
-    os.environ.pop("PYTHONHOME", None)
-    os.environ.pop("PYTHONPATH", None)
-    os.environ.pop("MATHCRAFT_HOME", None)
-
-    logging.getLogger(__name__).debug("依赖管理模式：等待用户选择后准备 Python 环境")
-    return base_dir, target_py
-
-
-def _bootstrap_dependencies(base_dir: Path, target_py: str) -> None:
-    if os.environ.get("LATEXSNIPPER_BOOTSTRAPPED") == "1":
-        return
-
-    _sanitize_sys_path(target_py, base_dir)
-    if _is_packaged_mode():
-        _append_private_site_packages(target_py)
-
-    open_dependency_management = (
-        os.environ.get("LATEXSNIPPER_OPEN_DEPENDENCY_MANAGEMENT", "") == "1"
-    )
-    if open_dependency_management:
-        logging.getLogger(__name__).debug("依赖管理模式：统一验证依赖")
-        return
-
-    ensure_startup_splash(tr("检查依赖..."))
-    try:
-        ok = ensure_deps(
-            prompt_ui=True,
-            always_show_ui=False,
-            require_layers=("BASIC", "CORE"),
-            deps_dir=str(base_dir),
-            before_show_ui=hide_startup_splash_for_modal,
-            after_force_enter=mark_startup_force_entered,
-        )
-        if not ok:
-            raise SystemExit(0)
-    except Exception as e:
-        print(f"[WARN] 依赖管理启动失败: {e}")
-        raise SystemExit(1) from e
-
-
 def bootstrap_application() -> BootstrapContext:
     global _BOOTSTRAP_CONTEXT
     if _BOOTSTRAP_CONTEXT is not None:
@@ -190,42 +90,10 @@ def bootstrap_application() -> BootstrapContext:
     app = _ensure_qt_application()
     install_application_translators(app)
     _ensure_single_instance(app)
-    ensure_startup_splash(tr("准备运行环境..."))
+    ensure_startup_splash(tr("加载界面组件..."))
     _ensure_src_path()
     configure_default_webengine_profile()
 
-    logging.getLogger(__name__).debug(f"应用根目录: {APP_DIR}")
-    logging.getLogger(__name__).debug(f"打包模式: {_is_packaged_mode()}")
-
-    deps_dir = _initial_deps_dir()
-    deps_dir.mkdir(parents=True, exist_ok=True)
-    logging.getLogger(__name__).debug(f"依赖目录: {deps_dir}")
-
-    install_base_dir = resolve_install_base_dir()
-    open_dependency_management = (
-        os.environ.get("LATEXSNIPPER_OPEN_DEPENDENCY_MANAGEMENT", "") == "1"
-    )
-    if _is_packaged_mode() and open_dependency_management:
-        base_dir, target_py = _prepare_python_runtime_for_dependency_management(
-            install_base_dir
-        )
-    else:
-        base_dir, target_py = _prepare_python_runtime(install_base_dir)
-    _bootstrap_dependencies(base_dir, target_py)
-
-    configure_math_preview_runtime(APP_DIR)
-    os.makedirs(base_dir, exist_ok=True)
-
-    for var in ("PYTHONHOME", "PYTHONPATH", "MATHCRAFT_HOME"):
-        if var in os.environ:
-            logging.getLogger(__name__).debug(f"清除环境变量 {var}")
-            os.environ.pop(var)
-
-    _BOOTSTRAP_CONTEXT = BootstrapContext(
-        app=app,
-        app_dir=Path(APP_DIR),
-        base_dir=base_dir,
-        deps_dir=base_dir,
-        target_python=target_py,
-    )
+    app_dir = get_app_root()
+    _BOOTSTRAP_CONTEXT = BootstrapContext(app=app, app_dir=app_dir)
     return _BOOTSTRAP_CONTEXT

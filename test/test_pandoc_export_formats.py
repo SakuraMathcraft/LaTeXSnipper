@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import io
@@ -107,11 +105,7 @@ def test_all_pandoc_export_formats_have_valid_sample_output() -> None:
     assert "EPUB/content.opf" in epub
     assert any(name.endswith((".xhtml", ".html")) for name in epub)
 
-    text = {
-        key: value
-        for key, value in results.items()
-        if isinstance(value, str)
-    }
+    text = {key: value for key, value in results.items() if isinstance(value, str)}
     assert "<html" in text["pandoc_html_standalone"].lower()
     assert "mathjax" in text["pandoc_html_standalone"].lower()
     assert "frac" in text["pandoc_plain"]
@@ -174,7 +168,7 @@ def test_real_world_mixed_problem_exports_are_structured() -> None:
         )
     )
     assert "word/document.xml" in docx
-    assert "受迫振动".encode("utf-8") in docx["word/document.xml"]
+    assert "受迫振动".encode() in docx["word/document.xml"]
     assert b"<m:oMath" in docx["word/document.xml"]
 
     pptx = _read_zip(
@@ -184,9 +178,11 @@ def test_real_world_mixed_problem_exports_are_structured() -> None:
             as_document=True,
         )
     )
-    slide_xml = b"\n".join(value for name, value in pptx.items() if name.startswith("ppt/slides/slide"))
-    assert "Mixed Math and Physics Problems".encode("utf-8") in slide_xml
-    assert "受迫振动".encode("utf-8") in slide_xml
+    slide_xml = b"\n".join(
+        value for name, value in pptx.items() if name.startswith("ppt/slides/slide")
+    )
+    assert b"Mixed Math and Physics Problems" in slide_xml
+    assert "受迫振动".encode() in slide_xml
 
     pdf = pandoc_exporter.convert_latex_to(
         "pandoc_pdf",

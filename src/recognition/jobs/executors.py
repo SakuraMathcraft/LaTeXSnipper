@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import asdict
-from typing import Any, Callable
+from typing import Any
 
 from backend.external_model.client import ExternalModelClient
 from backend.external_model.schemas import ExternalModelConfig
 from recognition.jobs.contracts import RecognitionJobError
-
 
 _MODE_PROMPTS = {
     "formula": "ocr_formula_v1",
@@ -28,8 +28,16 @@ class ExternalRecognitionExecutor:
         self._config_provider = config_provider
         self._predictor = predictor
 
-    def snapshot(self, mode: str, config: ExternalModelConfig | None = None) -> ExternalModelConfig:
-        source = config if config is not None else self._config_provider() if self._config_provider else None
+    def snapshot(
+        self, mode: str, config: ExternalModelConfig | None = None
+    ) -> ExternalModelConfig:
+        source = (
+            config
+            if config is not None
+            else self._config_provider()
+            if self._config_provider
+            else None
+        )
         if source is None:
             raise RecognitionJobError("backend_unavailable", "外部模型尚未配置。")
         snapshot = ExternalModelConfig(**asdict(source))

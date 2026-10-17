@@ -63,7 +63,7 @@ class StrokeStore:
     def _same_stroke_list(self, old: list[InkStroke], new: list[InkStroke]) -> bool:
         if len(old) != len(new):
             return False
-        return all(self._same_stroke(a, b) for a, b in zip(old, new))
+        return all(self._same_stroke(a, b) for a, b in zip(old, new, strict=False))
 
     def _same_stroke(self, a: InkStroke, b: InkStroke) -> bool:
         if abs(a.width - b.width) > 1e-6:
@@ -81,11 +81,15 @@ class StrokeStore:
                 return False
         return True
 
-    def _subtract_outline(self, stroke: InkStroke, cutter: QPainterPath) -> list[InkStroke]:
+    def _subtract_outline(
+        self, stroke: InkStroke, cutter: QPainterPath
+    ) -> list[InkStroke]:
         outline = stroke.outline_path
         if outline.isEmpty():
             return []
-        if not outline.intersects(cutter) and not cutter.contains(outline.boundingRect().center()):
+        if not outline.intersects(cutter) and not cutter.contains(
+            outline.boundingRect().center()
+        ):
             return [stroke.clone()]
         result = outline.subtracted(cutter).simplified()
         if result.isEmpty():
@@ -137,7 +141,7 @@ class StrokeStore:
             if len(poly) < 3:
                 continue
             area = 0.0
-            pts = list(poly)
+            pts = [poly.at(index) for index in range(poly.size())]
             for idx, p0 in enumerate(pts):
                 p1 = pts[(idx + 1) % len(pts)]
                 area += p0.x() * p1.y() - p1.x() * p0.y()
@@ -149,7 +153,7 @@ class StrokeStore:
         for poly in path.toFillPolygons():
             if len(poly) < 2:
                 continue
-            pts = list(poly)
+            pts = [poly.at(index) for index in range(poly.size())]
             for idx, p0 in enumerate(pts):
                 p1 = pts[(idx + 1) % len(pts)]
                 total += math.hypot(p1.x() - p0.x(), p1.y() - p0.y())
