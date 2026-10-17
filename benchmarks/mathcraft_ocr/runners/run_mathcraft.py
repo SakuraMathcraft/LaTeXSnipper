@@ -1,31 +1,39 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import sys
 import time
 import traceback
+from pathlib import Path
 from typing import Any
-
 
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from mathcraft_ocr.runtime import MathCraftRuntime  # noqa: E402
-from mathcraft_ocr.serialization import formula_result_to_json, mixed_result_to_json  # noqa: E402
+from mathcraft_ocr.serialization import (  # noqa: E402
+    formula_result_to_json,
+    mixed_result_to_json,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run MathCraft OCR benchmark manifests.")
+    parser = argparse.ArgumentParser(
+        description="Run MathCraft OCR benchmark manifests."
+    )
     parser.add_argument("--manifest", required=True, help="JSONL manifest path.")
     parser.add_argument("--output", required=True, help="JSONL result path.")
-    parser.add_argument("--provider", default="auto", help="MathCraft provider preference.")
-    parser.add_argument("--offset", type=int, default=0, help="Number of manifest rows to skip.")
-    parser.add_argument("--limit", type=int, default=0, help="Maximum rows to run. 0 means all rows.")
+    parser.add_argument(
+        "--provider", default="auto", help="MathCraft provider preference."
+    )
+    parser.add_argument(
+        "--offset", type=int, default=0, help="Number of manifest rows to skip."
+    )
+    parser.add_argument(
+        "--limit", type=int, default=0, help="Maximum rows to run. 0 means all rows."
+    )
     args = parser.parse_args(argv)
 
     manifest_path = Path(args.manifest)

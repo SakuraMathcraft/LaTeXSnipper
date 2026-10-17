@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
-from localization.manager import mark_for_translation
 from exporting.formula_format_helpers import (
     latex_display,
     latex_equation,
@@ -14,11 +13,14 @@ from exporting.formula_format_helpers import (
     mathml_with_prefix,
     normalize_latex_for_export,
 )
+from localization.manager import mark_for_translation
+
 
 # Lazy import for Pandoc availability check
 def _pandoc_available() -> bool:
     try:
         from exporting.pandoc_exporter import is_available
+
         return is_available()
     except Exception:
         return False
@@ -34,14 +36,10 @@ class ExportFormatSpec:
 EXPORT_FORMAT_SPECS: tuple[ExportFormatSpec, ...] = (
     ExportFormatSpec("latex", mark_for_translation("LaTeX (行内 $...$)")),
     ExportFormatSpec("latex_display", "LaTeX (display \\[...\\])"),
-    ExportFormatSpec(
-        "latex_equation", mark_for_translation("LaTeX (equation 编号)")
-    ),
+    ExportFormatSpec("latex_equation", mark_for_translation("LaTeX (equation 编号)")),
     ExportFormatSpec("", separator_before=True),
     ExportFormatSpec("markdown_inline", mark_for_translation("Markdown (行内 $...$)")),
-    ExportFormatSpec(
-        "markdown_block", mark_for_translation("Markdown (块级 $$...$$)")
-    ),
+    ExportFormatSpec("markdown_block", mark_for_translation("Markdown (块级 $$...$$)")),
     ExportFormatSpec("", separator_before=True),
     ExportFormatSpec("mathml", "MathML"),
     ExportFormatSpec("mathml_mml", "MathML (.mml)"),
@@ -53,12 +51,14 @@ EXPORT_FORMAT_SPECS: tuple[ExportFormatSpec, ...] = (
     ExportFormatSpec("svgcode", "SVG Code"),
 )
 
+
 # Pandoc formats are added dynamically when Pandoc is available
 def _get_pandoc_format_specs() -> tuple[ExportFormatSpec, ...]:
     """Return Pandoc format specs if Pandoc is available."""
     if not _pandoc_available():
         return ()
     from exporting.pandoc_exporter import PANDOC_FORMATS
+
     specs = [ExportFormatSpec("", separator_before=True)]
     specs.append(
         ExportFormatSpec("_pandoc_header", mark_for_translation("── Pandoc 导出 ──"))
@@ -66,6 +66,7 @@ def _get_pandoc_format_specs() -> tuple[ExportFormatSpec, ...]:
     for fmt in PANDOC_FORMATS:
         specs.append(ExportFormatSpec(fmt.key, fmt.label))
     return tuple(specs)
+
 
 FORMAT_DISPLAY_NAMES = {
     "latex": mark_for_translation("LaTeX (行内)"),
@@ -131,15 +132,23 @@ def build_formula_export(
     if fmt == "markdown_block":
         return f"$$\n{clean}\n$$", FORMAT_DISPLAY_NAMES[fmt]
     if fmt == "html":
-        return mathml_to_html_fragment(mathml_converter(clean)), FORMAT_DISPLAY_NAMES[fmt]
+        return mathml_to_html_fragment(mathml_converter(clean)), FORMAT_DISPLAY_NAMES[
+            fmt
+        ]
     if fmt == "mathml":
         return mathml_converter(clean), FORMAT_DISPLAY_NAMES[fmt]
     if fmt == "mathml_mml":
-        return mathml_with_prefix(mathml_converter(clean), "mml"), FORMAT_DISPLAY_NAMES[fmt]
+        return mathml_with_prefix(mathml_converter(clean), "mml"), FORMAT_DISPLAY_NAMES[
+            fmt
+        ]
     if fmt == "mathml_m":
-        return mathml_with_prefix(mathml_converter(clean), "m"), FORMAT_DISPLAY_NAMES[fmt]
+        return mathml_with_prefix(mathml_converter(clean), "m"), FORMAT_DISPLAY_NAMES[
+            fmt
+        ]
     if fmt == "mathml_attr":
-        return mathml_with_prefix(mathml_converter(clean), "attr"), FORMAT_DISPLAY_NAMES[fmt]
+        return mathml_with_prefix(
+            mathml_converter(clean), "attr"
+        ), FORMAT_DISPLAY_NAMES[fmt]
     if fmt == "omml":
         return omml_converter(clean), FORMAT_DISPLAY_NAMES[fmt]
     if fmt == "svgcode":

@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from capture.overlay import ScreenCaptureOverlay
 
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
@@ -49,58 +53,46 @@ class ApplicationMenuHandlers:
 
 class IHotkeyProvider(Protocol):
     @property
-    def activated(self):
-        ...
+    def activated(self): ...
 
-    def register(self, seq: str) -> None:
-        ...
+    def register(self, seq: str) -> None: ...
 
-    def is_registered(self) -> bool:
-        ...
+    def is_registered(self) -> bool: ...
 
-    def cleanup(self) -> None:
-        ...
+    def cleanup(self) -> None: ...
 
 
 class IScreenshotProvider(Protocol):
-    def request_permission(self) -> PermissionResult:
-        ...
+    def request_permission(self) -> PermissionResult: ...
 
-    def create_overlay(self, cfg: ScreenshotConfig):
-        ...
+    def create_overlay(self, cfg: ScreenshotConfig) -> ScreenCaptureOverlay: ...
 
 
 class ISystemProvider(Protocol):
-    def create_tray(self, icon: QIcon, parent=None) -> QSystemTrayIcon:
-        ...
+    def create_tray(self, icon: QIcon, parent=None) -> QSystemTrayIcon: ...
 
-    def set_tray_tooltip(self, tray: QSystemTrayIcon, text: str) -> None:
-        ...
+    def set_tray_tooltip(self, tray: QSystemTrayIcon, text: str) -> None: ...
 
     def update_tray_menu(
         self,
         tray: QSystemTrayIcon,
         hotkey: str,
         handlers: TrayMenuHandlers,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def show_notification(
         self,
-        tray: QSystemTrayIcon,
+        tray: QSystemTrayIcon | None,
         title: str,
         text: str,
         critical: bool = False,
         timeout_ms: int = 2500,
-    ) -> None:
-        ...
+    ) -> None: ...
 
-    def activate_window(self, window) -> None:
-        ...
+    def activate_window(self, window) -> None: ...
 
     def install_application_menu(
         self,
         window,
         handlers: ApplicationMenuHandlers,
-    ) -> None:
-        ...
+    ) -> None: ...

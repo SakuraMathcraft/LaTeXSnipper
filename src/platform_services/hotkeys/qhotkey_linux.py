@@ -7,9 +7,8 @@ compositor-specific protocols. Falls back gracefully on failure.
 from __future__ import annotations
 
 import logging
-from typing import Optional, Union
 
-from PyQt6.QtCore import QObject, pyqtSignal, Qt
+from PyQt6.QtCore import QObject, Qt, pyqtSignal
 from PyQt6.QtGui import QKeySequence
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
@@ -25,7 +24,7 @@ class LinuxHotkey(QObject):
 
     activated = pyqtSignal()
 
-# Qt modifier to pynput key mapping
+    # Qt modifier to pynput key mapping
     _MOD_MAP = {
         Qt.KeyboardModifier.ControlModifier: "ctrl",
         Qt.KeyboardModifier.ShiftModifier: "shift",
@@ -35,13 +34,16 @@ class LinuxHotkey(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._seq_obj: Optional[QKeySequence] = None
-        self._seq_str: Optional[str] = None
+        self._seq_obj: QKeySequence | None = None
+        self._seq_str: str | None = None
         self._registered = False
         self._listener = None
         self._pynput_available = False
         try:
-            from pynput import keyboard as _pynput_keyboard  # type: ignore[reportMissingModuleSource]
+            from pynput import (  # pyright: ignore[reportMissingModuleSource]
+                keyboard as _pynput_keyboard,  # pyright: ignore[reportMissingModuleSource]
+            )
+
             self._pynput_keyboard = _pynput_keyboard
             self._pynput_available = True
         except ImportError as e:
@@ -103,7 +105,7 @@ class LinuxHotkey(QObject):
         """Return the GlobalHotKeys combo syntax, e.g. '<ctrl>+<shift>+f'."""
         return "+".join([*(f"<{mod}>" for mod in sorted(mods)), key])
 
-    def register(self, seq: Union[QKeySequence, str, None] = None) -> None:
+    def register(self, seq: QKeySequence | str | None = None) -> None:
         if seq is not None:
             if isinstance(seq, str):
                 seq = QKeySequence(seq)
@@ -121,12 +123,12 @@ class LinuxHotkey(QObject):
         combo = self._pynput_combo(mods, key)
 
         try:
+
             def on_activate():
                 self.activated.emit()
 
-            self._listener = self._pynput_keyboard.GlobalHotKeys(
-                {combo: on_activate}
-            )
+            assert self._pynput_keyboard is not None
+            self._listener = self._pynput_keyboard.GlobalHotKeys({combo: on_activate})
             self._listener.start()
             self._registered = True
             logger.debug("全局快捷键已注册: combo=%s pynput", combo)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import queue
 import threading
 import time
+from typing import cast
 
 from PIL import Image
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
@@ -27,7 +28,7 @@ class PredictionWorker(QObject):
         self,
         coordinator: RecognitionJobCoordinator,
         image: Image.Image,
-        model_name: str,
+        model_name: str | None,
     ):
         super().__init__()
         self.image = image
@@ -41,7 +42,9 @@ class PredictionWorker(QObject):
         self._cancelled = True
         if self._job_id:
             try:
-                self.coordinator.cancel(self._job_id, principal_id="desktop-ui")
+                self.coordinator.cancel(
+                    cast(str, self._job_id), principal_id="desktop-ui"
+                )
             except Exception:
                 pass
 
@@ -56,7 +59,7 @@ class PredictionWorker(QObject):
                 "mathcraft": "formula",
                 "mathcraft_text": "text",
                 "mathcraft_mixed": "mixed",
-            }.get(self.model_name, "formula")
+            }.get(self.model_name or "", "formula")
             job = self.coordinator.submit(
                 [RecognitionItemInput(image=self.image)],
                 principal_id="desktop-ui",
@@ -66,7 +69,9 @@ class PredictionWorker(QObject):
             )
             self._job_id = job["id"]
             if self._cancelled:
-                self.coordinator.cancel(self._job_id, principal_id="desktop-ui")
+                self.coordinator.cancel(
+                    cast(str, self._job_id), principal_id="desktop-ui"
+                )
             job = self.coordinator.wait(
                 job["id"], principal_id="desktop-ui", timeout=None
             )
@@ -91,7 +96,10 @@ class PredictionWorker(QObject):
             self.failed.emit(str(exc))
 
     def _cancel_requested(self) -> bool:
-        return self._cancelled or QThread.currentThread().isInterruptionRequested()
+        return (
+            self._cancelled
+            or cast(QThread, QThread.currentThread()).isInterruptionRequested()
+        )
 
 
 class PdfPredictWorker(QObject):
@@ -123,7 +131,9 @@ class PdfPredictWorker(QObject):
         self._cancelled = True
         if self._job_id:
             try:
-                self.coordinator.cancel(self._job_id, principal_id="desktop-pdf")
+                self.coordinator.cancel(
+                    cast(str, self._job_id), principal_id="desktop-pdf"
+                )
             except Exception:
                 pass
 
@@ -218,7 +228,10 @@ class PdfPredictWorker(QObject):
         self.finished.emit(content.strip())
 
     def _cancel_requested(self) -> bool:
-        return self._cancelled or QThread.currentThread().isInterruptionRequested()
+        return (
+            self._cancelled
+            or cast(QThread, QThread.currentThread()).isInterruptionRequested()
+        )
 
     def _put_render_item(self, render_queue: queue.Queue, item) -> bool:
         while not self._cancelled:
@@ -240,7 +253,7 @@ class PdfPredictWorker(QObject):
                     break
                 page = render_doc.load_page(page_index)
                 pix = page.get_pixmap(dpi=self.dpi, alpha=False)
-                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
                 if not self._put_render_item(
                     render_queue,
                     (progress_index, page_index, img, [pix.width, pix.height]),
@@ -272,7 +285,7 @@ class PdfPredictWorker(QObject):
         )
         self._job_id = job["id"]
         if self._cancelled:
-            self.coordinator.cancel(self._job_id, principal_id="desktop-pdf")
+            self.coordinator.cancel(cast(str, self._job_id), principal_id="desktop-pdf")
         snapshot = self.coordinator.wait(
             job["id"], principal_id="desktop-pdf", timeout=None
         )

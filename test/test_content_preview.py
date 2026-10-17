@@ -2,9 +2,12 @@ import pytest
 
 from preview.content_preview import build_mixed_content_html
 from preview.math_preview import build_math_html
-from rendering.mathjax_runtime import ASSET_ROOT
 from preview.smart_preview import build_smart_preview_html
-from runtime.content_types import content_type_for_external_output, content_type_for_mathcraft
+from rendering.mathjax_runtime import ASSET_ROOT
+from runtime.content_types import (
+    content_type_for_external_output,
+    content_type_for_mathcraft,
+)
 
 
 def test_local_and_external_results_share_rendering_semantics():

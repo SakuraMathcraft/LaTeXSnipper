@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import argparse
@@ -12,11 +10,22 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Convert MathCraft formula results to the official CDM batch JSON format."
     )
-    parser.add_argument("--results", required=True, help="MathCraft formula result JSONL.")
+    parser.add_argument(
+        "--results", required=True, help="MathCraft formula result JSONL."
+    )
     parser.add_argument("--manifest", required=True, help="Formula manifest JSONL.")
     parser.add_argument("--output", required=True, help="Output CDM JSON file.")
-    parser.add_argument("--subset", default="all", help="Optional manifest tag filter. Use 'all' for every row.")
-    parser.add_argument("--limit", type=int, default=0, help="Optional maximum rows after subset filtering.")
+    parser.add_argument(
+        "--subset",
+        default="all",
+        help="Optional manifest tag filter. Use 'all' for every row.",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=0,
+        help="Optional maximum rows after subset filtering.",
+    )
     args = parser.parse_args(argv)
 
     manifest = read_manifest(Path(args.manifest))

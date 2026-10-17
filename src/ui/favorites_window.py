@@ -236,7 +236,7 @@ class FavoritesWindow(QMainWindow):
 
     def _edit_item(self, item, latex: str):
         """Edit formula content."""
-        dlg = EditFormulaDialog(latex, self)
+        dlg = EditFormulaDialog(latex, self, content_type=self._favorite_types[latex])
         if dlg.exec() == QDialog.DialogCode.Accepted:
             new = dlg.value()
             if new and new != latex:
@@ -323,7 +323,7 @@ class FavoritesWindow(QMainWindow):
     def load_favorites(self):
         if os.path.exists(self.file_path):
             try:
-                with open(self.file_path, "r", encoding="utf-8") as f:
+                with open(self.file_path, encoding="utf-8") as f:
                     data = json.load(f)
                 if isinstance(data, dict):
                     fav_list = data.get("favorites", [])
@@ -379,7 +379,9 @@ class FavoritesWindow(QMainWindow):
         self.refresh_list()
         self._set_status(tr("已清空收藏夹"))
 
-    def add_favorite(self, text: str, content_type: ContentType, name: str = None):
+    def add_favorite(
+        self, text: str, content_type: ContentType, name: str | None = None
+    ):
         """Add a favorite item."""
         t = (text or "").strip()
         if not t:

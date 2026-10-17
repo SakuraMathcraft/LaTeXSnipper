@@ -1,6 +1,5 @@
 from .schemas import ExternalModelConfig
 
-
 PROMPTS = {
     "ocr_formula_v1": (
         "Recognize the visible formula or math-heavy content in the image. "

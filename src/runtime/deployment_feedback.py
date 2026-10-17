@@ -2,43 +2,58 @@
 
 import logging
 import os
-from pathlib import Path
 import shutil
+from pathlib import Path
 
 from runtime.app_paths import app_cache_dir
 from runtime.distribution_manifest import ManifestError, read_json
 
-logger = logging.getLogger(f'latexsnipper.{__name__}')
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 def consume_deployment_result() -> tuple[dict, Path] | None:
-    value = os.environ.pop('LATEXSNIPPER_DEPLOYMENT_RESULT', None)
+    value = os.environ.pop("LATEXSNIPPER_DEPLOYMENT_RESULT", None)
     if value is None:
         return None
     path = Path(value)
     cache = app_cache_dir().resolve()
-    if path.is_symlink() or path.parent.is_symlink() or path.resolve().parent.parent != cache or path.name != 'deployment-result.json':
-        raise ManifestError('Deployment result must belong to the application task cache')
+    if (
+        path.is_symlink()
+        or path.parent.is_symlink()
+        or path.resolve().parent.parent != cache
+        or path.name != "deployment-result.json"
+    ):
+        raise ManifestError(
+            "Deployment result must belong to the application task cache"
+        )
     result = read_json(path)
-    if result.get('state') not in {'committed', 'rolled-back', 'failed'}:
-        raise ManifestError('Deployment did not report a final outcome')
-    logger.info('独立部署结果 state=%s error=%s', result['state'], result.get('error', ''))
+    if result.get("state") not in {"committed", "rolled-back", "failed"}:
+        raise ManifestError("Deployment did not report a final outcome")
+    logger.info(
+        "独立部署结果 state=%s error=%s", result["state"], result.get("error", "")
+    )
     return result, path.parent
 
 
 def cleanup_deployment_task(directory: Path) -> bool:
     cache = app_cache_dir().resolve()
     if directory.is_symlink() or directory.resolve().parent != cache:
-        raise ManifestError('Deployment cleanup escaped the task cache')
+        raise ManifestError("Deployment cleanup escaped the task cache")
     if not directory.exists():
         return True
-    request_path = directory / 'request.json'
-    request = read_json(request_path) if request_path.is_file() else {'recover': True}
+    request_path = directory / "request.json"
+    request: dict = (
+        read_json(request_path) if request_path.is_file() else {"recover": True}
+    )
     try:
-        if not request.get('recover'):
-            staging = Path(request['staged']).parent
-            if staging.is_symlink() or staging.resolve().parent != cache or not staging.name.startswith('component-update-'):
-                raise ManifestError('Deployment staging escaped the task cache')
+        if not request.get("recover"):
+            staging = Path(request["staged"]).parent
+            if (
+                staging.is_symlink()
+                or staging.resolve().parent != cache
+                or not staging.name.startswith("component-update-")
+            ):
+                raise ManifestError("Deployment staging escaped the task cache")
             if staging.exists():
                 shutil.rmtree(staging)
         shutil.rmtree(directory)

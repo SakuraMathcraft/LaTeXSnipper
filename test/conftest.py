@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from pathlib import Path
 import sys
 import warnings
+from pathlib import Path
 
 import pytest
 
@@ -17,7 +17,7 @@ for source_path in (ROOT, SRC):
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_configure(config) -> None:
-    if sys.platform != 'win32':
+    if sys.platform != "win32":
         return
 
     def quiet_inaccessible_pytest_garbage() -> None:
@@ -25,10 +25,10 @@ def pytest_configure(config) -> None:
         # cleanup and applies to the numbered-temp-dir callback at process exit.
         # Do not hide test warnings or other filesystem failures.
         warnings.filterwarnings(
-            'ignore',
+            "ignore",
             message=r"(?s)^\(rm_rf\) unknown function <built-in function scandir> when removing .*[/\\]garbage-[^\r\n]*:\s*<class 'PermissionError'>: \[WinError 5\].*",
             category=pytest.PytestWarning,
-            module=r'^_pytest\.pathlib$',
+            module=r"^_pytest\.pathlib$",
         )
 
     config.add_cleanup(quiet_inaccessible_pytest_garbage)

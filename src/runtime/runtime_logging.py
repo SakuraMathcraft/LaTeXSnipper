@@ -168,10 +168,14 @@ def init_app_logging() -> Path:
 
     has_file = any(
         isinstance(h, RotatingFileHandler)
-        and os.path.abspath(getattr(h, "baseFilename", "")) == os.path.abspath(str(log_path))
+        and os.path.abspath(getattr(h, "baseFilename", ""))
+        == os.path.abspath(str(log_path))
         for h in root.handlers
     )
-    has_stream = any(isinstance(h, logging.StreamHandler) and not isinstance(h, RotatingFileHandler) for h in root.handlers)
+    has_stream = any(
+        isinstance(h, logging.StreamHandler) and not isinstance(h, RotatingFileHandler)
+        for h in root.handlers
+    )
 
     fmt = logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s")
     startup_warning = None
@@ -196,14 +200,18 @@ def init_app_logging() -> Path:
                 startup_warning = f"app.log 被占用，已切换到 {active_log_path}: {e}"
             except Exception as fallback_error:
                 fh = None
-                startup_warning = f"无法初始化文件日志，继续仅使用控制台日志: {fallback_error}"
+                startup_warning = (
+                    f"无法初始化文件日志，继续仅使用控制台日志: {fallback_error}"
+                )
         if fh is not None:
             fh.setFormatter(fmt)
             fh.setLevel(logging.INFO)
             root.addHandler(fh)
     else:
         for h in root.handlers:
-            if isinstance(h, RotatingFileHandler) and os.path.abspath(getattr(h, "baseFilename", "")) == os.path.abspath(str(log_path)):
+            if isinstance(h, RotatingFileHandler) and os.path.abspath(
+                getattr(h, "baseFilename", "")
+            ) == os.path.abspath(str(log_path)):
                 h.setLevel(logging.INFO)
                 active_log_path = Path(getattr(h, "baseFilename", str(log_path)))
                 break
@@ -296,8 +304,16 @@ def hook_runtime_log_streams(tee: bool = True):
     _RUNTIME_LOG_FH_ERR = open(log_path, "a", encoding="utf-8", buffering=1)
     ensure_runtime_log_cleanup_hook()
 
-    base_out = sys.stdout if sys.stdout and not getattr(sys.stdout, "closed", False) else sys.__stdout__
-    base_err = sys.stderr if sys.stderr and not getattr(sys.stderr, "closed", False) else sys.__stderr__
+    base_out = (
+        sys.stdout
+        if sys.stdout and not getattr(sys.stdout, "closed", False)
+        else sys.__stdout__
+    )
+    base_err = (
+        sys.stderr
+        if sys.stderr and not getattr(sys.stderr, "closed", False)
+        else sys.__stderr__
+    )
     if isinstance(base_out, TeeWriter):
         base_out = base_out._original_a or sys.__stdout__
     if isinstance(base_err, TeeWriter):

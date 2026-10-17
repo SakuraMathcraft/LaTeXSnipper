@@ -118,7 +118,9 @@ class HistoryController(QObject):
 
     def _edit_history_row(self, row: QWidget):
         old_latex = getattr(row, "_latex_text", "")
-        dlg = EditFormulaDialog(old_latex, self.view)
+        dlg = EditFormulaDialog(
+            old_latex, self.view, content_type=self._formula_types[old_latex]
+        )
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         new_latex = dlg.value()
@@ -208,7 +210,7 @@ class HistoryController(QObject):
             self.status.show_action_status(tr("内容不存在"), level="warning")
             return
         self.windows.favorites_window.add_favorite(
-            txt, content_type=self._formula_types[txt]
+            txt, content_type=normalize_content_type(self._formula_types[txt])
         )
 
     def _do_delete_row(self, row):
@@ -230,7 +232,9 @@ class HistoryController(QObject):
                 label = f"#{idx}"
             else:
                 label = ""
-            self.preview.render_latex_in_preview(txt, self._formula_types[txt], label)
+            self.preview.render_latex_in_preview(
+                txt, normalize_content_type(self._formula_types[txt]), label
+            )
             self.status.set_action_status(tr("已加载到编辑器"))
 
     def create_history_row(

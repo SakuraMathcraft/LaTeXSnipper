@@ -514,7 +514,7 @@ class RecognitionResultController(QObject):
                 position=InfoBarPosition.TOP,
             )
         except Exception:
-            show_user_notice(tr("提示"), content, self.view)
+            show_user_notice(tr("提示"), content or "", self.view)
 
     def _is_user_cancelled_recognition_error(self, msg: str) -> bool:
         text = str(msg or "").strip().lower()

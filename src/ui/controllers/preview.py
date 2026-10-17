@@ -109,6 +109,7 @@ class PreviewController(QObject):
                 )
             except Exception:
                 pass
+
     def clear(self):
         """Clear all formulas from the preview area."""
         self._rendered_formulas = []

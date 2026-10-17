@@ -3,6 +3,16 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass
 
+from platform_services.linux_provider import (
+    LinuxHotkeyProvider,
+    LinuxScreenshotProvider,
+    LinuxSystemProvider,
+)
+from platform_services.macos_provider import (
+    MacOSHotkeyProvider,
+    MacOSScreenshotProvider,
+    MacOSSystemProvider,
+)
 from platform_services.protocols import (
     ApplicationMenuHandlers,
     IHotkeyProvider,
@@ -14,16 +24,6 @@ from platform_services.windows_provider import (
     WindowsHotkeyProvider,
     WindowsScreenshotProvider,
     WindowsSystemProvider,
-)
-from platform_services.linux_provider import (
-    LinuxHotkeyProvider,
-    LinuxScreenshotProvider,
-    LinuxSystemProvider,
-)
-from platform_services.macos_provider import (
-    MacOSHotkeyProvider,
-    MacOSScreenshotProvider,
-    MacOSSystemProvider,
 )
 
 

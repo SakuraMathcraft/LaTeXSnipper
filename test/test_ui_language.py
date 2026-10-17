@@ -15,7 +15,6 @@ from localization.language import (
 )
 from localization.manager import install_application_translators, translate
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 

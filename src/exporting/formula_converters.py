@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import copy
-from functools import lru_cache
 import os
+from functools import lru_cache
 from pathlib import Path
 
 from exporting.formula_format_helpers import (
@@ -32,9 +32,11 @@ def latex_to_omml(latex: str) -> str:
     export formats, not to the OMML export path.
     """
     latex = normalize_latex_for_export(latex)
-    from lxml import etree
+    import lxml.etree as etree
 
-    mathml = mathml_standardize(convert_latex_with_mathjax(latex, outputs=("mathml",))["mathml"])
+    mathml = mathml_standardize(
+        convert_latex_with_mathjax(latex, outputs=("mathml",))["mathml"]
+    )
     mathml_doc = etree.fromstring(mathml.encode("utf-8"))
     omml_doc = _cached_mml2omml_transform()(mathml_doc)
     result = etree.tostring(omml_doc, encoding="unicode")
@@ -45,8 +47,12 @@ def latex_to_omml(latex: str) -> str:
 
 def _find_mml2omml_xsl() -> Path | None:
     candidates = [
-        os.path.expandvars(r"%ProgramFiles%\Microsoft Office\root\Office16\MML2OMML.XSL"),
-        os.path.expandvars(r"%ProgramFiles(x86)%\Microsoft Office\root\Office16\MML2OMML.XSL"),
+        os.path.expandvars(
+            r"%ProgramFiles%\Microsoft Office\root\Office16\MML2OMML.XSL"
+        ),
+        os.path.expandvars(
+            r"%ProgramFiles(x86)%\Microsoft Office\root\Office16\MML2OMML.XSL"
+        ),
         os.path.expandvars(r"%ProgramFiles%\Microsoft Office\Office16\MML2OMML.XSL"),
         os.path.expandvars(r"%ProgramFiles%\Microsoft Office\Office19\MML2OMML.XSL"),
     ]
@@ -59,11 +65,13 @@ def _find_mml2omml_xsl() -> Path | None:
 
 @lru_cache(maxsize=1)
 def _cached_mml2omml_transform():
-    from lxml import etree
+    import lxml.etree as etree
 
     xsl_path = _find_mml2omml_xsl()
     if xsl_path is None:
-        raise RuntimeError("Microsoft MML2OMML.XSL was not found; cannot export real OMML")
+        raise RuntimeError(
+            "Microsoft MML2OMML.XSL was not found; cannot export real OMML"
+        )
     xsl_doc = etree.parse(str(xsl_path))
     return etree.XSLT(xsl_doc)
 
@@ -74,7 +82,7 @@ def _looks_like_omml(value: str) -> bool:
 
 
 def _repair_empty_nary_operands(omml: str) -> str:
-    from lxml import etree
+    import lxml.etree as etree
 
     ns = {"m": "http://schemas.openxmlformats.org/officeDocument/2006/math"}
     root = etree.fromstring(omml.encode("utf-8"))
@@ -91,7 +99,10 @@ def _repair_empty_nary_operands(omml: str) -> str:
         except ValueError:
             continue
         for candidate in siblings[nary_index + 1 :]:
-            if candidate.tag.endswith("}r") and "".join(candidate.itertext()).strip() == "":
+            if (
+                candidate.tag.endswith("}r")
+                and "".join(candidate.itertext()).strip() == ""
+            ):
                 continue
             body.append(copy.deepcopy(candidate))
             parent.remove(candidate)

@@ -3,11 +3,12 @@ from __future__ import annotations
 from PyQt6.QtCore import QRect, QSize, Qt
 from PyQt6.QtGui import QColor, QFontMetrics, QTextFormat, QWheelEvent
 from PyQt6.QtWidgets import QPlainTextEdit, QTextEdit, QWidget
+
 from ui.theme_tokens import is_dark_ui
 
 
 class _LineNumberArea(QWidget):
-    def __init__(self, editor: "SourceEditor", parent=None):
+    def __init__(self, editor: SourceEditor, parent=None):
         super().__init__(parent or editor)
         self.editor = editor
 
@@ -55,7 +56,9 @@ class SourceEditor(QPlainTextEdit):
             self._line_number_area.update(
                 0, rect.y(), self._line_number_area.width(), rect.height()
             )
-        if rect.contains(self.viewport().rect()):
+        viewport = self.viewport()
+        assert viewport is not None
+        if rect.contains(viewport.rect()):
             self._update_line_number_area_width(0)
 
     def resizeEvent(self, event) -> None:

@@ -1,6 +1,9 @@
 """Behavioral coverage for the shared native onboarding flow."""
 
-from PyQt6.QtCore import QPoint, pyqtSignal, Qt
+from types import SimpleNamespace
+
+import pytest
+from PyQt6.QtCore import QPoint, Qt, pyqtSignal
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import (
     QApplication,
@@ -10,8 +13,6 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-import pytest
-from types import SimpleNamespace
 
 from ui.controllers.onboarding import AUTO_SHOW_KEY, OnboardingController
 
@@ -198,7 +199,7 @@ def test_spotlights_align_with_nested_widgets_after_move_and_resize(host, origin
     host.onboarding.advance()
     QApplication.processEvents()
     surface = host.onboarding.surface
-    for widget, rect in zip(surface.targets, surface.target_rects()):
+    for widget, rect in zip(surface.targets, surface.target_rects(), strict=False):
         actual = surface.mapToGlobal(rect.topLeft().toPoint() + QPoint(5, 5))
         assert actual == widget.mapToGlobal(QPoint())
         assert rect.width() == widget.width() + 10
@@ -248,6 +249,7 @@ def test_window_destruction_does_not_access_deleted_qt_objects(
     qt_app, monkeypatch, with_auxiliary
 ):
     import sys
+
     from PyQt6 import sip
     from PyQt6.QtCore import QEvent
 

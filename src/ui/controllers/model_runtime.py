@@ -416,7 +416,7 @@ class ModelRuntimeController(QObject):
 
     def needs_models(self, model_name: str | None) -> bool:
         try:
-            from mathcraft_ocr.cache import inspect_model_roots
+            from mathcraft_ocr.cache import inspect_model_cache
             from mathcraft_ocr.profiles import PROFILE_MODEL_IDS
 
             profile = self._mathcraft_profile_for_model(model_name)
@@ -425,12 +425,11 @@ class ModelRuntimeController(QObject):
 
             resources = desktop_model_resources(installed_resources())
             manifest = resources.manifest
-            roots = resources.roots
             for model_id in PROFILE_MODEL_IDS.get(profile, ()):
                 spec = manifest.models.get(model_id)
                 if spec is None:
                     return True
-                if not inspect_model_roots(roots, spec).complete:
+                if not inspect_model_cache(resources.root, spec).complete:
                     return True
             return False
         except Exception:
@@ -450,9 +449,7 @@ class ModelRuntimeController(QObject):
         try:
             InfoBar.info(
                 title=tr("MathCraft OCR 正在预热"),
-                content=tr(
-                    "正在初始化模型；缺失或损坏的模型将自动修复，请稍候。"
-                ),
+                content=tr("正在初始化模型，请稍候。"),
                 parent=self.notification_parent(),
                 duration=5200,
                 position=InfoBarPosition.TOP,

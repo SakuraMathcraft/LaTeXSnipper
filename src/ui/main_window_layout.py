@@ -1,9 +1,11 @@
 """Construct main-window widgets without initializing application state."""
 
 import logging
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QScrollArea, QVBoxLayout, QWidget
 from qfluentwidgets import FluentIcon, PushButton
+
 from localization.manager import translate as tr
 from preview.math_preview import build_math_html, get_mathjax_base_url
 from runtime.webengine_runtime import ensure_webengine_loaded, get_webengine_view_class

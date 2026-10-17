@@ -16,27 +16,38 @@ import pytest
 from PIL import Image
 
 from backend.external_model.schemas import ExternalModelConfig
-from integration.automation import AutomationApiAuth, AutomationApiServer, AutomationApiSettings
-from integration.automation.multipart import parse_multipart_stream
+from integration.automation import (
+    AutomationApiAuth,
+    AutomationApiServer,
+    AutomationApiSettings,
+)
 from integration.automation.contracts import AutomationLimits
+from integration.automation.multipart import parse_multipart_stream
+from recognition.jobs import JobSource, RecognitionItemInput, RecognitionJobCoordinator
 from runtime.private_files import restrict_file_to_current_user
-from recognition.jobs import JobSource, RecognitionItemInput
-from recognition.jobs import RecognitionJobCoordinator
 from ui.controllers.automation_api import automation_api_operation_error_message
 
 
-def _request(server, method: str, path: str, *, body: bytes | None = None, headers=None):
+def _request(
+    server, method: str, path: str, *, body: bytes | None = None, headers=None
+):
     connection = http.client.HTTPConnection("127.0.0.1", server.port, timeout=3)
     final_headers = {"Host": f"127.0.0.1:{server.port}", **(headers or {})}
     connection.request(method, path, body=body, headers=final_headers)
     response = connection.getresponse()
     raw = response.read()
-    result = response.status, dict(response.getheaders()), json.loads(raw) if raw else None
+    result = (
+        response.status,
+        dict(response.getheaders()),
+        json.loads(raw) if raw else None,
+    )
     connection.close()
     return result
 
 
-def _multipart(fields: dict[str, str], images: list[tuple[str, bytes]]) -> tuple[bytes, str]:
+def _multipart(
+    fields: dict[str, str], images: list[tuple[str, bytes]]
+) -> tuple[bytes, str]:
     boundary = f"test-{uuid.uuid4().hex}"
     chunks: list[bytes] = []
     for name, value in fields.items():
@@ -114,7 +125,9 @@ def test_health_config_upload_query_and_connection_file(tmp_path: Path) -> None:
         assert status == 200 and config["api_version"] == "1"
         assert "token" not in json.dumps(config).lower()
 
-        body, content_type = _multipart({"mode": "mixed", "timeout": "10"}, [("wrong.txt", _png())])
+        body, content_type = _multipart(
+            {"mode": "mixed", "timeout": "10"}, [("wrong.txt", _png())]
+        )
         status, _, created = _request(
             server,
             "POST",
@@ -159,7 +172,9 @@ def test_health_config_upload_query_and_connection_file(tmp_path: Path) -> None:
     assert not connection_file.exists()
 
 
-def test_job_ownership_remote_next_result_and_cors_are_restricted(tmp_path: Path) -> None:
+def test_job_ownership_remote_next_result_and_cors_are_restricted(
+    tmp_path: Path,
+) -> None:
     coordinator = RecognitionJobCoordinator(
         lambda _image, _mode: "ok",
         external_config_provider=lambda: ExternalModelConfig(
@@ -186,7 +201,10 @@ def test_job_ownership_remote_next_result_and_cors_are_restricted(tmp_path: Path
             "POST",
             "/api/v1/recognition/jobs",
             body=next_result,
-            headers={"Authorization": "Bearer remote-secret", "Content-Type": "application/json"},
+            headers={
+                "Authorization": "Bearer remote-secret",
+                "Content-Type": "application/json",
+            },
         )
         assert status == 403 and error["error"]["code"] == "forbidden"
 
@@ -209,9 +227,15 @@ def test_job_ownership_remote_next_result_and_cors_are_restricted(tmp_path: Path
             server,
             "GET",
             "/api/v1/config",
-            headers={"Authorization": "Bearer local", "Origin": "https://allowed.example"},
+            headers={
+                "Authorization": "Bearer local",
+                "Origin": "https://allowed.example",
+            },
         )
-        assert status == 200 and headers["Access-Control-Allow-Origin"] == "https://allowed.example"
+        assert (
+            status == 200
+            and headers["Access-Control-Allow-Origin"] == "https://allowed.example"
+        )
         status, headers, _ = _request(
             server,
             "GET",
@@ -236,7 +260,9 @@ def test_http_connection_can_be_reused_with_bounded_keep_alive(tmp_path: Path) -
     connection = http.client.HTTPConnection("127.0.0.1", server.port, timeout=3)
     try:
         for _ in range(2):
-            connection.request("GET", "/api/v1/health", headers={"Host": f"127.0.0.1:{server.port}"})
+            connection.request(
+                "GET", "/api/v1/health", headers={"Host": f"127.0.0.1:{server.port}"}
+            )
             response = connection.getresponse()
             assert response.status == 200
             response.read()
@@ -274,7 +300,7 @@ def test_multipart_parser_reads_large_parts_in_bounded_chunks() -> None:
     try:
         assert len(parts) == 1 and parts[0].size == len(payload)
         assert source.largest_read <= 64 * 1024
-        assert getattr(parts[0].stream, "_rolled") is True
+        assert parts[0].stream._rolled is True
     finally:
         for part in parts:
             part.close()
@@ -306,7 +332,9 @@ def test_idempotent_submission_is_atomic_and_bounded(tmp_path: Path) -> None:
 
     results: list[dict] = []
     threads = [
-        threading.Thread(target=lambda: results.append(server.submit_idempotent("p", "same", submit)))
+        threading.Thread(
+            target=lambda: results.append(server.submit_idempotent("p", "same", submit))
+        )
         for _ in range(8)
     ]
     try:
@@ -323,7 +351,9 @@ def test_idempotent_submission_is_atomic_and_bounded(tmp_path: Path) -> None:
         coordinator.stop()
 
 
-def test_tunnel_mode_requires_the_address_to_belong_to_a_tunnel_interface(monkeypatch) -> None:
+def test_tunnel_mode_requires_the_address_to_belong_to_a_tunnel_interface(
+    monkeypatch,
+) -> None:
     address = types.SimpleNamespace(family=2, address="100.100.100.100")
     monkeypatch.setitem(
         sys.modules,
@@ -357,7 +387,9 @@ def test_tunnel_mode_requires_the_address_to_belong_to_a_tunnel_interface(monkey
         ).validate()
 
 
-def test_concurrent_uploads_decode_one_request_at_a_time(tmp_path: Path, monkeypatch) -> None:
+def test_concurrent_uploads_decode_one_request_at_a_time(
+    tmp_path: Path, monkeypatch
+) -> None:
     import integration.automation.server as server_module
 
     active = 0
@@ -428,7 +460,9 @@ def test_remote_submission_rate_limit_returns_stable_error(tmp_path: Path) -> No
         statuses = []
         errors = []
         for _ in range(2):
-            body, content_type = _multipart({"mode": "formula"}, [("input.png", _png())])
+            body, content_type = _multipart(
+                {"mode": "formula"}, [("input.png", _png())]
+            )
             status, _, result = _request(
                 server,
                 "POST",
@@ -449,7 +483,9 @@ def test_remote_submission_rate_limit_returns_stable_error(tmp_path: Path) -> No
         coordinator.stop()
 
 
-def test_windows_private_file_acl_targets_only_current_sid(tmp_path: Path, monkeypatch) -> None:
+def test_windows_private_file_acl_targets_only_current_sid(
+    tmp_path: Path, monkeypatch
+) -> None:
     import runtime.private_files as private_files
 
     calls: list[list[str]] = []
@@ -475,7 +511,9 @@ def test_windows_private_file_acl_targets_only_current_sid(tmp_path: Path, monke
     ]
 
 
-def test_private_directory_acl_is_applied_once_per_process(tmp_path: Path, monkeypatch) -> None:
+def test_private_directory_acl_is_applied_once_per_process(
+    tmp_path: Path, monkeypatch
+) -> None:
     import runtime.private_files as private_files
 
     calls: list[list[str]] = []
@@ -498,7 +536,9 @@ def test_private_directory_acl_is_applied_once_per_process(tmp_path: Path, monke
     assert calls[1][-1] == "*S-1-5-21-123:(OI)(CI)F"
 
 
-def test_tls_initialization_failure_closes_the_bound_server(tmp_path: Path, monkeypatch) -> None:
+def test_tls_initialization_failure_closes_the_bound_server(
+    tmp_path: Path, monkeypatch
+) -> None:
     import integration.automation.server as server_module
 
     cert = tmp_path / "cert.pem"
@@ -524,7 +564,9 @@ def test_tls_initialization_failure_closes_the_bound_server(tmp_path: Path, monk
             raise OSError("invalid certificate")
 
     bound = BoundServer()
-    monkeypatch.setattr(server_module, "_BoundedHTTPServer", lambda *_args, **_kwargs: bound)
+    monkeypatch.setattr(
+        server_module, "_BoundedHTTPServer", lambda *_args, **_kwargs: bound
+    )
     monkeypatch.setattr(server_module.ssl, "SSLContext", FailingContext)
     coordinator = RecognitionJobCoordinator(lambda _image, _mode: "ok")
     server = AutomationApiServer(
@@ -564,12 +606,18 @@ def test_next_result_idempotency_and_publication(tmp_path: Path) -> None:
         "Idempotency-Key": "next-result-retry",
     }
     try:
-        first = _request(server, "POST", "/api/v1/recognition/jobs", body=body, headers=headers)
-        second = _request(server, "POST", "/api/v1/recognition/jobs", body=body, headers=headers)
+        first = _request(
+            server, "POST", "/api/v1/recognition/jobs", body=body, headers=headers
+        )
+        second = _request(
+            server, "POST", "/api/v1/recognition/jobs", body=body, headers=headers
+        )
         assert first[0] == second[0] == 202
         assert first[2]["job"]["id"] == second[2]["job"]["id"]
         assert first[2]["job"]["state"] == "awaiting_result"
-        assert coordinator.publish_next_result("x^2", backend="mathcraft", mode="formula")
+        assert coordinator.publish_next_result(
+            "x^2", backend="mathcraft", mode="formula"
+        )
         status, _, completed = _request(
             server,
             "GET",
@@ -585,7 +633,10 @@ def test_next_result_idempotency_and_publication(tmp_path: Path) -> None:
             "POST",
             "/api/v1/recognition/jobs",
             body=invalid_body,
-            headers={"Authorization": "Bearer local", "Content-Type": "application/json"},
+            headers={
+                "Authorization": "Bearer local",
+                "Content-Type": "application/json",
+            },
         )
         assert status == 400 and error["error"]["code"] == "invalid_request"
     finally:

@@ -46,7 +46,9 @@ class _TextEmptyResultWrapper:
         (_MixedEmptyResultWrapper(), "mathcraft_mixed", "未检测到可识别内容"),
     ),
 )
-def test_coordinator_preserves_empty_result_classification(wrapper, model_name: str, expected: str) -> None:
+def test_coordinator_preserves_empty_result_classification(
+    wrapper, model_name: str, expected: str
+) -> None:
     coordinator = RecognitionJobCoordinator(wrapper)
     worker = PredictionWorker(
         coordinator,
@@ -68,6 +70,7 @@ def test_coordinator_preserves_empty_result_classification(wrapper, model_name: 
 
 def test_cancel_during_submission_is_delivered_before_wait():
     from types import SimpleNamespace
+
     from recognition.error_messages import CANCELED_WORKER_MESSAGE
 
     canceled = []
@@ -87,7 +90,9 @@ def test_cancel_during_submission_is_delivered_before_wait():
         cancel=lambda job_id, *, principal_id: canceled.append((job_id, principal_id)),
         wait=wait,
     )
-    worker = PredictionWorker(coordinator, Image.new("RGB", (32, 16), "white"), "mathcraft")
+    worker = PredictionWorker(
+        coordinator, Image.new("RGB", (32, 16), "white"), "mathcraft"
+    )
     worker.finished.connect(finished.append)
     worker.failed.connect(failed.append)
     worker.run()

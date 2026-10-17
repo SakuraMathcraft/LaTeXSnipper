@@ -5,7 +5,11 @@ from __future__ import annotations
 import html
 import re
 
-from preview.math_preview import mathjax_loader_script, preview_scrollbar_css, preview_theme_tokens
+from preview.math_preview import (
+    mathjax_loader_script,
+    preview_scrollbar_css,
+    preview_theme_tokens,
+)
 
 FORMULA_PATTERN = re.compile(r"(\$\$(?:[^$]|\$(?!\$))+?\$\$|\$(?:[^$]|\$(?!\$))+?\$)")
 
@@ -15,7 +19,9 @@ def _mixed_content_body(content: str) -> str:
     result_parts = []
 
     for part in parts:
-        if (part.startswith("$$") and part.endswith("$$")) or (part.startswith("$") and part.endswith("$")):
+        if (part.startswith("$$") and part.endswith("$$")) or (
+            part.startswith("$") and part.endswith("$")
+        ):
             result_parts.append(part)
         else:
             result_parts.append(html.escape(part).replace("\n", "<br>"))
@@ -28,7 +34,7 @@ def build_mixed_content_html(content: str) -> str:
     body_content = _mixed_content_body(content)
     loader_script = mathjax_loader_script(scale=1.2)
 
-    return f'''<!DOCTYPE html>
+    return f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
@@ -38,8 +44,8 @@ def build_mixed_content_html(content: str) -> str:
 html, body {{
    margin: 0;
    padding: 0;
-   background: {tokens['body_bg']};
-   color: {tokens['body_text']};
+   background: {tokens["body_bg"]};
+   color: {tokens["body_text"]};
 }}
 body {{
    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -60,17 +66,17 @@ padding: 0;
 }}
 .MathJax, .mjx-container {{
 font-size: 1.45em !important;
-   color: {tokens['body_text']} !important;
+   color: {tokens["body_text"]} !important;
 }}
 a {{
-   color: {tokens['label_text']};
+   color: {tokens["label_text"]};
 }}
 pre, code {{
-   background: {tokens['pre_bg']};
-   color: {tokens['body_text']};
+   background: {tokens["pre_bg"]};
+   color: {tokens["body_text"]};
    border-radius: 6px;
 }}
 </style>
 </head>
 <body><div class="content">{body_content}</div>{loader_script}</body>
-</html>'''
+</html>"""

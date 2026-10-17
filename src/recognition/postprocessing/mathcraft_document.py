@@ -1,12 +1,10 @@
-# -*- coding: utf-8 -*-
 """Rule-based document cleanup for MathCraft PDF OCR output."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 from typing import Any
-
 
 _SECTION_RE = re.compile(r"^(\d+(?:\.\d+)*)\s+(.+?)\s*$")
 _COMPACT_SECTION_RE = re.compile(r"^(\d+(?:\.\d+)+)(?!\.)(\S.+?)\s*$")
@@ -94,10 +92,20 @@ def _page_text_to_blocks(text: str, page_index: int) -> list[_Block]:
     has_section_on_page = any(_is_section_heading(line) for line in raw_lines)
     is_contents_page = any(_is_contents_heading(line) for line in raw_lines)
 
-    if page_index == 1 and raw_lines and not has_section_on_page and _looks_like_title_page(raw_lines):
+    if (
+        page_index == 1
+        and raw_lines
+        and not has_section_on_page
+        and _looks_like_title_page(raw_lines)
+    ):
         return [_Block("title", _join_text_lines(raw_lines), page_index)]
 
-    if page_index == 2 and raw_lines and not has_section_on_page and _looks_like_title_page(raw_lines):
+    if (
+        page_index == 2
+        and raw_lines
+        and not has_section_on_page
+        and _looks_like_title_page(raw_lines)
+    ):
         return [_Block("paragraph", line, page_index) for line in raw_lines]
 
     def flush_paragraph() -> None:
@@ -161,7 +169,9 @@ def _page_text_to_blocks(text: str, page_index: int) -> list[_Block]:
                 pending_chapter_label = None
             else:
                 flush_paragraph()
-                blocks.append(_Block("heading", f"{pending_chapter_label} {line}", page_index))
+                blocks.append(
+                    _Block("heading", f"{pending_chapter_label} {line}", page_index)
+                )
                 pending_chapter_label = None
                 seen_section = True
                 continue
@@ -239,7 +249,9 @@ def _page_text_to_blocks(text: str, page_index: int) -> list[_Block]:
         if _is_block_lead(line) and paragraph_lines:
             flush_paragraph()
 
-        if paragraph_lines and _should_start_new_paragraph_after_current(paragraph_lines, line):
+        if paragraph_lines and _should_start_new_paragraph_after_current(
+            paragraph_lines, line
+        ):
             flush_paragraph()
 
         paragraph_lines.append(line)
@@ -344,7 +356,9 @@ def _structured_page_to_text(page: dict[str, Any], page_index: int) -> str:
     return "\n".join(rendered).strip()
 
 
-def _extract_structured_blocks(page: dict[str, Any], page_index: int) -> list[_StructuredBlock]:
+def _extract_structured_blocks(
+    page: dict[str, Any], page_index: int
+) -> list[_StructuredBlock]:
     raw_blocks = page.get("blocks")
     if not isinstance(raw_blocks, list):
         return []
@@ -454,7 +468,9 @@ def _is_structured_noise(block: _StructuredBlock) -> bool:
         return _is_page_number(text)
     _x1, y1, _x2, y2 = block.box
     center_y = (y1 + y2) / 2.0
-    is_margin = center_y < block.page_height * 0.08 or center_y > block.page_height * 0.92
+    is_margin = (
+        center_y < block.page_height * 0.08 or center_y > block.page_height * 0.92
+    )
     if not is_margin:
         return False
     if _is_page_number(text):
@@ -470,7 +486,9 @@ def _group_structured_blocks_into_lines(
     if blocks and all(block.line_id is not None for block in blocks):
         grouped: dict[tuple[int, int], list[_StructuredBlock]] = {}
         for block in blocks:
-            grouped.setdefault((block.page_index, int(block.line_id or 0)), []).append(block)
+            grouped.setdefault((block.page_index, int(block.line_id or 0)), []).append(
+                block
+            )
         return [
             sorted(line, key=_structured_block_order_key)
             for _key, line in sorted(
@@ -507,7 +525,9 @@ def _group_structured_blocks_into_lines(
     ]
 
 
-def _structured_union_box(blocks: list[_StructuredBlock]) -> tuple[float, float, float, float]:
+def _structured_union_box(
+    blocks: list[_StructuredBlock],
+) -> tuple[float, float, float, float]:
     return (
         min(block.box[0] for block in blocks),
         min(block.box[1] for block in blocks),
@@ -516,7 +536,9 @@ def _structured_union_box(blocks: list[_StructuredBlock]) -> tuple[float, float,
     )
 
 
-def _structured_block_sort_key(block: _StructuredBlock) -> tuple[float, float, float, float]:
+def _structured_block_sort_key(
+    block: _StructuredBlock,
+) -> tuple[float, float, float, float]:
     return (
         float(block.page_index),
         float(_structured_column(block)),
@@ -525,7 +547,9 @@ def _structured_block_sort_key(block: _StructuredBlock) -> tuple[float, float, f
     )
 
 
-def _structured_line_sort_key(line: list[_StructuredBlock]) -> tuple[float, float, float, float]:
+def _structured_line_sort_key(
+    line: list[_StructuredBlock],
+) -> tuple[float, float, float, float]:
     first = line[0]
     box = _structured_union_box(line)
     return (
@@ -542,7 +566,9 @@ def _structured_block_order_key(block: _StructuredBlock) -> tuple[float, float]:
     return block.box[0], block.box[1]
 
 
-def _structured_line_group_key(line: list[_StructuredBlock]) -> tuple[str, int | None, int]:
+def _structured_line_group_key(
+    line: list[_StructuredBlock],
+) -> tuple[str, int | None, int]:
     if not line:
         return "", None, 0
     column = _structured_column(line[0])
@@ -557,7 +583,9 @@ def _structured_line_group_key(line: list[_StructuredBlock]) -> tuple[str, int |
         return "heading", line[0].paragraph_id, column
     if "list" in roles:
         return "list", line[0].paragraph_id, column
-    paragraph_ids = {block.paragraph_id for block in line if block.paragraph_id is not None}
+    paragraph_ids = {
+        block.paragraph_id for block in line if block.paragraph_id is not None
+    }
     return (
         "paragraph",
         next(iter(paragraph_ids)) if len(paragraph_ids) == 1 else None,
@@ -587,21 +615,32 @@ def _same_structured_region(
         return False
     if _structured_column(first) == _structured_column(second):
         return True
-    if _is_structured_inline_formula_like(first) or _is_structured_inline_formula_like(second):
+    if _is_structured_inline_formula_like(first) or _is_structured_inline_formula_like(
+        second
+    ):
         page_width = first.page_width or second.page_width
         if page_width <= 0:
             return False
-        gap = max(0.0, max(line_box[0], second.box[0]) - min(line_box[2], second.box[2]))
+        gap = max(
+            0.0, max(line_box[0], second.box[0]) - min(line_box[2], second.box[2])
+        )
         return (
             _structured_y_overlap(line_box, second.box) >= 0.45
             and gap <= page_width * 0.08
         )
-    if _is_structured_display_formula_like(first) or _is_structured_display_formula_like(second):
+    if _is_structured_display_formula_like(
+        first
+    ) or _is_structured_display_formula_like(second):
         return False
     page_width = first.page_width or second.page_width
     if page_width > 0:
-        gap = max(0.0, max(line_box[0], second.box[0]) - min(line_box[2], second.box[2]))
-        return _structured_y_overlap(line_box, second.box) >= 0.75 and gap <= page_width * 0.015
+        gap = max(
+            0.0, max(line_box[0], second.box[0]) - min(line_box[2], second.box[2])
+        )
+        return (
+            _structured_y_overlap(line_box, second.box) >= 0.75
+            and gap <= page_width * 0.015
+        )
     return False
 
 
@@ -623,7 +662,10 @@ def _structured_column(block: _StructuredBlock) -> int:
 
 
 def _structured_crosses_page_midline(block: _StructuredBlock) -> bool:
-    return block.box[0] <= block.page_width * 0.45 and block.box[2] >= block.page_width * 0.55
+    return (
+        block.box[0] <= block.page_width * 0.45
+        and block.box[2] >= block.page_width * 0.55
+    )
 
 
 def _is_structured_inline_formula_like(block: _StructuredBlock) -> bool:
@@ -632,7 +674,8 @@ def _is_structured_inline_formula_like(block: _StructuredBlock) -> bool:
 
 def _is_structured_display_formula_like(block: _StructuredBlock) -> bool:
     return block.kind in {"isolated", "display_formula"} or (
-        block.source == "formula_rec" and block.kind not in {"embedding", "inline_formula"}
+        block.source == "formula_rec"
+        and block.kind not in {"embedding", "inline_formula"}
     )
 
 
@@ -664,7 +707,8 @@ def _render_structured_line(line: list[_StructuredBlock]) -> str:
         formula_text = " ".join(
             block.text.strip()
             for block in line
-            if block.text.strip() and block.role not in {"formula_anchor", "formula_label"}
+            if block.text.strip()
+            and block.role not in {"formula_anchor", "formula_label"}
         )
         chunks: list[str] = []
         if anchors:
@@ -952,7 +996,9 @@ def _should_merge_paragraphs(previous: str, current: str) -> bool:
     return cur[0].islower()
 
 
-def _should_start_new_paragraph_after_current(current_lines: list[str], next_line: str) -> bool:
+def _should_start_new_paragraph_after_current(
+    current_lines: list[str], next_line: str
+) -> bool:
     current = _join_text_lines(current_lines)
     nxt = next_line.strip()
     if not current or not nxt:

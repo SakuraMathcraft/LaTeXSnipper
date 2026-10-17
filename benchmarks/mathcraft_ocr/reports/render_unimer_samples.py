@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import argparse
@@ -24,7 +22,6 @@ if str(SCRIPT_DIR) not in sys.path:
 
 from analyze_unimer_results import compact_latex, normalize_latex  # noqa: E402
 
-
 TEX_TEMPLATE = r"""\documentclass[12pt]{article}
 \usepackage[utf8]{inputenc}
 \usepackage{amsmath,amssymb,amsfonts,bm,mathrsfs,mathtools}
@@ -42,13 +39,21 @@ def main(argv: list[str] | None = None) -> int:
         description="Render selected UniMER-Test predictions and compute render-consistency fallback metrics."
     )
     parser.add_argument("--results", required=True, help="MathCraft JSONL result file.")
-    parser.add_argument("--manifest", required=True, help="UniMER-Test manifest JSONL file.")
+    parser.add_argument(
+        "--manifest", required=True, help="UniMER-Test manifest JSONL file."
+    )
     parser.add_argument("--output-dir", required=True, help="Output directory.")
-    parser.add_argument("--subset", default="all", help="Subset to render: all/spe/cpe/sce/hwe.")
-    parser.add_argument("--per-subset", type=int, default=20, help="Max selected samples per subset.")
+    parser.add_argument(
+        "--subset", default="all", help="Subset to render: all/spe/cpe/sce/hwe."
+    )
+    parser.add_argument(
+        "--per-subset", type=int, default=20, help="Max selected samples per subset."
+    )
     parser.add_argument("--min-similarity", type=float, default=0.95)
     parser.add_argument("--dpi", type=int, default=180)
-    parser.add_argument("--keep-images", action="store_true", help="Write rendered PNG pairs.")
+    parser.add_argument(
+        "--keep-images", action="store_true", help="Write rendered PNG pairs."
+    )
     args = parser.parse_args(argv)
 
     pdflatex = shutil.which("pdflatex")
@@ -94,7 +99,9 @@ def main(argv: list[str] | None = None) -> int:
                 consistency = compare_images(pred["image"], target["image"])
                 if args.keep_images:
                     cv2.imwrite(str(image_dir / f"{sample_id}_pred.png"), pred["image"])
-                    cv2.imwrite(str(image_dir / f"{sample_id}_target.png"), target["image"])
+                    cv2.imwrite(
+                        str(image_dir / f"{sample_id}_target.png"), target["image"]
+                    )
             render_rows.append(
                 {
                     "sample_id": sample_id,
@@ -179,7 +186,9 @@ def _select_candidates(
 
     selected: list[dict[str, Any]] = []
     for subset in sorted(grouped):
-        items = sorted(grouped[subset], key=lambda item: float(item["similarity"]), reverse=True)
+        items = sorted(
+            grouped[subset], key=lambda item: float(item["similarity"]), reverse=True
+        )
         selected.extend(items[:per_subset])
     return selected
 
@@ -265,7 +274,9 @@ def compare_images(left: np.ndarray, right: np.ndarray) -> dict[str, float]:
     target_h = max(left.shape[0], right.shape[0], 1)
     target_w = max(left.shape[1], right.shape[1], 1)
     left_resized = cv2.resize(left, (target_w, target_h), interpolation=cv2.INTER_AREA)
-    right_resized = cv2.resize(right, (target_w, target_h), interpolation=cv2.INTER_AREA)
+    right_resized = cv2.resize(
+        right, (target_w, target_h), interpolation=cv2.INTER_AREA
+    )
     left_f = left_resized.astype(np.float32)
     right_f = right_resized.astype(np.float32)
     mae = float(np.mean(np.abs(left_f - right_f)))
@@ -316,14 +327,26 @@ def _summary_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not items:
             continue
         both = [item for item in items if item["both_render_ok"]]
-        pixel = [float(item["pixel_similarity"]) for item in both if item["pixel_similarity"] is not None]
-        ssim = [float(item["global_ssim"]) for item in both if item["global_ssim"] is not None]
+        pixel = [
+            float(item["pixel_similarity"])
+            for item in both
+            if item["pixel_similarity"] is not None
+        ]
+        ssim = [
+            float(item["global_ssim"])
+            for item in both
+            if item["global_ssim"] is not None
+        ]
         summary.append(
             {
                 "subset": subset,
                 "count": len(items),
-                "prediction_render_ok": sum(1 for item in items if item["prediction_render_ok"]),
-                "target_render_ok": sum(1 for item in items if item["target_render_ok"]),
+                "prediction_render_ok": sum(
+                    1 for item in items if item["prediction_render_ok"]
+                ),
+                "target_render_ok": sum(
+                    1 for item in items if item["target_render_ok"]
+                ),
                 "both_render_ok": len(both),
                 "both_render_rate": _rate(len(both), len(items)),
                 "avg_pixel_similarity": round(mean(pixel), 6) if pixel else 0.0,

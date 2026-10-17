@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 from PIL import Image, ImageFilter
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtGui import QImage
@@ -57,7 +59,7 @@ class HandwritingRecognitionWorker(QObject):
         if self._job_id:
             try:
                 self.coordinator.cancel(
-                    self._job_id, principal_id="desktop-handwriting"
+                    cast(str, self._job_id), principal_id="desktop-handwriting"
                 )
             except Exception:
                 pass
@@ -91,7 +93,7 @@ class HandwritingRecognitionWorker(QObject):
                 self._job_id = job["id"]
                 if self._cancelled:
                     self.coordinator.cancel(
-                        self._job_id, principal_id="desktop-handwriting"
+                        cast(str, self._job_id), principal_id="desktop-handwriting"
                     )
                 snapshot = self.coordinator.wait(
                     job["id"], principal_id="desktop-handwriting", timeout=None
@@ -122,7 +124,7 @@ class HandwritingRecognitionWorker(QObject):
                 self._job_id = job["id"]
                 if self._cancelled:
                     self.coordinator.cancel(
-                        self._job_id, principal_id="desktop-handwriting"
+                        cast(str, self._job_id), principal_id="desktop-handwriting"
                     )
                 snapshot = self.coordinator.wait(
                     job["id"], principal_id="desktop-handwriting", timeout=None

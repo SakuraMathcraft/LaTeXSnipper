@@ -470,7 +470,6 @@ class HandwritingWindow(QWidget):
     def _is_external_model_ready(self) -> bool:
         return self.models.external_configured()
 
-
     def _on_canvas_changed(self) -> None:
         if self.canvas.store.is_empty():
             self.status_label.setText(tr("就绪"))
@@ -685,6 +684,7 @@ class HandwritingWindow(QWidget):
         QApplication.clipboard().setText(text)
         self.status_label.setText(tr("已复制 LaTeX"))
         self._show_info(tr("已复制"), tr("LaTeX 已复制到剪贴板。"))
+
     def is_recognizing_busy(self) -> bool:
         return bool(
             self._recognizing

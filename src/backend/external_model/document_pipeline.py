@@ -34,7 +34,11 @@ class ExternalDocumentPipeline:
         asset_store: PdfAssetStore | None = None,
     ):
         self.config = config
-        self.output_format = "markdown" if str(output_format or "").lower().startswith("markdown") else "latex"
+        self.output_format = (
+            "markdown"
+            if str(output_format or "").lower().startswith("markdown")
+            else "latex"
+        )
         mode = str(document_mode or "document").strip().lower()
         self.document_mode = "parse" if mode == "parse" else "document"
         self.last_pages: list[DocumentPageResult] = []
@@ -43,24 +47,34 @@ class ExternalDocumentPipeline:
         self._inline_images: dict[str, str] = {}
         self.asset_store = asset_store
 
-    def _build_runtime_config(self, prompt_template: str | None = None) -> ExternalModelConfig:
+    def _build_runtime_config(
+        self, prompt_template: str | None = None
+    ) -> ExternalModelConfig:
         cfg = ExternalModelConfig(**asdict(self.config))
         prompt = str(prompt_template or "").strip()
         if not prompt:
-            prompt = "ocr_document_page_v1" if self.output_format == "markdown" else "ocr_document_latex_v1"
+            prompt = (
+                "ocr_document_page_v1"
+                if self.output_format == "markdown"
+                else "ocr_document_latex_v1"
+            )
         cfg.prompt_template = prompt
         return cfg
 
     def _infer_content_type(self, prompt_template: str) -> str:
         return PROMPT_CONTENT_TYPES[prompt_template]
 
-    def process_page(self, image, page_index: int, prompt_template: str | None = None) -> DocumentPageResult | None:
+    def process_page(
+        self, image, page_index: int, prompt_template: str | None = None
+    ) -> DocumentPageResult | None:
         runtime_cfg = self._build_runtime_config(prompt_template)
         client = ExternalModelClient(runtime_cfg)
         result = client.predict(image)
         return self.process_result(result, int(page_index), runtime_cfg.prompt_template)
 
-    def process_result(self, result, page_index: int, prompt_template: str | None = None) -> DocumentPageResult | None:
+    def process_result(
+        self, result, page_index: int, prompt_template: str | None = None
+    ) -> DocumentPageResult | None:
         if self.document_mode == "parse":
             self._collect_inline_images(result)
             return self._process_page_parse(result, int(page_index))
@@ -96,7 +110,11 @@ class ExternalDocumentPipeline:
         )
 
     def _collect_inline_images(self, result) -> None:
-        payload = getattr(result, "structured_payload", None) or getattr(result, "raw", None) or {}
+        payload = (
+            getattr(result, "structured_payload", None)
+            or getattr(result, "raw", None)
+            or {}
+        )
         if not isinstance(payload, (dict, list)):
             return
 
@@ -122,7 +140,11 @@ class ExternalDocumentPipeline:
         _walk(payload)
 
     def _build_structured_page(self, result, page_index: int) -> StructuredPage:
-        payload = getattr(result, "structured_payload", None) or getattr(result, "raw", None) or {}
+        payload = (
+            getattr(result, "structured_payload", None)
+            or getattr(result, "raw", None)
+            or {}
+        )
         blocks = self._extract_blocks(payload, int(page_index))
         if not blocks:
             text = result.best_text(self.output_format).strip()
@@ -171,55 +193,131 @@ class ExternalDocumentPipeline:
                 return pages[0]
         return payload
 
-    def _normalize_block(self, raw_block: dict, page_index: int, order: int) -> DocumentBlock | None:
+    def _normalize_block(
+        self, raw_block: dict, page_index: int, order: int
+    ) -> DocumentBlock | None:
         if not isinstance(raw_block, dict):
             return None
-        kind = str(
-            raw_block.get("type")
-            or raw_block.get("kind")
-            or raw_block.get("block_type")
-            or raw_block.get("category")
-            or "paragraph"
-        ).strip().lower()
-        text = str(raw_block.get("text") or raw_block.get("content") or raw_block.get("markdown") or "").strip()
+        kind = (
+            str(
+                raw_block.get("type")
+                or raw_block.get("kind")
+                or raw_block.get("block_type")
+                or raw_block.get("category")
+                or "paragraph"
+            )
+            .strip()
+            .lower()
+        )
+        text = str(
+            raw_block.get("text")
+            or raw_block.get("content")
+            or raw_block.get("markdown")
+            or ""
+        ).strip()
         latex = str(raw_block.get("latex") or "").strip()
         caption = str(raw_block.get("caption") or raw_block.get("title") or "").strip()
         bbox = raw_block.get("bbox")
-        bbox_tuple = tuple(bbox) if isinstance(bbox, (list, tuple)) and len(bbox) == 4 else None
+        bbox_tuple = (
+            tuple(bbox) if isinstance(bbox, (list, tuple)) and len(bbox) == 4 else None
+        )
 
         if kind in ("paragraph", "text", "heading", "caption", "list"):
             if not text and caption and kind == "caption":
                 text = caption
             if not text:
                 return None
-            return DocumentBlock(kind="paragraph" if kind == "text" else kind, page_index=page_index, order=order, text=text, caption=caption, bbox=bbox_tuple)
+            return DocumentBlock(
+                kind="paragraph" if kind == "text" else kind,
+                page_index=page_index,
+                order=order,
+                text=text,
+                caption=caption,
+                bbox=bbox_tuple,
+            )
 
         if kind in ("formula", "equation", "math"):
             if not latex and not text:
                 return None
-            return DocumentBlock(kind="formula", page_index=page_index, order=order, text=text, latex=latex or text, caption=caption, bbox=bbox_tuple)
+            return DocumentBlock(
+                kind="formula",
+                page_index=page_index,
+                order=order,
+                text=text,
+                latex=latex or text,
+                caption=caption,
+                bbox=bbox_tuple,
+            )
 
         if kind in ("table",):
             rows = self._extract_table_rows(raw_block)
             if rows:
-                return DocumentBlock(kind="table", page_index=page_index, order=order, rows=rows, caption=caption, bbox=bbox_tuple)
-            asset = self._save_block_image(raw_block, page_index, order, caption, "table")
+                return DocumentBlock(
+                    kind="table",
+                    page_index=page_index,
+                    order=order,
+                    rows=rows,
+                    caption=caption,
+                    bbox=bbox_tuple,
+                )
+            asset = self._save_block_image(
+                raw_block, page_index, order, caption, "table"
+            )
             if asset is not None:
-                return DocumentBlock(kind="table", page_index=page_index, order=order, asset_id=asset.asset_id, caption=caption, bbox=bbox_tuple)
+                return DocumentBlock(
+                    kind="table",
+                    page_index=page_index,
+                    order=order,
+                    asset_id=asset.asset_id,
+                    caption=caption,
+                    bbox=bbox_tuple,
+                )
             if text:
-                return DocumentBlock(kind="paragraph", page_index=page_index, order=order, text=text, caption=caption, bbox=bbox_tuple)
+                return DocumentBlock(
+                    kind="paragraph",
+                    page_index=page_index,
+                    order=order,
+                    text=text,
+                    caption=caption,
+                    bbox=bbox_tuple,
+                )
             return None
 
         if kind in ("figure", "image", "illustration", "photo"):
-            asset = self._save_block_image(raw_block, page_index, order, caption, "figure")
+            asset = self._save_block_image(
+                raw_block, page_index, order, caption, "figure"
+            )
             if asset is not None:
-                return DocumentBlock(kind="figure", page_index=page_index, order=order, asset_id=asset.asset_id, caption=caption, text=text, bbox=bbox_tuple)
+                return DocumentBlock(
+                    kind="figure",
+                    page_index=page_index,
+                    order=order,
+                    asset_id=asset.asset_id,
+                    caption=caption,
+                    text=text,
+                    bbox=bbox_tuple,
+                )
             if text:
-                return DocumentBlock(kind="paragraph", page_index=page_index, order=order, text=text, caption=caption, bbox=bbox_tuple)
+                return DocumentBlock(
+                    kind="paragraph",
+                    page_index=page_index,
+                    order=order,
+                    text=text,
+                    caption=caption,
+                    bbox=bbox_tuple,
+                )
             return None
 
         if text:
-            return DocumentBlock(kind="paragraph", page_index=page_index, order=order, text=text, caption=caption, bbox=bbox_tuple, meta=dict(raw_block))
+            return DocumentBlock(
+                kind="paragraph",
+                page_index=page_index,
+                order=order,
+                text=text,
+                caption=caption,
+                bbox=bbox_tuple,
+                meta=dict(raw_block),
+            )
         return None
 
     def _extract_table_rows(self, raw_block: dict) -> list[list[str]] | None:
@@ -233,14 +331,18 @@ class ExternalDocumentPipeline:
             cells: list[str] = []
             for cell in row:
                 if isinstance(cell, dict):
-                    cells.append(str(cell.get("text") or cell.get("content") or "").strip())
+                    cells.append(
+                        str(cell.get("text") or cell.get("content") or "").strip()
+                    )
                 else:
                     cells.append(str(cell or "").strip())
             if any(cells):
                 normalized.append(cells)
         return normalized or None
 
-    def _save_block_image(self, raw_block: dict, page_index: int, order: int, caption: str, kind: str):
+    def _save_block_image(
+        self, raw_block: dict, page_index: int, order: int, caption: str, kind: str
+    ):
         if self.asset_store is None:
             return None
         candidates = [
@@ -249,7 +351,9 @@ class ExternalDocumentPipeline:
             raw_block.get("base64"),
             raw_block.get("content_base64"),
         ]
-        image_payload = next((item for item in candidates if isinstance(item, str) and item.strip()), "")
+        image_payload = next(
+            (item for item in candidates if isinstance(item, str) and item.strip()), ""
+        )
         if not image_payload:
             image = raw_block.get("image")
             if isinstance(image, dict):
@@ -295,7 +399,9 @@ class ExternalDocumentPipeline:
                 "backend": "external_model",
                 "mode": self.document_mode,
                 "output_format": self.output_format,
-                "assets_root": str(self.asset_store.root_dir) if self.asset_store else "",
+                "assets_root": str(self.asset_store.root_dir)
+                if self.asset_store
+                else "",
                 "assets": [asdict(item) for item in assets],
                 "inline_images": dict(self._inline_images),
                 "document": self.last_structured_document.to_mapping(),

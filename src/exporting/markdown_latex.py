@@ -1,10 +1,8 @@
-# -*- coding: utf-8 -*-
 """Convert normalized MathCraft Markdown documents to compilable LaTeX."""
 
 from __future__ import annotations
 
 import re
-
 
 _HEADING_RE = re.compile(r"^(#{1,5})\s+(.+?)\s*$")
 _LIST_RE = re.compile(r"^[-*]\s+(.+?)\s*$")

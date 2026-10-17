@@ -2,6 +2,7 @@
 
 from typing import Any
 
+
 def _failed_warmup_component_details(result: dict[str, Any]) -> list[str]:
     statuses = result.get("component_statuses", [])
     if not isinstance(statuses, list):

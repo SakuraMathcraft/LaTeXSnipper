@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from localization.manager import translate as tr
-
-from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
-    QFileDialog,
     QDialog,
+    QFileDialog,
     QHBoxLayout,
     QLabel,
     QMessageBox,
@@ -16,6 +14,7 @@ from PyQt6.QtWidgets import (
 )
 from qfluentwidgets import PrimaryPushButton, PushButton
 
+from localization.manager import translate as tr
 from runtime.app_paths import resource_path
 
 

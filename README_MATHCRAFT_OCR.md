@@ -18,6 +18,8 @@ The package is developed for LaTeXSnipper but is usable as a standalone Python l
 
 ## Installation
 
+These commands install the standalone library into your selected Python environment. LaTeXSnipper desktop installers already include their inference Python, dependencies and models; see the [desktop distribution architecture](https://github.com/SakuraMathcraft/LaTeXSnipper/blob/main/docs/desktop_distribution.md).
+
 CPU backend:
 
 ```powershell
@@ -50,7 +52,7 @@ pip install "mathcraft-ocr[openvino]"
 
 Install only one backend extra in a clean environment. The CPU, CUDA/TensorRT, DirectML, and OpenVINO ONNX Runtime distributions must not be mixed in the same environment. The standard `onnxruntime` macOS wheel includes CoreML EP support.
 
-LaTeXSnipper's Dependency Management selects the ONNX Runtime GPU line from the detected CUDA toolkit: CUDA 11.x uses ONNX Runtime 1.20 from the official CUDA 11 feed, CUDA 12.x uses ONNX Runtime 1.21-1.26 from PyPI, and CUDA 13.x uses ONNX Runtime 1.27-1.29 from PyPI. The static `mathcraft-ocr[gpu]` extra follows the current PyPI default (CUDA 13 and Python 3.11+); use `gpu-cu12` for CUDA 12. CUDA 11 installations must also select the official CUDA 11 package feed, so LaTeXSnipper's Dependency Management is recommended for that configuration.
+For a standalone GPU environment, select the backend extra matching your runtime requirements; the supported ONNX Runtime version ranges are declared in `pyproject.toml`. Provide the native libraries required by that backend. Desktop GPU editions deploy their own locked CUDA/cuDNN libraries, and their CPU/GPU edition is selected through the installer.
 
 ## Quick Start
 
@@ -109,6 +111,14 @@ Run JSONL worker mode:
 mathcraft worker --provider auto
 ```
 
+Each JSONL request must include `"protocol": 1` and a non-empty string `id`, for example:
+
+```json
+{"protocol":1,"id":"warmup-1","action":"warmup","profile":"formula"}
+```
+
+Responses include the same protocol and request ID, an `ok` flag, and either a `result` or an `error` object. Errors retain their exception type, message, and traceback.
+
 ## Model Cache
 
 MathCraft reads models from a platform-specific default user data root:
@@ -149,6 +159,8 @@ Linux: ${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper/MathCraft/models
 ```
 
 Model artifacts are downloaded from the MathCraft-Models release assets declared in `mathcraft_ocr/manifests/models.v1.json`.
+
+Packaged desktop workers use only the installed model component and disable automatic model downloads. **App updates** replaces damaged components in the installation. Source desktop workers use the platform default cache; standalone library and CLI cache settings and automatic downloads remain independent. See the [user data map](https://github.com/SakuraMathcraft/LaTeXSnipper/blob/main/docs/user_data_storage.md).
 
 ## Runtime Profiles
 
@@ -199,8 +211,7 @@ Run tests from the repository root:
 
 ```powershell
 # Run from the repository root
-python .\test\test_mathcraft_ocr.py
-python .\test\test_mathcraft_document_engine.py
+python -m pytest test/test_mathcraft_ocr.py test/test_mathcraft_document_engine.py test/test_formula_inference.py -q
 ```
 
 Build package artifacts:

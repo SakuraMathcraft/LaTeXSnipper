@@ -1,11 +1,9 @@
-# coding: utf-8
-
 from __future__ import annotations
 
+import re
 from collections import deque
 from collections.abc import Sequence
 from dataclasses import dataclass
-import re
 
 import numpy as np
 
@@ -101,14 +99,18 @@ def _split_formula_rows(rgb: np.ndarray) -> tuple[FormulaLineCrop, ...]:
     row_threshold = max(3, int(round(width * 0.006)))
     row_has_ink = row_counts >= row_threshold
     bands = _row_bands(row_has_ink)
-    bands = _merge_close_bands(bands, max_gap=max(3, min(14, int(round(height * 0.018)))))
+    bands = _merge_close_bands(
+        bands, max_gap=max(3, min(14, int(round(height * 0.018))))
+    )
     bands = [
         (top, bottom)
         for top, bottom in bands
         if _band_looks_like_formula_row(mask, top, bottom, image_width=width)
     ]
     bands = _filter_annotation_bands(mask, bands, image_width=width)
-    if _looks_like_compact_fraction_split(mask, bands, image_width=width, image_height=height):
+    if _looks_like_compact_fraction_split(
+        mask, bands, image_width=width, image_height=height
+    ):
         return ()
     if len(bands) < 2:
         return ()
@@ -171,7 +173,9 @@ def _remove_dark_outer_frame(mask: np.ndarray) -> np.ndarray:
         (height - corner_size, 0),
         (height - corner_size, width - corner_size),
     ):
-        points = np.argwhere(mask[y_start : y_start + corner_size, x_start : x_start + corner_size])
+        points = np.argwhere(
+            mask[y_start : y_start + corner_size, x_start : x_start + corner_size]
+        )
         for y_offset, x_offset in points:
             y = y_start + int(y_offset)
             x = x_start + int(x_offset)
@@ -291,7 +295,9 @@ def _filter_annotation_bands(
         if active >= min_active:
             kept.append((top, bottom))
             continue
-        left_aligned = any(abs(left - strong_left) <= aligned_tolerance for strong_left in strong_lefts)
+        left_aligned = any(
+            abs(left - strong_left) <= aligned_tolerance for strong_left in strong_lefts
+        )
         if height >= minimum_context_height and left_aligned:
             kept.append((top, bottom))
     return kept
@@ -327,10 +333,13 @@ def _looks_like_compact_fraction_split(
     first_is_centered_fragment = (
         first_width <= image_width * 0.86 and first_inset >= image_width * 0.06
     )
-    second_is_wider = second_width >= first_width * 1.15 and second_inset <= image_width * 0.08
-    centers_are_close = abs(
-        (first_left + first_right) - (second_left + second_right)
-    ) <= image_width * 0.12
+    second_is_wider = (
+        second_width >= first_width * 1.15 and second_inset <= image_width * 0.08
+    )
+    centers_are_close = (
+        abs((first_left + first_right) - (second_left + second_right))
+        <= image_width * 0.12
+    )
     widths_are_comparable = (
         second_width >= first_width * 0.90
         and second_inset >= image_width * 0.04
@@ -339,7 +348,9 @@ def _looks_like_compact_fraction_split(
     return first_is_centered_fragment and (second_is_wider or widths_are_comparable)
 
 
-def _band_bounds(mask: np.ndarray, top: int, bottom: int) -> tuple[int, int, int, int] | None:
+def _band_bounds(
+    mask: np.ndarray, top: int, bottom: int
+) -> tuple[int, int, int, int] | None:
     points = np.argwhere(mask[top : bottom + 1, :])
     if points.size == 0:
         return None
@@ -401,7 +412,9 @@ def _split_wide_line_segments(line: FormulaLineCrop) -> tuple[FormulaLineCrop, .
     min_gap = max(14, int(round(width * 0.025)))
     min_segment_width = max(48, int(round(width * 0.12)))
     split_points: list[int] = []
-    for (_left_a, right_a), (left_b, _right_b) in zip(ink_bands, ink_bands[1:]):
+    for (_left_a, right_a), (left_b, _right_b) in zip(
+        ink_bands, ink_bands[1:], strict=False
+    ):
         gap = left_b - right_a - 1
         if gap < min_gap:
             continue
@@ -465,14 +478,21 @@ def _crop_segment(
         return None
     return FormulaLineCrop(
         image=segment_rgb[y1:y2, x1:x2].copy(),
-        box=(base_left + offset_x + x1, base_top + y1, base_left + offset_x + x2, base_top + y2),
+        box=(
+            base_left + offset_x + x1,
+            base_top + y1,
+            base_left + offset_x + x2,
+            base_top + y2,
+        ),
     )
 
 
 def _clean_formula_line(line: str) -> str:
     return _make_tex_groups_render_safe(
         _make_alignment_tabs_render_safe(
-            _make_double_scripts_render_safe(_make_left_right_render_safe(_strip_formula_wrappers(line)))
+            _make_double_scripts_render_safe(
+                _make_left_right_render_safe(_strip_formula_wrappers(line))
+            )
         )
     )
 
@@ -580,7 +600,11 @@ def _find_scripted_atom_start(text: str, script_index: int) -> int | None:
     while True:
         before_arg = _skip_script_argument_left(text, pos)
         before_arg = _skip_space_left(text, before_arg)
-        if before_arg >= 0 and text[before_arg] in "^_" and not _is_escaped(text, before_arg):
+        if (
+            before_arg >= 0
+            and text[before_arg] in "^_"
+            and not _is_escaped(text, before_arg)
+        ):
             pos = _skip_space_left(text, before_arg - 1)
             if pos < 0:
                 return None
@@ -656,6 +680,11 @@ def _atom_has_top_level_script(atom: str, script: str) -> bool:
 
 def _strip_outer_group(text: str) -> str:
     stripped = text.strip()
-    if len(stripped) >= 2 and stripped[0] == "{" and stripped[-1] == "}" and not _is_escaped(stripped, len(stripped) - 1):
+    if (
+        len(stripped) >= 2
+        and stripped[0] == "{"
+        and stripped[-1] == "}"
+        and not _is_escaped(stripped, len(stripped) - 1)
+    ):
         return stripped[1:-1].strip()
     return stripped

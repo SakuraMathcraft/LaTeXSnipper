@@ -1,6 +1,6 @@
 import base64
-from io import BytesIO
 import json
+from io import BytesIO
 from urllib.parse import urlparse
 
 import requests
@@ -96,10 +96,16 @@ class ExternalModelClient:
                 detail = ""
             if code == 400:
                 if self._is_image_input_rejected(detail):
-                    suffix = "该接口或模型不支持图片输入，请换用支持视觉输入的模型或服务。"
+                    suffix = (
+                        "该接口或模型不支持图片输入，请换用支持视觉输入的模型或服务。"
+                    )
                     user_code = "image_input_unsupported"
                 else:
-                    suffix = f"服务端信息：{detail}" if detail else "请检查模型是否支持图片输入、模型名和请求协议。"
+                    suffix = (
+                        f"服务端信息：{detail}"
+                        if detail
+                        else "请检查模型是否支持图片输入、模型名和请求协议。"
+                    )
                     user_code = "bad_request"
                 message = f"{action}失败，接口返回 400。{suffix}"
             elif code not in {401, 403, 404, 429} and not 500 <= code < 600:
@@ -110,7 +116,11 @@ class ExternalModelClient:
             return ExternalModelConnectionError(
                 message,
                 user_code=user_code,
-                user_context={"status_code": code, "endpoint": endpoint, "detail": detail},
+                user_context={
+                    "status_code": code,
+                    "endpoint": endpoint,
+                    "detail": detail,
+                },
             )
 
         return ExternalModelConnectionError(
@@ -152,14 +162,11 @@ class ExternalModelClient:
 
     def _is_image_input_rejected(self, detail: str) -> bool:
         text = str(detail or "").lower()
-        return (
-            "image_url" in text
-            and (
-                "expected text" in text
-                or "unknown variant" in text
-                or "not supported" in text
-                or "unsupported" in text
-            )
+        return "image_url" in text and (
+            "expected text" in text
+            or "unknown variant" in text
+            or "not supported" in text
+            or "unsupported" in text
         )
 
     def test_connection(self) -> tuple[bool, str]:
@@ -227,7 +234,10 @@ class ExternalModelClient:
                     "role": "user",
                     "content": [
                         {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_b64}"}},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/png;base64,{image_b64}"},
+                        },
                     ],
                 }
             ],

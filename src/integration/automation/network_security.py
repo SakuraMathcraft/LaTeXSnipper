@@ -5,7 +5,6 @@ from __future__ import annotations
 import ipaddress
 import socket
 
-
 _TUNNEL_NAME_MARKERS = (
     "tailscale",
     "wireguard",
@@ -17,6 +16,8 @@ _TUNNEL_NAME_MARKERS = (
     "tun",
     "wg",
 )
+
+
 def tunnel_interface_for_address(address: str) -> str | None:
     bind_ip = ipaddress.ip_address(address.split("%", 1)[0])
     try:

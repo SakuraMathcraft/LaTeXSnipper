@@ -2,7 +2,7 @@
 
 This document tracks where LaTeXSnipper writes user data, runtime state, caches,
 and temporary files. Desktop application state uses the shared helpers in
-`src/runtime/app_paths.py`; model weights use MathCraft's shared cache resolver.
+`src/runtime/app_paths.py`; packaged model weights belong to the installation.
 
 ## Shared Roots
 
@@ -61,22 +61,22 @@ does not undo the committed installation or block normal startup.
 Interrupted transactions are recovered before normal launch. These backups are
 for the active transaction, not a retained history of application versions.
 
-## Model Weights And Repair Cache
+## Model Weights
 
-Packaged workers read the installed model component and its `models.v1.json`.
-Every model file is checked against its declared digest. Valid installed models
-are preferred. Only when an installed model is missing or fails validation does
-the worker check the shared MathCraft default cache. Matching files are reused;
-missing, corrupt or outdated cached models are downloaded into that same cache.
-The current model manifest's file digests determine whether a cached model is
-usable, so cached weights cannot shadow valid installed weights.
+Packaged workers read only the installed model component and its
+`models.v1.json`, verifying model files against their declared digests. Automatic
+model downloads are disabled. Missing or corrupt weights require component
+replacement through App updates; the worker never repairs installed files or
+uses an external model cache.
 
-The desktop and standalone library share the platform default model cache:
+Source desktop workers and the standalone library use the platform default
+model cache:
 Windows `%APPDATA%/MathCraft/models`, Linux
 `${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper/MathCraft/models`, and macOS
 `~/Library/Application Support/LaTeXSnipper/MathCraft/models`. The standalone
 library also supports its explicit cache argument and `MATHCRAFT_HOME`;
-desktop recognition uses the platform default cache regardless of that override.
+source desktop workers explicitly use the platform default cache regardless
+of that override. Packaged desktop workers do not use this cache.
 
 Component payload caches use component platform/architecture/variant/identity
 and validate size and SHA256 before reuse. Interrupted transfers retain `.part`
@@ -104,8 +104,11 @@ history, logs and update caches are separate user data. The shared MathCraft
 cache also serves the standalone library and is not an installation component.
 Windows uninstall owns the installation components and offers separate app-data
 and shared-model-cache cleanup choices. Linux uses dpkg removal/purge of the
-three component packages; macOS removes the app. Linux/macOS also
-provide `latexsnipper-clean-user-data.sh` with explicit app-data and model-cache
-options. Uninstall leaves user data unless explicitly selected for cleanup.
+three component packages; macOS removes the app. While installed, Linux provides
+`latexsnipper-clean-user-data` with separate app-data and shared-model-cache
+options. The repository script `scripts/latexsnipper-clean-user-data.sh` supports
+both Linux and macOS; it is not deployed inside the macOS app. On macOS, user
+data can also be removed manually using the paths above after quitting the app.
+Uninstall leaves user data unless explicitly selected for cleanup.
 User-selected export paths and external tool installations remain outside the
 resource lifecycle.

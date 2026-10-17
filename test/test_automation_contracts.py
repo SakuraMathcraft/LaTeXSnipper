@@ -12,8 +12,17 @@ from integration.automation.auth import (
     MATHCRAFT_PERMISSION,
     AutomationApiAuth,
 )
-from integration.automation.contracts import AutomationApiError, AutomationLimits, validate_mode
-from recognition.jobs import JobSource, RecognitionItemInput, RecognitionJobCoordinator, RecognitionJobError
+from integration.automation.contracts import (
+    AutomationApiError,
+    AutomationLimits,
+    validate_mode,
+)
+from recognition.jobs import (
+    JobSource,
+    RecognitionItemInput,
+    RecognitionJobCoordinator,
+    RecognitionJobError,
+)
 
 
 def _image(width: int = 8, height: int = 8) -> RecognitionItemInput:
@@ -28,7 +37,9 @@ def test_auth_keeps_local_and_remote_credentials_isolated() -> None:
     assert local is not None and local.kind == "local"
     assert local.allows(MATHCRAFT_PERMISSION) and local.allows(EXTERNAL_PERMISSION)
     assert remote is not None and remote.kind == "remote"
-    assert remote.allows(MATHCRAFT_PERMISSION) and not remote.allows(EXTERNAL_PERMISSION)
+    assert remote.allows(MATHCRAFT_PERMISSION) and not remote.allows(
+        EXTERNAL_PERMISSION
+    )
     assert auth.authenticate("Bearer wrong") is None
     allowed_remote = AutomationApiAuth(
         local_token="local-2",
@@ -163,7 +174,12 @@ def test_external_executor_is_serial_and_does_not_block_mathcraft() -> None:
             mode="formula",
             timeout_seconds=5,
         )
-        assert coordinator.wait(mathcraft["id"], principal_id="mathcraft", timeout=1)["state"] == "completed"
+        assert (
+            coordinator.wait(mathcraft["id"], principal_id="mathcraft", timeout=1)[
+                "state"
+            ]
+            == "completed"
+        )
         release_external.set()
         for job in external_jobs:
             snapshot = coordinator.wait(job["id"], principal_id="external", timeout=2)
@@ -227,7 +243,11 @@ def test_only_mathcraft_executor_applies_mathcraft_resize_limits() -> None:
     try:
         jobs = (
             coordinator.submit(
-                [source], principal_id="m", source=JobSource.UI, mode="formula", timeout_seconds=5
+                [source],
+                principal_id="m",
+                source=JobSource.UI,
+                mode="formula",
+                timeout_seconds=5,
             ),
             coordinator.submit(
                 [source],
@@ -279,10 +299,17 @@ def test_mode_capability_and_partial_batch_failure_are_stable(caplog) -> None:
         )
         snapshot = coordinator.wait(job["id"], principal_id="p", timeout=2)
         assert snapshot["state"] == "completed"
-        assert [item["state"] for item in snapshot["items"]] == ["completed", "failed", "completed"]
+        assert [item["state"] for item in snapshot["items"]] == [
+            "completed",
+            "failed",
+            "completed",
+        ]
         assert snapshot["items"][1]["error"]["code"] == "internal_error"
         diagnostics = caplog.text
-        assert "识别执行异常 source=local_api backend=mathcraft mode=formula" in diagnostics
+        assert (
+            "识别执行异常 source=local_api backend=mathcraft mode=formula"
+            in diagnostics
+        )
         assert "image=2x1" in diagnostics
         assert "RuntimeError: synthetic failure" in diagnostics
     finally:
@@ -335,7 +362,9 @@ def test_trusted_external_operations_share_the_external_serial_boundary() -> Non
         external_config_provider=lambda: config,
         external_predictor=lambda _image, _config: enter(),
     )
-    operation_thread = threading.Thread(target=lambda: coordinator.run_external_operation(enter))
+    operation_thread = threading.Thread(
+        target=lambda: coordinator.run_external_operation(enter)
+    )
     try:
         operation_thread.start()
         job = coordinator.submit(
@@ -346,7 +375,10 @@ def test_trusted_external_operations_share_the_external_serial_boundary() -> Non
             mode="formula",
             timeout_seconds=5,
         )
-        assert coordinator.wait(job["id"], principal_id="p", timeout=2)["state"] == "completed"
+        assert (
+            coordinator.wait(job["id"], principal_id="p", timeout=2)["state"]
+            == "completed"
+        )
         operation_thread.join(timeout=2)
         assert maximum == 1
     finally:
@@ -397,16 +429,27 @@ def test_queued_and_running_cancellation_have_stable_terminal_state() -> None:
     coordinator = RecognitionJobCoordinator(predict)
     try:
         running = coordinator.submit(
-            [_image()], principal_id="p", source=JobSource.UI, mode="formula", timeout_seconds=5
+            [_image()],
+            principal_id="p",
+            source=JobSource.UI,
+            mode="formula",
+            timeout_seconds=5,
         )
         assert started.wait(1)
         queued = coordinator.submit(
-            [_image()], principal_id="p", source=JobSource.UI, mode="formula", timeout_seconds=5
+            [_image()],
+            principal_id="p",
+            source=JobSource.UI,
+            mode="formula",
+            timeout_seconds=5,
         )
         assert coordinator.cancel(queued["id"], principal_id="p")["state"] == "canceled"
         coordinator.cancel(running["id"], principal_id="p")
         release.set()
-        assert coordinator.wait(running["id"], principal_id="p", timeout=2)["state"] == "canceled"
+        assert (
+            coordinator.wait(running["id"], principal_id="p", timeout=2)["state"]
+            == "canceled"
+        )
     finally:
         release.set()
         coordinator.stop()
@@ -415,7 +458,9 @@ def test_queued_and_running_cancellation_have_stable_terminal_state() -> None:
 def test_next_result_timeout_and_completed_ttl_are_enforced() -> None:
     current = [10.0]
     limits = AutomationLimits(completed_job_ttl_seconds=2, max_retained_jobs=2)
-    coordinator = RecognitionJobCoordinator(lambda _image, _mode: "ok", limits=limits, clock=lambda: current[0])
+    coordinator = RecognitionJobCoordinator(
+        lambda _image, _mode: "ok", limits=limits, clock=lambda: current[0]
+    )
     try:
         waiter = coordinator.create_next_result_job(
             principal_id="p", source=JobSource.LOCAL_API, timeout_seconds=1
@@ -456,11 +501,15 @@ def test_next_result_is_published_once_and_external_secrets_are_released() -> No
                 timeout_seconds=5,
             )
         assert busy.value.code == "next_result_busy"
-        assert coordinator.publish_next_result("x^2", backend="mathcraft", mode="formula")
+        assert coordinator.publish_next_result(
+            "x^2", backend="mathcraft", mode="formula"
+        )
         completed = coordinator.get(waiter["id"], principal_id="p")
         assert completed["state"] == "completed"
         assert completed["items"][0]["text"] == "x^2"
-        assert not coordinator.publish_next_result("ignored", backend="mathcraft", mode="formula")
+        assert not coordinator.publish_next_result(
+            "ignored", backend="mathcraft", mode="formula"
+        )
 
         job = coordinator.submit(
             [_image()],
@@ -470,7 +519,10 @@ def test_next_result_is_published_once_and_external_secrets_are_released() -> No
             mode="formula",
             timeout_seconds=5,
         )
-        assert coordinator.wait(job["id"], principal_id="p", timeout=2)["state"] == "completed"
+        assert (
+            coordinator.wait(job["id"], principal_id="p", timeout=2)["state"]
+            == "completed"
+        )
         assert coordinator._jobs[job["id"]].backend_config is None
     finally:
         coordinator.stop()

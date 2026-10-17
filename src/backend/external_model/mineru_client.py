@@ -78,7 +78,11 @@ class MineruClient:
             return ExternalModelConnectionError(
                 message,
                 user_code=user_code,
-                user_context={"status_code": code, "endpoint": endpoint, "detail": detail},
+                user_context={
+                    "status_code": code,
+                    "endpoint": endpoint,
+                    "detail": detail,
+                },
             )
 
         return ExternalModelConnectionError(
@@ -113,7 +117,9 @@ class MineruClient:
             raise self._build_request_error(exc, "MinerU 连通性检查", url) from exc
         return True, f"MinerU 健康检查通过: {endpoint}"
 
-    def _file_parse_data(self, backend: str, start_page_id: int = 0, end_page_id: int = 99999) -> dict:
+    def _file_parse_data(
+        self, backend: str, start_page_id: int = 0, end_page_id: int = 99999
+    ) -> dict:
         return {
             "backend": backend,
             "parse_method": "auto",
@@ -156,10 +162,14 @@ class MineruClient:
                 resp.raise_for_status()
                 return resp.json()
             except ValueError as exc:
-                raise ExternalModelResponseError(f"MinerU 返回的不是有效 JSON: {exc}") from exc
+                raise ExternalModelResponseError(
+                    f"MinerU 返回的不是有效 JSON: {exc}"
+                ) from exc
             except requests.RequestException as exc:
                 resp = getattr(exc, "response", None)
-                status_code = int(getattr(resp, "status_code", 0) or 0) if resp is not None else 0
+                status_code = (
+                    int(getattr(resp, "status_code", 0) or 0) if resp is not None else 0
+                )
                 if status_code and status_code < 500 and status_code != 429:
                     raise self._build_request_error(exc, "MinerU 请求", url) from exc
                 last_error = exc
@@ -175,7 +185,9 @@ class MineruClient:
         raw = self._post_file_parse("image.png", image_bytes, "image/png")
         return self._build_result(raw, self.config.resolved_output_mode())
 
-    def parse_pdf(self, pdf_path: str, start_page_index: int, end_page_index: int) -> ExternalModelResult:
+    def parse_pdf(
+        self, pdf_path: str, start_page_index: int, end_page_index: int
+    ) -> ExternalModelResult:
         path = Path(pdf_path)
         if not path.is_file():
             raise ExternalModelResponseError(f"PDF 文件不存在: {path}")
@@ -272,8 +284,32 @@ class MineruClient:
             return None
         data = raw.get("data")
         if isinstance(data, dict):
-            if any(key in data for key in ("pages", "blocks", "assets", "images", "tables", "elements", "items", "content_list")):
+            if any(
+                key in data
+                for key in (
+                    "pages",
+                    "blocks",
+                    "assets",
+                    "images",
+                    "tables",
+                    "elements",
+                    "items",
+                    "content_list",
+                )
+            ):
                 return data
-        if any(key in raw for key in ("pages", "blocks", "assets", "images", "tables", "elements", "items", "content_list")):
+        if any(
+            key in raw
+            for key in (
+                "pages",
+                "blocks",
+                "assets",
+                "images",
+                "tables",
+                "elements",
+                "items",
+                "content_list",
+            )
+        ):
             return raw
         return None

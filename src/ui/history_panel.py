@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from localization.manager import translate as tr
-
 import weakref
 from collections.abc import Callable
 
@@ -11,6 +9,8 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import FluentIcon, PushButton
+
+from localization.manager import translate as tr
 
 
 def history_display_entries(
@@ -113,7 +113,7 @@ def create_history_row(
         if event.button() != Qt.MouseButton.LeftButton:
             return
         r = row_ref()
-        if not row_is_alive(r):
+        if r is None or not row_is_alive(r):
             return
         on_load_to_editor(r)
 
@@ -128,7 +128,7 @@ def create_history_row(
 
         def _wrapped():
             r = row_ref2()
-            if not row_is_alive(r):
+            if r is None or not row_is_alive(r):
                 return
             handler(r)
 

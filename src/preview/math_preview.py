@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import logging
 
-from localization.manager import translate as tr
 from PyQt6.QtCore import QUrl
 
+from localization.manager import translate as tr
 from rendering.mathjax_runtime import ASSET_ROOT, loader_script
 from ui.theme_tokens import is_dark_ui
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
+
 
 def preview_theme_tokens() -> dict:
     if is_dark_ui():
@@ -203,14 +204,12 @@ def build_math_html(
         if not formula_html:
             formula_html = (
                 f'<div class="math-container" style="color:{tokens["muted_text"]};">'
-                f'{tr("无公式")}</div>'
+                f"{tr('无公式')}</div>"
             )
 
         html = MATHJAX_HTML_TEMPLATE.replace("__FORMULAS__", formula_html)
         replacements = {
-            "__MATHJAX_LOADER_SCRIPT__": mathjax_loader_script(
-                scale=1.15
-            ),
+            "__MATHJAX_LOADER_SCRIPT__": mathjax_loader_script(scale=1.15),
             "__BODY_CLASS__": "viewport-centered" if center_viewport else "",
             "__SCROLLBAR_CSS__": preview_scrollbar_css(tokens),
             "__BODY_BG__": tokens["body_bg"],

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+from functools import partial
+from types import SimpleNamespace
+
 from ui.controllers.predict_result import (
     RECOGNITION_FAILURE_TRAY_COOLDOWN_SECONDS,
     RecognitionResultController,
 )
-
-
-from types import SimpleNamespace
-from functools import partial
 
 
 def test_recognition_failure_tray_notification_is_rate_limited() -> None:

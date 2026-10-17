@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 
 _MATHML_SUM = "\u2211"
-_MATHML_INF = "\u221E"
+_MATHML_INF = "\u221e"
 
 
 def _strip_math_delimiters(latex: str) -> str:
@@ -62,17 +62,19 @@ def _ensure_mathml_block(mathml: str) -> str:
         return mathml
     sep = " " if attrs and not attrs.endswith(" ") else ""
     new_tag = f'<math{attrs}{sep}display="block">'
-    return mathml[:match.start()] + new_tag + mathml[match.end():]
+    return mathml[: match.start()] + new_tag + mathml[match.end() :]
 
 
 def mathml_standardize(mathml: str) -> str:
     """Normalize MathML for export targets."""
     mathml = _ensure_mathml_block(mathml)
     mathml = re.sub(r"<mi>\s*(?:&|&amp;)\s*</mi>", "", mathml)
-    mathml = re.sub(r"&(?!#\d+;|#x[0-9A-Fa-f]+;|[A-Za-z][A-Za-z0-9]+;)", "&amp;", mathml)
+    mathml = re.sub(
+        r"&(?!#\d+;|#x[0-9A-Fa-f]+;|[A-Za-z][A-Za-z0-9]+;)", "&amp;", mathml
+    )
     mathml = re.sub(r"<mo>\s*:</mo>\s*<mo>\s*=\s*</mo>", "<mo>:=</mo>", mathml)
     mathml = re.sub(
-        r"<mi>\s*(?:&#x221E;|&#X221E;|%s)\s*</mi>" % _MATHML_INF,
+        rf"<mi>\s*(?:&#x221E;|&#X221E;|{_MATHML_INF})\s*</mi>",
         '<mi mathvariant="normal">&#x221E;</mi>',
         mathml,
     )
@@ -82,10 +84,12 @@ def mathml_standardize(mathml: str) -> str:
 def _mathml_htmlize(mathml: str) -> str:
     mathml = _ensure_mathml_block(mathml)
     mathml = re.sub(r"<mi>\s*(?:&|&amp;)\s*</mi>", "", mathml)
-    mathml = re.sub(r"&(?!#\d+;|#x[0-9A-Fa-f]+;|[A-Za-z][A-Za-z0-9]+;)", "&amp;", mathml)
+    mathml = re.sub(
+        r"&(?!#\d+;|#x[0-9A-Fa-f]+;|[A-Za-z][A-Za-z0-9]+;)", "&amp;", mathml
+    )
     mathml = re.sub(r"<mo>\s*:</mo>\s*<mo>\s*=\s*</mo>", "<mo>:=</mo>", mathml)
     mathml = re.sub(
-        r"<mi>\s*(?:&#x221E;|&#X221E;|%s)\s*</mi>" % _MATHML_INF,
+        rf"<mi>\s*(?:&#x221E;|&#X221E;|{_MATHML_INF})\s*</mi>",
         f'<mi mathvariant="normal">{_MATHML_INF}</mi>',
         mathml,
     )
@@ -98,7 +102,7 @@ def _mathml_htmlize(mathml: str) -> str:
         return f'<mo{attrs}{sep}data-mjx-texclass="OP">{_MATHML_SUM}</mo>'
 
     mathml = re.sub(
-        r"<mo([^>]*)>\s*(?:&#x2211;|&#X2211;|%s)\s*</mo>" % _MATHML_SUM,
+        rf"<mo([^>]*)>\s*(?:&#x2211;|&#X2211;|{_MATHML_SUM})\s*</mo>",
         _sum_repl,
         mathml,
         count=1,

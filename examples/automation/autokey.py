@@ -3,7 +3,6 @@
 import os
 import subprocess
 
-
 PYTHON = "/usr/bin/python3"
 CLIENT = "/absolute/path/to/examples/automation/local_client.py"
 BACKEND = "mathcraft"

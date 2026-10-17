@@ -5,7 +5,6 @@ from math import sqrt
 from PIL import Image
 from PyQt6.QtGui import QImage
 
-
 MATHCRAFT_MAX_INPUT_EDGE = 2400
 MATHCRAFT_MAX_INPUT_PIXELS = 4_000_000
 
@@ -16,11 +15,12 @@ def qimage_to_rgb_pil(image: QImage) -> Image.Image:
     width = fmt_image.width()
     height = fmt_image.height()
     ptr = fmt_image.bits()
+    assert ptr is not None
     ptr.setsize(height * fmt_image.bytesPerLine())
     return Image.frombytes(
         "RGB",
         (width, height),
-        bytes(ptr),
+        ptr.asstring(height * fmt_image.bytesPerLine()),
         "raw",
         "RGB",
         fmt_image.bytesPerLine(),

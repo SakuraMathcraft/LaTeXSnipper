@@ -1,5 +1,3 @@
-# coding: utf-8
-
 FORMULA_DETECTOR_ID = "mathcraft-formula-det"
 FORMULA_RECOGNIZER_ID = "mathcraft-formula-rec"
 TEXT_DETECTOR_ID = "mathcraft-text-det"

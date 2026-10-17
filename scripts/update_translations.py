@@ -48,7 +48,8 @@ def collect_messages() -> dict[str, list[tuple[str, int]]]:
 def read_existing_translations() -> dict[str, tuple[str, str | None]]:
     if not CATALOG_PATH.exists():
         return {}
-    root = ET.parse(CATALOG_PATH).getroot()
+    # This is the repository-owned translation catalog, not external XML.
+    root = ET.parse(CATALOG_PATH).getroot()  # nosec B314
     translations: dict[str, tuple[str, str | None]] = {}
     for message in root.findall("./context/message"):
         source = message.findtext("source")
@@ -92,7 +93,8 @@ def build_catalog(messages: dict[str, list[tuple[str, int]]]) -> bytes:
 def validate_catalog() -> list[str]:
     errors: list[str] = []
     formatter = string.Formatter()
-    root = ET.parse(CATALOG_PATH).getroot()
+    # This is the repository-owned translation catalog, not external XML.
+    root = ET.parse(CATALOG_PATH).getroot()  # nosec B314
     for message in root.findall("./context/message"):
         source = message.findtext("source") or ""
         translation = message.find("translation")

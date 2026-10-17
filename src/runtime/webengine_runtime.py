@@ -7,7 +7,6 @@ import os
 import sys
 from pathlib import Path
 
-
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
@@ -17,11 +16,17 @@ def configure_default_webengine_profile() -> None:
         from PyQt6.QtWebEngineCore import QWebEngineProfile, QWebEngineSettings
 
         profile = QWebEngineProfile.defaultProfile()
+        assert profile is not None
         profile.setHttpCacheType(QWebEngineProfile.HttpCacheType.NoCache)
 
         settings = profile.settings()
-        settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
-        settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
+        assert settings is not None
+        settings.setAttribute(
+            QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True
+        )
+        settings.setAttribute(
+            QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
+        )
     except Exception as e:
         logger.warning("QWebEngine 配置失败: %s", e)
 
@@ -35,7 +40,9 @@ def _log_webengine_diagnostics(app_dir: Path | None = None) -> None:
         except Exception:
             return "<invalid>"
 
-    logger.warning(f"WebEngine frozen={getattr(sys, 'frozen', False)} _MEIPASS={getattr(sys, '_MEIPASS', None)}")
+    logger.warning(
+        f"WebEngine frozen={getattr(sys, 'frozen', False)} _MEIPASS={getattr(sys, '_MEIPASS', None)}"
+    )
     logger.warning(f"WebEngine executable={sys.executable}")
     logger.warning(f"WebEngine APP_DIR={_fmt(app_dir)}")
 
@@ -43,30 +50,40 @@ def _log_webengine_diagnostics(app_dir: Path | None = None) -> None:
     candidates = []
     try:
         if hasattr(sys, "_MEIPASS"):
-            mp = Path(sys._MEIPASS)
-            candidates.extend([
-                mp / "Qt6" / "bin" / exe_name,
-                mp / "PyQt6" / "Qt6" / "bin" / exe_name,
-            ])
+            mp = Path(getattr(sys, "_MEIPASS", ""))
+            candidates.extend(
+                [
+                    mp / "Qt6" / "bin" / exe_name,
+                    mp / "PyQt6" / "Qt6" / "bin" / exe_name,
+                ]
+            )
         exe_dir = Path(sys.executable).parent
-        candidates.extend([
-            exe_dir / "Qt6" / "bin" / exe_name,
-            exe_dir / "PyQt6" / "Qt6" / "bin" / exe_name,
-            exe_dir / "Lib" / "site-packages" / "PyQt6" / "Qt6" / "bin" / exe_name,
-        ])
+        candidates.extend(
+            [
+                exe_dir / "Qt6" / "bin" / exe_name,
+                exe_dir / "PyQt6" / "Qt6" / "bin" / exe_name,
+                exe_dir / "Lib" / "site-packages" / "PyQt6" / "Qt6" / "bin" / exe_name,
+            ]
+        )
     except Exception:
         candidates = []
 
     found = next((p for p in candidates if p.exists()), None)
     logger.warning(f"WebEngine QtWebEngineProcess found={_fmt(found)}")
     if not found and candidates:
-        logger.warning(f"未找到 QtWebEngineProcess，候选路径: {', '.join(_fmt(p) for p in candidates)}")
+        logger.warning(
+            f"未找到 QtWebEngineProcess，候选路径: {', '.join(_fmt(p) for p in candidates)}"
+        )
 
     resource_dirs = []
     try:
         if hasattr(sys, "_MEIPASS"):
-            resource_dirs.append(Path(sys._MEIPASS) / "Qt6" / "resources")
-            resource_dirs.append(Path(sys._MEIPASS) / "PyQt6" / "Qt6" / "resources")
+            resource_dirs.append(
+                Path(getattr(sys, "_MEIPASS", "")) / "Qt6" / "resources"
+            )
+            resource_dirs.append(
+                Path(getattr(sys, "_MEIPASS", "")) / "PyQt6" / "Qt6" / "resources"
+            )
         exe_dir = Path(sys.executable).parent
         resource_dirs.append(exe_dir / "Qt6" / "resources")
         resource_dirs.append(exe_dir / "PyQt6" / "Qt6" / "resources")
@@ -86,20 +103,48 @@ def _log_webengine_diagnostics(app_dir: Path | None = None) -> None:
             continue
         missing = [f for f in required if not (rdir / f).exists()]
         present_opt = [f for f in optional if (rdir / f).exists()]
-        logger.warning(f"WebEngine resources_dir={_fmt(rdir)} missing={missing or '<none>'} optional={present_opt or '<none>'}")
+        logger.warning(
+            f"WebEngine resources_dir={_fmt(rdir)} missing={missing or '<none>'} optional={present_opt or '<none>'}"
+        )
 
     locale_dirs = []
     try:
         if hasattr(sys, "_MEIPASS"):
-            locale_dirs.append(Path(sys._MEIPASS) / "Qt6" / "translations" / "qtwebengine_locales")
-            locale_dirs.append(Path(sys._MEIPASS) / "PyQt6" / "Qt6" / "translations" / "qtwebengine_locales")
-            locale_dirs.append(Path(sys._MEIPASS) / "Qt6" / "resources" / "qtwebengine_locales")
-            locale_dirs.append(Path(sys._MEIPASS) / "PyQt6" / "Qt6" / "resources" / "qtwebengine_locales")
+            locale_dirs.append(
+                Path(getattr(sys, "_MEIPASS", ""))
+                / "Qt6"
+                / "translations"
+                / "qtwebengine_locales"
+            )
+            locale_dirs.append(
+                Path(getattr(sys, "_MEIPASS", ""))
+                / "PyQt6"
+                / "Qt6"
+                / "translations"
+                / "qtwebengine_locales"
+            )
+            locale_dirs.append(
+                Path(getattr(sys, "_MEIPASS", ""))
+                / "Qt6"
+                / "resources"
+                / "qtwebengine_locales"
+            )
+            locale_dirs.append(
+                Path(getattr(sys, "_MEIPASS", ""))
+                / "PyQt6"
+                / "Qt6"
+                / "resources"
+                / "qtwebengine_locales"
+            )
         exe_dir = Path(sys.executable).parent
         locale_dirs.append(exe_dir / "Qt6" / "translations" / "qtwebengine_locales")
-        locale_dirs.append(exe_dir / "PyQt6" / "Qt6" / "translations" / "qtwebengine_locales")
+        locale_dirs.append(
+            exe_dir / "PyQt6" / "Qt6" / "translations" / "qtwebengine_locales"
+        )
         locale_dirs.append(exe_dir / "Qt6" / "resources" / "qtwebengine_locales")
-        locale_dirs.append(exe_dir / "PyQt6" / "Qt6" / "resources" / "qtwebengine_locales")
+        locale_dirs.append(
+            exe_dir / "PyQt6" / "Qt6" / "resources" / "qtwebengine_locales"
+        )
     except Exception:
         locale_dirs = []
 

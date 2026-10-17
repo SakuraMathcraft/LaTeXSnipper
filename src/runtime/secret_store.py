@@ -11,7 +11,6 @@ from pathlib import Path
 
 from runtime.app_paths import app_state_dir
 
-
 PREFIX_WIN = "dpapi:"
 PREFIX_LOCAL = "local:"
 LOCAL_KEY_FILE = "secret.key"
@@ -57,7 +56,9 @@ def _encrypt_windows(value: str) -> str:
 def _decrypt_windows(value: str) -> str:
     protected = _b64d(value.removeprefix(PREFIX_WIN))
     in_buf = ctypes.create_string_buffer(protected)
-    in_blob = _DataBlob(len(protected), ctypes.cast(in_buf, ctypes.POINTER(ctypes.c_char)))
+    in_blob = _DataBlob(
+        len(protected), ctypes.cast(in_buf, ctypes.POINTER(ctypes.c_char))
+    )
     out_blob = _DataBlob()
     if not ctypes.windll.crypt32.CryptUnprotectData(
         ctypes.byref(in_blob),
@@ -100,7 +101,9 @@ def _keystream(key: bytes, nonce: bytes, length: int) -> bytes:
     blocks: list[bytes] = []
     counter = 0
     while sum(len(block) for block in blocks) < length:
-        blocks.append(hmac.new(key, nonce + counter.to_bytes(4, "big"), hashlib.sha256).digest())
+        blocks.append(
+            hmac.new(key, nonce + counter.to_bytes(4, "big"), hashlib.sha256).digest()
+        )
         counter += 1
     return b"".join(blocks)[:length]
 

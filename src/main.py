@@ -10,15 +10,15 @@ for _path in (_ROOT_DIR, _SRC_DIR):
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
 
-if len(sys.argv) == 3 and sys.argv[1] == '--validate-application':
+if len(sys.argv) == 3 and sys.argv[1] == "--validate-application":
     from runtime.application_validation import validate_application
 
     validate_application(Path(sys.argv[2]))
     raise SystemExit(0)
 
-if getattr(sys, 'frozen', False):
-    from runtime.installed_resources import current_target
+if getattr(sys, "frozen", False):
     from runtime.installation_layout import deployment_directory
+    from runtime.installed_resources import current_target
 
     _installation = Path(sys.executable).resolve().parent.parent
     if deployment_directory(_installation, current_target()[0]).exists():
@@ -30,8 +30,8 @@ if getattr(sys, 'frozen', False):
         raise SystemExit(0)
 
 from runtime.runtime_logging import init_app_logging  # noqa: E402
-from ui.controllers.runtime_log import apply_runtime_log_window_preference  # noqa: E402
 from runtime.std_streams import ensure_std_streams  # noqa: E402
+from ui.controllers.runtime_log import apply_runtime_log_window_preference  # noqa: E402
 
 ensure_std_streams()
 init_app_logging()

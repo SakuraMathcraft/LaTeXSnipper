@@ -41,7 +41,7 @@
 2. **选择识别模型。** 安装后直接运行，在设置中选择内置模型和识别类型。
 3. **开始识别与编辑。** 使用截图识别、图片、PDF 或手写入口，然后查看、复制或导出结果。
 
-Windows/Linux 安装包提供 CPU 与 NVIDIA GPU 发行，macOS 使用 CPU。Python、推理依赖、模型及 Pandoc 属于安装资源。GPU 发行自带私有 CUDA/cuDNN 库，要求支持的 NVIDIA 显卡与驱动。源码开发通过标准开发工具提供 Python 依赖和 PATH Pandoc。
+Windows/Linux 安装包提供 CPU 与 NVIDIA GPU 发行，macOS 14.0 及以上的 Apple Silicon 设备使用 CPU。Python、推理依赖、模型及 Pandoc 属于安装资源。GPU 发行自带私有 CUDA/cuDNN 库，要求支持的 NVIDIA 显卡与驱动。源码开发通过标准开发工具提供 Python 依赖和 PATH Pandoc。
 
 > [!TIP]
 > 权限、安装资源和故障排查见[常见问题](docs/faq.md)、[用户数据位置](docs/user_data_storage.md)和[完整用户手册](user_manual/user_manual.md)。

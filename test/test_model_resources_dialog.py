@@ -15,10 +15,10 @@ from ui import model_resources_dialog
 from ui.settings_resources_mixin import SettingsResourcesMixin
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def app():
-    os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
-    return QApplication.instance() or QApplication(['model-resources-test'])
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    return QApplication.instance() or QApplication(["model-resources-test"])
 
 
 class SettingsHarness(SettingsResourcesMixin, QWidget):
@@ -36,24 +36,31 @@ def wait_for_directory(app, dialog):
     assert dialog.open_directory.isEnabled()
 
 
-@pytest.mark.parametrize('close_while_checking', [False, True])
+@pytest.mark.parametrize("close_while_checking", [False, True])
 def test_model_resources_can_be_reopened_without_unhandled_exceptions(
-    app, tmp_path, monkeypatch, close_while_checking,
+    app,
+    tmp_path,
+    monkeypatch,
+    close_while_checking,
 ):
     ready = threading.Event()
     if not close_while_checking:
         ready.set()
-    states = {'formula': ModelCacheState('formula', tmp_path / 'formula', True, True, ())}
+    states = {
+        "formula": ModelCacheState("formula", tmp_path / "formula", True, True, ())
+    }
 
     def inspect():
         assert ready.wait(3)
         return states
 
-    resources = SimpleNamespace(installed_root=None, cache_root=tmp_path, inspect=inspect)
-    monkeypatch.setattr(model_resources_dialog, 'installed_resources', lambda: None)
-    monkeypatch.setattr(model_resources_dialog, 'desktop_model_resources', lambda _: resources)
+    resources = SimpleNamespace(manifest_path=None, root=tmp_path, inspect=inspect)
+    monkeypatch.setattr(model_resources_dialog, "installed_resources", lambda: None)
+    monkeypatch.setattr(
+        model_resources_dialog, "desktop_model_resources", lambda _: resources
+    )
     errors = []
-    monkeypatch.setattr(sys, 'excepthook', lambda *error: errors.append(error))
+    monkeypatch.setattr(sys, "excepthook", lambda *error: errors.append(error))
     settings = SettingsHarness()
     try:
         settings.button.click()
@@ -76,16 +83,28 @@ def test_model_resources_can_be_reopened_without_unhandled_exceptions(
         app.processEvents()
 
 
-def test_reopening_refreshes_downloaded_models_and_directory_action(app, tmp_path, monkeypatch):
-    cache = tmp_path / 'models'
+def test_reopening_refreshes_downloaded_models_and_directory_action(
+    app, tmp_path, monkeypatch
+):
+    cache = tmp_path / "models"
 
     def inspect():
         complete = cache.is_dir()
-        return {'formula': ModelCacheState('formula', cache / 'formula', complete, complete, () if complete else ('model.onnx',))}
+        return {
+            "formula": ModelCacheState(
+                "formula",
+                cache / "formula",
+                complete,
+                complete,
+                () if complete else ("model.onnx",),
+            )
+        }
 
-    resources = SimpleNamespace(installed_root=None, cache_root=cache, inspect=inspect)
-    monkeypatch.setattr(model_resources_dialog, 'installed_resources', lambda: None)
-    monkeypatch.setattr(model_resources_dialog, 'desktop_model_resources', lambda _: resources)
+    resources = SimpleNamespace(manifest_path=None, root=cache, inspect=inspect)
+    monkeypatch.setattr(model_resources_dialog, "installed_resources", lambda: None)
+    monkeypatch.setattr(
+        model_resources_dialog, "desktop_model_resources", lambda _: resources
+    )
     settings = SettingsHarness()
     try:
         settings._show_model_resources()

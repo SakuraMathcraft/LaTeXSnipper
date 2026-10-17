@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Pure PDF output formatting contract for regression testing."""
 
 import re
@@ -33,7 +32,9 @@ def _wrap_markdown_document(text: str, style_key: str = "document") -> str:
     return normalized + "\n"
 
 
-def _normalize_markdown_image_placeholders(text: str, normalize_image_syntax: bool = False) -> str:
+def _normalize_markdown_image_placeholders(
+    text: str, normalize_image_syntax: bool = False
+) -> str:
     if not text:
         return ""
 

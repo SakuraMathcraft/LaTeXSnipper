@@ -6,7 +6,9 @@ from backend.external_model.schemas import ExternalModelConfig
 from ui import pdf_options_dialog
 
 
-def test_mineru_parse_mode_skips_pdf_dpi_dialog(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_mineru_parse_mode_skips_pdf_dpi_dialog(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     def fail_if_dialog_is_created(*_args, **_kwargs):
         pytest.fail("MinerU native PDF parsing must not create a DPI dialog")
 

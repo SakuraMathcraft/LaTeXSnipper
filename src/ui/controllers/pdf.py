@@ -41,7 +41,7 @@ def parse_pdf_page_range(text: str, total_pages: int) -> tuple[int, int]:
     if not raw:
         raise ValueError(tr("请输入页码或页码范围。"))
     parts = [part.strip() for part in raw.split("-")]
-    if len(parts) > 2 or any((not part for part in parts)):
+    if len(parts) > 2 or any(not part for part in parts):
         raise ValueError(tr("页码范围格式应为 3 或 3-7。"))
     try:
         start = int(parts[0])
@@ -128,9 +128,9 @@ class PdfRecognitionController(QObject):
         except Exception as e:
             show_user_notice(
                 tr("错误"),
-                tr("PDF 处理资源不可用: {error}\n请打开应用诊断并修复应用资源。").format(
-                    error=e
-                ),
+                tr(
+                    "PDF 处理资源不可用: {error}\n请查看应用诊断，并通过“应用更新”修复应用组件。"
+                ).format(error=e),
                 self.view,
             )
             return

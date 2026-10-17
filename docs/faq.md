@@ -35,7 +35,7 @@ The shortcut UI uses the platform's primary modifier: `Ctrl` on Windows/Linux an
 
 - Windows x86_64: choose the CPU or NVIDIA GPU `.exe` installer.
 - Debian/Ubuntu-compatible Linux x86_64: choose the CPU or NVIDIA GPU offline `.tar.gz`, extract it, and run `install.sh`.
-- macOS Apple Silicon: use the CPU `.dmg`, copy the app to Applications, then launch that copy.
+- macOS 14.0 or later on Apple Silicon: use the CPU `.dmg`, copy the app to Applications, then launch that copy.
 
 Windows installers are unsigned unless optional SignPath signing succeeds.
 macOS builds use ad-hoc signatures without Developer ID or notarization. GPU builds
@@ -113,17 +113,17 @@ If the app crashes, include `crash-native.log` when reporting the issue.
 
 ## Where are MathCraft OCR models stored?
 
-Packaged workers prefer the installed model component. If an installed model
-is missing or fails validation, they check the default MathCraft cache and reuse
-weights matching the current manifest's file digests; otherwise they download
-into that same cache. Source desktop workers also use this default cache.
+Packaged workers use only the installed model component. Missing or corrupt
+weights are reported as resource failures; **App updates** repairs the component
+in the installation. Source desktop workers use the platform default MathCraft
+cache, which also serves the standalone library and CLI.
 Platform locations are documented in the
 [user data map](user_data_storage.md).
 
 ## What should I do if MathCraft OCR does not start?
 
 Open **App diagnostics** and the runtime log. A packaged
-resource failure needs repair of its installation component. For source
+resource failure can be repaired through **App updates**. For source
 development, check packages in the Python environment used to start the app.
 GPU failures report hardware, driver or private-runtime problems. Changing the
 installed CPU/GPU edition requires the matching installer; the app does not
@@ -183,4 +183,4 @@ Issues without logs are usually not actionable.
 
 ## Which Python environment should contributors use?
 
-Use a supported Python environment of your choice (venv, Conda, uv, or another manager). Activate it for development and checks, and select the same interpreter in your IDE. No repository-specific environment path is required. Client installers are built by `.github/workflows/release.yml`; Windows runtime preparation happens in the runner temporary directory, independently of developer environments.
+Use a supported Python environment of your choice (venv, Conda, uv, or another manager). Activate it for development and checks, and select the same interpreter in your IDE. No repository-specific environment path is required. Desktop installers are built by `.github/workflows/release.yml`, which assembles application, inference and model components from the declared build inputs. See the [desktop distribution architecture](desktop_distribution.md) for component ownership and build checks.

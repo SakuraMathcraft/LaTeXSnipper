@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
-from types import SimpleNamespace
 import sys
 import unittest
+from pathlib import Path
+from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -24,8 +24,8 @@ from capture.geometry import (  # noqa: E402
     map_global_rect_to_screen_capture,
 )
 from capture.overlay import (  # noqa: E402
-    _capture_window_flags,
     ScreenCaptureOverlay,
+    _capture_window_flags,
 )
 
 
@@ -121,8 +121,12 @@ class CaptureOverlayMappingTests(unittest.TestCase):
     def test_magnifier_position_does_not_flip_at_screen_center(self):
         bounds = QRect(0, 0, 1920, 1080)
 
-        left_of_center = _place_popup_near_pointer(QPoint(959, 400), bounds, 126, 202, 14)
-        right_of_center = _place_popup_near_pointer(QPoint(961, 400), bounds, 126, 202, 14)
+        left_of_center = _place_popup_near_pointer(
+            QPoint(959, 400), bounds, 126, 202, 14
+        )
+        right_of_center = _place_popup_near_pointer(
+            QPoint(961, 400), bounds, 126, 202, 14
+        )
 
         self.assertGreater(left_of_center.left(), 959)
         self.assertGreater(right_of_center.left(), 961)

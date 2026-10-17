@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import logging
 import json
+import logging
 import os
 import tempfile
 from pathlib import Path
+from typing import Any
 
 from runtime.app_paths import app_config_path, app_state_dir
 from runtime.private_files import ensure_private_directory
@@ -31,7 +32,7 @@ class ConfigManager:
         except Exception:
             self.data = {}
 
-    def get(self, key, default=None):
+    def get(self, key: str, default: Any = None) -> Any:
         return self.data.get(key, default)
 
     def set(self, key, value):
@@ -47,7 +48,9 @@ class ConfigManager:
         temp_path = None
         try:
             ensure_private_directory(target.parent)
-            descriptor, temp_name = tempfile.mkstemp(prefix=f".{target.name}.", dir=target.parent)
+            descriptor, temp_name = tempfile.mkstemp(
+                prefix=f".{target.name}.", dir=target.parent
+            )
             temp_path = Path(temp_name)
             with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
                 json.dump(self.data, stream, ensure_ascii=False, indent=2)

@@ -9,7 +9,6 @@ from runtime.product_version import (
     write_windows_version_info,
 )
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 

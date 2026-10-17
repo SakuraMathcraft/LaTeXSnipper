@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-# ruff: noqa: E402
-
-import re
-import pytest
 import os
-from pathlib import Path
+
+# ruff: noqa: E402
+import re
 import subprocess
 import sys
 import time
+from pathlib import Path
 
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -20,7 +20,9 @@ from runtime.log_lifecycle import cleanup_stale_fallback_logs, rotate_before_app
 
 
 @pytest.mark.parametrize("packaged", [False, True])
-def test_application_log_routes_levels_formats_and_tracebacks(tmp_path: Path, packaged: bool) -> None:
+def test_application_log_routes_levels_formats_and_tracebacks(
+    tmp_path: Path, packaged: bool
+) -> None:
     code = """
 import logging
 from pathlib import Path
@@ -62,7 +64,9 @@ logger.info("after-session")
 logging.shutdown()
 """
     env = os.environ.copy()
-    env["PYTHONPATH"] = os.pathsep.join(filter(None, (str(SRC), env.get("PYTHONPATH", ""))))
+    env["PYTHONPATH"] = os.pathsep.join(
+        filter(None, (str(SRC), env.get("PYTHONPATH", "")))
+    )
     result = subprocess.run(
         [sys.executable, "-c", code, str(tmp_path), str(SRC), str(packaged)],
         capture_output=True,
@@ -77,13 +81,21 @@ logging.shutdown()
     assert result.returncode == 0, result.stderr
     persistent = (tmp_path / "app.log").read_text(encoding="utf-8")
     session = (tmp_path / "runtime-session.log").read_text(encoding="utf-8")
-    assert re.search(r"^\[\d{4}-\d{2}-\d{2} [^\]]+\] \[INFO\] ready$", persistent, re.MULTILINE)
+    assert re.search(
+        r"^\[\d{4}-\d{2}-\d{2} [^\]]+\] \[INFO\] ready$", persistent, re.MULTILINE
+    )
     assert "[DEBUG] debug-only" in session
     assert "debug-only" not in persistent
     assert "thirdparty-debug" not in session
     assert "thirdparty-debug" not in persistent
     assert "previous-session" not in session
-    for message in ("ready", "warning-record", "thirdparty-info", "exception-record", "LaTeXSnipper 启动 pid="):
+    for message in (
+        "ready",
+        "warning-record",
+        "thirdparty-info",
+        "exception-record",
+        "LaTeXSnipper 启动 pid=",
+    ):
         assert session.count(message) == 1
         assert persistent.count(message) == 1
     assert "[INFO] ready\n" in session
@@ -140,11 +152,14 @@ def test_only_expired_pid_fallback_logs_are_removed(tmp_path: Path) -> None:
 
 def test_session_capture_requires_instance_lock(monkeypatch):
     import pytest
+
     from application import bootstrap
 
     events = []
     monkeypatch.setattr(bootstrap.atexit, "register", lambda callback: None)
-    monkeypatch.setattr(bootstrap, "start_runtime_log_session", lambda: events.append("session"))
+    monkeypatch.setattr(
+        bootstrap, "start_runtime_log_session", lambda: events.append("session")
+    )
     monkeypatch.setattr(bootstrap, "_show_already_running_message", lambda app: None)
     monkeypatch.setattr(bootstrap, "ensure_single_instance", lambda: False)
     with pytest.raises(SystemExit):

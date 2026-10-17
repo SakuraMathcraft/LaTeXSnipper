@@ -1,11 +1,15 @@
 """Compose the desktop UI and independently owned controllers."""
 
 from __future__ import annotations
+
 import sys
+from typing import cast
+
 from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QMainWindow
 from qfluentwidgets import PrimaryPushButton
+
 from localization.manager import translate as tr
 from platform_services import PlatformCapabilityRegistry
 from recognition.jobs import RecognitionJobCoordinator
@@ -57,8 +61,10 @@ class MainWindow(QMainWindow):
         build_main_window_layout(self, self.cfg)
         self.platform_registry = PlatformCapabilityRegistry(parent=self)
         providers = self.platform_registry.create()
+
         def notification_parent():
             return self.windows.notification_parent()
+
         self.tasks = RecognitionTaskController(
             self, lambda: self.windows.handwriting_busy()
         )
@@ -89,8 +95,8 @@ class MainWindow(QMainWindow):
                 self.cfg,
                 self.models,
                 self.status,
-                self.theme,
-                self.lifecycle,
+                cast(ThemeController, self.theme),
+                cast(AppLifecycleController, self.lifecycle),
                 self.automation_api,
             ),
             self.tasks,

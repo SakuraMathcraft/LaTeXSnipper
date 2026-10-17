@@ -1,19 +1,23 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import shutil
 import subprocess
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 import pytest
 
 from exporting import formula_converters
 from exporting.formula_converters import _find_mml2omml_xsl
-from exporting.formula_export import build_formula_export, export_format_label, get_all_export_format_specs, is_export_format_available
+from exporting.formula_export import (
+    build_formula_export,
+    export_format_label,
+    get_all_export_format_specs,
+    is_export_format_available,
+)
 from exporting.formula_format_helpers import normalize_latex_for_export
 from exporting.pandoc_exporter import check_pandoc_available
-
 
 SAMPLE_LATEX = (
     r"\frac{d}{dt}\frac{\partial L}{\partial \dot q_i}"
@@ -26,8 +30,17 @@ def run_mathjax(inputs: list[dict], *, font: str = "mathjax-tex") -> dict:
     if node is None:
         pytest.skip("Node.js is unavailable for bundled MathJax verification")
     completed = subprocess.run(
-        [node, str(Path(__file__).parents[1] / "tools/mathjax/probe.cjs"), json.dumps({"font": font})],
-        input=json.dumps(inputs), check=True, capture_output=True, text=True, encoding="utf-8", timeout=30,
+        [
+            node,
+            str(Path(__file__).parents[1] / "tools/mathjax/probe.cjs"),
+            json.dumps({"font": font}),
+        ],
+        input=json.dumps(inputs),
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=30,
     )
     assert not completed.stderr, completed.stderr
     return json.loads(completed.stdout)
@@ -68,12 +81,21 @@ def test_export_normalization_preserves_latex_source() -> None:
 
     assert normalize_latex_for_export(source) == source
     assert build_formula_export("latex", source, **converters)[0] == f"${source}$"
-    assert build_formula_export("latex_display", source, **converters)[0] == f"\\[\n{source}\n\\]"
+    assert (
+        build_formula_export("latex_display", source, **converters)[0]
+        == f"\\[\n{source}\n\\]"
+    )
     assert build_formula_export("latex_equation", source, **converters)[0] == (
         f"\\begin{{equation}}\n{source}\n\\end{{equation}}"
     )
-    assert build_formula_export("markdown_inline", source, **converters)[0] == f"${source}$"
-    assert build_formula_export("markdown_block", source, **converters)[0] == f"$$\n{source}\n$$"
+    assert (
+        build_formula_export("markdown_inline", source, **converters)[0]
+        == f"${source}$"
+    )
+    assert (
+        build_formula_export("markdown_block", source, **converters)[0]
+        == f"$$\n{source}\n$$"
+    )
 
 
 def test_export_normalization_only_removes_unambiguous_outer_delimiter() -> None:
@@ -88,18 +110,25 @@ def test_export_normalization_only_removes_unambiguous_outer_delimiter() -> None
 @pytest.mark.parametrize("font", ["mathjax-tex", "mathjax-stix2"])
 def test_bundled_mathjax_renders_shared_packages_and_dynamic_fonts(font: str) -> None:
     samples = [
-        r"\mathcal{e^{i\pi}+1=0}", r"\mathscr{ABC}", r"\mathfrak{ABC}", r"\mathbb{ABC}",
-        r"\qty(\frac{a}{b})+\dv{f}{x}+\vb{E}", r"\braket{\psi|\phi}+\ketbra{0}{1}",
+        r"\mathcal{e^{i\pi}+1=0}",
+        r"\mathscr{ABC}",
+        r"\mathfrak{ABC}",
+        r"\mathbb{ABC}",
+        r"\qty(\frac{a}{b})+\dv{f}{x}+\vb{E}",
+        r"\braket{\psi|\phi}+\ketbra{0}{1}",
         r"\cancel{x}+\bcancel{y}+\xcancel{z}",
         r"\begin{cases}x^2,&x>0\\0,&x\le0\end{cases}",
         r"A\xrightarrow[\beta]{\alpha}B+\ce{CO2 + C -> 2 CO}",
         r"\begin{align}&\text{设 }A,B\text{ 为事件}\\&P(A\mid B)=\frac{P(A\cap B)}{P(B)}\end{align}",
-        r"\mathrm{\delta}", '<math><mfrac><mi>a</mi><mi>b</mi></mfrac></math>',
+        r"\mathrm{\delta}",
+        "<math><mfrac><mi>a</mi><mi>b</mi></mfrac></math>",
     ]
     data = run_mathjax([{"latex": sample} for sample in samples], font=font)
     for result in data["results"]:
         assert result["version"] == "4.1.3"
-        assert "data-mjx-error" not in result["svg"] and "merror" not in result["mathml"]
+        assert (
+            "data-mjx-error" not in result["svg"] and "merror" not in result["mathml"]
+        )
         ET.fromstring(result["svg"])
         ET.fromstring(result["mathml"])
     assert any("mhchem-font-extension" in file for file in data["loaded"])
@@ -108,10 +137,12 @@ def test_bundled_mathjax_renders_shared_packages_and_dynamic_fonts(font: str) ->
 
 
 def test_mathml_only_does_not_run_svg_and_office_normalization_is_explicit() -> None:
-    results = run_mathjax([
-        {"latex": "x", "outputs": ["mathml"]},
-        {"latex": r"\colorbox{red}{$x$}", "outputs": ["svg"], "officeInput": True},
-    ])["results"]
+    results = run_mathjax(
+        [
+            {"latex": "x", "outputs": ["mathml"]},
+            {"latex": r"\colorbox{red}{$x$}", "outputs": ["svg"], "officeInput": True},
+        ]
+    )["results"]
     assert "svg" not in results[0]
     assert "mathml" not in results[1]
     assert "data-mjx-error" not in results[1]["svg"]

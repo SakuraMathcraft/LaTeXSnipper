@@ -1,4 +1,6 @@
-from PyQt6.QtCore import QThread
+from typing import cast
+
+from PyQt6.QtCore import QObject, QThread
 from PyQt6.QtWidgets import QLineEdit
 from qfluentwidgets import ComboBox
 
@@ -203,7 +205,7 @@ class SettingsExternalModelMixin:
         self._save_external_model_config()
         self.external_test_btn.setEnabled(False)
         self.external_test_btn.setText(tr("测试中..."))
-        self._external_test_thread = QThread(self)
+        self._external_test_thread = QThread(cast(QObject, self))
         self._external_test_worker = ExternalModelConnectionWorker(config)
         self._external_test_worker.moveToThread(self._external_test_thread)
 

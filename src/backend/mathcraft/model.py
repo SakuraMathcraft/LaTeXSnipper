@@ -1,25 +1,28 @@
-# coding: utf-8
-
 from __future__ import annotations
 
-import logging
-from collections import deque
 import json
+import logging
 import os
 import queue
 import re
 import subprocess
 import tempfile
 import threading
-from typing import Any
+from collections import deque
+from typing import Any, cast
 
 from PIL import Image
 from PyQt6.QtCore import QObject, pyqtSignal
-from runtime.installed_resources import installed_resources, worker_environment, worker_command
-from mathcraft_ocr.protocol import WORKER_PROTOCOL, MODEL_FORMAT, validate_response
-from runtime.exception_diagnostics import format_exception_diagnostics
+
 from backend.mathcraft.diagnostics import classify_mathcraft_failure
 from backend.mathcraft.process_environment import _failed_warmup_component_details
+from mathcraft_ocr.protocol import MODEL_FORMAT, WORKER_PROTOCOL, validate_response
+from runtime.exception_diagnostics import format_exception_diagnostics
+from runtime.installed_resources import (
+    installed_resources,
+    worker_command,
+    worker_environment,
+)
 from runtime.processes import hidden_subprocess_kwargs
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
@@ -42,7 +45,9 @@ EMPTY_IMAGE_FOREGROUND_RATIO_THRESHOLD = 0.0015
 class _MathCraftWorkerError(RuntimeError):
     """An OCR worker failure with its child-process traceback preserved for logs."""
 
-    def __init__(self, error_type: str, message: str, remote_traceback: str = "") -> None:
+    def __init__(
+        self, error_type: str, message: str, remote_traceback: str = ""
+    ) -> None:
         label = f"{error_type}: {message}" if error_type else message
         super().__init__(label or "MathCraft OCR 运行错误")
         self.remote_traceback = str(remote_traceback or "").strip()
@@ -60,7 +65,7 @@ def _looks_like_empty_ocr_input(image: Image.Image) -> bool:
             (max(1, int(sample.width * scale)), max(1, int(sample.height * scale))),
             Image.Resampling.BILINEAR,
         )
-    pixels = sample.get_flattened_data()
+    pixels = cast(tuple[int, ...], sample.get_flattened_data())
     if not pixels:
         return True
     mean = sum(pixels) / len(pixels)
@@ -93,7 +98,9 @@ def _looks_like_degenerate_formula_text(text: str) -> bool:
     return most_common >= 16 and most_common / max(1, len(atoms)) >= 0.45
 
 
-def _empty_recognition_result(model: str, mode: str, image: Image.Image, reason: str) -> dict[str, Any]:
+def _empty_recognition_result(
+    model: str, mode: str, image: Image.Image, reason: str
+) -> dict[str, Any]:
     return {
         "text": "",
         "score": 0.0,
@@ -197,16 +204,20 @@ class ModelWrapper(QObject):
                         tail.append(line)
                     prefix = "[MATHCRAFT_CACHE]"
                     if line.startswith(prefix):
-                        self._emit_cache_event_once(line[len(prefix):].strip())
+                        self._emit_cache_event_once(line[len(prefix) :].strip())
                     else:
-                        logger.info("MathCraft worker stderr pid=%s: %s", proc.pid, line)
+                        logger.info(
+                            "MathCraft worker stderr pid=%s: %s", proc.pid, line
+                        )
             except (OSError, ValueError) as exc:
                 logger.warning("MathCraft worker stderr read failed: %s", exc)
 
         self._stderr_thread = threading.Thread(target=_pump, daemon=True)
         self._stderr_thread.start()
 
-    def _worker_transport_error(self, proc: subprocess.Popen, message: str) -> RuntimeError:
+    def _worker_transport_error(
+        self, proc: subprocess.Popen, message: str
+    ) -> RuntimeError:
         # Snapshot the natural exit code before cleanup can terminate a live process.
         try:
             exit_code = proc.wait(timeout=0.2)
@@ -251,44 +262,60 @@ class ModelWrapper(QObject):
                 return True
             except Exception as exc:
                 self._set_error(str(exc))
-                self._emit(f"MathCraft OCR 运行进程启动失败:\n{format_exception_diagnostics(exc)}", level=logging.ERROR)
+                self._emit(
+                    f"MathCraft OCR 运行进程启动失败:\n{format_exception_diagnostics(exc)}",
+                    level=logging.ERROR,
+                )
                 self._worker = None
                 return False
 
-    def _send_worker_request(self, payload: dict[str, Any], timeout_sec: float | None = 300.0) -> dict[str, Any]:
+    def _send_worker_request(
+        self, payload: dict[str, Any], timeout_sec: float | None = 300.0
+    ) -> dict[str, Any]:
         if not self._ensure_worker():
             raise RuntimeError(self._last_error or "MathCraft OCR 运行进程启动失败")
         proc = self._worker
         if proc is None or proc.stdin is None or proc.stdout is None:
             raise RuntimeError("MathCraft OCR 运行进程管道不可用")
 
-        if payload.get('action') != 'hello' and not self._handshake_complete:
-            hello = self._send_worker_request({'action': 'hello'}, timeout_sec=30)
-            if hello.get('worker_protocol') != WORKER_PROTOCOL or hello.get('model_format') != MODEL_FORMAT:
+        if payload.get("action") != "hello" and not self._handshake_complete:
+            hello = self._send_worker_request({"action": "hello"}, timeout_sec=30)
+            if (
+                hello.get("worker_protocol") != WORKER_PROTOCOL
+                or hello.get("model_format") != MODEL_FORMAT
+            ):
                 self.stop()
-                raise RuntimeError('MathCraft worker contract mismatch')
+                raise RuntimeError("MathCraft worker contract mismatch")
             if self._resources is not None:
                 from runtime.distribution_manifest import read_json
 
-                details = read_json(self._resources.root / 'inference/runtime.json')
-                if any(hello.get(key) != details[key] for key in ('python_version', 'ort_version')):
+                details = read_json(self._resources.root / "inference/runtime.json")
+                if any(
+                    hello.get(key) != details[key]
+                    for key in ("python_version", "ort_version")
+                ):
                     self.stop()
-                    raise RuntimeError('MathCraft worker runtime versions do not match the installation')
+                    raise RuntimeError(
+                        "MathCraft worker runtime versions do not match the installation"
+                    )
             self._handshake_complete = True
             self.runtime_info = dict(hello)
         request = dict(payload)
-        request['protocol'] = WORKER_PROTOCOL
+        request["protocol"] = WORKER_PROTOCOL
         request["id"] = request.get("id") or self._next_request_id()
         with self._request_lock:
             try:
                 proc.stdin.write(json.dumps(request, ensure_ascii=False) + "\n")
                 proc.stdin.flush()
             except Exception as exc:
-                raise self._worker_transport_error(proc, f"MathCraft OCR 请求发送失败: {exc}") from exc
+                raise self._worker_transport_error(
+                    proc, f"MathCraft OCR 请求发送失败: {exc}"
+                ) from exc
             lines: queue.Queue[str | BaseException] = queue.Queue(maxsize=1)
 
             def _readline() -> None:
                 try:
+                    assert proc.stdout is not None
                     lines.put(proc.stdout.readline())
                 except BaseException as exc:
                     lines.put(exc)
@@ -302,17 +329,25 @@ class ModelWrapper(QObject):
                     else lines.get(timeout=max(float(timeout_sec), 1.0))
                 )
             except queue.Empty as exc:
-                raise self._worker_transport_error(proc, f"MathCraft OCR 运行进程超时（>{timeout_sec:.0f}s）") from exc
+                raise self._worker_transport_error(
+                    proc, f"MathCraft OCR 运行进程超时（>{timeout_sec:.0f}s）"
+                ) from exc
             if isinstance(line_or_exc, BaseException):
-                raise self._worker_transport_error(proc, f"MathCraft OCR 响应读取失败: {line_or_exc}") from line_or_exc
+                raise self._worker_transport_error(
+                    proc, f"MathCraft OCR 响应读取失败: {line_or_exc}"
+                ) from line_or_exc
             line = line_or_exc
 
         if not line:
-            raise self._worker_transport_error(proc, "MathCraft OCR 运行进程没有返回结果")
+            raise self._worker_transport_error(
+                proc, "MathCraft OCR 运行进程没有返回结果"
+            )
         try:
             response = validate_response(json.loads(line), request["id"])
         except Exception as exc:
-            raise self._worker_transport_error(proc, f"MathCraft OCR 返回了无效响应: {exc}; {line[:300]}") from exc
+            raise self._worker_transport_error(
+                proc, f"MathCraft OCR 返回了无效响应: {exc}; {line[:300]}"
+            ) from exc
         if not response.get("ok"):
             err = response.get("error", {})
             if isinstance(err, dict):
@@ -355,11 +390,16 @@ class ModelWrapper(QObject):
                 proc.kill()
                 proc.wait(timeout=1)
         except (OSError, subprocess.TimeoutExpired) as exc:
-            self._emit(f"MathCraft worker cleanup pid={proc.pid}: {exc}", level=logging.WARNING)
+            self._emit(
+                f"MathCraft worker cleanup pid={proc.pid}: {exc}", level=logging.WARNING
+            )
         if self._stderr_thread is not None:
             self._stderr_thread.join(timeout=1)
             if self._stderr_thread.is_alive():
-                self._emit(f"MathCraft worker stderr drain incomplete pid={proc.pid}", level=logging.WARNING)
+                self._emit(
+                    f"MathCraft worker stderr drain incomplete pid={proc.pid}",
+                    level=logging.WARNING,
+                )
             self._stderr_thread = None
         self._ready = False
         self._ready_modes.clear()
@@ -429,7 +469,7 @@ class ModelWrapper(QObject):
     def is_ready(self) -> bool:
         return self._ready
 
-    def is_model_ready(self, model_name: str) -> bool:
+    def is_model_ready(self, model_name: str | None) -> bool:
         try:
             mode = self._mode_for_model(model_name)
         except Exception:
@@ -449,7 +489,9 @@ class ModelWrapper(QObject):
             return f"model ready (MathCraft, device={self.device})"
         return "model not loaded"
 
-    def predict_result(self, pil_img: Image.Image, model_name: str = "mathcraft") -> dict[str, Any]:
+    def predict_result(
+        self, pil_img: Image.Image, model_name: str = "mathcraft"
+    ) -> dict[str, Any]:
         model = self._normalize_model_name(model_name)
         mode = self._mode_for_model(model)
         if mode not in self._ready_modes and not self.warmup(model):
@@ -493,8 +535,12 @@ class ModelWrapper(QObject):
             result["mode"] = mode
             result["image_size"] = [int(image_rgb.width), int(image_rgb.height)]
             result["text"] = str(result.get("text", "") or "").strip()
-            if mode == "formula" and _looks_like_degenerate_formula_text(result["text"]):
-                return _empty_recognition_result(model, mode, image_rgb, "degenerate_formula_output")
+            if mode == "formula" and _looks_like_degenerate_formula_text(
+                result["text"]
+            ):
+                return _empty_recognition_result(
+                    model, mode, image_rgb, "degenerate_formula_output"
+                )
             return result
         finally:
             if tmp_path:

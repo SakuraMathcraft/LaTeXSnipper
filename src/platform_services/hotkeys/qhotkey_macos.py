@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import logging
 import ctypes
 import ctypes.util
-from typing import Any, Optional, Union
+import logging
+from typing import Any
 
-from PyQt6.QtCore import QObject, QTimer, Qt, pyqtSignal
+from PyQt6.QtCore import QObject, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QKeySequence
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
@@ -135,8 +135,8 @@ class MacHotkey(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._seq_obj: Optional[QKeySequence] = None
-        self._seq_str: Optional[str] = None
+        self._seq_obj: QKeySequence | None = None
+        self._seq_str: str | None = None
         self._carbon: Any | None = None
         self._handler_proc: Any | None = None
         self._handler_ref = ctypes.c_void_p()
@@ -244,7 +244,7 @@ class MacHotkey(QObject):
             raise RuntimeError(f"macOS hotkey event handler install failed: {status}")
         self._handler_ref = handler_ref
 
-    def register(self, seq: Union[QKeySequence, str, None] = None) -> None:
+    def register(self, seq: QKeySequence | str | None = None) -> None:
         if seq is not None:
             if isinstance(seq, str):
                 seq = QKeySequence(self._qt_sequence_text(seq))
@@ -274,7 +274,9 @@ class MacHotkey(QObject):
         self._hotkey_id = hotkey_id
         self._hotkey_ref = hotkey_ref
         self._registered = True
-        logger.debug("全局快捷键已注册: id=%s seq=%s macOS", self._hotkey_id, self._seq_str)
+        logger.debug(
+            "全局快捷键已注册: id=%s seq=%s macOS", self._hotkey_id, self._seq_str
+        )
 
     def unregister(self) -> None:
         if self._registered and self._hotkey_ref.value and self._carbon is not None:

@@ -1,13 +1,15 @@
 """Verify the real UI import graph in an isolated interpreter."""
 
 import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
+
 import pytest
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
+
 from ui.controllers.tasks import RecognitionTaskController
 
 

@@ -8,7 +8,6 @@ from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication
 
-
 _NATIVE_ICON_HANDLES: list[int] = []
 
 
@@ -27,7 +26,9 @@ def apply_app_window_icon(win, icon_path: str | os.PathLike[str] | None) -> None
         win.setWindowIcon(icon)
 
 
-def schedule_native_dialog_icon(title: str, icon_path: str | os.PathLike[str] | None, attempts: int = 40):
+def schedule_native_dialog_icon(
+    title: str, icon_path: str | os.PathLike[str] | None, attempts: int = 40
+):
     """Repeatedly apply the app icon to a native Windows dialog while it opens."""
     if os.name != "nt" or not icon_path:
         return None
@@ -60,13 +61,22 @@ def _apply_native_dialog_icon(title: str, icon_path: Path) -> None:
     user32 = ctypes.windll.user32
     user32.GetSystemMetrics.argtypes = [ctypes.c_int]
     user32.GetSystemMetrics.restype = ctypes.c_int
-    user32.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+    user32.SendMessageW.argtypes = [
+        wintypes.HWND,
+        wintypes.UINT,
+        wintypes.WPARAM,
+        wintypes.LPARAM,
+    ]
     user32.SendMessageW.restype = wintypes.LPARAM
     wm_seticon = 0x0080
     icon_small = 0
     icon_big = 1
-    h_small = _load_icon(icon_path, user32.GetSystemMetrics(49), user32.GetSystemMetrics(50))
-    h_big = _load_icon(icon_path, user32.GetSystemMetrics(11), user32.GetSystemMetrics(12))
+    h_small = _load_icon(
+        icon_path, user32.GetSystemMetrics(49), user32.GetSystemMetrics(50)
+    )
+    h_big = _load_icon(
+        icon_path, user32.GetSystemMetrics(11), user32.GetSystemMetrics(12)
+    )
     if not h_small and not h_big:
         return
 
@@ -114,7 +124,10 @@ def _find_current_process_windows(title: str) -> list[int]:
     kernel32.GetCurrentProcessId.restype = wintypes.DWORD
     user32.IsWindowVisible.argtypes = [wintypes.HWND]
     user32.IsWindowVisible.restype = wintypes.BOOL
-    user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+    user32.GetWindowThreadProcessId.argtypes = [
+        wintypes.HWND,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
     user32.GetWindowThreadProcessId.restype = wintypes.DWORD
     user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
     user32.GetWindowTextLengthW.restype = ctypes.c_int

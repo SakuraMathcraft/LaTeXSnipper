@@ -1,11 +1,8 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import argparse
 import json
 from pathlib import Path
-
 
 SUBSETS = {
     "spe": "simple_printed_expression",
@@ -16,7 +13,9 @@ SUBSETS = {
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Create MathCraft manifest from UniMER-Test.")
+    parser = argparse.ArgumentParser(
+        description="Create MathCraft manifest from UniMER-Test."
+    )
     parser.add_argument(
         "--root",
         required=True,
@@ -36,9 +35,14 @@ def main(argv: list[str] | None = None) -> int:
             image_dir = root / subset
             image_paths = sorted(image_dir.glob("*.png"), key=lambda item: item.name)
             if len(labels) == len(image_paths):
-                image_label_pairs = list(zip(image_paths, labels))
-            elif all(_is_int_stem(path) and int(path.stem) < len(labels) for path in image_paths):
-                image_label_pairs = [(path, labels[int(path.stem)]) for path in image_paths]
+                image_label_pairs = list(zip(image_paths, labels, strict=False))
+            elif all(
+                _is_int_stem(path) and int(path.stem) < len(labels)
+                for path in image_paths
+            ):
+                image_label_pairs = [
+                    (path, labels[int(path.stem)]) for path in image_paths
+                ]
             else:
                 raise ValueError(
                     f"{subset}: label count {len(labels)} does not match image count {len(image_paths)}"

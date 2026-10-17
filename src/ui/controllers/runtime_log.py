@@ -14,6 +14,7 @@ from ui.runtime_log_dialog import RuntimeLogDialog
 
 _RUNTIME_LOG_DIALOG: RuntimeLogDialog | None = None
 
+
 def show_runtime_log_window(parent=None):
     global _RUNTIME_LOG_DIALOG
     app = QApplication.instance() or QApplication(sys.argv)
@@ -36,7 +37,9 @@ def show_runtime_log_window(parent=None):
 
 def refresh_runtime_log_dialog_theme(force: bool = True) -> None:
     try:
-        if _RUNTIME_LOG_DIALOG is not None and hasattr(_RUNTIME_LOG_DIALOG, "_apply_theme_styles"):
+        if _RUNTIME_LOG_DIALOG is not None and hasattr(
+            _RUNTIME_LOG_DIALOG, "_apply_theme_styles"
+        ):
             _RUNTIME_LOG_DIALOG._apply_theme_styles(force=force)
     except Exception:
         pass
@@ -44,6 +47,7 @@ def refresh_runtime_log_dialog_theme(force: bool = True) -> None:
 
 def apply_runtime_log_window_preference(force: bool = False):
     """Apply the preference for the scrollable GUI runtime-log window."""
+
     def _read_runtime_log_window_pref(default: bool = False) -> bool:
         try:
             cfg = app_config_path()

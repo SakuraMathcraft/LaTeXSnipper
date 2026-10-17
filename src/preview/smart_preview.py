@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import logging
 import html as html_module
+import logging
 import re
 
 from localization.manager import translate as tr
@@ -55,7 +55,9 @@ def build_smart_preview_html(items: list) -> str:
             for content, label, content_type in items
         )
 
-        mathjax_config = mathjax_loader_script(options={"processHtmlClass": "formula-content"})
+        mathjax_config = mathjax_loader_script(
+            options={"processHtmlClass": "formula-content"}
+        )
 
         return f"""<!DOCTYPE html>
 <html>

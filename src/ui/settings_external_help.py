@@ -1,8 +1,8 @@
-from localization.manager import translate as tr
 from PyQt6.QtCore import QEvent, Qt
 from PyQt6.QtWidgets import QDialog, QLabel, QScrollArea, QVBoxLayout, QWidget
 from qfluentwidgets import BodyLabel, FluentIcon, PrimaryPushButton
 
+from localization.manager import translate as tr
 from ui.theme_tokens import dialog_theme_tokens, is_dark_ui
 
 

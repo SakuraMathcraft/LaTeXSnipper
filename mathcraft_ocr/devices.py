@@ -1,15 +1,13 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import ctypes
-from dataclasses import dataclass
 import os
 import platform
-from pathlib import Path
 import subprocess
 import sys
 import uuid
+from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -38,7 +36,9 @@ class DxgiAdapter:
     dedicated_memory_mb: int = 0
 
 
-def resolve_device_identity(provider: str | None, device_id: int | None) -> DeviceIdentity:
+def resolve_device_identity(
+    provider: str | None, device_id: int | None
+) -> DeviceIdentity:
     active = str(provider or "")
     if active == "CPUExecutionProvider":
         return DeviceIdentity(name=_cpu_name(), verified=True)
@@ -53,11 +53,15 @@ def resolve_device_identity(provider: str | None, device_id: int | None) -> Devi
         adapter = next((item for item in adapters if item.index == selected_id), None)
         if adapter is None:
             return DeviceIdentity(device_id=selected_id)
-        return DeviceIdentity(device_id=selected_id, name=adapter.name, uuid=adapter.luid)
+        return DeviceIdentity(
+            device_id=selected_id, name=adapter.name, uuid=adapter.luid
+        )
     return DeviceIdentity()
 
 
-def confirm_device_identity(provider: str | None, device_id: int | None) -> DeviceIdentity:
+def confirm_device_identity(
+    provider: str | None, device_id: int | None
+) -> DeviceIdentity:
     active = str(provider or "")
     selected = resolve_device_identity(active, device_id)
     if active in {"CUDAExecutionProvider", "TensorrtExecutionProvider"}:
@@ -174,7 +178,11 @@ def select_nvidia_device(
 ) -> NvidiaDevice | None:
     if logical_device_id < 0:
         return None
-    raw_visible = os.environ.get("CUDA_VISIBLE_DEVICES", "") if visible_devices is None else visible_devices
+    raw_visible = (
+        os.environ.get("CUDA_VISIBLE_DEVICES", "")
+        if visible_devices is None
+        else visible_devices
+    )
     tokens = [token.strip() for token in raw_visible.split(",") if token.strip()]
     if tokens:
         if logical_device_id >= len(tokens):
@@ -184,13 +192,16 @@ def select_nvidia_device(
             return None
         if token.isdigit():
             physical_index = int(token)
-            return next((item for item in devices if item.index == physical_index), None)
+            return next(
+                (item for item in devices if item.index == physical_index), None
+            )
         normalized = token.lower()
         return next(
             (
                 item
                 for item in devices
-                if item.uuid.lower() == normalized or item.uuid.lower().startswith(normalized)
+                if item.uuid.lower() == normalized
+                or item.uuid.lower().startswith(normalized)
             ),
             None,
         )
@@ -248,7 +259,9 @@ def _query_dxgi_adapters_windows() -> tuple[DxgiAdapter, ...]:
         return ()
 
     def _method(pointer: ctypes.c_void_p, index: int, prototype):
-        table = ctypes.cast(pointer, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+        table = ctypes.cast(
+            pointer, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))
+        ).contents
         return prototype(table[index])
 
     release_proto = ctypes.WINFUNCTYPE(wintypes.ULONG, ctypes.c_void_p)
@@ -285,7 +298,9 @@ def _query_dxgi_adapters_windows() -> tuple[DxgiAdapter, ...]:
                             index=index,
                             name=str(desc.Description).strip(),
                             luid=f"LUID-{high:08X}-{low:08X}",
-                            dedicated_memory_mb=int(desc.DedicatedVideoMemory // (1024 * 1024)),
+                            dedicated_memory_mb=int(
+                                desc.DedicatedVideoMemory // (1024 * 1024)
+                            ),
                         )
                     )
             finally:
@@ -332,7 +347,11 @@ def _cpu_name() -> str:
         except Exception:
             return ""
     try:
-        for raw in Path("/proc/cpuinfo").read_text(encoding="utf-8", errors="ignore").splitlines():
+        for raw in (
+            Path("/proc/cpuinfo")
+            .read_text(encoding="utf-8", errors="ignore")
+            .splitlines()
+        ):
             if raw.lower().startswith("model name"):
                 return raw.split(":", 1)[-1].strip()
     except Exception:

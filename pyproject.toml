@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mathcraft-ocr"
-version = "0.3.1"
+version = "0.3.2"
 description = "ONNX-only OCR runtime for mathematical documents"
 readme = "README_MATHCRAFT_OCR.md"
 requires-python = ">=3.10,<3.14"
@@ -62,12 +62,16 @@ openvino = [
   "onnxruntime-openvino>=1.20,<1.30; platform_system == 'Windows' or platform_system == 'Linux'",
 ]
 dev = [
-  "ruff>=0.8",
+  "ruff>=0.15,<0.16",
+  "pyright>=1.1.411,<2",
   "build>=1.2",
   "twine>=5.0",
 ]
 pandoc = [
   "pypandoc>=1.15",
+]
+security = [
+  "bandit[toml]>=1.9,<2",
 ]
 
 [project.urls]
@@ -90,6 +94,23 @@ mathcraft_ocr = ["manifests/*.json"]
 pythonpath = ["src"]
 testpaths = ["test"]
 addopts = ["--ignore=.venv", "--ignore=build", "--ignore=dist"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+src = [".", "src", "scripts", "test"]
+extend-exclude = ["tools/deps", "**/vendor"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.bandit]
+exclude_dirs = ["build", "dist", "test", "tools/deps", ".venv"]
 
 [tool.vulture]
 paths = ["src"]

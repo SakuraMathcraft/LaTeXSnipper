@@ -17,7 +17,7 @@ _TRANSLATOR_ATTRIBUTE = "_latexsnipper_translators"
 _LANGUAGE_ATTRIBUTE = "_latexsnipper_ui_language"
 
 
-def _remove_installed_translators(app: QApplication) -> None:
+def _remove_installed_translators(app: QCoreApplication) -> None:
     for translator in getattr(app, _TRANSLATOR_ATTRIBUTE, ()):
         try:
             app.removeTranslator(translator)
@@ -26,7 +26,7 @@ def _remove_installed_translators(app: QApplication) -> None:
     setattr(app, _TRANSLATOR_ATTRIBUTE, [])
 
 
-def _load_qt_translator(locale: QLocale, app: QApplication) -> QTranslator | None:
+def _load_qt_translator(locale: QLocale, app: QCoreApplication) -> QTranslator | None:
     translator = QTranslator(app)
     translations_path = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
     if translator.load(locale, "qtbase", "_", translations_path):
@@ -34,7 +34,9 @@ def _load_qt_translator(locale: QLocale, app: QApplication) -> QTranslator | Non
     return None
 
 
-def _load_fluent_translator(locale: QLocale, app: QApplication) -> QTranslator | None:
+def _load_fluent_translator(
+    locale: QLocale, app: QCoreApplication
+) -> QTranslator | None:
     try:
         from qfluentwidgets import FluentTranslator
 
@@ -45,7 +47,7 @@ def _load_fluent_translator(locale: QLocale, app: QApplication) -> QTranslator |
 
 
 def _load_application_translator(
-    locale: QLocale, app: QApplication
+    locale: QLocale, app: QCoreApplication
 ) -> QTranslator | None:
     translator = QTranslator(app)
     catalog_dir = Path(resource_path("assets/i18n"))
@@ -55,7 +57,7 @@ def _load_application_translator(
 
 
 def install_application_translators(
-    app: QApplication | None = None,
+    app: QCoreApplication | None = None,
     configured_language: object | None = None,
 ) -> str:
     """Install all UI translators and return the effective language."""

@@ -1,3 +1,4 @@
+from typing import cast
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
@@ -18,7 +19,7 @@ from update.update_dialog import check_update_dialog
 
 class SettingsLayoutMixin:
     def __init__(self, parent=None):
-        super().__init__(parent)
+        super().__init__(parent)  # pyright: ignore[reportCallIssue]
         self._model_selection_syncing = False
         self._external_test_thread = None
         self._external_test_worker = None
@@ -43,16 +44,16 @@ class SettingsLayoutMixin:
         self.resize(420, 460)
         self.setMinimumWidth(420)
         self.setMinimumHeight(460)
-        root = QVBoxLayout(self)
+        root = QVBoxLayout(cast(QWidget, self))
         root.setSpacing(0)
         root.setContentsMargins(0, 0, 0, 0)
-        self.scroll_area = QScrollArea(self)
+        self.scroll_area = QScrollArea(cast(QWidget, self))
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
         self.scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
-        self.content_widget = QWidget(self)
+        self.content_widget = QWidget(cast(QWidget, self))
         lay = QVBoxLayout(self.content_widget)
         lay.setSpacing(8)
         lay.setContentsMargins(16, 16, 16, 16)

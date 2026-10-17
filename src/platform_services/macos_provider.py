@@ -5,18 +5,20 @@ Provides hotkey, screenshot, and system integration using Qt and native macOS AP
 
 from __future__ import annotations
 
-import logging
 import ctypes
+import logging
 import subprocess
 import sys
 from pathlib import Path
+from typing import cast
 
-from localization.manager import translate as tr
 from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QAction, QIcon, QKeySequence
 from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from capture.overlay import ScreenCaptureOverlay
+from localization.manager import translate as tr
+from platform_services.hotkeys import QHotkey
 from platform_services.protocols import (
     ApplicationMenuHandlers,
     PermissionResult,
@@ -24,7 +26,6 @@ from platform_services.protocols import (
     ScreenshotConfig,
     TrayMenuHandlers,
 )
-from platform_services.hotkeys import QHotkey
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
@@ -166,7 +167,12 @@ class MacOSScreenshotProvider:
 
         target, temporary_copy = self._screen_capture_permission_target()
         allowed = self._preflight_screen_capture_access()
-        logger.debug("macOS 屏幕录制权限预检: result=%s target=%s temporary_copy=%s", repr(allowed), target, temporary_copy)
+        logger.debug(
+            "macOS 屏幕录制权限预检: result=%s target=%s temporary_copy=%s",
+            repr(allowed),
+            target,
+            temporary_copy,
+        )
         if allowed is True:
             return self._permission_result(
                 PermissionState.ALLOWED, "macos-screen-recording-allowed"
@@ -181,7 +187,9 @@ class MacOSScreenshotProvider:
             self._screen_capture_restart_required = True
             logger.info("通过 CoreGraphics 请求 macOS 屏幕录制权限")
             requested = self._request_screen_capture_access()
-            logger.info("macOS 屏幕录制权限请求结果: %s，需要重启应用后再截图", repr(requested))
+            logger.info(
+                "macOS 屏幕录制权限请求结果: %s，需要重启应用后再截图", repr(requested)
+            )
 
         return self._permission_result(
             PermissionState.DENIED,
@@ -243,7 +251,7 @@ class MacOSSystemProvider:
 
     def show_notification(
         self,
-        tray: QSystemTrayIcon,
+        tray: QSystemTrayIcon | None,
         title: str,
         text: str,
         critical: bool = False,
@@ -332,7 +340,7 @@ class MacOSSystemProvider:
             edit_menu, tr("全选"), QKeySequence.StandardKey.SelectAll, "selectAll"
         )
 
-        setattr(window, "_macos_application_menu_installed", True)
+        window._macos_application_menu_installed = True
 
     def _add_standard_edit_action(
         self, menu: QMenu, text: str, key, method_name: str
@@ -362,14 +370,14 @@ class MacOSSystemProvider:
         self._trigger_focused_widget_method("paste")
 
     def _trigger_focused_widget_method(self, method_name: str) -> None:
-        app = QApplication.instance()
+        app = cast("QApplication | None", QApplication.instance())
         widget = app.focusWidget() if app is not None else None
         method = getattr(widget, method_name, None)
         if callable(method):
             method()
 
     def _hide_application(self) -> None:
-        app = QApplication.instance()
+        app = cast("QApplication | None", QApplication.instance())
         if app is None:
             return
         for widget in app.topLevelWidgets():

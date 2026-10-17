@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 from ui.controllers.automation_api import AutomationApiController
 
 

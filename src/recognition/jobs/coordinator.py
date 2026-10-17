@@ -8,7 +8,6 @@ import secrets
 import threading
 import time
 from collections import OrderedDict
-from runtime.exception_diagnostics import format_exception_diagnostics
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -16,9 +15,12 @@ from typing import Any
 from recognition.image_preprocess import optimize_mathcraft_input_image
 from recognition.jobs.contracts import (
     DEFAULT_RECOGNITION_LIMITS as DEFAULT_LIMITS,
+)
+from recognition.jobs.contracts import (
     RecognitionJobError,
     RecognitionLimits,
 )
+from recognition.jobs.executors import ExternalRecognitionExecutor
 from recognition.jobs.models import (
     JobSource,
     JobState,
@@ -27,12 +29,16 @@ from recognition.jobs.models import (
     RecognitionJob,
     utc_now_iso,
 )
-from recognition.jobs.executors import ExternalRecognitionExecutor
+from runtime.exception_diagnostics import format_exception_diagnostics
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
-_MODE_TO_MODEL = {"formula": "mathcraft", "text": "mathcraft_text", "mixed": "mathcraft_mixed"}
+_MODE_TO_MODEL = {
+    "formula": "mathcraft",
+    "text": "mathcraft_text",
+    "mixed": "mathcraft_mixed",
+}
 _EMPTY_RESULT_ERRORS = {
     "formula": ("empty_formula", "未识别到公式内容"),
     "text": ("empty_text", "未识别到文本内容"),
@@ -70,7 +76,8 @@ class RecognitionJobCoordinator:
         self._queued_count = 0
         self._active_image_memory = 0
         self._queues = {
-            backend: queue.Queue(maxsize=limits.max_queued_jobs) for backend in _BACKENDS
+            backend: queue.Queue(maxsize=limits.max_queued_jobs)
+            for backend in _BACKENDS
         }
         self._stopping = False
         self._external_executor = ExternalRecognitionExecutor(
@@ -160,7 +167,10 @@ class RecognitionJobCoordinator:
             timeout_seconds=timeout_seconds,
             state=JobState.QUEUED,
             images=list(images),
-            items=[RecognitionItem(index=index, filename=item.filename) for index, item in enumerate(images)],
+            items=[
+                RecognitionItem(index=index, filename=item.filename)
+                for index, item in enumerate(images)
+            ],
             backend_config=backend_config,
             memory_reserved=True,
             created_monotonic=self._clock(),
@@ -172,8 +182,13 @@ class RecognitionJobCoordinator:
                 raise RecognitionJobError("model_unavailable", "识别服务正在停止。")
             if self._queued_count >= self._limits.max_queued_jobs:
                 raise RecognitionJobError("queue_full", "识别队列已满。")
-            if self._active_image_memory + job.memory_bytes > self._limits.max_queued_image_bytes:
-                raise RecognitionJobError("queue_full", "识别任务的图片内存已达到上限。")
+            if (
+                self._active_image_memory + job.memory_bytes
+                > self._limits.max_queued_image_bytes
+            ):
+                raise RecognitionJobError(
+                    "queue_full", "识别任务的图片内存已达到上限。"
+                )
             self._jobs[job.id] = job
             self._queued_count += 1
             self._active_image_memory += job.memory_bytes
@@ -209,10 +224,16 @@ class RecognitionJobCoordinator:
         )
         with self._lock:
             self._purge_locked()
-            if any(existing.state is JobState.AWAITING_RESULT for existing in self._jobs.values()):
-                raise RecognitionJobError("next_result_busy", "已有客户端正在等待下一次识别结果。")
+            if any(
+                existing.state is JobState.AWAITING_RESULT
+                for existing in self._jobs.values()
+            ):
+                raise RecognitionJobError(
+                    "next_result_busy", "已有客户端正在等待下一次识别结果。"
+                )
             active_count = sum(
-                job.state not in (JobState.COMPLETED, JobState.FAILED, JobState.CANCELED)
+                job.state
+                not in (JobState.COMPLETED, JobState.FAILED, JobState.CANCELED)
                 for job in self._jobs.values()
             )
             if active_count >= self._limits.max_queued_jobs:
@@ -223,7 +244,14 @@ class RecognitionJobCoordinator:
     def publish_next_result(self, text: str, *, backend: str, mode: str) -> bool:
         with self._lock:
             self._purge_locked()
-            job = next((item for item in self._jobs.values() if item.state is JobState.AWAITING_RESULT), None)
+            job = next(
+                (
+                    item
+                    for item in self._jobs.values()
+                    if item.state is JobState.AWAITING_RESULT
+                ),
+                None,
+            )
             if job is None:
                 return False
             job.backend = backend
@@ -233,10 +261,19 @@ class RecognitionJobCoordinator:
             self._finish_locked(job, JobState.COMPLETED)
             return True
 
-    def fail_next_result(self, message: str, *, code: str = "recognition_failed") -> bool:
+    def fail_next_result(
+        self, message: str, *, code: str = "recognition_failed"
+    ) -> bool:
         with self._lock:
             self._purge_locked()
-            job = next((item for item in self._jobs.values() if item.state is JobState.AWAITING_RESULT), None)
+            job = next(
+                (
+                    item
+                    for item in self._jobs.values()
+                    if item.state is JobState.AWAITING_RESULT
+                ),
+                None,
+            )
             if job is None:
                 return False
             self._finish_locked(job, JobState.FAILED, code=code, message=message)
@@ -248,7 +285,9 @@ class RecognitionJobCoordinator:
             job = self._owned_job_locked(job_id, principal_id)
             return job.snapshot()
 
-    def wait(self, job_id: str, *, principal_id: str, timeout: float | None) -> dict[str, Any]:
+    def wait(
+        self, job_id: str, *, principal_id: str, timeout: float | None
+    ) -> dict[str, Any]:
         with self._lock:
             job = self._owned_job_locked(job_id, principal_id)
             event = job.event
@@ -265,7 +304,9 @@ class RecognitionJobCoordinator:
             if job.state in (JobState.QUEUED, JobState.AWAITING_RESULT):
                 if job.state is JobState.QUEUED:
                     self._release_queue_slot_locked()
-                self._finish_locked(job, JobState.CANCELED, code="canceled", message="识别任务已取消。")
+                self._finish_locked(
+                    job, JobState.CANCELED, code="canceled", message="识别任务已取消。"
+                )
             elif job.backend == "mathcraft":
                 interrupt_mathcraft = True
             snapshot = job.snapshot()
@@ -303,7 +344,12 @@ class RecognitionJobCoordinator:
                     job.cancel_requested = True
                     if job.state is JobState.QUEUED:
                         self._release_queue_slot_locked()
-                    self._finish_locked(job, JobState.CANCELED, code="canceled", message="识别任务已取消。")
+                    self._finish_locked(
+                        job,
+                        JobState.CANCELED,
+                        code="canceled",
+                        message="识别任务已取消。",
+                    )
                 elif job.state is JobState.RUNNING:
                     job.cancel_requested = True
                     if job.backend == "mathcraft":
@@ -371,11 +417,17 @@ class RecognitionJobCoordinator:
             job_id = str(value)
             with self._lock:
                 job = self._jobs.get(job_id)
-                if job is None or job.state is not JobState.QUEUED or job.backend != backend:
+                if (
+                    job is None
+                    or job.state is not JobState.QUEUED
+                    or job.backend != backend
+                ):
                     continue
                 self._release_queue_slot_locked()
                 if self._expired(job):
-                    self._finish_locked(job, JobState.FAILED, code="timeout", message="识别任务已超时。")
+                    self._finish_locked(
+                        job, JobState.FAILED, code="timeout", message="识别任务已超时。"
+                    )
                     continue
                 job.state = JobState.RUNNING
                 job.started_at = utc_now_iso()
@@ -390,7 +442,9 @@ class RecognitionJobCoordinator:
                 if job.cancel_requested:
                     break
                 if self._expired(job):
-                    self._finish_locked(job, JobState.FAILED, code="timeout", message="识别任务已超时。")
+                    self._finish_locked(
+                        job, JobState.FAILED, code="timeout", message="识别任务已超时。"
+                    )
                     return
             started = self._clock()
             try:
@@ -425,9 +479,13 @@ class RecognitionJobCoordinator:
 
         with self._lock:
             if job.cancel_requested:
-                self._finish_locked(job, JobState.CANCELED, code="canceled", message="识别任务已取消。")
+                self._finish_locked(
+                    job, JobState.CANCELED, code="canceled", message="识别任务已取消。"
+                )
             elif self._expired(job):
-                self._finish_locked(job, JobState.FAILED, code="timeout", message="识别任务已超时。")
+                self._finish_locked(
+                    job, JobState.FAILED, code="timeout", message="识别任务已超时。"
+                )
             elif job.items and all(item.state == "failed" for item in job.items):
                 first_error = job.items[0].error or {
                     "code": "internal_error",
@@ -444,6 +502,7 @@ class RecognitionJobCoordinator:
 
     def _predict(self, image: Any, job: RecognitionJob) -> str:
         if job.backend == "external":
+            assert job.backend_config is not None
             text = self._external_executor.predict(image, job.backend_config).strip()
             if not text:
                 code, message = _EMPTY_RESULT_ERRORS[job.mode]
@@ -540,7 +599,10 @@ class RecognitionJobCoordinator:
                 item.text = None
                 if item.state not in {"failed"}:
                     item.state = "canceled" if code == "canceled" else "failed"
-                    item.error = {"code": code, "message": message or "识别任务已结束。"}
+                    item.error = {
+                        "code": code,
+                        "message": message or "识别任务已结束。",
+                    }
         elif state is JobState.FAILED:
             for item in job.items:
                 if item.state not in {"completed", "failed"}:
@@ -572,9 +634,14 @@ class RecognitionJobCoordinator:
         removable = [
             job_id
             for job_id, job in self._jobs.items()
-            if job.completed_monotonic is not None and now - job.completed_monotonic >= ttl
+            if job.completed_monotonic is not None
+            and now - job.completed_monotonic >= ttl
         ]
-        completed = [job_id for job_id, job in self._jobs.items() if job.completed_monotonic is not None]
+        completed = [
+            job_id
+            for job_id, job in self._jobs.items()
+            if job.completed_monotonic is not None
+        ]
         excess = max(0, len(completed) - self._limits.max_retained_jobs)
         removable.extend(completed[:excess])
         for job_id in dict.fromkeys(removable):

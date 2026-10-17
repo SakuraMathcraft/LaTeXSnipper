@@ -1,14 +1,15 @@
-from recognition.jobs import RecognitionJobCoordinator
 import time
+from typing import cast
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
+from backend.external_model.client import ExternalModelClient
+from backend.external_model.schemas import ExternalModelConfig
 from recognition.error_messages import (
     CANCELED_WORKER_MESSAGE,
     recognition_error_code_message,
 )
-from backend.external_model.client import ExternalModelClient
-from backend.external_model.schemas import ExternalModelConfig
+from recognition.jobs import RecognitionJobCoordinator
 
 
 class ExternalModelWorker(QObject):
@@ -30,7 +31,9 @@ class ExternalModelWorker(QObject):
         self._cancelled = True
         if self._job_id:
             try:
-                self.coordinator.cancel(self._job_id, principal_id="desktop-ui")
+                self.coordinator.cancel(
+                    cast(str, self._job_id), principal_id="desktop-ui"
+                )
             except Exception:
                 pass
 
@@ -56,7 +59,9 @@ class ExternalModelWorker(QObject):
             )
             self._job_id = job["id"]
             if self._cancelled:
-                self.coordinator.cancel(self._job_id, principal_id="desktop-ui")
+                self.coordinator.cancel(
+                    cast(str, self._job_id), principal_id="desktop-ui"
+                )
             snapshot = self.coordinator.wait(
                 job["id"], principal_id="desktop-ui", timeout=None
             )

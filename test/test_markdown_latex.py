@@ -1,6 +1,3 @@
-# coding: utf-8
-
-
 from exporting.markdown_latex import markdown_to_latex_document
 
 

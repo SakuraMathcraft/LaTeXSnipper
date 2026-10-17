@@ -18,7 +18,7 @@
 - Linux：组件位于 `/usr/lib/latexsnipper`，安装身份位于 `/var/lib/latexsnipper/distribution.json`。`latexsnipper` 包拥有 application、系统依赖、启动器和桌面集成，另外两个包分别拥有 inference 和 models。应用组件更新同时更新包管理信息。
 - macOS：组件位于 `.app/Contents/Resources/desktop`。更新重建并验证整个签名应用，再原子交换应用目录。
 
-模型优先使用安装权重。缺失或校验失败时检查 MathCraft 的平台默认缓存；匹配当前清单的缓存可以复用，其余权重下载到同一缓存。桌面策略显式传递资源目录，独立库与 CLI 保留自己的缓存配置。路径和清理范围见 [用户数据说明](user_data_storage.md)。
+安装版只使用安装目录中的模型组件，worker 禁止自动下载模型。缺失或校验失败时报告资源异常，由“应用更新”统一替换受损组件。源码运行使用 MathCraft 平台默认缓存，独立库与 CLI 保留自己的缓存配置与自动下载行为。路径和清理范围见 [用户数据说明](user_data_storage.md)。
 
 ## 预览与导出
 
@@ -39,13 +39,26 @@
 
 取消或接管失败后，后台清理等待更新器与 watcher 都退出，再移除各自任务目录和暂存内容。下载载荷缓存保留以支持经过校验的复用。
 
-推理环境或模型异常由 UI 提供诊断与资源修复。启动器、GUI 可执行文件或安装身份本身缺失、损坏时可能无法打开诊断窗口，需要重新运行安装器。
+“应用诊断”只报告组件完整性与运行状态；“应用更新”统一处理应用、推理环境和模型组件的更新与修复。启动器、GUI 可执行文件或安装身份本身缺失、损坏时可能无法打开诊断窗口，需要重新运行安装器。
 
 ## 构建与验收
 
 发行来源、依赖和资源锁定在 `packaging/runtime/`。应用与推理组件分别计算输入指纹，覆盖源码、实际平台依赖和构建辅助脚本；缓存命中还必须通过载荷完整性校验。
 
 普通 CI 保留编译、发行输入、翻译、注释和 Office 构建检查。完整测试、类型检查及 Qt 实际渲染检查用于变更验证。
+
+开发检查使用启动应用的 Python：
+
+```sh
+python -m ruff check .
+python -m ruff format --check .
+python -m pyright --pythonpath <selected-python>
+python -m pytest -q
+```
+
+Ruff 负责常见错误、导入顺序、Python 版本规则和格式，目标为库支持的 Python 3.10。Pyright 使用 `basic`，覆盖应用、OCR 库、构建脚本和 MathJax 工具；库按 Python 3.10 检查，其余按 3.11。Qt UI 的动态宿主属性及延迟创建控件不执行属性与可空成员诊断；手写窗口保留属性检查，仅放宽可空成员诊断。业务代码与更新、资源模块保留这些检查。
+
+Bandit 通过 `security` extra 提供，用于网络、文件及进程边界的专项检查；运行 `python -m bandit -c pyproject.toml -r src mathcraft_ocr scripts -ll -ii` 检查中高风险、中高置信度提示。只在确认具体误报后用带规则编号的 `nosec` 标注并说明原因。
 
 安装器只在 GitHub Actions 构建。Windows 默认生成未签名安装包；SignPath 配置完整时尝试签名，未配置或签名失败仍使用未签名产物。macOS 使用不需要开发者证书的本地 ad-hoc 签名，不要求 Apple 公证。
 

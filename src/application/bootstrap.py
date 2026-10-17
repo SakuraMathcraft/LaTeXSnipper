@@ -6,21 +6,23 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from PyQt6.QtCore import QCoreApplication, Qt
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
-from localization.manager import install_application_translators, translate as tr
-from runtime.app_paths import resource_path, get_app_root
-from runtime.runtime_logging import start_runtime_log_session
+from localization.manager import install_application_translators
+from localization.manager import translate as tr
+from runtime.app_paths import get_app_root, resource_path
 from runtime.native_runtime import configure_native_runtime_environment
+from runtime.runtime_logging import start_runtime_log_session
 from runtime.single_instance import (
     ensure_single_instance,
     release_single_instance_lock,
 )
-from ui.startup_splash import ensure_startup_splash
 from runtime.webengine_runtime import configure_default_webengine_profile
+from ui.startup_splash import ensure_startup_splash
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
@@ -39,7 +41,9 @@ def _ensure_qt_application() -> QApplication:
         QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
     except Exception:
         pass
-    return QApplication.instance() or QApplication(sys.argv)
+    return cast("QApplication | None", QApplication.instance()) or QApplication(
+        sys.argv
+    )
 
 
 def _show_already_running_message(app: QApplication) -> None:

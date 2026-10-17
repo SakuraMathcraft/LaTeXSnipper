@@ -1,13 +1,11 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import shutil
+import stat
 import tempfile
 import time
 import urllib.request
 import zipfile
-import stat
 from collections.abc import Callable
 from pathlib import Path
 
@@ -23,23 +21,25 @@ def _is_placeholder_source(source: str) -> bool:
 def _verify_model_dir(target: Path, spec: ModelSpec) -> None:
     for file_spec in spec.files:
         if not model_file_valid(target, file_spec.path, file_spec.sha256):
-            raise ModelCacheError(f"required file missing or corrupt for {spec.model_id}: {file_spec.path}")
+            raise ModelCacheError(
+                f"required file missing or corrupt for {spec.model_id}: {file_spec.path}"
+            )
 
 
 def _extract_models(archive_path: Path, destination: Path) -> None:
     seen = set()
     with zipfile.ZipFile(archive_path) as package:
         for entry in package.infolist():
-            name = model_relative_path(entry.filename.rstrip('/'))
+            name = model_relative_path(entry.filename.rstrip("/"))
             if name.casefold() in seen or stat.S_ISLNK(entry.external_attr >> 16):
-                raise ModelCacheError('duplicate model archive member or symbolic link')
+                raise ModelCacheError("duplicate model archive member or symbolic link")
             seen.add(name.casefold())
             target = destination / name
             if entry.is_dir():
                 target.mkdir(parents=True, exist_ok=True)
             else:
                 target.parent.mkdir(parents=True, exist_ok=True)
-                with package.open(entry) as incoming, target.open('xb') as outgoing:
+                with package.open(entry) as incoming, target.open("xb") as outgoing:
                     shutil.copyfileobj(incoming, outgoing)
 
 
@@ -83,7 +83,8 @@ def _download_archive_file(
             progress_callback(f"model {spec.model_id} downloading archive")
 
     request = urllib.request.Request(source, headers=headers)
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+    # The manifest parser restricts model download sources to HTTPS.
+    with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec B310
         status = int(getattr(response, "status", 200) or 200)
         content_length = _content_length(response.headers)
         content_range_total = _content_range_total(response.headers)
@@ -96,7 +97,9 @@ def _download_archive_file(
         downloaded = existing_size if can_resume else 0
         mode = "ab" if can_resume else "wb"
         last_report_time = 0.0
-        last_report_percent = max(-10, int(downloaded * 100 / total) - 10) if total > 0 else -10
+        last_report_percent = (
+            max(-10, int(downloaded * 100 / total) - 10) if total > 0 else -10
+        )
         with archive_path.open(mode) as output:
             while True:
                 chunk = response.read(1024 * 1024)
@@ -159,7 +162,9 @@ def download_model_archive(
     last_error: Exception | None = None
 
     for source in sources:
-        temp_dir = Path(tempfile.mkdtemp(prefix=f"mathcraft-{spec.model_id}-", dir=target_root))
+        temp_dir = Path(
+            tempfile.mkdtemp(prefix=f"mathcraft-{spec.model_id}-", dir=target_root)
+        )
         extract_dir = temp_dir / "extract"
         try:
             _download_archive_file(

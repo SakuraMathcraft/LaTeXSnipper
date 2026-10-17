@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 import os
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BOM_CHECK_ROOTS = (
@@ -57,12 +56,16 @@ def test_text_sources_do_not_use_utf8_bom() -> None:
         if not root.exists():
             continue
         for directory, subdirectories, files in os.walk(root):
-            subdirectories[:] = [name for name in subdirectories if name not in ignored_parts]
+            subdirectories[:] = [
+                name for name in subdirectories if name not in ignored_parts
+            ]
             for name in files:
                 path = Path(directory) / name
-                if path.suffix.lower() not in BOM_CHECK_EXTENSIONS or name.endswith('.user.props'):
+                if path.suffix.lower() not in BOM_CHECK_EXTENSIONS or name.endswith(
+                    ".user.props"
+                ):
                     continue
-                with path.open('rb') as stream:
+                with path.open("rb") as stream:
                     if stream.read(3) == b"\xef\xbb\xbf":
                         offenders.append(path.relative_to(ROOT).as_posix())
 

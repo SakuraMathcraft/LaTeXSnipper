@@ -1,6 +1,3 @@
-# coding: utf-8
-
-
 class MathCraftError(RuntimeError):
     """Base error for MathCraft OCR."""
 

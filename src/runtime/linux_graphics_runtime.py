@@ -7,7 +7,6 @@ import sys
 from collections.abc import MutableMapping
 from pathlib import Path
 
-
 _CHROMIUM_SOFTWARE_FLAGS = (
     "--disable-gpu",
     "--disable-gpu-compositing",
@@ -29,7 +28,10 @@ def _append_unique_flags(existing: str, flags: tuple[str, ...]) -> str:
 
 
 def _env_is_wayland(env: MutableMapping[str, str]) -> bool:
-    return bool(env.get("WAYLAND_DISPLAY")) or env.get("XDG_SESSION_TYPE", "").lower() == "wayland"
+    return (
+        bool(env.get("WAYLAND_DISPLAY"))
+        or env.get("XDG_SESSION_TYPE", "").lower() == "wayland"
+    )
 
 
 def _has_dri_render_node() -> bool:

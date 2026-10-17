@@ -10,11 +10,14 @@ from mathcraft_ocr.error_patterns import (
     looks_like_onnxruntime_install_error,
 )
 
+
 def classify_mathcraft_failure(detail: str) -> dict[str, str]:
     raw = str(detail or "").strip()
     lower = raw.lower()
 
-    def _pack(code: str, title: str, user_message: str, log_message: str) -> dict[str, str]:
+    def _pack(
+        code: str, title: str, user_message: str, log_message: str
+    ) -> dict[str, str]:
         return {
             "code": code,
             "title": title,
@@ -30,7 +33,9 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             "未拿到明确异常文本，需要结合运行日志继续排查。",
         )
     # Match the missing import itself, never incidental module names in stack paths.
-    missing_imports = re.findall(r"No module named ['\"]([^'\"]+)['\"]", raw, re.IGNORECASE)
+    missing_imports = re.findall(
+        r"No module named ['\"]([^'\"]+)['\"]", raw, re.IGNORECASE
+    )
     missing_module = missing_imports[-1] if missing_imports else ""
     if missing_module == "mathcraft_ocr":
         return _pack(
@@ -46,7 +51,9 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             "推理组件缺少 onnxruntime，请检查并修复安装资源。",
             "onnxruntime 模块缺失，MathCraft ONNX 后端不可用。",
         )
-    if missing_module.startswith("onnxruntime.") or looks_like_onnxruntime_install_error(raw):
+    if missing_module.startswith(
+        "onnxruntime."
+    ) or looks_like_onnxruntime_install_error(raw):
         runtime_hint = "onnxruntime 运行资源损坏或不可用，请检查并修复推理组件。"
         return _pack(
             "ONNXRUNTIME_BROKEN",
@@ -56,18 +63,24 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
         )
     if missing_module:
         return _pack(
-            "MATHCRAFT_DEP_BROKEN" if "." in missing_module else "MATHCRAFT_DEP_MISSING",
+            "MATHCRAFT_DEP_BROKEN"
+            if "." in missing_module
+            else "MATHCRAFT_DEP_MISSING",
             "MathCraft 依赖不完整",
             "MathCraft OCR 运行资源缺失或不完整，请检查并修复安装资源。",
             f"无法导入模块 {missing_module!r}。"
-            + ("请检查所属包的安装完整性与版本兼容性。" if "." in missing_module else "推理组件无法找到该模块。"),
+            + (
+                "请检查所属包的安装完整性与版本兼容性。"
+                if "." in missing_module
+                else "推理组件无法找到该模块。"
+            ),
         )
     if "not ready" in lower and "missing" in lower and "missing=[]" not in lower:
         return _pack(
             "MODEL_CACHE_INCOMPLETE",
-            "模型缓存不完整",
-            "MathCraft OCR 模型缓存不完整，请补齐模型权重后重试。",
-            f"MathCraft 模型缓存不完整: {raw[:300]}",
+            "模型资源不完整",
+            "MathCraft OCR 模型资源缺失或损坏；安装版请通过“应用更新”修复。",
+            f"MathCraft 模型资源不完整: {raw[:300]}",
         )
     if "failed to download model" in lower or "no usable download source" in lower:
         return _pack(

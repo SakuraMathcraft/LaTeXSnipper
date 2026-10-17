@@ -104,7 +104,11 @@ class RecognitionJob:
             "mode": self.mode,
             "created_at": self.created_at,
             "cancel_requested": self.cancel_requested,
-            "summary": {"total": len(self.items), "succeeded": succeeded, "failed": failed},
+            "summary": {
+                "total": len(self.items),
+                "succeeded": succeeded,
+                "failed": failed,
+            },
             "items": [item.snapshot() for item in self.items],
         }
         if self.queued_at:

@@ -4,8 +4,12 @@ import html
 import re
 
 from localization.manager import translate as tr
-from preview.math_preview import build_math_html, mathjax_loader_script, preview_scrollbar_css, preview_theme_tokens
-
+from preview.math_preview import (
+    build_math_html,
+    mathjax_loader_script,
+    preview_scrollbar_css,
+    preview_theme_tokens,
+)
 
 _FENCED_BLOCK_RE = re.compile(
     r"```(?:latex|tex|math)?\s*(.*?)\s*```",
@@ -42,7 +46,9 @@ def build_handwriting_preview_html(text: str, output_mode: str = "latex") -> str
         return _build_markdown_math_html(content)
     if mode != "latex":
         return _build_plain_text_html(content)
-    return build_math_html(normalize_latex_preview_source(content), center_viewport=not content)
+    return build_math_html(
+        normalize_latex_preview_source(content), center_viewport=not content
+    )
 
 
 def _build_markdown_math_html(content: str) -> str:
@@ -140,7 +146,9 @@ def _render_markdown_math_content(content: str) -> str:
 
 def _build_plain_text_html(content: str) -> str:
     tokens = preview_theme_tokens()
-    body = html.escape(content) if content else html.escape(tr("写完后会在这里看到预览"))
+    body = (
+        html.escape(content) if content else html.escape(tr("写完后会在这里看到预览"))
+    )
     return f"""<!DOCTYPE html>
 <html>
 <head>

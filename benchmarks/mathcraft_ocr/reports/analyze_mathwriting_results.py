@@ -1,11 +1,9 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import argparse
+import sys
 from collections import Counter
 from pathlib import Path
-import sys
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -22,10 +20,16 @@ from analyze_unimer_results import (  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Analyze MathCraft OCR results on MathWriting test.")
+    parser = argparse.ArgumentParser(
+        description="Analyze MathCraft OCR results on MathWriting test."
+    )
     parser.add_argument("--results", required=True, help="MathCraft JSONL result file.")
-    parser.add_argument("--manifest", required=True, help="MathWriting test manifest JSONL file.")
-    parser.add_argument("--output-dir", required=True, help="Directory for CSV/Markdown outputs.")
+    parser.add_argument(
+        "--manifest", required=True, help="MathWriting test manifest JSONL file."
+    )
+    parser.add_argument(
+        "--output-dir", required=True, help="Directory for CSV/Markdown outputs."
+    )
     args = parser.parse_args(argv)
 
     result_path = Path(args.results)

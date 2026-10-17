@@ -1,20 +1,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List
 
 from PyQt6.QtCore import QPointF, QRectF, Qt
-from PyQt6.QtGui import QPainterPath, QPainterPathStroker
+from PyQt6.QtGui import QImage, QPainterPath, QPainterPathStroker
 
 
 @dataclass
 class InkStroke:
-    points: List[QPointF] = field(default_factory=list)
+    points: list[QPointF] = field(default_factory=list)
     width: float = 3.0
     outline_path: QPainterPath = field(default_factory=QPainterPath)
 
     @staticmethod
-    def smooth_path_from_points(points: List[QPointF]) -> QPainterPath:
+    def smooth_path_from_points(points: list[QPointF]) -> QPainterPath:
         if not points:
             return QPainterPath()
         if len(points) == 1:
@@ -27,7 +26,10 @@ class InkStroke:
         for idx in range(1, len(points) - 1):
             current = points[idx]
             next_point = points[idx + 1]
-            mid = QPointF((current.x() + next_point.x()) * 0.5, (current.y() + next_point.y()) * 0.5)
+            mid = QPointF(
+                (current.x() + next_point.x()) * 0.5,
+                (current.y() + next_point.y()) * 0.5,
+            )
             path.quadTo(current, mid)
         path.lineTo(points[-1])
         return path
@@ -42,13 +44,13 @@ class InkStroke:
         return stroker.createStroke(centerline).simplified()
 
     @classmethod
-    def from_points(cls, points: List[QPointF], width: float) -> "InkStroke":
+    def from_points(cls, points: list[QPointF], width: float) -> InkStroke:
         stroke = cls(points=[QPointF(p) for p in points], width=width)
         stroke.rebuild_geometry()
         return stroke
 
     @classmethod
-    def from_outline(cls, outline_path: QPainterPath, width: float) -> "InkStroke":
+    def from_outline(cls, outline_path: QPainterPath, width: float) -> InkStroke:
         return cls(points=[], width=width, outline_path=QPainterPath(outline_path))
 
     def rebuild_geometry(self) -> None:
@@ -59,7 +61,7 @@ class InkStroke:
         centerline = self.smooth_path_from_points(self.points)
         self.outline_path = self.stroked_outline(centerline, self.width)
 
-    def clone(self) -> "InkStroke":
+    def clone(self) -> InkStroke:
         return InkStroke(
             points=[QPointF(p) for p in self.points],
             width=self.width,
@@ -76,7 +78,12 @@ class InkStroke:
         max_x = max(p.x() for p in self.points)
         max_y = max(p.y() for p in self.points)
         pad = self.width * 0.5 + 2.0
-        return QRectF(min_x - pad, min_y - pad, (max_x - min_x) + pad * 2, (max_y - min_y) + pad * 2)
+        return QRectF(
+            min_x - pad,
+            min_y - pad,
+            (max_x - min_x) + pad * 2,
+            (max_y - min_y) + pad * 2,
+        )
 
     def is_empty(self) -> bool:
         return self.outline_path.isEmpty() and not self.points
@@ -84,6 +91,6 @@ class InkStroke:
 
 @dataclass
 class CanvasExportResult:
-    image: object | None
+    image: QImage | None
     bounds: QRectF
     is_empty: bool = False

@@ -1,14 +1,13 @@
-# coding: utf-8
 # ruff: noqa: E402
 
 from __future__ import annotations
 
-import sys
-import os
-import tempfile
 import hashlib
-from dataclasses import replace
+import os
+import sys
+import tempfile
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -16,17 +15,17 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
-from mathcraft_ocr.manifest import load_manifest
-import mathcraft_ocr.hardware as hardware_mod
-import mathcraft_ocr.devices as devices_mod
-import mathcraft_ocr.doctor as doctor_mod
-import mathcraft_ocr.providers as providers_mod
-import mathcraft_ocr.runtime as runtime_mod
 import mathcraft_ocr.adapters.common as common_adapter_mod
 import mathcraft_ocr.adapters.formula_recognizer as formula_recognizer_mod
 import mathcraft_ocr.adapters.text_recognizer as text_recognizer_mod
-from mathcraft_ocr.errors import ModelCacheError
+import mathcraft_ocr.devices as devices_mod
+import mathcraft_ocr.doctor as doctor_mod
+import mathcraft_ocr.hardware as hardware_mod
+import mathcraft_ocr.providers as providers_mod
+import mathcraft_ocr.runtime as runtime_mod
 from mathcraft_ocr.adapters.formula_detector import FormulaBox
+from mathcraft_ocr.cache import resolve_model_roots
+from mathcraft_ocr.errors import ModelCacheError
 from mathcraft_ocr.formula_lines import (
     compose_aligned_formula,
     compose_formula_line,
@@ -44,18 +43,22 @@ from mathcraft_ocr.layout import (
     resolve_formula_text_conflicts,
     split_text_box_around_formulas,
 )
+from mathcraft_ocr.manifest import load_manifest
 from mathcraft_ocr.providers import ProviderInfo
-from mathcraft_ocr.results import FormulaRecognitionResult, MathCraftBlock, MixedRecognitionResult
-from mathcraft_ocr.serialization import block_to_json, provider_info_to_json
-from mathcraft_ocr.cache import resolve_model_roots
+from mathcraft_ocr.results import (
+    FormulaRecognitionResult,
+    MathCraftBlock,
+    MixedRecognitionResult,
+)
 from mathcraft_ocr.runtime import (
-    FORMULA_MAX_NEW_TOKENS,
     FORMULA_DETECTOR_ID,
+    FORMULA_MAX_NEW_TOKENS,
     FORMULA_RECOGNIZER_ID,
-    MathCraftRuntime,
     TEXT_DETECTOR_ID,
     TEXT_RECOGNIZER_ID,
+    MathCraftRuntime,
 )
+from mathcraft_ocr.serialization import block_to_json, provider_info_to_json
 from mathcraft_ocr.worker import MathCraftWorker
 
 
@@ -64,7 +67,8 @@ def stub_doctor_provider_discovery(monkeypatch):
     # These pipeline tests stub model sessions; they must not load native ORT
     # into the Qt test process. Provider selection is tested separately below.
     monkeypatch.setattr(
-        doctor_mod, "detect_providers",
+        doctor_mod,
+        "detect_providers",
         lambda **_kwargs: ProviderInfo(
             available_providers=("CPUExecutionProvider",),
             active_provider="CPUExecutionProvider",
@@ -82,12 +86,20 @@ def _touch(path: Path, content: bytes = b"x") -> None:
 
 def _touch_model(root: Path, manifest, model_id: str) -> None:
     spec = manifest.models[model_id]
-    manifest.models[model_id] = replace(spec, files=tuple(replace(item, sha256=hashlib.sha256(b'x').hexdigest()) for item in spec.files))
+    manifest.models[model_id] = replace(
+        spec,
+        files=tuple(
+            replace(item, sha256=hashlib.sha256(b"x").hexdigest())
+            for item in spec.files
+        ),
+    )
     for file_spec in spec.files:
         _touch(root / model_id / file_spec.path)
 
 
-def _sample_or_synthetic_image(sample_name: str, synthetic_factory: Callable[[], np.ndarray]) -> np.ndarray:
+def _sample_or_synthetic_image(
+    sample_name: str, synthetic_factory: Callable[[], np.ndarray]
+) -> np.ndarray:
     sample_path = ROOT / "test_samples" / sample_name
     if sample_path.exists():
         return load_image_rgb(sample_path)
@@ -143,7 +155,9 @@ def test_cache_inspection_marks_incomplete_model() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         _touch(root / FORMULA_RECOGNIZER_ID / "encoder_model.onnx")
-        runtime = MathCraftRuntime(cache_dir=root, manifest=manifest, provider_preference="cpu")
+        runtime = MathCraftRuntime(
+            cache_dir=root, manifest=manifest, provider_preference="cpu"
+        )
         state = runtime.check_models()[FORMULA_RECOGNIZER_ID]
         assert state.exists is True
         assert state.complete is False
@@ -191,12 +205,16 @@ def test_warmup_auto_downloads_missing_models_before_handlers() -> None:
     try:
         runtime_mod.download_model_archive = _fake_download
         runtime_mod.ONNX_WARMUP_HANDLERS = {
-            FORMULA_RECOGNIZER_ID: lambda model_dir, provider_info: warmed.append(Path(model_dir).name),
+            FORMULA_RECOGNIZER_ID: lambda model_dir, provider_info: warmed.append(
+                Path(model_dir).name
+            ),
             TEXT_DETECTOR_ID: old_handlers[TEXT_DETECTOR_ID],
             TEXT_RECOGNIZER_ID: old_handlers[TEXT_RECOGNIZER_ID],
         }
         with tempfile.TemporaryDirectory() as tmp:
-            runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
+            runtime = MathCraftRuntime(
+                cache_dir=tmp, manifest=manifest, provider_preference="cpu"
+            )
             plan = runtime.warmup("formula")
             assert plan.ready is True
             assert downloaded == [(FORMULA_RECOGNIZER_ID, None)]
@@ -212,7 +230,12 @@ def test_warmup_auto_downloads_missing_models_before_handlers() -> None:
 def test_mixed_profile_declares_real_required_models() -> None:
     manifest = load_manifest()
     with tempfile.TemporaryDirectory() as tmp:
-        runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu", auto_download=False)
+        runtime = MathCraftRuntime(
+            cache_dir=tmp,
+            manifest=manifest,
+            provider_preference="cpu",
+            auto_download=False,
+        )
         plan = runtime.warmup("mixed")
         assert plan.required_models == (
             FORMULA_DETECTOR_ID,
@@ -225,7 +248,12 @@ def test_mixed_profile_declares_real_required_models() -> None:
 def test_text_profile_declares_text_models_only() -> None:
     manifest = load_manifest()
     with tempfile.TemporaryDirectory() as tmp:
-        runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu", auto_download=False)
+        runtime = MathCraftRuntime(
+            cache_dir=tmp,
+            manifest=manifest,
+            provider_preference="cpu",
+            auto_download=False,
+        )
         plan = runtime.warmup("text")
         assert plan.required_models == (
             TEXT_DETECTOR_ID,
@@ -238,13 +266,17 @@ def test_text_profile_declares_text_models_only() -> None:
 def test_runtime_rejects_unsupported_table_profile() -> None:
     manifest = load_manifest()
     with tempfile.TemporaryDirectory() as tmp:
-        runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, auto_download=False)
+        runtime = MathCraftRuntime(
+            cache_dir=tmp, manifest=manifest, auto_download=False
+        )
         try:
             runtime.warmup("table")
         except ModelCacheError:
             pass
         else:
-            raise AssertionError("table profile should not be available in ONNX-only MathCraft")
+            raise AssertionError(
+                "table profile should not be available in ONNX-only MathCraft"
+            )
 
 
 def test_formula_warmup_succeeds_with_stubbed_onnx_handlers() -> None:
@@ -265,7 +297,9 @@ def test_formula_warmup_succeeds_with_stubbed_onnx_handlers() -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _touch_model(root, manifest, FORMULA_RECOGNIZER_ID)
-            runtime = MathCraftRuntime(cache_dir=root, manifest=manifest, provider_preference="cpu")
+            runtime = MathCraftRuntime(
+                cache_dir=root, manifest=manifest, provider_preference="cpu"
+            )
             plan = runtime.warmup("formula")
             assert plan.ready is True
             assert plan.missing_models == ()
@@ -293,7 +327,9 @@ def test_successful_warmup_plan_is_cached_per_profile() -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _touch_model(root, manifest, FORMULA_RECOGNIZER_ID)
-            runtime = MathCraftRuntime(cache_dir=root, manifest=manifest, provider_preference="cpu")
+            runtime = MathCraftRuntime(
+                cache_dir=root, manifest=manifest, provider_preference="cpu"
+            )
             first = runtime.warmup("formula")
             second = runtime.warmup("formula")
             assert first.ready is True
@@ -322,7 +358,9 @@ def test_failed_warmup_plan_is_not_cached() -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _touch_model(root, manifest, FORMULA_RECOGNIZER_ID)
-            runtime = MathCraftRuntime(cache_dir=root, manifest=manifest, provider_preference="cpu")
+            runtime = MathCraftRuntime(
+                cache_dir=root, manifest=manifest, provider_preference="cpu"
+            )
             first = runtime.warmup("formula")
             second = runtime.warmup("formula")
             assert first.ready is False
@@ -361,7 +399,9 @@ def test_cuda_warmup_failure_does_not_repair_model_cache() -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _touch_model(root, manifest, FORMULA_RECOGNIZER_ID)
-            runtime = MathCraftRuntime(cache_dir=root, manifest=manifest, provider_preference="cpu")
+            runtime = MathCraftRuntime(
+                cache_dir=root, manifest=manifest, provider_preference="cpu"
+            )
             plan = runtime.warmup("formula")
             assert plan.ready is False
             assert download_calls == []
@@ -380,7 +420,9 @@ def test_cuda_warmup_failure_does_not_repair_model_cache() -> None:
 def test_failed_warmup_repair_preserves_both_exceptions(tmp_path, monkeypatch):
     manifest = load_manifest()
     _touch_model(tmp_path, manifest, FORMULA_RECOGNIZER_ID)
-    runtime = MathCraftRuntime(cache_dir=tmp_path, manifest=manifest, provider_preference="cpu")
+    runtime = MathCraftRuntime(
+        cache_dir=tmp_path, manifest=manifest, provider_preference="cpu"
+    )
 
     def fail_handler(*args):
         raise ValueError("original model failure")
@@ -388,7 +430,9 @@ def test_failed_warmup_repair_preserves_both_exceptions(tmp_path, monkeypatch):
     def fail_repair(*args):
         raise OSError("repair failure")
 
-    monkeypatch.setitem(runtime_mod.ONNX_WARMUP_HANDLERS, FORMULA_RECOGNIZER_ID, fail_handler)
+    monkeypatch.setitem(
+        runtime_mod.ONNX_WARMUP_HANDLERS, FORMULA_RECOGNIZER_ID, fail_handler
+    )
     monkeypatch.setattr(runtime, "_looks_like_broken_model_error", lambda exc: True)
     monkeypatch.setattr(runtime, "_repair_model_cache", fail_repair)
     component = runtime.warmup("formula").component_statuses[0]
@@ -399,7 +443,10 @@ def test_failed_warmup_repair_preserves_both_exceptions(tmp_path, monkeypatch):
 
 def test_runtime_prefers_complete_bundled_models_over_empty_user_cache() -> None:
     manifest = load_manifest()
-    with tempfile.TemporaryDirectory() as bundled_tmp, tempfile.TemporaryDirectory() as user_tmp:
+    with (
+        tempfile.TemporaryDirectory() as bundled_tmp,
+        tempfile.TemporaryDirectory() as user_tmp,
+    ):
         bundled_root = Path(bundled_tmp)
         user_root = Path(user_tmp)
         _touch_model(bundled_root, manifest, FORMULA_DETECTOR_ID)
@@ -416,7 +463,10 @@ def test_runtime_prefers_complete_bundled_models_over_empty_user_cache() -> None
 
 
 def test_env_bundled_models_root_precedes_user_cache() -> None:
-    with tempfile.TemporaryDirectory() as bundled_tmp, tempfile.TemporaryDirectory() as user_tmp:
+    with (
+        tempfile.TemporaryDirectory() as bundled_tmp,
+        tempfile.TemporaryDirectory() as user_tmp,
+    ):
         bundled_root = Path(bundled_tmp)
         user_root = Path(user_tmp)
         old_value = os.environ.get("MATHCRAFT_BUNDLED_MODELS_DIR")
@@ -464,7 +514,10 @@ def test_compose_aligned_formula_aligns_relation_operators() -> None:
         )
     )
 
-    assert text == "\\begin{aligned}\nx &= y \\\\\n&\\leq z \\\\\n&\\quad + r\n\\end{aligned}"
+    assert (
+        text
+        == "\\begin{aligned}\nx &= y \\\\\n&\\leq z \\\\\n&\\quad + r\n\\end{aligned}"
+    )
 
 
 def test_compose_aligned_formula_downgrades_unbalanced_left_right() -> None:
@@ -523,9 +576,7 @@ def test_compose_aligned_formula_groups_repeated_scripts() -> None:
 
 def test_compose_aligned_formula_neutralizes_stray_alignment_tabs() -> None:
     text = compose_aligned_formula(
-        (
-            r"\left\{ a & {\mathrm {if}} & p \\\\ b & {\mathrm {if}} & q \right.",
-        )
+        (r"\left\{ a & {\mathrm {if}} & p \\\\ b & {\mathrm {if}} & q \right.",)
     )
 
     body = text
@@ -546,7 +597,9 @@ def test_formula_line_groups_split_extra_wide_single_row_into_segments() -> None
 
     assert len(groups) == 1
     assert len(groups[0].crops) == 3
-    assert compose_formula_line((r"\begin{aligned} x", "=", r"y \end{aligned}")) == "x = y"
+    assert (
+        compose_formula_line((r"\begin{aligned} x", "=", r"y \end{aligned}")) == "x = y"
+    )
 
 
 def test_formula_line_groups_keep_compact_fraction_expression_whole() -> None:
@@ -655,16 +708,9 @@ def test_formula_decoder_stops_only_sustained_short_token_loops() -> None:
         )
         == len(prefix) + 2
     )
+    assert formula_recognizer_mod._repeated_token_suffix_start(list(range(64))) is None
     assert (
-        formula_recognizer_mod._repeated_token_suffix_start(
-            list(range(64))
-        )
-        is None
-    )
-    assert (
-        formula_recognizer_mod._repeated_token_suffix_start(
-            prefix + [64, 446] * 8
-        )
+        formula_recognizer_mod._repeated_token_suffix_start(prefix + [64, 446] * 8)
         is None
     )
 
@@ -688,7 +734,9 @@ def test_formula_decoder_removes_finished_rows_from_active_batch() -> None:
             logits = np.full((input_ids.shape[0], input_ids.shape[1], 10), -20.0)
             for row, original_row in enumerate(hidden_states[:, 0, 0].astype(int)):
                 finish_after = 2 if original_row == 0 else 4
-                next_token = 9 if input_ids.shape[1] >= finish_after else original_row + 2
+                next_token = (
+                    9 if input_ids.shape[1] >= finish_after else original_row + 2
+                )
                 logits[row, -1, next_token] = 20.0
             return (logits,)
 
@@ -714,6 +762,7 @@ def test_recognize_formula_uses_formula_adapter() -> None:
     old_warmup = MathCraftRuntime.warmup
     old_recognize = runtime_mod.recognize_formula_image
     try:
+
         def _fake_warmup(self, profile: str = "formula"):
             report = self.get_runtime_info()
             return runtime_mod.WarmupPlan(
@@ -731,7 +780,9 @@ def test_recognize_formula_uses_formula_adapter() -> None:
             lambda image, model_dir, provider_info, max_new_tokens=256: ("x+y", 0.91)
         )
         with tempfile.TemporaryDirectory() as tmp:
-            runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
+            runtime = MathCraftRuntime(
+                cache_dir=tmp, manifest=manifest, provider_preference="cpu"
+            )
             result = runtime.recognize_formula(np.zeros((32, 64, 3), dtype=np.uint8))
             assert isinstance(result, FormulaRecognitionResult)
             assert result.text == "x+y"
@@ -748,6 +799,7 @@ def test_recognize_formula_splits_multiline_image_before_generation() -> None:
     old_recognize_images = runtime_mod.recognize_formula_images
     calls: list[int] = []
     try:
+
         def _fake_warmup(self, profile: str = "formula"):
             report = self.get_runtime_info()
             return runtime_mod.WarmupPlan(
@@ -760,7 +812,9 @@ def test_recognize_formula_splits_multiline_image_before_generation() -> None:
                 ready=True,
             )
 
-        def _fake_recognize_images(images, model_dir, provider_info, max_new_tokens=256):
+        def _fake_recognize_images(
+            images, model_dir, provider_info, max_new_tokens=256
+        ):
             calls.append(len(images))
             return [(f"line{index + 1}", 0.9) for index, _image in enumerate(images)]
 
@@ -774,7 +828,9 @@ def test_recognize_formula_splits_multiline_image_before_generation() -> None:
         image[12:24, 20:180] = 0
         image[60:72, 24:176] = 0
         with tempfile.TemporaryDirectory() as tmp:
-            runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
+            runtime = MathCraftRuntime(
+                cache_dir=tmp, manifest=manifest, provider_preference="cpu"
+            )
             result = runtime.recognize_formula(image)
 
         assert calls == [2]
@@ -793,6 +849,7 @@ def test_recognize_formula_rejoins_extra_wide_single_row_segments() -> None:
     old_recognize_images = runtime_mod.recognize_formula_images
     calls: list[int] = []
     try:
+
         def _fake_warmup(self, profile: str = "formula"):
             report = self.get_runtime_info()
             return runtime_mod.WarmupPlan(
@@ -805,7 +862,9 @@ def test_recognize_formula_rejoins_extra_wide_single_row_segments() -> None:
                 ready=True,
             )
 
-        def _fake_recognize_images(images, model_dir, provider_info, max_new_tokens=256):
+        def _fake_recognize_images(
+            images, model_dir, provider_info, max_new_tokens=256
+        ):
             calls.append(len(images))
             return [(f"part{index + 1}", 0.9) for index, _image in enumerate(images)]
 
@@ -820,7 +879,9 @@ def test_recognize_formula_rejoins_extra_wide_single_row_segments() -> None:
         image[12:24, 146:224] = 0
         image[12:24, 276:346] = 0
         with tempfile.TemporaryDirectory() as tmp:
-            runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
+            runtime = MathCraftRuntime(
+                cache_dir=tmp, manifest=manifest, provider_preference="cpu"
+            )
             result = runtime.recognize_formula(image)
 
         assert calls == [3]
@@ -831,12 +892,15 @@ def test_recognize_formula_rejoins_extra_wide_single_row_segments() -> None:
         runtime_mod.recognize_formula_images = old_recognize_images
 
 
-def test_recognize_formula_prefers_confident_whole_line_over_uncertain_segments() -> None:
+def test_recognize_formula_prefers_confident_whole_line_over_uncertain_segments() -> (
+    None
+):
     manifest = load_manifest()
     old_warmup = MathCraftRuntime.warmup
     old_recognize = runtime_mod.recognize_formula_image
     old_recognize_images = runtime_mod.recognize_formula_images
     try:
+
         def _fake_warmup(self, profile: str = "formula"):
             report = self.get_runtime_info()
             return runtime_mod.WarmupPlan(
@@ -869,7 +933,9 @@ def test_recognize_formula_prefers_confident_whole_line_over_uncertain_segments(
         image[12:24, 146:224] = 0
         image[12:24, 276:346] = 0
         with tempfile.TemporaryDirectory() as tmp:
-            runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
+            runtime = MathCraftRuntime(
+                cache_dir=tmp, manifest=manifest, provider_preference="cpu"
+            )
             result = runtime.recognize_formula(image)
 
         assert result.text == "complete formula"
@@ -886,6 +952,7 @@ def test_recognize_formula_retries_whole_image_for_severe_split_artifacts() -> N
     old_recognize = runtime_mod.recognize_formula_image
     old_recognize_images = runtime_mod.recognize_formula_images
     try:
+
         def _fake_warmup(self, profile: str = "formula"):
             report = self.get_runtime_info()
             return runtime_mod.WarmupPlan(
@@ -913,7 +980,9 @@ def test_recognize_formula_retries_whole_image_for_severe_split_artifacts() -> N
         image[12:24, 20:190] = 0
         image[62:74, 30:180] = 0
         with tempfile.TemporaryDirectory() as tmp:
-            runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
+            runtime = MathCraftRuntime(
+                cache_dir=tmp, manifest=manifest, provider_preference="cpu"
+            )
             result = runtime.recognize_formula(image)
 
         assert result.text == "x = y"
@@ -933,6 +1002,7 @@ def test_recognize_mixed_uses_text_pipeline() -> None:
     old_recognize_lines = runtime_mod.recognize_pp_text_lines
     old_crop = runtime_mod.get_rotate_crop_image
     try:
+
         def _fake_warmup(self, profile: str = "mixed"):
             report = self.get_runtime_info()
             return runtime_mod.WarmupPlan(
@@ -951,8 +1021,8 @@ def test_recognize_mixed_uses_text_pipeline() -> None:
             )
 
         MathCraftRuntime.warmup = _fake_warmup
-        MathCraftRuntime._warmup_selected_models = (
-            lambda self, profile, model_ids: _fake_warmup(self, profile)
+        MathCraftRuntime._warmup_selected_models = lambda self, profile, model_ids: (
+            _fake_warmup(self, profile)
         )
         runtime_mod.detect_text_boxes = (
             lambda image, model_dir, provider_info, **kwargs: (
@@ -967,14 +1037,19 @@ def test_recognize_mixed_uses_text_pipeline() -> None:
             )
         )
         runtime_mod.detect_formula_boxes = lambda image, model_dir, provider_info: ()
-        runtime_mod.get_rotate_crop_image = (
-            lambda image, box: np.zeros((8, 8, 3), dtype=np.uint8)
+        runtime_mod.get_rotate_crop_image = lambda image, box: np.zeros(
+            (8, 8, 3), dtype=np.uint8
         )
         runtime_mod.recognize_pp_text_lines = (
-            lambda crops, model_dir, provider_info, **kwargs: [("alpha", 0.95), ("beta", 0.88)]
+            lambda crops, model_dir, provider_info, **kwargs: [
+                ("alpha", 0.95),
+                ("beta", 0.88),
+            ]
         )
         with tempfile.TemporaryDirectory() as tmp:
-            runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
+            runtime = MathCraftRuntime(
+                cache_dir=tmp, manifest=manifest, provider_preference="cpu"
+            )
             result = runtime.recognize_mixed(np.zeros((32, 64, 3), dtype=np.uint8))
             assert isinstance(result, MixedRecognitionResult)
             assert result.text == "alpha\nbeta"
@@ -1000,6 +1075,7 @@ def test_recognize_mixed_splits_multiline_formula_blocks() -> None:
     old_recognize_formulas = runtime_mod.recognize_formula_images
     old_crop = runtime_mod.get_rotate_crop_image
     try:
+
         def _fake_warmup_selected(self, profile: str, model_ids):
             report = self.get_runtime_info()
             return runtime_mod.WarmupPlan(
@@ -1018,14 +1094,21 @@ def test_recognize_mixed_splits_multiline_formula_blocks() -> None:
         formula_image[106:118, 28:176] = 0
 
         MathCraftRuntime._warmup_selected_models = _fake_warmup_selected
-        runtime_mod.detect_text_boxes = (
-            lambda image, model_dir, provider_info: (np.zeros((0, 4, 2), dtype=np.float32), ())
+        runtime_mod.detect_text_boxes = lambda image, model_dir, provider_info: (
+            np.zeros((0, 4, 2), dtype=np.float32),
+            (),
         )
         runtime_mod.detect_formula_boxes = lambda image, model_dir, provider_info: (
-            FormulaBox(box=((0.0, 0.0), (220.0, 0.0), (220.0, 130.0), (0.0, 130.0)), score=0.95, label="formula"),
+            FormulaBox(
+                box=((0.0, 0.0), (220.0, 0.0), (220.0, 130.0), (0.0, 130.0)),
+                score=0.95,
+                label="formula",
+            ),
         )
         runtime_mod.get_rotate_crop_image = lambda image, box: formula_image
-        runtime_mod.recognize_pp_text_lines = lambda crops, model_dir, provider_info, **kwargs: []
+        runtime_mod.recognize_pp_text_lines = (
+            lambda crops, model_dir, provider_info, **kwargs: []
+        )
         runtime_mod.recognize_formula_images = (
             lambda images, model_dir, provider_info, **kwargs: [
                 (f"row{index + 1}", 0.8) for index, _image in enumerate(images)
@@ -1033,11 +1116,16 @@ def test_recognize_mixed_splits_multiline_formula_blocks() -> None:
         )
 
         with tempfile.TemporaryDirectory() as tmp:
-            runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
+            runtime = MathCraftRuntime(
+                cache_dir=tmp, manifest=manifest, provider_preference="cpu"
+            )
             result = runtime.recognize_mixed(np.zeros((140, 240, 3), dtype=np.uint8))
 
         assert len(result.blocks) == 1
-        assert result.blocks[0].text == "\\begin{aligned}\nrow1 \\\\\nrow2 \\\\\nrow3\n\\end{aligned}"
+        assert (
+            result.blocks[0].text
+            == "\\begin{aligned}\nrow1 \\\\\nrow2 \\\\\nrow3\n\\end{aligned}"
+        )
         assert result.blocks[0].text in result.text
     finally:
         MathCraftRuntime._warmup_selected_models = old_warmup_selected
@@ -1057,6 +1145,7 @@ def test_recognize_mixed_preserves_unsplit_formula_structure() -> None:
     old_recognize_formulas = runtime_mod.recognize_formula_images
     old_crop = runtime_mod.get_rotate_crop_image
     try:
+
         def _fake_warmup_selected(self, profile: str, model_ids):
             report = self.get_runtime_info()
             return runtime_mod.WarmupPlan(
@@ -1079,8 +1168,9 @@ def test_recognize_mixed_preserves_unsplit_formula_structure() -> None:
         )
 
         MathCraftRuntime._warmup_selected_models = _fake_warmup_selected
-        runtime_mod.detect_text_boxes = (
-            lambda image, model_dir, provider_info: (np.zeros((0, 4, 2), dtype=np.float32), ())
+        runtime_mod.detect_text_boxes = lambda image, model_dir, provider_info: (
+            np.zeros((0, 4, 2), dtype=np.float32),
+            (),
         )
         runtime_mod.detect_formula_boxes = lambda image, model_dir, provider_info: (
             FormulaBox(
@@ -1090,13 +1180,17 @@ def test_recognize_mixed_preserves_unsplit_formula_structure() -> None:
             ),
         )
         runtime_mod.get_rotate_crop_image = lambda image, box: formula_image
-        runtime_mod.recognize_pp_text_lines = lambda crops, model_dir, provider_info, **kwargs: []
+        runtime_mod.recognize_pp_text_lines = (
+            lambda crops, model_dir, provider_info, **kwargs: []
+        )
         runtime_mod.recognize_formula_images = (
             lambda images, model_dir, provider_info, **kwargs: [(formula_text, 0.99)]
         )
 
         with tempfile.TemporaryDirectory() as tmp:
-            runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
+            runtime = MathCraftRuntime(
+                cache_dir=tmp, manifest=manifest, provider_preference="cpu"
+            )
             result = runtime.recognize_mixed(np.zeros((58, 200, 3), dtype=np.uint8))
 
         assert len(result.blocks) == 1
@@ -1128,7 +1222,9 @@ def test_formula_boxes_ink_coverage_ignores_dark_outer_frame() -> None:
     assert coverage == 1.0
 
 
-def test_recognize_mixed_routes_formula_dominant_image_to_formula_core(monkeypatch) -> None:
+def test_recognize_mixed_routes_formula_dominant_image_to_formula_core(
+    monkeypatch,
+) -> None:
     manifest = load_manifest()
     image = np.full((80, 180, 3), 255, dtype=np.uint8)
     image[24:56, 30:150] = 0
@@ -1160,7 +1256,9 @@ def test_recognize_mixed_routes_formula_dominant_image_to_formula_core(monkeypat
     )
 
     with tempfile.TemporaryDirectory() as tmp:
-        runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
+        runtime = MathCraftRuntime(
+            cache_dir=tmp, manifest=manifest, provider_preference="cpu"
+        )
         result = runtime.recognize_mixed(image)
 
     assert formula_text in result.text
@@ -1202,6 +1300,7 @@ def test_recognize_text_skips_formula_pipeline() -> None:
     old_recognize_lines = runtime_mod.recognize_pp_text_lines
     old_crop = runtime_mod.get_rotate_crop_image
     try:
+
         def _fake_warmup_selected(self, profile: str, model_ids):
             report = self.get_runtime_info()
             assert profile == "text"
@@ -1218,25 +1317,25 @@ def test_recognize_text_skips_formula_pipeline() -> None:
             )
 
         MathCraftRuntime._warmup_selected_models = _fake_warmup_selected
-        runtime_mod.detect_formula_boxes = (
-            lambda image, model_dir, provider_info: (_ for _ in ()).throw(
-                AssertionError("formula detector should not run in text mode")
-            )
-        )
+        runtime_mod.detect_formula_boxes = lambda image, model_dir, provider_info: (
+            _ for _ in ()
+        ).throw(AssertionError("formula detector should not run in text mode"))
         runtime_mod.detect_text_boxes = (
             lambda image, model_dir, provider_info, **kwargs: (
                 np.asarray([[[0, 0], [12, 0], [12, 8], [0, 8]]], dtype=np.float32),
                 (0.9,),
             )
         )
-        runtime_mod.get_rotate_crop_image = (
-            lambda image, box: np.zeros((8, 8, 3), dtype=np.uint8)
+        runtime_mod.get_rotate_crop_image = lambda image, box: np.zeros(
+            (8, 8, 3), dtype=np.uint8
         )
         runtime_mod.recognize_pp_text_lines = (
             lambda crops, model_dir, provider_info, **kwargs: [("plain text", 0.96)]
         )
         with tempfile.TemporaryDirectory() as tmp:
-            runtime = MathCraftRuntime(cache_dir=tmp, manifest=manifest, provider_preference="cpu")
+            runtime = MathCraftRuntime(
+                cache_dir=tmp, manifest=manifest, provider_preference="cpu"
+            )
             result = runtime.recognize_text(np.zeros((32, 64, 3), dtype=np.uint8))
             assert isinstance(result, MixedRecognitionResult)
             assert result.text == "plain text"
@@ -1397,7 +1496,10 @@ def test_layout_marks_roles_columns_and_paragraphs() -> None:
     assert by_text["34"].role == "page_number"
     assert by_text["1 Introduction"].role == "heading"
     assert by_text["This paragraph continues"].role == "paragraph"
-    assert by_text["This paragraph continues"].paragraph_id == by_text["on the next line."].paragraph_id
+    assert (
+        by_text["This paragraph continues"].paragraph_id
+        == by_text["on the next line."].paragraph_id
+    )
     assert by_text["This paragraph continues"].column == 0
 
 
@@ -1697,18 +1799,21 @@ def test_hardware_batch_policy_prefers_larger_gpu_batches() -> None:
         gpu_requested=True,
         gpu_runtime_ok=True,
     )
-    assert choose_rec_batch_num(
-        provider,
-        HardwareInfo(
-            logical_processors=12,
-            total_memory_mb=24000,
-            free_memory_mb=12000,
-            gpu_name="NVIDIA",
-            gpu_total_memory_mb=6141,
-            gpu_free_memory_mb=5103,
-            gpu_driver_version="595.97",
-        ),
-    ) == 12
+    assert (
+        choose_rec_batch_num(
+            provider,
+            HardwareInfo(
+                logical_processors=12,
+                total_memory_mb=24000,
+                free_memory_mb=12000,
+                gpu_name="NVIDIA",
+                gpu_total_memory_mb=6141,
+                gpu_free_memory_mb=5103,
+                gpu_driver_version="595.97",
+            ),
+        )
+        == 12
+    )
 
 
 def test_hardware_batch_policy_uses_total_vram_when_free_vram_unknown() -> None:
@@ -1719,21 +1824,26 @@ def test_hardware_batch_policy_uses_total_vram_when_free_vram_unknown() -> None:
         gpu_requested=True,
         gpu_runtime_ok=True,
     )
-    assert choose_rec_batch_num(
-        provider,
-        HardwareInfo(
-            logical_processors=12,
-            total_memory_mb=24000,
-            free_memory_mb=12000,
-            gpu_name="NVIDIA GeForce RTX 4050 Laptop GPU",
-            gpu_total_memory_mb=4095,
-            gpu_free_memory_mb=0,
-            gpu_driver_version="32.0.15.9597",
-        ),
-    ) == 8
+    assert (
+        choose_rec_batch_num(
+            provider,
+            HardwareInfo(
+                logical_processors=12,
+                total_memory_mb=24000,
+                free_memory_mb=12000,
+                gpu_name="NVIDIA GeForce RTX 4050 Laptop GPU",
+                gpu_total_memory_mb=4095,
+                gpu_free_memory_mb=0,
+                gpu_driver_version="32.0.15.9597",
+            ),
+        )
+        == 8
+    )
 
 
-def test_text_recognizer_uses_mathcraft_session_for_any_provider(monkeypatch, tmp_path) -> None:
+def test_text_recognizer_uses_mathcraft_session_for_any_provider(
+    monkeypatch, tmp_path
+) -> None:
     model_dir = tmp_path / "text-rec"
     _touch(model_dir / "ppocrv5_mobile_rec.onnx")
     _touch(model_dir / "ppocrv5_keys.txt", b"a\nb\n")
@@ -1744,7 +1854,9 @@ def test_text_recognizer_uses_mathcraft_session_for_any_provider(monkeypatch, tm
         captured.update(config)
         return object()
 
-    monkeypatch.setattr(text_recognizer_mod, "create_session", lambda _path, _provider: session)
+    monkeypatch.setattr(
+        text_recognizer_mod, "create_session", lambda _path, _provider: session
+    )
     monkeypatch.setattr(text_recognizer_mod, "TextRecognizer", _fake_recognizer)
     provider = ProviderInfo(
         available_providers=("CoreMLExecutionProvider", "CPUExecutionProvider"),
@@ -1762,7 +1874,9 @@ def test_text_recognizer_uses_mathcraft_session_for_any_provider(monkeypatch, tm
     text_recognizer_mod.clear_text_recognizer_cache()
 
 
-def test_mathcraft_session_disables_runtime_provider_fallback(monkeypatch, tmp_path) -> None:
+def test_mathcraft_session_disables_runtime_provider_fallback(
+    monkeypatch, tmp_path
+) -> None:
     calls = {}
 
     class _Session:
@@ -1858,7 +1972,9 @@ def test_directml_session_uses_required_session_options(monkeypatch, tmp_path) -
     common_adapter_mod.clear_session_cache()
 
 
-def test_mathcraft_session_rejects_gpu_initialization_fallback(monkeypatch, tmp_path) -> None:
+def test_mathcraft_session_rejects_gpu_initialization_fallback(
+    monkeypatch, tmp_path
+) -> None:
     class _Session:
         def get_providers(self):
             return ["CPUExecutionProvider"]
@@ -1888,7 +2004,9 @@ def test_mathcraft_session_rejects_gpu_initialization_fallback(monkeypatch, tmp_
         common_adapter_mod.clear_session_cache()
 
 
-def test_mathcraft_session_rejects_a_different_gpu_device(monkeypatch, tmp_path) -> None:
+def test_mathcraft_session_rejects_a_different_gpu_device(
+    monkeypatch, tmp_path
+) -> None:
     class _Session:
         def get_providers(self):
             return ["CUDAExecutionProvider", "CPUExecutionProvider"]
@@ -1926,7 +2044,9 @@ def test_mathcraft_session_rejects_a_different_gpu_device(monkeypatch, tmp_path)
         common_adapter_mod.clear_session_cache()
 
 
-def test_tensorrt_preference_uses_cuda_and_cpu_for_unsupported_nodes(monkeypatch) -> None:
+def test_tensorrt_preference_uses_cuda_and_cpu_for_unsupported_nodes(
+    monkeypatch,
+) -> None:
     ort = type(
         "Ort",
         (),
@@ -1955,7 +2075,11 @@ def test_explicit_provider_options_are_preserved(monkeypatch) -> None:
     ort = type(
         "Ort",
         (),
-        {"get_available_providers": staticmethod(lambda: ["OpenVINOExecutionProvider"])},
+        {
+            "get_available_providers": staticmethod(
+                lambda: ["OpenVINOExecutionProvider"]
+            )
+        },
     )()
     monkeypatch.setattr(providers_mod.importlib, "import_module", lambda _name: ort)
 
@@ -2028,7 +2152,11 @@ def test_provider_report_uses_provider_specific_device_identity(monkeypatch) -> 
     ort = type(
         "Ort",
         (),
-        {"get_available_providers": staticmethod(lambda: ["DmlExecutionProvider", "CPUExecutionProvider"])},
+        {
+            "get_available_providers": staticmethod(
+                lambda: ["DmlExecutionProvider", "CPUExecutionProvider"]
+            )
+        },
     )()
     identity = devices_mod.DeviceIdentity(
         device_id=0,
@@ -2037,7 +2165,9 @@ def test_provider_report_uses_provider_specific_device_identity(monkeypatch) -> 
         verified=True,
     )
     monkeypatch.setattr(providers_mod.importlib, "import_module", lambda _name: ort)
-    monkeypatch.setattr(providers_mod, "resolve_device_identity", lambda _provider, _device_id: identity)
+    monkeypatch.setattr(
+        providers_mod, "resolve_device_identity", lambda _provider, _device_id: identity
+    )
 
     info = providers_mod.detect_providers("gpu")
 
@@ -2101,7 +2231,9 @@ def test_hardware_memory_status_uses_psutil_when_available(monkeypatch) -> None:
     assert hardware_mod._psutil_memory_status() == (16384, 10240)
 
 
-def test_hardware_memory_status_combines_posix_total_with_macos_free(monkeypatch) -> None:
+def test_hardware_memory_status_combines_posix_total_with_macos_free(
+    monkeypatch,
+) -> None:
     monkeypatch.setattr(hardware_mod, "_psutil_memory_status", lambda: (0, 0))
     monkeypatch.setattr(hardware_mod, "_windows_memory_status", lambda: (0, 0))
     monkeypatch.setattr(hardware_mod, "_posix_memory_status", lambda: (8192, 0))
@@ -2117,14 +2249,17 @@ def test_hardware_batch_policy_keeps_cpu_batches_moderate() -> None:
         gpu_requested=False,
         gpu_runtime_ok=False,
     )
-    assert choose_rec_batch_num(
-        provider,
-        HardwareInfo(
-            logical_processors=12,
-            total_memory_mb=24000,
-            free_memory_mb=12000,
-        ),
-    ) == 8
+    assert (
+        choose_rec_batch_num(
+            provider,
+            HardwareInfo(
+                logical_processors=12,
+                total_memory_mb=24000,
+                free_memory_mb=12000,
+            ),
+        )
+        == 8
+    )
 
 
 def test_worker_serializes_formula_result() -> None:
@@ -2156,11 +2291,15 @@ def test_worker_serializes_formula_result() -> None:
 
 def test_worker_passes_extended_formula_budget_to_mixed_runtime() -> None:
     class _FakeRuntime:
-        def recognize_mixed(self, image, *, min_text_score=0.45, max_formula_new_tokens=256):
+        def recognize_mixed(
+            self, image, *, min_text_score=0.45, max_formula_new_tokens=256
+        ):
             _ = min_text_score
             assert image == "sample.png"
             assert max_formula_new_tokens == FORMULA_MAX_NEW_TOKENS
-            return MixedRecognitionResult(text="x", regions=(), blocks=(), provider="CPUExecutionProvider")
+            return MixedRecognitionResult(
+                text="x", regions=(), blocks=(), provider="CPUExecutionProvider"
+            )
 
     worker = MathCraftWorker(runtime=_FakeRuntime())
     response = worker.handle(

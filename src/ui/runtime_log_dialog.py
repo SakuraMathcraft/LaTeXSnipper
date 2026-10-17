@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from localization.manager import translate as tr
-
 import os
 import subprocess
 from pathlib import Path
@@ -20,8 +18,9 @@ from PyQt6.QtWidgets import (
 )
 from qfluentwidgets import FluentIcon, PushButton
 
-from ui.theme_tokens import dialog_theme_tokens, is_dark_ui
+from localization.manager import translate as tr
 from runtime.app_paths import resource_path
+from ui.theme_tokens import dialog_theme_tokens, is_dark_ui
 
 
 class RuntimeLogDialog(QDialog):

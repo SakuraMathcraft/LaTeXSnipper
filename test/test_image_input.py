@@ -110,7 +110,9 @@ def test_common_input_boundary_preserves_backend_independent_resolution() -> Non
     assert image.size == (5000, 2000)
 
 
-def test_trusted_local_file_is_not_limited_by_remote_upload_bytes(tmp_path: Path) -> None:
+def test_trusted_local_file_is_not_limited_by_remote_upload_bytes(
+    tmp_path: Path,
+) -> None:
     path = tmp_path / "large-local.bmp"
     Image.new("RGB", (2500, 2300), "white").save(path, format="BMP")
     assert path.stat().st_size > DEFAULT_MAX_ENCODED_IMAGE_BYTES

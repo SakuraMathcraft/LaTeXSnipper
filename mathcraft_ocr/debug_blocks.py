@@ -1,11 +1,8 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 from html import escape
 from pathlib import Path
 from typing import Any
-
 
 _ROLE_COLORS = {
     "paragraph": "#1f77b4",
@@ -59,7 +56,7 @@ def _extract_blocks(page: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _page_size(page: dict[str, Any], image: Any | None) -> tuple[int, int]:
     if image is not None and hasattr(image, "size"):
-        size = getattr(image, "size")
+        size = image.size
         if isinstance(size, tuple) and len(size) >= 2:
             return int(size[0]), int(size[1])
     raw_size = page.get("image_size")
@@ -177,10 +174,10 @@ th {{ background: #f2f2f2; }}
 </style>
 <h1>MathCraft Debug Blocks</h1>
 <p>bbox / role / column / reading order / score visualization.</p>
-<div class="stage"><img src="{escape(image_name)}" alt="debug page">{''.join(overlays)}</div>
+<div class="stage"><img src="{escape(image_name)}" alt="debug page">{"".join(overlays)}</div>
 <table>
 <thead><tr><th>#</th><th>order</th><th>role</th><th>kind</th><th>col</th><th>line</th><th>pid</th><th>score</th><th>flags</th><th>text</th></tr></thead>
-<tbody>{''.join(rows)}</tbody>
+<tbody>{"".join(rows)}</tbody>
 </table>
 """
     path.write_text(html, encoding="utf-8")

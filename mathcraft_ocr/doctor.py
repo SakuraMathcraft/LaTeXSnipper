@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import sys
@@ -7,7 +5,12 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from .cache import inspect_manifest_roots, resolve_model_roots, resolve_user_models_dir
+from .cache import (
+    ModelCacheState,
+    inspect_manifest_roots,
+    resolve_model_roots,
+    resolve_user_models_dir,
+)
 from .manifest import Manifest, load_manifest
 from .providers import ProviderInfo, ProviderRequest, detect_providers
 
@@ -19,7 +22,7 @@ class DoctorReport:
     model_roots: tuple[Path, ...]
     manifest_version: int
     provider_info: ProviderInfo
-    cache_states: dict[str, object]
+    cache_states: dict[str, ModelCacheState]
     supported_runtimes: dict[str, str]
 
 

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 import requests
-
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -14,7 +13,10 @@ if str(SRC) not in sys.path:
 
 
 def test_external_model_defaults_match_ollama_url() -> None:
-    from backend.external_model.schemas import ExternalModelConfig, load_config_from_mapping
+    from backend.external_model.schemas import (
+        ExternalModelConfig,
+        load_config_from_mapping,
+    )
 
     assert ExternalModelConfig().normalized_provider() == "ollama"
 
@@ -34,7 +36,9 @@ def test_external_model_defaults_match_ollama_url() -> None:
         ("ocr_document_latex_v1", "latex"),
     ],
 )
-def test_prompt_template_is_the_output_contract(prompt_template: str, output_mode: str) -> None:
+def test_prompt_template_is_the_output_contract(
+    prompt_template: str, output_mode: str
+) -> None:
     from backend.external_model.schemas import ExternalModelConfig
 
     config = ExternalModelConfig(prompt_template=prompt_template)
@@ -62,7 +66,9 @@ def test_custom_prompt_replaces_template_text_without_changing_result_type() -> 
     assert config.resolved_output_mode() == "markdown"
 
 
-def test_default_external_model_connection_uses_ollama_routes(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_default_external_model_connection_uses_ollama_routes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from backend.external_model.client import ExternalModelClient
     from backend.external_model.schemas import load_config_from_mapping
 
@@ -88,19 +94,31 @@ def test_default_external_model_connection_uses_ollama_routes(monkeypatch: pytes
     assert requested_urls == ["http://127.0.0.1:11434/api/tags"]
 
 
-def test_external_model_api_key_is_saved_encrypted(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_external_model_api_key_is_saved_encrypted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from backend.external_model import schemas
-    from backend.external_model.schemas import ExternalModelConfig, load_config_from_mapping
+    from backend.external_model.schemas import (
+        ExternalModelConfig,
+        load_config_from_mapping,
+    )
 
     monkeypatch.setattr(schemas, "encrypt_secret", lambda value: f"enc:{value}")
-    monkeypatch.setattr(schemas, "decrypt_secret", lambda value: value.removeprefix("enc:"))
+    monkeypatch.setattr(
+        schemas, "decrypt_secret", lambda value: value.removeprefix("enc:")
+    )
 
     data = ExternalModelConfig(api_key="secret-token").to_mapping()
 
     assert data["external_model_api_key_enc"] == "enc:secret-token"
     assert "external_model_api_key" not in data
     assert load_config_from_mapping(data).normalized_api_key() == "secret-token"
-    assert load_config_from_mapping({"external_model_api_key": "plaintext-token"}).normalized_api_key() == ""
+    assert (
+        load_config_from_mapping(
+            {"external_model_api_key": "plaintext-token"}
+        ).normalized_api_key()
+        == ""
+    )
 
 
 def test_openai_compatible_400_includes_response_detail() -> None:
@@ -109,7 +127,9 @@ def test_openai_compatible_400_includes_response_detail() -> None:
 
     response = requests.Response()
     response.status_code = 400
-    response._content = b'{"error":{"message":"image input is not supported by this model"}}'
+    response._content = (
+        b'{"error":{"message":"image input is not supported by this model"}}'
+    )
     error = requests.HTTPError(response=response)
     error = ExternalModelClient(ExternalModelConfig())._build_request_error(
         error,
@@ -130,7 +150,7 @@ def test_openai_compatible_text_only_schema_error_is_clear() -> None:
     response.status_code = 400
     response._content = (
         b'{"error":{"message":"Failed to deserialize the JSON body into the target type: '
-        b"messages[0]: unknown variant `image_url`, expected `text` at line 1 column 54657\"}}"
+        b'messages[0]: unknown variant `image_url`, expected `text` at line 1 column 54657"}}'
     )
     error = requests.HTTPError(response=response)
     error = ExternalModelClient(ExternalModelConfig())._build_request_error(
@@ -144,7 +164,9 @@ def test_openai_compatible_text_only_schema_error_is_clear() -> None:
     assert "服务端信息" not in message
 
 
-def test_openai_compatible_accepts_base_url_with_v1_prefix(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_openai_compatible_accepts_base_url_with_v1_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from backend.external_model.client import ExternalModelClient
     from backend.external_model.schemas import load_config_from_mapping
 
@@ -177,7 +199,7 @@ def test_openai_compatible_accepts_base_url_with_v1_prefix(monkeypatch: pytest.M
 
 
 def test_recommended_presets_only_include_strong_vision_options() -> None:
-    from backend.external_model.presets import PRESETS, PRESET_ITEMS
+    from backend.external_model.presets import PRESET_ITEMS, PRESETS
 
     preset_ids = [key for key, _label in PRESET_ITEMS]
 
@@ -192,7 +214,9 @@ def test_recommended_presets_only_include_strong_vision_options() -> None:
     }
 
 
-def test_mineru_health_check_rejects_client_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_mineru_health_check_rejects_client_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from backend.external_model.errors import ExternalModelConnectionError
     from backend.external_model.mineru_client import MineruClient
     from backend.external_model.schemas import ExternalModelConfig
@@ -211,7 +235,9 @@ def test_mineru_health_check_rejects_client_errors(monkeypatch: pytest.MonkeyPat
         MineruClient(config).test_connection()
 
 
-def test_mineru_health_check_message_does_not_claim_parse_success(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_mineru_health_check_message_does_not_claim_parse_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from backend.external_model.mineru_client import MineruClient
     from backend.external_model.schemas import ExternalModelConfig
 
@@ -259,15 +285,7 @@ def test_mineru_parse_mode_consumes_native_structure_without_parse_prompt() -> N
 def test_external_model_result_preserves_markdown_structure() -> None:
     from backend.external_model.schemas import ExternalModelResult
 
-    source = (
-        "- parent\n"
-        "    - child\n"
-        "\n"
-        "\n"
-        "    indented code\n"
-        "hard break  \n"
-        "next"
-    )
+    source = "- parent\n    - child\n\n\n    indented code\nhard break  \nnext"
 
     result = ExternalModelResult(markdown=source)
 

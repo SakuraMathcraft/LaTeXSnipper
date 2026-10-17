@@ -8,7 +8,6 @@ from types import SimpleNamespace
 
 from PIL import Image
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -24,15 +23,25 @@ class TestMathcraftBackend(unittest.TestCase):
         from backend.mathcraft.model import ModelWrapper
 
         wrapper = ModelWrapper(auto_warmup=False)
-        hello = {'worker_protocol': 1, 'model_format': 1, 'python_version': '3.11.17', 'ort_version': '1.26.0'}
+        hello = {
+            "worker_protocol": 1,
+            "model_format": 1,
+            "python_version": "3.11.17",
+            "ort_version": "1.26.0",
+        }
         responses = [
-            {'protocol': 1, 'id': 'mathcraft-1', 'ok': True, 'result': hello},
-            {'protocol': 1, 'id': 'mathcraft-2', 'ok': True, 'result': {'ready': True}},
+            {"protocol": 1, "id": "mathcraft-1", "ok": True, "result": hello},
+            {"protocol": 1, "id": "mathcraft-2", "ok": True, "result": {"ready": True}},
         ]
-        wrapper._worker = SimpleNamespace(stdin=io.StringIO(), stdout=io.StringIO('\n'.join(json.dumps(item) for item in responses) + '\n'))
+        wrapper._worker = SimpleNamespace(
+            stdin=io.StringIO(),
+            stdout=io.StringIO(
+                "\n".join(json.dumps(item) for item in responses) + "\n"
+            ),
+        )
         wrapper._ensure_worker = lambda: True
         try:
-            assert wrapper._send_worker_request({'action': 'warmup'}) == {'ready': True}
+            assert wrapper._send_worker_request({"action": "warmup"}) == {"ready": True}
             assert wrapper.runtime_info == hello
         finally:
             wrapper._worker = None

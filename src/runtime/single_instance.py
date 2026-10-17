@@ -85,7 +85,7 @@ def ensure_single_instance() -> bool:
             fh = open(lock_file, "a+", encoding="utf-8")
             try:
                 fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except (IOError, OSError):
+            except OSError:
                 fh.close()
                 if restart_flag:
                     time.sleep(delay)

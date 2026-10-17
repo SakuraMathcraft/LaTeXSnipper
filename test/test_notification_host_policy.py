@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from types import SimpleNamespace
+
 import ui.controllers.hotkey as hotkey_module
 import ui.controllers.predict_result as result_module
 from ui.controllers.model_runtime import ModelRuntimeController

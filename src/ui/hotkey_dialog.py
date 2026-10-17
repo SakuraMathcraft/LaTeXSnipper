@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from localization.manager import mark_for_translation, translate as tr
-
-from collections.abc import Callable
 import sys
+from collections.abc import Callable
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QDialog, QLabel, QLineEdit, QSizePolicy, QVBoxLayout
 from qfluentwidgets import FluentIcon, PushButton
 
-from ui.theme_tokens import dialog_theme_tokens, is_dark_ui
+from localization.manager import mark_for_translation
+from localization.manager import translate as tr
 from runtime.hotkey_config import hotkey_help_text
+from ui.theme_tokens import dialog_theme_tokens, is_dark_ui
 from ui.window_helpers import apply_close_only_window_flags
 
 _HOTKEY_HELP_TRANSLATION_SOURCES = (
@@ -48,15 +48,11 @@ def create_hotkey_dialog(
     current_label = QLabel(tr("当前快捷键：{hotkey}").format(hotkey=current_hotkey))
     current_label.setStyleSheet(f"color: {t['text']}; font-weight: 600;")
     hint_label = QLabel(
-        tr("按下新的：{format}").format(
-            format=localized_hotkey_help_text(sys.platform)
-        )
+        tr("按下新的：{format}").format(format=localized_hotkey_help_text(sys.platform))
     )
     hint_label.setStyleSheet(f"color: {t['muted']};")
     hint_label.setWordWrap(True)
-    hint_label.setSizePolicy(
-        QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
-    )
+    hint_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
     lay.addWidget(current_label)
     lay.addWidget(hint_label)
 

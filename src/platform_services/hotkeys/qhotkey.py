@@ -1,20 +1,26 @@
-
-import logging
 import ctypes
 import ctypes.wintypes
-from typing import Optional, Union
-from PyQt6.QtCore import QObject, pyqtSignal, Qt, QAbstractNativeEventFilter, QAbstractEventDispatcher
+import logging
+from typing import Any, cast
+
+from PyQt6.QtCore import (
+    QAbstractEventDispatcher,
+    QAbstractNativeEventFilter,
+    QObject,
+    Qt,
+    pyqtSignal,
+)
 from PyQt6.QtGui import QKeySequence
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 user32 = ctypes.windll.user32
 
-MOD_ALT     = 0x0001
+MOD_ALT = 0x0001
 MOD_CONTROL = 0x0002
-MOD_SHIFT   = 0x0004
-MOD_WIN     = 0x0008
-WM_HOTKEY   = 0x0312
+MOD_SHIFT = 0x0004
+MOD_WIN = 0x0008
+WM_HOTKEY = 0x0312
 
 
 class WinHotkeyFilter(QAbstractNativeEventFilter):
@@ -27,7 +33,7 @@ class WinHotkeyFilter(QAbstractNativeEventFilter):
             return False, 0
         try:
             try:
-                addr = int(message)
+                addr = int(cast(Any, message))
             except Exception:
                 return False, 0
             msg = ctypes.wintypes.MSG.from_address(addr)
@@ -91,9 +97,9 @@ class GlobalHotkey(QObject):
                 key_part = p
         if not key_part or not mods:
             raise ValueError("快捷键格式不合法")
-        if len(key_part) == 1 and 'A' <= key_part <= 'Z':
+        if len(key_part) == 1 and "A" <= key_part <= "Z":
             vk = ord(key_part)
-        elif len(key_part) == 1 and '0' <= key_part <= '9':
+        elif len(key_part) == 1 and "0" <= key_part <= "9":
             vk = ord(key_part)
         elif key_part.startswith("F") and key_part[1:].isdigit():
             n = int(key_part[1:])
@@ -139,8 +145,8 @@ class QHotkey(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._seq_obj: Optional[QKeySequence] = None
-        self._seq_str: Optional[str] = None
+        self._seq_obj: QKeySequence | None = None
+        self._seq_str: str | None = None
         self._global = GlobalHotkey(self)
         self._global.activated.connect(self.activated.emit)
 
@@ -162,16 +168,16 @@ class QHotkey(QObject):
             parts.append("Win")
         key = kc.key()
         if Qt.Key.Key_A.value <= key <= Qt.Key.Key_Z.value:
-            parts.append(chr(ord('A') + (key - Qt.Key.Key_A.value)))
+            parts.append(chr(ord("A") + (key - Qt.Key.Key_A.value)))
         elif Qt.Key.Key_0.value <= key <= Qt.Key.Key_9.value:
-            parts.append(chr(ord('0') + (key - Qt.Key.Key_0.value)))
+            parts.append(chr(ord("0") + (key - Qt.Key.Key_0.value)))
         elif Qt.Key.Key_F1.value <= key <= Qt.Key.Key_F12.value:
             parts.append(f"F{key - Qt.Key.Key_F1.value + 1}")
         else:
             raise ValueError("不支持的按键")
         return "+".join(parts)
 
-    def register(self, seq: Union[QKeySequence, str, None] = None):
+    def register(self, seq: QKeySequence | str | None = None):
         if seq is not None:
             if isinstance(seq, str):
                 seq = QKeySequence(seq)

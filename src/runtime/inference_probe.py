@@ -4,7 +4,10 @@ import inspect
 
 from mathcraft_ocr.native_libraries import audit_private_gpu_libraries
 
-PROBE_CODE = "from pathlib import Path\n" + inspect.getsource(audit_private_gpu_libraries) + r"""
+PROBE_CODE = (
+    "from pathlib import Path\n"
+    + inspect.getsource(audit_private_gpu_libraries)
+    + r"""
 import json
 import os
 from pathlib import Path
@@ -21,7 +24,6 @@ if gpu and os.name == 'nt':
 
 import numpy as np
 import cv2
-import fitz
 import rapidocr
 import tokenizers
 import transformers
@@ -81,3 +83,4 @@ native_modules = audit_private_gpu_libraries(native) if gpu else {}
 print(json.dumps({'python': sys.version.split()[0], 'ort': ort.__version__, 'provider': provider,
                   'gpu_inference': gpu, 'checks': ['imports', 'MatMul', 'Conv'], 'native_modules': native_modules}))
 """
+)

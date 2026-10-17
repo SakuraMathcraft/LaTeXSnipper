@@ -5,8 +5,6 @@ from __future__ import annotations
 import hmac
 import secrets
 from dataclasses import dataclass
-from typing import FrozenSet
-
 
 MATHCRAFT_PERMISSION = "recognition.mathcraft"
 EXTERNAL_PERMISSION = "recognition.external"
@@ -16,7 +14,7 @@ EXTERNAL_PERMISSION = "recognition.external"
 class AuthenticatedPrincipal:
     id: str
     kind: str
-    permissions: FrozenSet[str]
+    permissions: frozenset[str]
 
     def allows(self, permission: str) -> bool:
         return permission in self.permissions

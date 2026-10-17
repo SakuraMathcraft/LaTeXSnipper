@@ -44,7 +44,6 @@
     "flatbuffers<26,>=24.3.25",
     "packaging<27,>=25",
     "protobuf<5,>=4.25",
-    "pymupdf<1.28,>=1.27.2",
     "requests==2.32.5",
     "onnxruntime==1.26.0"
   ],
@@ -220,16 +219,6 @@
         "kind": "wheel",
         "name": "pyclipper",
         "version": "1.4.0"
-      },
-      {
-        "artifact": {
-          "sha256": "857842b4888827bd6155a1131341b2822a7ebe9a8c15a975fd7d490d7a64a30c",
-          "size": 24963198,
-          "url": "https://files.pythonhosted.org/packages/e4/a0/aa1ee2240f29481a04a827c313333b4ecd8a14d6ac3e15d3f41a30574781/pymupdf-1.27.2.3-cp310-abi3-manylinux_2_28_x86_64.whl"
-        },
-        "kind": "wheel",
-        "name": "pymupdf",
-        "version": "1.27.2.3"
       },
       {
         "artifact": {
@@ -525,16 +514,6 @@
       },
       {
         "artifact": {
-          "sha256": "660d93cb6da5bbddf11d3982ae27745dd3a9902d9f24cdb69adab83962294b5a",
-          "size": 23278238,
-          "url": "https://files.pythonhosted.org/packages/01/89/3f8edd6c4f50ca370e2a2f2a3011face36f3760728ffe76dffec91c0fca0/pymupdf-1.27.2.3-cp310-abi3-macosx_11_0_arm64.whl"
-        },
-        "kind": "wheel",
-        "name": "pymupdf",
-        "version": "1.27.2.3"
-      },
-      {
-        "artifact": {
           "sha256": "652cb6edd41e718550aad172851962662ff2681490a8a711af6a4d288dd96824",
           "size": 175577,
           "url": "https://files.pythonhosted.org/packages/16/19/13de8e4377ed53079ee996e1ab0a9c33ec2faf808a4647b7b4c0d46dd239/pyyaml-6.0.3-cp311-cp311-macosx_11_0_arm64.whl"
@@ -824,16 +803,6 @@
         "kind": "wheel",
         "name": "pyclipper",
         "version": "1.4.0"
-      },
-      {
-        "artifact": {
-          "sha256": "d20f68ef15195e073071dbc4ae7455257c7889af7584e39df490c0a92728526e",
-          "size": 19249102,
-          "url": "https://files.pythonhosted.org/packages/44/47/5fb10fe73f96b31253a41647c362ea9e0380920bddf16028414a051247fc/pymupdf-1.27.2.3-cp310-abi3-win_amd64.whl"
-        },
-        "kind": "wheel",
-        "name": "pymupdf",
-        "version": "1.27.2.3"
       },
       {
         "artifact": {

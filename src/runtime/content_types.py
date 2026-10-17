@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Literal
 
-
 ContentType = Literal["mathcraft", "mathcraft_mixed", "mathcraft_text"]
 
 FORMULA_CONTENT_TYPE: ContentType = "mathcraft"

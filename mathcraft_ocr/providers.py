@@ -1,14 +1,12 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import importlib
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
+from typing import cast
 
 from .devices import confirm_device_identity, resolve_device_identity
 from .errors import ProviderError
-
 
 MAIN_PROVIDER_NAMES = (
     "CPUExecutionProvider",
@@ -79,7 +77,10 @@ class ProviderInfo:
 
     @property
     def use_cuda(self) -> bool:
-        return self.active_provider in {"CUDAExecutionProvider", "TensorrtExecutionProvider"}
+        return self.active_provider in {
+            "CUDAExecutionProvider",
+            "TensorrtExecutionProvider",
+        }
 
     @property
     def use_dml(self) -> bool:
@@ -109,7 +110,12 @@ def detect_providers(
     providers: Sequence[ProviderRequest] | None = None,
 ) -> ProviderInfo:
     prefer_norm = (prefer or "auto").strip().lower()
-    if providers is None and prefer_norm not in {"auto", "cpu", "gpu", *_PROVIDER_ALIASES}:
+    if providers is None and prefer_norm not in {
+        "auto",
+        "cpu",
+        "gpu",
+        *_PROVIDER_ALIASES,
+    }:
         raise ProviderError(f"unsupported provider preference: {prefer}")
     try:
         ort = importlib.import_module("onnxruntime")
@@ -125,7 +131,7 @@ def detect_providers(
         )
 
     try:
-        available = tuple(get_available_providers())
+        available = tuple(cast(Iterable[str], get_available_providers()))
     except Exception as exc:  # pragma: no cover - runtime environment dependent
         raise ProviderError(f"failed to query ONNX providers: {exc}") from exc
 
@@ -134,7 +140,12 @@ def detect_providers(
     accelerated = active in ACCELERATOR_PROVIDER_NAMES
     device = (
         "gpu"
-        if active in {"CUDAExecutionProvider", "TensorrtExecutionProvider", "DmlExecutionProvider"}
+        if active
+        in {
+            "CUDAExecutionProvider",
+            "TensorrtExecutionProvider",
+            "DmlExecutionProvider",
+        }
         else "accelerator"
         if accelerated
         else "cpu"
@@ -164,18 +175,26 @@ def _resolve_provider_specs(
     if prefer == "auto":
         active = next((name for name in _AUTO_PRIORITY if name in available), None)
         if active is None:
-            raise ProviderError(f"no supported ONNX execution provider is available: {available}")
+            raise ProviderError(
+                f"no supported ONNX execution provider is available: {available}"
+            )
         return _default_provider_chain(active, available)
 
     if prefer == "gpu":
-        active = next((name for name in _ACCELERATOR_PRIORITY if name in available), None)
+        active = next(
+            (name for name in _ACCELERATOR_PRIORITY if name in available), None
+        )
         if active is None:
-            raise ProviderError(f"GPU provider was requested but none is available: {available}")
+            raise ProviderError(
+                f"GPU provider was requested but none is available: {available}"
+            )
         return _default_provider_chain(active, available)
 
     active = _PROVIDER_ALIASES[prefer]
     if active not in available:
-        raise ProviderError(f"requested ONNX provider {active} is unavailable: {available}")
+        raise ProviderError(
+            f"requested ONNX provider {active} is unavailable: {available}"
+        )
     return _default_provider_chain(active, available)
 
 
@@ -183,14 +202,20 @@ def _normalize_provider_request(request: ProviderRequest) -> ProviderSpec:
     if isinstance(request, str):
         raw_name = request
         options: Mapping[str, object] = {}
-    elif isinstance(request, tuple) and len(request) == 2 and isinstance(request[1], Mapping):
+    elif (
+        isinstance(request, tuple)
+        and len(request) == 2
+        and isinstance(request[1], Mapping)
+    ):
         raw_name, options = request
     else:
         raise ProviderError(f"invalid provider specification: {request!r}")
     name = _canonical_provider_name(str(raw_name))
     if name not in MAIN_PROVIDER_NAMES:
         raise ProviderError(f"unsupported ONNX provider: {raw_name}")
-    frozen_options = tuple(sorted((str(key), str(value)) for key, value in options.items()))
+    frozen_options = tuple(
+        sorted((str(key), str(value)) for key, value in options.items())
+    )
     return ProviderSpec(name=name, options=frozen_options)
 
 
@@ -199,7 +224,9 @@ def _canonical_provider_name(name: str) -> str:
     return _PROVIDER_ALIASES.get(stripped.lower(), stripped)
 
 
-def _ensure_available(specs: tuple[ProviderSpec, ...], available: tuple[str, ...]) -> None:
+def _ensure_available(
+    specs: tuple[ProviderSpec, ...], available: tuple[str, ...]
+) -> None:
     unavailable = tuple(spec.name for spec in specs if spec.name not in available)
     if unavailable:
         raise ProviderError(
@@ -207,17 +234,25 @@ def _ensure_available(specs: tuple[ProviderSpec, ...], available: tuple[str, ...
         )
 
 
-def _default_provider_chain(active: str, available: tuple[str, ...]) -> tuple[ProviderSpec, ...]:
+def _default_provider_chain(
+    active: str, available: tuple[str, ...]
+) -> tuple[ProviderSpec, ...]:
     names = [active]
     if active == "TensorrtExecutionProvider" and "CUDAExecutionProvider" in available:
         names.append("CUDAExecutionProvider")
     if active != "CPUExecutionProvider" and "CPUExecutionProvider" in available:
         names.append("CPUExecutionProvider")
-    return tuple(ProviderSpec(name=name, options=_default_options(name)) for name in names)
+    return tuple(
+        ProviderSpec(name=name, options=_default_options(name)) for name in names
+    )
 
 
 def _default_options(name: str) -> tuple[tuple[str, str], ...]:
-    if name in {"CUDAExecutionProvider", "TensorrtExecutionProvider", "DmlExecutionProvider"}:
+    if name in {
+        "CUDAExecutionProvider",
+        "TensorrtExecutionProvider",
+        "DmlExecutionProvider",
+    }:
         return (("device_id", "0"),)
     return ()
 
@@ -231,11 +266,18 @@ def _provider_info(
     gpu_runtime_ok: bool,
     provider_specs: tuple[ProviderSpec, ...] = (),
 ) -> ProviderInfo:
-    active_spec = next((spec for spec in provider_specs if spec.name == active_provider), None)
+    active_spec = next(
+        (spec for spec in provider_specs if spec.name == active_provider), None
+    )
     active_options = dict(active_spec.options) if active_spec else {}
     device_id = (
         int(active_options.get("device_id", 0))
-        if active_provider in {"CUDAExecutionProvider", "TensorrtExecutionProvider", "DmlExecutionProvider"}
+        if active_provider
+        in {
+            "CUDAExecutionProvider",
+            "TensorrtExecutionProvider",
+            "DmlExecutionProvider",
+        }
         else None
     )
     identity = resolve_device_identity(active_provider, device_id)
@@ -254,7 +296,9 @@ def _provider_info(
 
 
 def confirm_provider_device(provider_info: ProviderInfo) -> ProviderInfo:
-    identity = confirm_device_identity(provider_info.active_provider, provider_info.device_id)
+    identity = confirm_device_identity(
+        provider_info.active_provider, provider_info.device_id
+    )
     return replace(
         provider_info,
         device_id=identity.device_id,

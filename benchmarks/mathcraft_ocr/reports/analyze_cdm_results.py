@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 import argparse
@@ -9,17 +7,24 @@ from pathlib import Path
 from statistics import median
 from typing import Any
 
-
 SUBSETS = ("all", "spe", "cpe", "sce", "hwe")
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Summarize official UniMERNet CDM results.")
-    parser.add_argument("--metrics", required=True, help="Official CDM merged metrics_res.json.")
-    parser.add_argument("--input", required=True, help="Official CDM input JSON used for the run.")
+    parser = argparse.ArgumentParser(
+        description="Summarize official UniMERNet CDM results."
+    )
+    parser.add_argument(
+        "--metrics", required=True, help="Official CDM merged metrics_res.json."
+    )
+    parser.add_argument(
+        "--input", required=True, help="Official CDM input JSON used for the run."
+    )
     parser.add_argument("--manifest", required=True, help="UniMER-Test manifest JSONL.")
     parser.add_argument("--shards", required=True, help="CDM shard summary CSV.")
-    parser.add_argument("--output-dir", required=True, help="Directory for compact report tables.")
+    parser.add_argument(
+        "--output-dir", required=True, help="Directory for compact report tables."
+    )
     args = parser.parse_args(argv)
 
     metrics_path = Path(args.metrics)
@@ -152,7 +157,9 @@ def subset_for_sample(manifest: dict[str, dict[str, Any]], sample_id: str) -> st
     return "unknown"
 
 
-def build_subset_row(subset: str, expected_ids: set[str], scores: list[float]) -> dict[str, Any]:
+def build_subset_row(
+    subset: str, expected_ids: set[str], scores: list[float]
+) -> dict[str, Any]:
     evaluated = len(scores)
     expected = len(expected_ids)
     return {
@@ -161,7 +168,9 @@ def build_subset_row(subset: str, expected_ids: set[str], scores: list[float]) -
         "evaluated_rows": evaluated,
         "skipped_rows": expected - evaluated,
         "mean_score": rounded(sum(scores) / evaluated) if evaluated else "",
-        "exp_rate": rounded(sum(1 for score in scores if score == 1.0) / evaluated) if evaluated else "",
+        "exp_rate": rounded(sum(1 for score in scores if score == 1.0) / evaluated)
+        if evaluated
+        else "",
         "median_score": rounded(median(scores)) if evaluated else "",
         "p10_score": rounded(percentile(scores, 0.10)) if evaluated else "",
         "p90_score": rounded(percentile(scores, 0.90)) if evaluated else "",
@@ -187,7 +196,9 @@ def sum_int(rows: list[dict[str, str]], field: str) -> int:
     return sum(int(row.get(field, 0) or 0) for row in rows)
 
 
-def write_markdown_report(path: Path, run_rows: list[dict[str, Any]], subset_rows: list[dict[str, Any]]) -> None:
+def write_markdown_report(
+    path: Path, run_rows: list[dict[str, Any]], subset_rows: list[dict[str, Any]]
+) -> None:
     lines = [
         "# Official CDM UniMER-Test Report",
         "",

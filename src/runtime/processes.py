@@ -23,17 +23,17 @@ def hidden_subprocess_kwargs() -> dict:
 def independent_process_environment() -> dict[str, str]:
     """Give independent executables their own frozen runtime and native libraries."""
     env = os.environ.copy()
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, "frozen", False):
         for key in tuple(env):
-            if key.startswith('_PYI_'):
+            if key.startswith("_PYI_"):
                 env.pop(key)
-        env['PYINSTALLER_RESET_ENVIRONMENT'] = '1'
-        original = env.pop('LD_LIBRARY_PATH_ORIG', '')
+        env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+        original = env.pop("LD_LIBRARY_PATH_ORIG", "")
         if original:
-            env['LD_LIBRARY_PATH'] = original
+            env["LD_LIBRARY_PATH"] = original
         else:
-            env.pop('LD_LIBRARY_PATH', None)
+            env.pop("LD_LIBRARY_PATH", None)
         for key in tuple(env):
-            if key.startswith('DYLD_'):
+            if key.startswith("DYLD_"):
                 env.pop(key)
     return env

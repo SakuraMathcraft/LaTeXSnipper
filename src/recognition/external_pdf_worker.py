@@ -1,18 +1,19 @@
-from recognition.jobs import RecognitionJobCoordinator
 import time
+from typing import cast
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
+from backend.external_model.asset_store import PdfAssetStore
+from backend.external_model.document_pipeline import ExternalDocumentPipeline
+from backend.external_model.mineru_client import MineruClient
+from backend.external_model.schemas import ExternalModelConfig
 from localization.manager import translate as tr
 from recognition.error_messages import (
     CANCELED_WORKER_MESSAGE,
     EMPTY_RESULT_MESSAGE,
     recognition_error_code_message,
 )
-from backend.external_model.asset_store import PdfAssetStore
-from backend.external_model.document_pipeline import ExternalDocumentPipeline
-from backend.external_model.mineru_client import MineruClient
-from backend.external_model.schemas import ExternalModelConfig
+from recognition.jobs import RecognitionJobCoordinator
 
 
 class ExternalModelPdfWorker(QObject):
@@ -83,7 +84,10 @@ class ExternalModelPdfWorker(QObject):
                 result = MineruClient(self.config).parse_pdf(
                     self.pdf_path, page_start, page_end
                 )
-                if self._cancelled or QThread.currentThread().isInterruptionRequested():
+                if (
+                    self._cancelled
+                    or cast(QThread, QThread.currentThread()).isInterruptionRequested()
+                ):
                     asset_store.cleanup()
                     _set_elapsed()
                     self.failed.emit(CANCELED_WORKER_MESSAGE)
@@ -153,7 +157,10 @@ class ExternalModelPdfWorker(QObject):
         results = []
         try:
             for progress_index, page_index in enumerate(page_indices):
-                if self._cancelled or QThread.currentThread().isInterruptionRequested():
+                if (
+                    self._cancelled
+                    or cast(QThread, QThread.currentThread()).isInterruptionRequested()
+                ):
                     if asset_store is not None:
                         asset_store.cleanup()
                     _set_elapsed()
@@ -171,7 +178,10 @@ class ExternalModelPdfWorker(QObject):
                 if page_result:
                     results.append(page_result)
                 self.progress.emit(progress_index + 1, total)
-                if self._cancelled or QThread.currentThread().isInterruptionRequested():
+                if (
+                    self._cancelled
+                    or cast(QThread, QThread.currentThread()).isInterruptionRequested()
+                ):
                     if asset_store is not None:
                         asset_store.cleanup()
                     _set_elapsed()

@@ -1,8 +1,20 @@
-# coding: utf-8
-
 from __future__ import annotations
 
-__version__ = "0.3.1"
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .api import (
+        FormulaRecognitionResult,
+        MathCraftBlock,
+        MathCraftRuntime,
+        MixedRecognitionResult,
+        OCRRegion,
+    )
+    from .doctor import DoctorReport, run_doctor
+    from .errors import MathCraftError
+    from .providers import ProviderInfo, ProviderSpec
+
+__version__ = "0.3.2"
 
 __all__ = [
     "DoctorReport",

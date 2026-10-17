@@ -1,15 +1,17 @@
-"""Formula edit dialog with live MathJax preview."""
+"""Edit recognition content with the preview strategy recorded for its type."""
 
 from __future__ import annotations
 
 import logging
-from localization.manager import translate as tr
 
 from PyQt6.QtCore import QEvent, QTimer
 from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QTextEdit, QVBoxLayout
 from qfluentwidgets import BodyLabel
 
+from localization.manager import translate as tr
+from preview.content_preview import build_mixed_content_html
 from preview.math_preview import build_math_html, get_mathjax_base_url
+from runtime.content_types import normalize_content_type
 from ui.theme_tokens import dialog_theme_tokens, is_dark_ui
 from ui.window_helpers import apply_no_minimize_window_flags
 
@@ -17,8 +19,9 @@ logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 class EditFormulaDialog(QDialog):
-    def __init__(self, latex: str, parent=None):
+    def __init__(self, latex: str, parent=None, *, content_type: str):
         super().__init__(parent)
+        self._content_type = normalize_content_type(content_type)
         self.setWindowTitle(tr("编辑"))
         apply_no_minimize_window_flags(self)
         self.resize(700, 500)
@@ -37,21 +40,24 @@ class EditFormulaDialog(QDialog):
         preview_label = BodyLabel(tr("实时预览:"))
         lay.addWidget(preview_label)
 
-        self._pending_latex = ""
+        self._pending_latex = None
         self.preview_view = None
-        web_view_cls = self._load_webengine_view()
-        if web_view_cls is not None:
-            self.preview_view = web_view_cls()
+        if self._content_type == "mathcraft_text":
+            self.preview_view = QTextEdit(self)
+            self.preview_view.setReadOnly(True)
+        else:
+            web_view_cls = self._load_webengine_view()
+            if web_view_cls is not None:
+                self.preview_view = web_view_cls()
+        if self.preview_view is not None:
             self.preview_view.setMinimumHeight(150)
-            init_html, init_base_url = self._build_preview_payload(latex or "")
-            self.preview_view.setHtml(init_html, init_base_url)
-            self._pending_latex = latex or ""
             lay.addWidget(self.preview_view, 1)
 
             self._render_timer = QTimer(self)
             self._render_timer.setSingleShot(True)
             self._render_timer.timeout.connect(self._do_render)
             self.editor.textChanged.connect(self._on_text_changed)
+            self._do_render()
         else:
             fallback = QLabel(tr("WebEngine 未加载，无法预览"))
             fallback.setStyleSheet(
@@ -83,11 +89,13 @@ class EditFormulaDialog(QDialog):
             return
         self._theme_is_dark_cached = dark
         if self.preview_view is not None:
-            self._pending_latex = ""
+            self._pending_latex = None
             self._do_render()
 
     def _build_preview_payload(self, latex: str):
-        text = str(latex or "").strip()
+        text = str(latex or "")
+        if self._content_type == "mathcraft_mixed":
+            return build_mixed_content_html(text), get_mathjax_base_url()
         return build_math_html(text, center_viewport=True), get_mathjax_base_url()
 
     def event(self, event):
@@ -111,15 +119,18 @@ class EditFormulaDialog(QDialog):
     def _do_render(self):
         if not self.preview_view:
             return
-        latex = self.editor.toPlainText().strip()
+        latex = self.editor.toPlainText()
         if latex == self._pending_latex:
             return
         self._pending_latex = latex
         try:
-            html, base_url = self._build_preview_payload(latex)
-            self.preview_view.setHtml(html, base_url)
+            if isinstance(self.preview_view, QTextEdit):
+                self.preview_view.setPlainText(latex)
+            else:
+                html, base_url = self._build_preview_payload(latex)
+                self.preview_view.setHtml(html, base_url)
         except Exception as exc:
-            logger.warning("重命名公式预览渲染失败: %s", exc)
+            logger.warning("编辑内容预览渲染失败: %s", exc)
 
     def closeEvent(self, event):
         try:

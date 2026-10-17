@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,7 +5,6 @@ from typing import TypeAlias
 
 import numpy as np
 from PIL import Image
-
 
 ImageInput: TypeAlias = str | Path | Image.Image | np.ndarray
 

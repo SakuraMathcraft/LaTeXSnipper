@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from localization.manager import mark_for_translation, translate as tr
-
-from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QApplication,
     QDialog,
@@ -36,6 +34,8 @@ from integration.automation import (
     AutomationApiSettings,
     AutomationApiSettingsError,
 )
+from localization.manager import mark_for_translation
+from localization.manager import translate as tr
 from ui.controllers.automation_api import (
     AUTOMATION_API_ACCESS_SCOPE_KEY,
     AUTOMATION_API_ALLOWED_ORIGINS_KEY,
@@ -51,7 +51,6 @@ from ui.controllers.automation_api import (
 )
 from ui.settings_dialog_helpers import _select_open_file_with_icon
 from ui.window_helpers import apply_no_minimize_window_flags
-
 
 _AUTOMATION_SETTINGS_ERROR_MESSAGES = frozenset(
     (
@@ -403,7 +402,7 @@ class AutomationAccessDialog(QDialog):
         try:
             AutomationApiSettings(
                 host=str(values[AUTOMATION_API_BIND_ADDRESS_KEY]),
-                port=int(values[AUTOMATION_API_PORT_KEY]),
+                port=self.port.value(),
                 access_scope=str(values[AUTOMATION_API_ACCESS_SCOPE_KEY]),
                 remote_security=str(values[AUTOMATION_API_REMOTE_SECURITY_KEY]),
                 remote_key=str(values[AUTOMATION_API_REMOTE_KEY]),

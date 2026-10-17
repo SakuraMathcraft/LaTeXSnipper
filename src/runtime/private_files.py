@@ -8,7 +8,6 @@ import subprocess
 import threading
 from pathlib import Path
 
-
 _SID_LOCK = threading.RLock()
 _CURRENT_USER_SID = ""
 _PRIVATE_DIRECTORIES: set[str] = set()
@@ -46,7 +45,13 @@ def _restrict_windows_path(target: Path, permission: str) -> None:
     sid = _current_user_sid()
     try:
         subprocess.run(
-            ["icacls", str(target), "/inheritance:r", "/grant:r", f"*{sid}:{permission}"],
+            [
+                "icacls",
+                str(target),
+                "/inheritance:r",
+                "/grant:r",
+                f"*{sid}:{permission}",
+            ],
             check=True,
             capture_output=True,
             text=True,
@@ -73,7 +78,9 @@ def ensure_private_directory(path: str | Path) -> None:
         _PRIVATE_DIRECTORIES.add(cache_key)
 
 
-def restrict_file_to_current_user(path: str | Path, *, descriptor: int | None = None) -> None:
+def restrict_file_to_current_user(
+    path: str | Path, *, descriptor: int | None = None
+) -> None:
     target = Path(path)
     if not _is_windows():
         if descriptor is not None:

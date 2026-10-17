@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from .formula_detector import warmup_formula_detector
 from .formula_recognizer import warmup_formula_recognizer
 from .text_detector import warmup_text_detector

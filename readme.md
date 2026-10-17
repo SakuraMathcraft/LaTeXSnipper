@@ -41,7 +41,7 @@ English · [简体中文](README.zh-CN.md)
 2. **Select recognition.** Start the installed app and choose the built-in model and recognition type in Settings.
 3. **Recognize and edit.** Use Capture Recognize, Image, PDF, or Handwriting, then review, copy, or export the result.
 
-Windows/Linux installers provide CPU and NVIDIA GPU editions; macOS uses CPU. Python, inference dependencies, models and Pandoc belong to installation resources. GPU builds carry private CUDA/cuDNN libraries and require a supported NVIDIA GPU and driver. Source development provides its Python packages and PATH Pandoc through standard developer tools.
+Windows/Linux installers provide CPU and NVIDIA GPU editions; macOS 14.0 or later on Apple Silicon uses CPU. Python, inference dependencies, models and Pandoc belong to installation resources. GPU builds carry private CUDA/cuDNN libraries and require a supported NVIDIA GPU and driver. Source development provides its Python packages and PATH Pandoc through standard developer tools.
 
 > [!TIP]
 > For permissions, resources, and troubleshooting, see the [FAQ](docs/faq.md), [user data locations](docs/user_data_storage.md), and [full user manual (Chinese)](user_manual/user_manual.md).

@@ -1,26 +1,26 @@
 """Cross-platform screen capture overlay."""
 
 import logging
-from localization.manager import translate as tr
 import os
 import sys
 import time
+from typing import Any, cast
 
-from PyQt6.QtWidgets import QWidget
-from PyQt6.QtCore import pyqtSignal, Qt, QRect, QRectF, QPoint, QTimer
+from PyQt6.QtCore import QPoint, QRect, QRectF, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import (
-    QPainter,
-    QPainterPath,
     QColor,
-    QPen,
-    QGuiApplication,
+    QCursor,
     QFont,
     QFontMetrics,
-    QCursor,
+    QGuiApplication,
     QImage,
+    QPainter,
+    QPainterPath,
+    QPen,
     QPixmap,
     QRegion,
 )
+from PyQt6.QtWidgets import QWidget
 
 from capture.geometry import (
     MagnifierSample,
@@ -37,6 +37,7 @@ from capture.screenshot_tools import (
     is_wayland,
     wayland_overlay_background,
 )
+from localization.manager import translate as tr
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
@@ -63,6 +64,7 @@ def _capture_window_flags() -> Qt.WindowType:
 
 
 class ScreenCaptureOverlay(QWidget):
+    macos_permission_preflight_state: str = "unknown"
     selection_done = pyqtSignal(object)  # Emits QPixmap or None.
 
     def __init__(
@@ -106,7 +108,7 @@ class ScreenCaptureOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
         self.setWindowTitle(tr("LaTeXSnipper 截图识别"))
-        app = QGuiApplication.instance()
+        app = cast("QGuiApplication | None", QGuiApplication.instance())
         if app is not None:
             self.setWindowIcon(app.windowIcon())
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -163,14 +165,18 @@ class ScreenCaptureOverlay(QWidget):
                 logger.debug("Wayland overlay 背景截图成功")
                 return snapshots
             logger.warning("Wayland overlay 背景截图失败")
-            logger.warning("请安装 grim、gnome-screenshot 或 flameshot 以支持 Wayland 截图")
+            logger.warning(
+                "请安装 grim、gnome-screenshot 或 flameshot 以支持 Wayland 截图"
+            )
 
         for i, screen in enumerate(QGuiApplication.screens()):
             try:
                 geo = QRect(screen.geometry())
                 if geo.width() <= 0 or geo.height() <= 0:
                     continue
-                pixmap = screen.grabWindow(0, 0, 0, geo.width(), geo.height())
+                pixmap = screen.grabWindow(
+                    cast(Any, 0), 0, 0, geo.width(), geo.height()
+                )
                 image = pixmap.toImage().copy()
                 if image.isNull():
                     logger.warning("屏幕 %s grabWindow(0) 返回空图像", i)
@@ -645,7 +651,7 @@ class ScreenCaptureOverlay(QWidget):
         rect = self._selection_rect()
 
         # Keep the selected area clear while dimming the rest of the desktop.
-        if rect:
+        if rect is not None and cast(Any, rect):
             painter.save()
             painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
             painter.fillRect(rect, Qt.GlobalColor.transparent)
@@ -654,7 +660,7 @@ class ScreenCaptureOverlay(QWidget):
         # Draw a visible crosshair over both bright and dark backgrounds.
         self._draw_crosshair(painter)
 
-        if rect:
+        if rect is not None and cast(Any, rect):
             pen = QPen(QColor(0, 170, 255), 2)
             painter.save()
             painter.setPen(pen)
@@ -844,6 +850,7 @@ class ScreenCaptureOverlay(QWidget):
             overlay_geo = self.geometry()
             global_x = int(overlay_geo.x() + x1)
             global_y = int(overlay_geo.y() + y1)
+            assert self.current_pos is not None
             global_release_x = int(overlay_geo.x() + self.current_pos.x())
             global_release_y = int(overlay_geo.y() + self.current_pos.y())
 
@@ -940,7 +947,7 @@ class ScreenCaptureOverlay(QWidget):
                 except Exception:
                     pass
             try:
-                pixmap = screen.grabWindow(0, nx, ny, nw, nh)
+                pixmap = screen.grabWindow(cast(Any, 0), nx, ny, nw, nh)
                 if not pixmap.isNull():
                     pass
                 else:
@@ -987,6 +994,12 @@ class ScreenCaptureOverlay(QWidget):
                     "请检查应用日志，并在系统设置中确认授权的是当前运行副本后重试。"
                 )
         self.last_capture_screen_index = int(target_idx)
-        logger.debug("截图 pixmap: size=%sx%s screen=%s dpr=%s", pixmap.width(), pixmap.height(), target_idx, f'{screen.devicePixelRatio():.2f}')
+        logger.debug(
+            "截图 pixmap: size=%sx%s screen=%s dpr=%s",
+            pixmap.width(),
+            pixmap.height(),
+            target_idx,
+            f"{screen.devicePixelRatio():.2f}",
+        )
 
         self._finish_capture(pixmap)

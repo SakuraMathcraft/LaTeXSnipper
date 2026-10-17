@@ -6,7 +6,6 @@ import ast
 import sys
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_ROOT = PROJECT_ROOT / "src"
 UI_DIRECTORIES = (
@@ -164,7 +163,10 @@ def main() -> int:
             indexes = MULTI_TEXT_ARGUMENTS.get(
                 name, (0,) if name in USER_TEXT_CALLS else ()
             )
-            if name == "emit" and _call_owner_name(node) in {"failed", "status_updated"}:
+            if name == "emit" and _call_owner_name(node) in {
+                "failed",
+                "status_updated",
+            }:
                 indexes = (0,)
             arguments = [
                 node.args[index] for index in indexes if index < len(node.args)

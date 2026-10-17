@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from localization.manager import translate as tr
+from typing import Any
+
 from PyQt6.QtCore import QObject, QThread, QTimer, pyqtSignal, pyqtSlot
 
 from integration.automation import (
@@ -10,7 +11,7 @@ from integration.automation import (
     AutomationApiServer,
     AutomationApiSettings,
 )
-
+from localization.manager import translate as tr
 
 AUTOMATION_API_ENABLED_KEY = "automation_api_enabled"
 AUTOMATION_API_PORT_KEY = "automation_api_port"
@@ -53,6 +54,7 @@ class _AutomationApiToggleWorker(QThread):
     def run(self) -> None:
         try:
             if self._action == "start":
+                assert self._create_server is not None
                 server = self._create_server()
                 server.start()
                 self._result_server = server
@@ -125,7 +127,7 @@ class AutomationApiController(QObject):
     ) -> AutomationApiSettings:
         values = overrides or {}
 
-        def read(key: str, default):
+        def read(key: str, default) -> Any:
             return values[key] if key in values else self.cfg.get(key, default)
 
         scope = str(read(AUTOMATION_API_ACCESS_SCOPE_KEY, "local") or "local")

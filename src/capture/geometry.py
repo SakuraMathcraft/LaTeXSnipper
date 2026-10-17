@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from PyQt6.QtCore import QPoint, QRect
 from PyQt6.QtGui import QColor, QImage, QPixmap
 
+
 @dataclass(frozen=True)
 class ScreenSnapshot:
     geometry: QRect
@@ -61,7 +62,11 @@ def choose_screen_index(
         return -1
 
     m = (mode or "auto").strip().lower()
-    if m == "index" and preferred_index is not None and 0 <= int(preferred_index) < len(screen_geometries):
+    if (
+        m == "index"
+        and preferred_index is not None
+        and 0 <= int(preferred_index) < len(screen_geometries)
+    ):
         return int(preferred_index)
 
     x, y = int(release_global_xy[0]), int(release_global_xy[1])

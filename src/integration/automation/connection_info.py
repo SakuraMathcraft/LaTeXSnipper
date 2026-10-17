@@ -10,7 +10,6 @@ from pathlib import Path
 from runtime.app_paths import app_state_dir
 from runtime.private_files import ensure_private_directory
 
-
 CONNECTION_FILENAME = "automation-api.json"
 
 
@@ -33,7 +32,9 @@ def write_connection_file(
         "pid": int(pid if pid is not None else os.getpid()),
         "token": token,
     }
-    descriptor, temp_name = tempfile.mkstemp(prefix=f".{target.name}.", dir=target.parent)
+    descriptor, temp_name = tempfile.mkstemp(
+        prefix=f".{target.name}.", dir=target.parent
+    )
     temp_path = Path(temp_name)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:

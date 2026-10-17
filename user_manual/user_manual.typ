@@ -1,5 +1,5 @@
 // LaTeXSnipper 用户手册
-// 版本: v3.1.0
+// 版本: v3.2.0
 #set page(
   paper: "a4",
   margin: (left: 2cm, right: 2cm, top: 2cm, bottom: 2.2cm),
@@ -104,7 +104,7 @@
   #v(0.3em)
   #text(size: 12pt)[用户手册]
   #v(0.4em)
-  #text(size: 9pt, fill: rgb("#888888"))[适用于 v3.1.0-LTS]
+  #text(size: 9pt, fill: rgb("#888888"))[适用于 v3.2.0-LTS]
   #v(0.6em)
   #line(length: 30%, stroke: 0.5pt + rgb("#CCCCCC"))
   #v(1em)
@@ -202,7 +202,7 @@ Windows/Linux 提供 CPU 与 NVIDIA GPU 两种发行，macOS Apple Silicon 使�
 
 == 资源异常时
 
-打开设置中的“应用诊断”查看实际资源、运行版本和错误。“模型资源”显示权重的实际使用位置；安装权重损坏时，程序按当前模型清单校验并使用 MathCraft 默认缓存中的匹配资源。“应用更新”提供组件更新，诊断入口提供当前版本资源修复。
+打开设置中的“应用诊断”查看组件完整性、运行版本和错误。“模型资源”显示权重位置与校验状态；安装版只使用安装目录中的模型。“应用更新”统一更新和修复应用、推理环境及模型组件。
 
 截图权限和系统热键限制与 OCR 独立。macOS 需要为实际运行的应用授予屏幕录制权限；Linux Wayland 的截屏与全局热键取决于桌面环境。
 
@@ -345,7 +345,9 @@ curl -sS "http://100.x.x.x:28765/api/v1/recognition/jobs" \
 
 == 权重在哪里
 
-发行程序优先使用安装位置中的模型组件，每个文件按当前清单校验。内置权重缺失或校验失败后，检查库的默认缓存；匹配当前文件摘要的缓存直接复用，缺失、损坏或过期的资源重新下载到同一个缓存目录。
+发行程序只使用安装目录中的模型组件，每个文件按当前清单校验。权重缺失或校验失败时停止加载，通过“应用更新”替换受损模型组件，不使用外部缓存或自动下载权重。
+
+源码桌面端和独立库、CLI 使用以下默认缓存位置：
 
 - Windows：`%APPDATA%/MathCraft/models`
 - Linux：`${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper/MathCraft/models`
@@ -353,11 +355,11 @@ curl -sS "http://100.x.x.x:28765/api/v1/recognition/jobs" \
 
 可以在设置的“模型资源”中查看各模型实际使用的路径和校验状态。
 
-桌面端显式传入默认缓存位置，不读取 `MATHCRAFT_HOME`。单独使用 mathcraft-ocr 库或 CLI 时仍可以用公开参数或环境变量指定缓存。共享缓存的删除会影响使用它的 CLI，因此清理前应确认用途。
+源码桌面端显式使用默认缓存位置，不读取 `MATHCRAFT_HOME`。独立使用 mathcraft-ocr 库或 CLI 时，可以用公开参数或环境变量指定缓存，并保留自动下载行为。安装版不使用该缓存；清理缓存可能影响源码运行及 CLI。
 
 == 下载失败或识别不可用
 
-模型修复下载需要网络。检查网络、代理、磁盘空间及应用运行日志；需要代理时可以为启动进程配置 `HTTP_PROXY`、`HTTPS_PROXY`。安装组件故障通过“应用诊断”进入当前版本修复。
+组件修复和源码运行的模型下载需要网络。检查网络、代理、磁盘空间及应用运行日志；需要代理时可以为启动进程配置 `HTTP_PROXY`、`HTTPS_PROXY`。安装资源异常可先查看“应用诊断”，再通过“应用更新”修复；程序无法启动时重新运行安装器。
 
 CPU 发行固定使用 CPU；GPU 发行固定请求 CUDA，并在推理后核对私有库加载位置。GPU 失败时诊断硬件、驱动或资源问题，不自动改变发行类型。需要 CPU 时使用 CPU 安装器。
 
@@ -543,13 +545,13 @@ Windows 安装目录包含 `application`、`inference`、`models` 与 `distribut
 
 == 卸载与清理
 
-Windows 使用系统卸载入口；Linux 卸载四个产品包：
+Windows 使用系统卸载入口；Linux 卸载三个组件包：
 
 ```bash
 sudo dpkg --purge latexsnipper-inference latexsnipper-models latexsnipper
 ```
 
-macOS 删除安装的应用。卸载只移除产品拥有的安装资源；用户配置、日志及共享模型缓存可另外按需清理。Windows 卸载选项和 Linux/macOS 用户数据清理脚本分别提供应用数据与模型缓存选项；共享模型缓存可能也被 mathcraft-ocr CLI 使用。用户保存的导出文件和外部工具由用户自行管理。
+macOS 删除安装的应用。卸载只移除产品拥有的安装资源；用户配置、日志及共享模型缓存可另外按需清理。Windows 卸载选项分别提供应用数据与模型缓存清理；Linux 在卸载前可使用 `latexsnipper-clean-user-data` 命令选择清理范围。macOS 退出应用后可按用户数据位置手动清理，源码仓库也提供支持 Linux/macOS 的 `scripts/latexsnipper-clean-user-data.sh`。共享模型缓存可能也被 mathcraft-ocr CLI 使用。用户保存的导出文件和外部工具由用户自行管理。
 
 // ═══════════════════════════════════════════
 // 网络与更新
@@ -566,7 +568,7 @@ macOS 删除安装的应用。卸载只移除产品拥有的安装资源；用�
 
 下载支持暂停、继续与取消；中断文件按内容身份保存，复用前验证长度和 SHA256。准备完成后确认安装，应用停止识别与 worker 并退出，独立部署进程完成替换和验证。需要权限时由操作系统显示授权窗口。
 
-“应用诊断”中的修复恢复当前版本的明确组件。校验或部署失败时不提交新安装身份；中断事务在下次启动前恢复。部署临时备份只用于失败恢复，成功提交后清理；文件暂被占用时稍后重试清理，已完成的更新不受影响，不提供历史版本选择或手动降级。
+“应用诊断”只报告问题；“应用更新”在已是最新版本时也会修复受损组件。校验或部署失败时不提交新安装身份；中断事务在下次启动前恢复。部署临时备份只用于失败恢复，成功提交后清理；文件暂被占用时稍后重试清理，已完成的更新不受影响，不提供历史版本选择或手动降级。
 
 == 常见失败
 
@@ -638,7 +640,7 @@ macOS 删除安装的应用。卸载只移除产品拥有的安装资源；用�
 
 公式预览固定使用内置 MathJax。修改 LaTeX 后实时查看结果；复制菜单提供 LaTeX、Markdown、MathML、HTML、SVG、图片和 Office 公式等输出。按用途选择格式，纯源码编辑保留原文。
 
-桌面发行随应用组件提供 Pandoc，支持 DOCX、ODT、PPTX、EPUB、独立 HTML、Typst、纯文本和 PDF 文件导出。PDF 导出还需要外部 XeLaTeX、LuaLaTeX 或 pdfLaTeX。源码开发使用 PATH 中的 Pandoc；发行缺失随包 Pandoc 时从应用诊断修复应用组件。
+桌面发行随应用组件提供 Pandoc，支持 DOCX、ODT、PPTX、EPUB、独立 HTML、Typst、纯文本和 PDF 文件导出。PDF 导出还需要外部 XeLaTeX、LuaLaTeX 或 pdfLaTeX。源码开发使用 PATH 中的 Pandoc；随包 Pandoc 缺失时通过“应用更新”修复应用组件。
 
 == 手写识别
 
@@ -686,27 +688,27 @@ tccutil reset ScreenCapture com.mathcraft.latexsnipper
 
 == macOS 签名与资源修复
 
-macOS 安装包使用 ad-hoc 签名，未经 Apple 公证。资源损坏时，可通过“应用诊断”修复或重新安装。
+macOS 安装包使用 ad-hoc 签名，未经 Apple 公证。资源损坏时，可通过“应用更新”修复或重新安装。
 
 // ═══════════════════════════════════════════
 // 软件冲突
 // ═══════════════════════════════════════════
 #heading(level: 1)[与其他软件冲突] <sec-conflict>
 
-== 多版本 Python 共存导致调用错误
+== 源码运行时 Python 环境不一致
 
-*现象：* 命令行能跑但 GUI 跑不了，或反之。
+*现象：* 从终端运行源码正常，但 IDE 启动失败，或反之。
 
 #v(0.35em)
 
-*原因：* 系统中安装了多个 Python 版本，PATH 中执行的是错误的 Python。
+*原因：* 终端与 IDE 选择了不同的 Python 环境。源码运行使用启动应用的解释器，推理 worker 也使用同一环境。
 
 #v(0.35em)
 
 *解决：*
-- `where python`（Windows）/ `which python`（Linux/macOS）检查当前使用的 Python 路径
-- 确保虚拟环境已激活
-- 使用绝对路径运行
+- 运行 `python -c "import sys; print(sys.executable)"` 确认当前解释器
+- 在 IDE 中选择同一环境，并在该环境安装项目依赖
+- 桌面安装包使用随包部署的独立推理环境；安装资源异常应通过“应用更新”修复或重新安装
 
 == 输入法 / 屏幕取词软件干扰截图
 
@@ -864,13 +866,13 @@ LaTeXSnipper Office 加载项是一个 Windows 原生 VSTO 插件，安装后会
 
 ```text
 # 静默安装（显示进度条）
-LaTeXSnipperOffice_3.1.0_amd64.exe /silent
+LaTeXSnipperOffice_3.2.0_amd64.exe /silent
 
 # 完全静默（无界面）
-LaTeXSnipperOffice_3.1.0_amd64.exe /verysilent
+LaTeXSnipperOffice_3.2.0_amd64.exe /verysilent
 
 # 自定义安装目录
-LaTeXSnipperOffice_3.1.0_amd64.exe /dir="<安装目录>"
+LaTeXSnipperOffice_3.2.0_amd64.exe /dir="<安装目录>"
 ```
 
 #pagebreak()
@@ -1863,7 +1865,7 @@ Android 端使用 Java ONNX Runtime 引擎，模型下载完成后在设备本�
 
 #heading(level: 1)[MathCraft OCR 项目介绍] <sec-mathcraft-intro>
 
-MathCraft OCR 是 LaTeXSnipper 内置的本地公式、文本与混合文档识别引擎，基于 ONNX Runtime 实现本地推理。模型缓存完整后，截图、图片和 PDF 页面识别都可以离线完成。
+MathCraft OCR 是 LaTeXSnipper 内置的本地公式、文本与混合文档识别引擎，基于 ONNX Runtime 实现本地推理。桌面安装包已包含所需模型；独立库与 CLI 可按清单下载并缓存模型。资源完整后，截图、图片和 PDF 页面识别都可以离线完成。
 
 *项目地址：*
 - GitHub：https://github.com/SakuraMathcraft/MathCraft-Models
@@ -1873,9 +1875,9 @@ MathCraft OCR 是 LaTeXSnipper 内置的本地公式、文本与混合文档识�
 - *本地离线识别：* 模型安装完成后无需网络连接，识别在本地完成
 - *ONNX 运行时：* 基于 ONNX Runtime，支持 CPU 与 CUDA GPU 路径
 - *多任务识别：* 支持公式、纯文字、混合文档与 PDF 文档识别
-- *自动缓存修复：* 模型文件首次使用时自动下载并缓存；缺失或损坏时会按需修复
+- *自动缓存修复：* 按清单校验模型，缺失或损坏时复用有效缓存或按需下载修复
 
-*安装方式：*
+*独立库安装方式（桌面安装包无需执行）：*
 ```text
 pip install "mathcraft-ocr[cpu]"
 # CUDA 13（Python 3.11+）：
@@ -1906,7 +1908,7 @@ python -m mathcraft_ocr ocr page.png --profile mixed --provider auto --output re
 
 #heading(level: 1)[模型集与识别配置] <sec-mathcraft-models>
 
-当前独立发布的 `mathcraft-ocr` PyPI 包版本为 `0.3.1`；它使用自己的版本线，不与 LaTeXSnipper v3.1.0 客户端或 Office 插件版本绑定。模型权重使用 MathCraft Models `v1.0.0` 发布集，包含 #text(weight: "bold")[4 个 ONNX 模型]：
+独立的 `mathcraft-ocr` PyPI 包版本为 `0.3.2`；它使用自己的版本线，不与 LaTeXSnipper v3.2.0 客户端或 Office 插件版本绑定。模型权重使用 MathCraft Models `v1.0.0` 发布集，包含 #text(weight: "bold")[4 个 ONNX 模型]：
 
 #block(
   inset: 12pt,
@@ -2007,21 +2009,21 @@ python -m mathcraft_ocr ocr page.png --profile mixed --provider auto --output re
 
 桌面安装包自带 Python、推理依赖、模型和运行库。桌面端不使用环境变量切换 CPU/GPU 类型或模型缓存目录；更换类型时请使用对应安装包。
 
-单独使用 mathcraft-ocr 库或 CLI 时仍保留公开参数与环境变量。`MATHCRAFT_HOME` 指定独立库的模型缓存；`MATHCRAFT_PROVIDER` 设置独立调用的提供者。为独立 GPU 环境安装所需的 ORT 和运行库时遵循库的文档。桌面 GPU 发行自带匹配用户态库，不通过这些变量切换后端。
+单独使用 mathcraft-ocr 库或 CLI 时，`MATHCRAFT_HOME` 指定模型缓存目录；CLI 使用 `--provider` 参数选择计算提供者，Python API 使用 `provider_preference` 或 `providers` 参数。为独立 GPU 环境安装所需的 ORT 和运行库时遵循库的文档。桌面 GPU 发行自带匹配用户态库。
 
 == 临时配置示例
 
 Windows PowerShell：
 
 ```powershell
-$env:MATHCRAFT_PROVIDER = 'cpu'
-python -m mathcraft_ocr --help
+$env:MATHCRAFT_HOME = './models'
+python -m mathcraft_ocr doctor --provider cpu
 ```
 
 Linux/macOS：
 
 ```bash
-MATHCRAFT_PROVIDER=cpu python -m mathcraft_ocr --help
+MATHCRAFT_HOME=./models python -m mathcraft_ocr doctor --provider cpu
 ```
 
 网络代理 `HTTP_PROXY`、`HTTPS_PROXY` 可作用于应用下载和外部服务。Linux 预览图形变量 `LATEXSNIPPER_FORCE_LINUX_GRAPHICS_FALLBACKS` 与 `LATEXSNIPPER_DISABLE_LINUX_GRAPHICS_FALLBACKS` 只影响 Qt 图形后端，具体用法见平台章节。排障时优先使用应用诊断中的实际版本、提供者与日志。
