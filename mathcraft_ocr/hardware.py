@@ -105,7 +105,7 @@ def _macos_vm_stat_memory_status() -> tuple[int, int]:
             capture_output=True,
             text=True,
             encoding="utf-8",
-            errors="replace",
+            errors="backslashreplace",
             timeout=2.0,
         )
     except Exception:
@@ -213,13 +213,13 @@ def _run_powershell_json(command: str) -> object | None:
                 "-ExecutionPolicy",
                 "Bypass",
                 "-Command",
-                command,
+                "$OutputEncoding = [Console]::OutputEncoding = "
+                "[System.Text.UTF8Encoding]::new($false); " + command,
             ],
             check=False,
             capture_output=True,
             text=True,
             encoding="utf-8",
-            errors="replace",
             timeout=3.0,
         )
     except Exception:

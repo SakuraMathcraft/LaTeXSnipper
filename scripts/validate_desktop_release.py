@@ -53,13 +53,13 @@ def validate_recognition(
     ImageDraw.Draw(image).text(
         (30, 40), "1 + 1 = 2", fill="black", font=ImageFont.load_default(size=64)
     )
-    sample = output / "recognition.png"
+    sample = output / "recognition-中文−𝛼🙂.png"
     image.save(sample)
     resources = InstalledResources(root, manifest)
     requests = [
         {
             "protocol": manifest.component("application").worker_protocol,
-            "id": action,
+            "id": f"{action}-中文−𝛼🙂",
             "action": action,
             "image": str(sample),
         }
@@ -67,7 +67,7 @@ def validate_recognition(
     ]
     result = subprocess.run(
         worker_command(resources),
-        input="".join(json.dumps(item) + "\n" for item in requests),
+        input="".join(json.dumps(item, ensure_ascii=False) + "\n" for item in requests),
         capture_output=True,
         text=True,
         encoding="utf-8",

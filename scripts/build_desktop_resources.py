@@ -98,6 +98,7 @@ def assemble_pandoc(lock: dict, target: str, output: Path, cache: Path) -> None:
         [str(output / name), "--version"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=30,
         **hidden_subprocess_kwargs(),
     )

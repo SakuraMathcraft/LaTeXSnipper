@@ -108,7 +108,7 @@ def query_nvidia_devices() -> tuple[NvidiaDevice, ...]:
             capture_output=True,
             text=True,
             encoding="utf-8",
-            errors="replace",
+            errors="backslashreplace",
             timeout=3.0,
         )
     except Exception:
@@ -150,7 +150,7 @@ def query_nvidia_process_gpu_uuids(pid: int | None = None) -> frozenset[str]:
             capture_output=True,
             text=True,
             encoding="utf-8",
-            errors="replace",
+            errors="backslashreplace",
             timeout=3.0,
         )
     except Exception:
@@ -339,7 +339,7 @@ def _cpu_name() -> str:
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
-                errors="replace",
+                errors="backslashreplace",
                 timeout=2.0,
             )
             if proc.returncode == 0 and proc.stdout.strip():
@@ -349,7 +349,7 @@ def _cpu_name() -> str:
     try:
         for raw in (
             Path("/proc/cpuinfo")
-            .read_text(encoding="utf-8", errors="ignore")
+            .read_text(encoding="utf-8", errors="backslashreplace")
             .splitlines()
         ):
             if raw.lower().startswith("model name"):

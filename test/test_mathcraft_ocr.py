@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 import mathcraft_ocr.adapters.common as common_adapter_mod
 import mathcraft_ocr.adapters.formula_recognizer as formula_recognizer_mod
 import mathcraft_ocr.adapters.text_recognizer as text_recognizer_mod
+import mathcraft_ocr.cache as cache_mod
 import mathcraft_ocr.devices as devices_mod
 import mathcraft_ocr.doctor as doctor_mod
 import mathcraft_ocr.hardware as hardware_mod
@@ -77,6 +78,7 @@ def stub_doctor_provider_discovery(monkeypatch):
             gpu_runtime_ok=False,
         ),
     )
+    monkeypatch.setattr(runtime_mod, "detect_providers", doctor_mod.detect_providers)
 
 
 def _touch(path: Path, content: bytes = b"x") -> None:
@@ -131,6 +133,10 @@ def _ready_warmup_plan(runtime: MathCraftRuntime, profile: str, model_ids):
     return runtime_mod.WarmupPlan(
         profile=profile,
         required_models=tuple(model_ids),
+        model_dirs={
+            model_id: runtime.cache_dir / model_id
+            for model_id in runtime.manifest.models
+        },
         missing_models=(),
         unsupported_models=(),
         component_statuses=(),
@@ -337,6 +343,118 @@ def test_successful_warmup_plan_is_cached_per_profile() -> None:
             assert calls == [("mfr", FORMULA_RECOGNIZER_ID)]
     finally:
         runtime_mod.ONNX_WARMUP_HANDLERS = old_handlers
+
+
+@pytest.mark.parametrize("profile", ("formula", "text", "mixed"))
+def test_recognition_validates_profile_before_reusing_sessions(
+    tmp_path, monkeypatch, profile
+):
+    manifest = load_manifest()
+    for model_id in manifest.models:
+        _touch_model(tmp_path, manifest, model_id)
+        monkeypatch.setitem(
+            runtime_mod.ONNX_WARMUP_HANDLERS, model_id, lambda *_args: None
+        )
+    runtime = MathCraftRuntime(
+        cache_dir=tmp_path, manifest=manifest, provider_preference="cpu"
+    )
+    paths = []
+    digest = cache_mod._file_digest
+
+    def track_digest(path):
+        paths.append(path)
+        return digest(path)
+
+    monkeypatch.setattr(cache_mod, "_file_digest", track_digest)
+    monkeypatch.setattr(runtime_mod, "split_formula_line_groups", lambda _rgb: ())
+    monkeypatch.setattr(
+        runtime_mod, "recognize_formula_image", lambda *_args, **_kwargs: ("x", 0.9)
+    )
+    monkeypatch.setattr(
+        runtime_mod, "recognize_formula_images", lambda *_args, **_kwargs: []
+    )
+    monkeypatch.setattr(runtime_mod, "detect_formula_boxes", lambda *_args: ())
+    monkeypatch.setattr(runtime_mod, "detect_text_boxes", lambda *_args: ((), ()))
+    expected = {
+        tmp_path / model_id / item.path
+        for model_id in runtime_mod.PROFILE_MODEL_IDS[profile]
+        for item in manifest.models[model_id].files
+    }
+    for iteration in range(2):
+        paths.clear()
+        getattr(runtime, f"recognize_{profile}")(np.zeros((32, 64, 3), dtype=np.uint8))
+        assert set(paths) == (expected if iteration == 0 else set())
+        assert len(paths) == (len(expected) if iteration == 0 else 0)
+
+
+def test_explicit_check_detects_corruption_and_cleared_warmup_repairs(
+    tmp_path, monkeypatch
+):
+    manifest = load_manifest()
+    model_id = FORMULA_RECOGNIZER_ID
+    _touch_model(tmp_path, manifest, model_id)
+    warmed = []
+    monkeypatch.setitem(
+        runtime_mod.ONNX_WARMUP_HANDLERS,
+        model_id,
+        lambda model_dir, _provider: warmed.append(model_dir),
+    )
+    runtime = MathCraftRuntime(
+        cache_dir=tmp_path,
+        manifest=manifest,
+        provider_preference="cpu",
+        auto_download=False,
+    )
+    first = runtime.warmup("formula")
+    assert first.ready
+    path = first.model_dirs[model_id] / "decoder_model.onnx"
+    timestamp = path.stat()
+    path.write_bytes(b"y")
+    os.utime(path, ns=(timestamp.st_atime_ns, timestamp.st_mtime_ns))
+    assert not runtime.check_models()[model_id].complete
+    runtime.clear_warmup_cache()
+    assert not runtime.warmup("formula").ready
+    downloaded = []
+
+    def repair(spec, *, target_root, **_kwargs):
+        downloaded.append(spec.model_id)
+        _touch_model(target_root, manifest, spec.model_id)
+
+    monkeypatch.setattr(runtime_mod, "download_model_archive", repair)
+    runtime.auto_download = True
+    repaired = runtime.warmup("formula")
+    assert repaired.ready
+    assert downloaded == [model_id]
+    assert len(warmed) == 2
+
+
+def test_warmup_reloads_when_model_root_changes(tmp_path, monkeypatch):
+    manifest = load_manifest()
+    bundled, cache = tmp_path / "bundled", tmp_path / "cache"
+    for root in (bundled, cache):
+        _touch_model(root, manifest, FORMULA_RECOGNIZER_ID)
+    warmed = []
+    monkeypatch.setitem(
+        runtime_mod.ONNX_WARMUP_HANDLERS,
+        FORMULA_RECOGNIZER_ID,
+        lambda model_dir, _provider: warmed.append(model_dir),
+    )
+    runtime = MathCraftRuntime(
+        cache_dir=cache,
+        bundled_models_dir=bundled,
+        manifest=manifest,
+        auto_download=False,
+    )
+    assert runtime.warmup("formula").ready
+    (bundled / FORMULA_RECOGNIZER_ID / "decoder_model.onnx").write_bytes(b"y")
+    runtime.clear_warmup_cache()
+    plan = runtime.warmup("formula")
+    assert plan.ready
+    assert plan.model_dirs[FORMULA_RECOGNIZER_ID] == cache / FORMULA_RECOGNIZER_ID
+    assert warmed == [
+        bundled / FORMULA_RECOGNIZER_ID,
+        cache / FORMULA_RECOGNIZER_ID,
+    ]
 
 
 def test_failed_warmup_plan_is_not_cached() -> None:
@@ -731,13 +849,13 @@ def test_formula_decoder_removes_finished_rows_from_active_batch() -> None:
             input_ids = inputs["input_ids"]
             hidden_states = inputs["encoder_hidden_states"]
             self.batch_sizes.append(int(input_ids.shape[0]))
-            logits = np.full((input_ids.shape[0], input_ids.shape[1], 10), -20.0)
+            logits = np.full((input_ids.shape[0], 10), -20.0)
             for row, original_row in enumerate(hidden_states[:, 0, 0].astype(int)):
                 finish_after = 2 if original_row == 0 else 4
                 next_token = (
                     9 if input_ids.shape[1] >= finish_after else original_row + 2
                 )
-                logits[row, -1, next_token] = 20.0
+                logits[row, next_token] = 20.0
             return (logits,)
 
     decoder = _Decoder()
@@ -768,6 +886,10 @@ def test_recognize_formula_uses_formula_adapter() -> None:
             return runtime_mod.WarmupPlan(
                 profile=profile,
                 required_models=(FORMULA_DETECTOR_ID, FORMULA_RECOGNIZER_ID),
+                model_dirs={
+                    model_id: self.cache_dir / model_id
+                    for model_id in self.manifest.models
+                },
                 missing_models=(),
                 unsupported_models=(),
                 component_statuses=(),
@@ -805,6 +927,10 @@ def test_recognize_formula_splits_multiline_image_before_generation() -> None:
             return runtime_mod.WarmupPlan(
                 profile=profile,
                 required_models=(FORMULA_DETECTOR_ID, FORMULA_RECOGNIZER_ID),
+                model_dirs={
+                    model_id: self.cache_dir / model_id
+                    for model_id in self.manifest.models
+                },
                 missing_models=(),
                 unsupported_models=(),
                 component_statuses=(),
@@ -855,6 +981,10 @@ def test_recognize_formula_rejoins_extra_wide_single_row_segments() -> None:
             return runtime_mod.WarmupPlan(
                 profile=profile,
                 required_models=(FORMULA_DETECTOR_ID, FORMULA_RECOGNIZER_ID),
+                model_dirs={
+                    model_id: self.cache_dir / model_id
+                    for model_id in self.manifest.models
+                },
                 missing_models=(),
                 unsupported_models=(),
                 component_statuses=(),
@@ -906,6 +1036,10 @@ def test_recognize_formula_prefers_confident_whole_line_over_uncertain_segments(
             return runtime_mod.WarmupPlan(
                 profile=profile,
                 required_models=(FORMULA_DETECTOR_ID, FORMULA_RECOGNIZER_ID),
+                model_dirs={
+                    model_id: self.cache_dir / model_id
+                    for model_id in self.manifest.models
+                },
                 missing_models=(),
                 unsupported_models=(),
                 component_statuses=(),
@@ -958,6 +1092,10 @@ def test_recognize_formula_retries_whole_image_for_severe_split_artifacts() -> N
             return runtime_mod.WarmupPlan(
                 profile=profile,
                 required_models=(FORMULA_DETECTOR_ID, FORMULA_RECOGNIZER_ID),
+                model_dirs={
+                    model_id: self.cache_dir / model_id
+                    for model_id in self.manifest.models
+                },
                 missing_models=(),
                 unsupported_models=(),
                 component_statuses=(),
@@ -1013,6 +1151,10 @@ def test_recognize_mixed_uses_text_pipeline() -> None:
                     TEXT_DETECTOR_ID,
                     TEXT_RECOGNIZER_ID,
                 ),
+                model_dirs={
+                    model_id: self.cache_dir / model_id
+                    for model_id in self.manifest.models
+                },
                 missing_models=(),
                 unsupported_models=(),
                 component_statuses=(),
@@ -1081,6 +1223,10 @@ def test_recognize_mixed_splits_multiline_formula_blocks() -> None:
             return runtime_mod.WarmupPlan(
                 profile=profile,
                 required_models=tuple(model_ids),
+                model_dirs={
+                    model_id: self.cache_dir / model_id
+                    for model_id in self.manifest.models
+                },
                 missing_models=(),
                 unsupported_models=(),
                 component_statuses=(),
@@ -1151,6 +1297,10 @@ def test_recognize_mixed_preserves_unsplit_formula_structure() -> None:
             return runtime_mod.WarmupPlan(
                 profile=profile,
                 required_models=tuple(model_ids),
+                model_dirs={
+                    model_id: self.cache_dir / model_id
+                    for model_id in self.manifest.models
+                },
                 missing_models=(),
                 unsupported_models=(),
                 component_statuses=(),
@@ -1309,6 +1459,10 @@ def test_recognize_text_skips_formula_pipeline() -> None:
             return runtime_mod.WarmupPlan(
                 profile=profile,
                 required_models=tuple(model_ids),
+                model_dirs={
+                    model_id: self.cache_dir / model_id
+                    for model_id in self.manifest.models
+                },
                 missing_models=(),
                 unsupported_models=(),
                 component_statuses=(),

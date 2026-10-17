@@ -18,6 +18,7 @@ from .serialization import (
     mixed_result_to_json,
     warmup_plan_to_json,
 )
+from .text_io import utf8_stream
 
 _PROVIDER_HELP = "auto, cpu, gpu, cuda, tensorrt, directml, coreml, or openvino"
 
@@ -124,9 +125,13 @@ def serve_jsonl(
     output_stream: TextIO | None = None,
     log_stream: TextIO | None = None,
 ) -> int:
-    input_stream = input_stream or sys.stdin
-    output_stream = output_stream or sys.stdout
-    log_stream = log_stream or sys.stderr
+    input_stream = utf8_stream(sys.stdin) if input_stream is None else input_stream
+    output_stream = utf8_stream(sys.stdout) if output_stream is None else output_stream
+    log_stream = (
+        utf8_stream(sys.stderr, errors="backslashreplace")
+        if log_stream is None
+        else log_stream
+    )
     if input_stream is None or output_stream is None:
         raise RuntimeError("The worker requires input and output streams")
     if native_dir is not None:

@@ -22,8 +22,8 @@ def pre_bootstrap_runtime() -> None:
     """Apply process-wide safeguards before the heavier startup modules load."""
     global _CRASH_FH
 
-    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
-    os.environ.setdefault("PYTHONUTF8", "1")
+    os.environ["PYTHONIOENCODING"] = "utf-8"
+    os.environ["PYTHONUTF8"] = "1"
     configure_native_runtime_environment()
 
     apply_linux_graphics_fallbacks()

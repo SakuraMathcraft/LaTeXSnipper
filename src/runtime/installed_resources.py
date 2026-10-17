@@ -225,4 +225,4 @@ def worker_command(resources: InstalledResources | None) -> list[str]:
         prefix
         + f"import sys; sys.path.insert(0, {str(root)!r}); from mathcraft_ocr.worker import serve_jsonl; raise SystemExit(serve_jsonl(**{arguments!r}))"
     )
-    return [str(python), "-I", "-B", "-u", "-c", code]
+    return [str(python), "-I", "-B", "-u", "-X", "utf8", "-c", code]

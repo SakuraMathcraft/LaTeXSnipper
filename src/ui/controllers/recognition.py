@@ -59,10 +59,7 @@ class ImageRecognitionController(QObject):
             self.results.show_busy()
             return
         self.results.set_screen(screen_index)
-        if (
-            self.models.current_model == "external_model"
-            or self.models.preferred_model() == "external_model"
-        ):
+        if self.models.current_model == "external_model":
             self._start_external_predict_with_pil(
                 img, external_prompt_template=external_prompt_template
             )
@@ -73,9 +70,7 @@ class ImageRecognitionController(QObject):
         if self.tasks.thread and self.tasks.thread.isRunning():
             show_user_notice(tr("错误"), tr("前一识别线程尚未结束"), self.view)
             return
-        preferred = self.models.preferred_model()
-        if preferred != self.models.current_model:
-            self.models.select_current(preferred)
+        preferred = self.models.current_model
         if self.models.model and (not self.models.model.is_model_ready(preferred)):
             token = self.tasks.prepare()
             self.status.set_model_status(tr("预热中"))
@@ -110,7 +105,6 @@ class ImageRecognitionController(QObject):
         if not self.models.external_configured():
             self.models.show_external_configuration()
             return
-        self.models.select_current("external_model")
         self.status.set_model_status(tr("外部模型识别中..."))
         worker = ExternalModelWorker(self.coordinator, config, img)
         self.tasks.start(
@@ -152,7 +146,7 @@ class ImageRecognitionController(QObject):
         if self.tasks.is_busy(source="main"):
             self.results.show_busy()
             return
-        if not self.models.model and self.models.preferred_model() != "external_model":
+        if not self.models.model and self.models.current_model != "external_model":
             show_user_notice(tr("错误"), tr("模型未初始化"), self.view)
             return
         try:

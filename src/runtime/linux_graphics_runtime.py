@@ -43,7 +43,7 @@ def _has_dri_render_node() -> bool:
 
 def _read_text(path: str) -> str:
     try:
-        return Path(path).read_text(encoding="utf-8", errors="ignore")
+        return Path(path).read_text(encoding="utf-8", errors="backslashreplace")
     except Exception:
         return ""
 

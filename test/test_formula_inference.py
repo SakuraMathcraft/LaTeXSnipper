@@ -1,5 +1,6 @@
 """Formula decoding preserves results while reusing device-resident activations."""
 
+import subprocess
 import sys
 from types import SimpleNamespace
 
@@ -7,7 +8,60 @@ import numpy as np
 import pytest
 
 from mathcraft_ocr.adapters.formula_inference import encode_formula
+from mathcraft_ocr.adapters.formula_model import last_token_decoder, onnx
 from mathcraft_ocr.adapters.formula_recognizer import _generate_formula_tokens
+
+
+def test_step_graph_preserves_values_weights_and_stored_model(tmp_path):
+    model = onnx.ModelProto(ir_version=8, producer_name="test", model_version=7)
+    model.opset_import.add(domain="", version=13)
+    graph = model.graph
+    graph.name = "prefix_logits"
+    for values, name in ((graph.input, "prefix"), (graph.output, "logits")):
+        value = values.add(name=name)
+        value.type.tensor_type.elem_type = onnx.TensorProto.FLOAT
+        for dimension in ("batch", "sequence", "vocabulary"):
+            value.type.tensor_type.shape.dim.add(dim_param=dimension)
+    node = graph.node.add(op_type="Identity")
+    node.input.append("prefix")
+    node.output.append("logits")
+    weights = graph.initializer.add(
+        name="weights", dims=[2], data_type=onnx.TensorProto.FLOAT
+    )
+    weights.raw_data = np.asarray([1.5, -2.0], dtype=np.float32).tobytes()
+    source = model.SerializeToString()
+    path = tmp_path / "decoder.onnx"
+    path.write_bytes(source)
+    transformed = last_token_decoder(path)
+    optimized = onnx.ModelProto()
+    optimized.ParseFromString(transformed)
+    assert path.read_bytes() == source
+    assert optimized.graph.initializer[0] == weights
+    assert optimized.producer_name == model.producer_name
+    assert optimized.model_version == model.model_version
+    path = tmp_path / "step.onnx"
+    path.write_bytes(transformed)
+    # Keep native ORT isolated from the process that also runs Qt tests.
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys,numpy as np,onnxruntime as ort; "
+            "session=ort.InferenceSession(sys.argv[1],providers=['CPUExecutionProvider']); "
+            "[(np.testing.assert_array_equal("
+            "session.run(None,{'prefix':x})[0], x[:,-1,:])) "
+            "for b,t,v in [(1,1,7),(3,19,1200),(2,5,8),(1,2,3)] "
+            "for x in [np.arange(b*t*v,dtype=np.float32).reshape(b,t,v)]]",
+            str(path),
+        ],
+        check=True,
+        capture_output=True,
+        timeout=30,
+    )
+    del graph.output[0].type.tensor_type.shape.dim[1]
+    path.write_bytes(model.SerializeToString())
+    with pytest.raises(ValueError, match="batch, sequence, vocabulary"):
+        last_token_decoder(path)
 
 
 class DeviceValue:
@@ -66,10 +120,10 @@ class DecoderSession:
     def run(self, _outputs, inputs):
         ids, hidden = inputs["ids"], inputs["hidden"]
         self.batch_sizes.append(len(ids))
-        logits = np.full((*ids.shape, 10), -20.0, dtype=np.float32)
+        logits = np.full((len(ids), 10), -20.0, dtype=np.float32)
         for row, original in enumerate(hidden[:, 0, 0].astype(int)):
             token = 9 if ids.shape[1] >= self.finish_after[original] else original + 2
-            logits[row, -1, token] = 20.0
+            logits[row, token] = 20.0
         return [logits]
 
     def run_with_iobinding(self, binding):
@@ -78,7 +132,7 @@ class DecoderSession:
         output = self.run(None, {"ids": binding.inputs["ids"], "hidden": hidden.array})[
             0
         ]
-        # Dynamic outputs must not retain an earlier prefix or batch shape.
+        # Finished sequences must not retain an earlier batch shape.
         if binding.output_shape is not None:
             assert binding.output_shape == output.shape
         binding.output_shape = output.shape

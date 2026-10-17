@@ -230,9 +230,9 @@ python benchmarks/mathcraft_ocr/runners/benchmark_formula_inference.py `
 
 Use `--provider cpu` for CPU measurements. `--native-dir` can preload a private
 CUDA/cuDNN library directory. `--reference` accepts a saved
-`formula_recognizer.py` implementation for an alternating comparison in the same
-process; model weights and backend remain identical, and text and confidence
-are checked across implementations. Results include input hashes, per-run
+directory containing `formula_recognizer.py` and `formula_inference.py` for an
+alternating comparison in the same process; model weights and backend remain
+identical, and text and confidence are checked across implementations. Results include input hashes, per-run
 latency, medians and p95 estimates. Use more repetitions for tail-latency analysis.
 These measurements cover formula inference, not the entire PDF or mixed-page pipeline.
 

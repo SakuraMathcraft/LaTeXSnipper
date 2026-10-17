@@ -28,6 +28,8 @@ concurrency:
 
 env:
   RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: utf-8
 
 jobs:
   models:

@@ -31,14 +31,14 @@ logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 def _configure_utf8_stdio() -> None:
-    os.environ.setdefault("PYTHONUTF8", "1")
-    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+    os.environ["PYTHONUTF8"] = "1"
+    os.environ["PYTHONIOENCODING"] = "utf-8"
     for stream_name in ("stdout", "stderr", "__stdout__", "__stderr__"):
         stream = getattr(sys, stream_name, None)
         if stream is None or not hasattr(stream, "reconfigure"):
             continue
         try:
-            stream.reconfigure(encoding="utf-8", errors="replace")
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
         except Exception:
             pass
 

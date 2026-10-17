@@ -30,6 +30,7 @@ def verify_bundle(bundle: Path) -> None:
         arguments,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=120,
         env=independent_process_environment(),
     )
@@ -140,6 +141,7 @@ class MacOSDeploymentTransaction(DeploymentTransaction):
             ["ditto", str(self.bundle), str(self.candidate)],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=900,
             env=independent_process_environment(),
         )

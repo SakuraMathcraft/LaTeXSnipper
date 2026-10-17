@@ -203,7 +203,7 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>Markdown inline</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="292" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="272" />
       <source>MathCraft OCR 已就绪</source>
       <translation>MathCraft OCR is ready</translation>
     </message>
@@ -228,7 +228,7 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>MathCraft OCR model resources are missing or damaged. For an installed app, repair them through App updates.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="451" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="419" />
       <source>MathCraft OCR 正在预热</source>
       <translation>MathCraft OCR is warming up</translation>
     </message>
@@ -258,7 +258,7 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>MathCraft OCR warm-up failed. Open the runtime log for details.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="188" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="179" />
       <source>MathCraft OCR 预热完成，可直接识别</source>
       <translation>MathCraft OCR warm-up completed and is ready to recognize</translation>
     </message>
@@ -268,17 +268,17 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>Incomplete MathCraft dependencies</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="366" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="343" />
       <source>MathCraft 公式识别</source>
       <translation>MathCraft Formula Recognition</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="368" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="345" />
       <source>MathCraft 混合识别</source>
       <translation>MathCraft Mixed Recognition</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="367" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="344" />
       <source>MathCraft 纯文字识别</source>
       <translation>MathCraft Text Recognition</translation>
     </message>
@@ -308,7 +308,7 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>MinerU Local parsing endpoint path (for example, /file_parse)</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="229" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="221" />
       <source>MinerU 健康检查通过：{endpoint}</source>
       <translation>MinerU health check passed: {endpoint}</translation>
     </message>
@@ -443,7 +443,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>{error}. Erase and rewrite the handwriting, or edit the LaTeX result on the right.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/recognition.py" line="128" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="122" />
       <source>{images};;所有文件 (*.*)</source>
       <translation>{images};;All files (*.*)</translation>
     </message>
@@ -453,8 +453,8 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>── Pandoc Export ──</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="113" />
-      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="150" />
+      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="107" />
+      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="144" />
       <source>⚪ 计算模式未知</source>
       <translation>⚪ Compute mode unknown</translation>
     </message>
@@ -611,7 +611,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Change shortcut</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="227" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="219" />
       <source>健康检查通过</source>
       <translation>Health check passed</translation>
     </message>
@@ -793,13 +793,13 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Delete</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/recognition.py" line="74" />
-      <location filename="../../../src/ui/controllers/recognition.py" line="104" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="71" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="99" />
       <source>前一识别线程尚未结束</source>
       <translation>The previous recognition task is still running</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/status.py" line="79" />
+      <location filename="../../../src/ui/controllers/status.py" line="67" />
       <source>加载失败</source>
       <translation>Load Failed</translation>
     </message>
@@ -900,7 +900,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The image is empty.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/recognition.py" line="163" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="157" />
       <source>图片加载失败：{error}</source>
       <translation>Failed to load image: {error}</translation>
     </message>
@@ -930,12 +930,12 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The image data is corrupt or uses an unsupported format.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/recognition.py" line="123" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="117" />
       <source>图片文件 ({patterns})</source>
       <translation>Image files ({patterns})</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/recognition.py" line="139" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="133" />
       <source>图片文件不存在: {path}</source>
       <translation>Image file not found: {path}</translation>
     </message>
@@ -1014,7 +1014,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Theme:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="369" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="346" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="70" />
       <source>外部模型</source>
       <translation>External model</translation>
@@ -1040,7 +1040,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The external model is not configured or is unavailable. Check the external model settings.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="158" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="149" />
       <source>外部模型已配置</source>
       <translation>External model configured</translation>
     </message>
@@ -1050,8 +1050,8 @@ Retry with the {hotkey} shortcut.</translation>
       <location filename="../../../src/handwriting/handwriting_window.py" line="534" />
       <location filename="../../../src/handwriting/handwriting_window.py" line="535" />
       <location filename="../../../src/handwriting/recognizer.py" line="77" />
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="159" />
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="163" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="150" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="154" />
       <source>外部模型未配置</source>
       <translation>External model is not configured</translation>
     </message>
@@ -1061,7 +1061,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Configure the external model before continuing.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/recognition.py" line="114" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="108" />
       <source>外部模型识别中...</source>
       <translation>Recognizing with external model...</translation>
     </message>
@@ -1234,7 +1234,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The current recognition task was stopped. Capture again or switch recognition type and retry.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="374" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="351" />
       <source>已切换到 {mode}</source>
       <translation>Switched to {mode}</translation>
     </message>
@@ -1256,12 +1256,11 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Added to favorites</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="206" />
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="285" />
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="396" />
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="404" />
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="361" />
-      <location filename="../../../src/ui/controllers/status.py" line="75" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="194" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="265" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="372" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="338" />
+      <location filename="../../../src/ui/controllers/status.py" line="63" />
       <source>已加载</source>
       <translation>Loaded</translation>
     </message>
@@ -1296,7 +1295,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Named: {name}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="194" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="186" />
       <source>已填入推荐配置，请按你的本地服务实际情况检查模型名。</source>
       <translation>Recommended settings were applied. Verify the model name against your local service.</translation>
     </message>
@@ -1506,7 +1505,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Lasso correction uses a freeform vector selection and preserves unselected strokes</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="201" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="193" />
       <source>当前已有一个测试连接任务在后台运行。</source>
       <translation>A connection test is already running in the background.</translation>
     </message>
@@ -1553,7 +1552,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>No history is available; clicking will show a notice</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/status.py" line="85" />
+      <location filename="../../../src/ui/controllers/status.py" line="73" />
       <source>当前模型: {model} | 状态: {status}</source>
       <translation>Current model: {model} | Status: {status}</translation>
     </message>
@@ -1583,10 +1582,10 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The current recognition mode is unsupported. Check the recognition settings.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="406" />
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="363" />
-      <location filename="../../../src/ui/controllers/status.py" line="72" />
-      <location filename="../../../src/ui/controllers/status.py" line="81" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="374" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="340" />
+      <location filename="../../../src/ui/controllers/status.py" line="60" />
+      <location filename="../../../src/ui/controllers/status.py" line="69" />
       <source>待识别时加载</source>
       <translation>Load when recognition starts</translation>
     </message>
@@ -1805,8 +1804,8 @@ Retry with the {hotkey} shortcut.</translation>
       <location filename="../../../src/ui/controllers/pdf.py" line="179" />
       <location filename="../../../src/ui/controllers/predict_result.py" line="510" />
       <location filename="../../../src/ui/controllers/predict_result.py" line="517" />
-      <location filename="../../../src/ui/controllers/recognition.py" line="145" />
-      <location filename="../../../src/ui/controllers/status.py" line="122" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="139" />
+      <location filename="../../../src/ui/controllers/status.py" line="110" />
       <location filename="../../../src/ui/favorites_window.py" line="358" />
       <location filename="../../../src/ui/pdf_result_window.py" line="133" />
       <source>提示</source>
@@ -2022,12 +2021,12 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>No recognition task was created.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/status.py" line="40" />
+      <location filename="../../../src/ui/controllers/status.py" line="37" />
       <source>未加载</source>
       <translation>Not loaded</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="310" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="290" />
       <source>未就绪</source>
       <translation>Not Ready</translation>
     </message>
@@ -2065,7 +2064,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>No text content recognized</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="167" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="159" />
       <source>未选择预设</source>
       <translation>No preset selected</translation>
     </message>
@@ -2116,7 +2115,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Checks:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="464" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="432" />
       <source>检测到 MathCraft 模型权重缺失或不完整，正在自动补全。</source>
       <translation>MathCraft model weights are missing or incomplete. Completing them automatically.</translation>
     </message>
@@ -2142,8 +2141,8 @@ Retry with the {hotkey} shortcut.</translation>
     <message>
       <location filename="../../../src/ui/controllers/capture.py" line="82" />
       <location filename="../../../src/ui/controllers/pdf.py" line="117" />
-      <location filename="../../../src/ui/controllers/recognition.py" line="71" />
-      <location filename="../../../src/ui/controllers/recognition.py" line="156" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="68" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="150" />
       <location filename="../../../src/ui/controllers/windows.py" line="115" />
       <source>模型未初始化</source>
       <translation>Model is not initialized</translation>
@@ -2175,17 +2174,17 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Model runtime error</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/recognition.py" line="83" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="78" />
       <source>模型预热中，完成后将自动开始识别</source>
       <translation>Warming up the model; recognition will start automatically when ready</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/recognition.py" line="212" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="206" />
       <source>模型预热失败: {message}</source>
       <translation>Model warm-up failed: {message}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="291" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="271" />
       <source>模型预热完成</source>
       <translation>Model warm-up complete</translation>
     </message>
@@ -2195,7 +2194,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Model warm-up incomplete</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="373" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="350" />
       <source>模式切换成功</source>
       <translation>Mode switched</translation>
     </message>
@@ -2230,7 +2229,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Saving...</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="469" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="437" />
       <source>正在修复模型缓存</source>
       <translation>Repairing model cache</translation>
     </message>
@@ -2240,7 +2239,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Preparing installation. Authorize the system permission prompt if one appears.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="452" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="420" />
       <source>正在初始化模型，请稍候。</source>
       <translation>Initializing models. Please wait.</translation>
     </message>
@@ -2348,27 +2347,27 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Light</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="207" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="199" />
       <source>测试中...</source>
       <translation>Testing...</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="240" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="232" />
       <source>测试失败</source>
       <translation>Test failed</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="227" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="219" />
       <source>测试成功</source>
       <translation>Test successful</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="201" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="193" />
       <source>测试进行中</source>
       <translation>Test in progress</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="215" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="207" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="186" />
       <source>测试连接</source>
       <translation>Test Connection</translation>
@@ -2770,7 +2769,7 @@ Retry with the {hotkey} shortcut.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/controllers/pdf.py" line="194" />
-      <location filename="../../../src/ui/controllers/recognition.py" line="94" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="89" />
       <source>识别中...</source>
       <translation>Recognizing...</translation>
     </message>
@@ -2778,6 +2777,11 @@ Retry with the {hotkey} shortcut.</translation>
       <location filename="../../../src/recognition/error_messages.py" line="31" />
       <source>识别任务较多，请稍后重试。</source>
       <translation>Too many recognition tasks. Retry later.</translation>
+    </message>
+    <message>
+      <location filename="../../../src/ui/settings_layout_builder.py" line="65" />
+      <source>识别后端:</source>
+      <translation>Recognition backend:</translation>
     </message>
     <message>
       <location filename="../../../src/recognition/error_messages.py" line="26" />
@@ -2892,12 +2896,12 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Configure the external model in Settings first.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="153" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="144" />
       <source>请先在设置页填写 Base URL 和 MinerU Local 解析接口路径。</source>
       <translation>Enter the Base URL and MinerU Local parsing endpoint in Settings first.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="154" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="145" />
       <source>请先在设置页填写 Base URL 和模型名。</source>
       <translation>Enter the Base URL and model name in Settings first.</translation>
     </message>
@@ -2933,7 +2937,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Drop or select a PDF file.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/recognition.py" line="146" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="140" />
       <source>请拖入或选择图片文件。支持格式：{formats}。</source>
       <translation>Drop or select an image file. Supported formats: {formats}.</translation>
     </message>
@@ -2968,7 +2972,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Select a PDF rendering resolution:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="167" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="159" />
       <source>请选择一个推荐预设后再应用。</source>
       <translation>Select a recommended preset before applying it.</translation>
     </message>
@@ -3082,7 +3086,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Connect to multimodal OCR/VLM APIs hosted locally or by supported online services.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="233" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="225" />
       <source>连接成功，已找到模型 {model_name}。</source>
       <translation>Connected successfully. Model {model_name} was found.</translation>
     </message>
@@ -3155,7 +3159,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Select PDF File</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/recognition.py" line="126" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="120" />
       <source>选择图片</source>
       <translation>Select Image</translation>
     </message>
@@ -3163,11 +3167,6 @@ Retry with the {hotkey} shortcut.</translation>
       <location filename="../../../src/ui/favorites_window.py" line="307" />
       <source>选择收藏夹导出文件夹</source>
       <translation>Select Favorites Export Folder</translation>
-    </message>
-    <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="65" />
-      <source>选择识别模型:</source>
-      <translation>Recognition model:</translation>
     </message>
     <message>
       <location filename="../../../src/ui/controllers/pdf.py" line="148" />
@@ -3233,12 +3232,12 @@ Retry with the {hotkey} shortcut.</translation>
       <location filename="../../../src/ui/controllers/pdf.py" line="117" />
       <location filename="../../../src/ui/controllers/pdf.py" line="130" />
       <location filename="../../../src/ui/controllers/pdf.py" line="143" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="68" />
       <location filename="../../../src/ui/controllers/recognition.py" line="71" />
-      <location filename="../../../src/ui/controllers/recognition.py" line="74" />
-      <location filename="../../../src/ui/controllers/recognition.py" line="104" />
-      <location filename="../../../src/ui/controllers/recognition.py" line="139" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="99" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="133" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="150" />
       <location filename="../../../src/ui/controllers/recognition.py" line="156" />
-      <location filename="../../../src/ui/controllers/recognition.py" line="162" />
       <location filename="../../../src/ui/notifications.py" line="11" />
       <location filename="../../../src/ui/pdf_result_window.py" line="178" />
       <location filename="../../../src/ui/pdf_result_window.py" line="172" />
@@ -3298,16 +3297,14 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Use 3 or 3-7 as the page-range format.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="225" />
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="213" />
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="400" />
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="398" />
-      <location filename="../../../src/ui/controllers/recognition.py" line="81" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="205" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="201" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="76" />
       <source>预热中</source>
       <translation>Warming up</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="193" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="185" />
       <source>预设已应用</source>
       <translation>Preset applied</translation>
     </message>
@@ -3332,22 +3329,22 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>; skipped {count} invalid or incomplete SVG files</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="134" />
+      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="128" />
       <source>🟡 CPU 模式</source>
       <translation>🟡 CPU mode</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="131" />
+      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="125" />
       <source>🟡 CPU 模式: {device}</source>
       <translation>🟡 CPU mode: {device}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="127" />
+      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="121" />
       <source>🟢 GPU 模式</source>
       <translation>🟢 GPU mode</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="124" />
+      <location filename="../../../src/ui/settings_mathcraft_mixin.py" line="118" />
       <source>🟢 GPU 模式: {device}</source>
       <translation>🟢 GPU mode: {device}</translation>
     </message>

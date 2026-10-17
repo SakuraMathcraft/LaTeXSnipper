@@ -31,7 +31,9 @@ def main() -> None:
     parser.add_argument("--provider", choices=("cpu", "cuda"), default="cuda")
     parser.add_argument("--native-dir", type=Path)
     parser.add_argument(
-        "--reference", type=Path, help="Reference formula_recognizer.py."
+        "--reference",
+        type=Path,
+        help="Directory containing reference formula_recognizer.py and formula_inference.py.",
     )
     parser.add_argument("--repeats", type=int, default=5)
     parser.add_argument("--warmup", type=int, default=2)
@@ -50,13 +52,24 @@ def main() -> None:
         ort.preload_dlls(directory=str(args.native_dir.resolve()))
     implementations = {"current": formula_recognizer.recognize_formula_images}
     if args.reference is not None:
+        inference_spec = importlib.util.spec_from_file_location(
+            "mathcraft_ocr.adapters._benchmark_inference",
+            args.reference / "formula_inference.py",
+        )
+        if inference_spec is None or inference_spec.loader is None:
+            raise ValueError("Cannot load the reference inference implementation")
+        inference = importlib.util.module_from_spec(inference_spec)
+        inference_spec.loader.exec_module(inference)
         spec = importlib.util.spec_from_file_location(
-            "mathcraft_ocr.adapters._benchmark_reference", args.reference
+            "mathcraft_ocr.adapters._benchmark_reference",
+            args.reference / "formula_recognizer.py",
         )
         if spec is None or spec.loader is None:
             raise ValueError("Cannot load the reference implementation")
         reference = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(reference)
+        reference.__dict__["FormulaDecoder"] = inference.FormulaDecoder
+        reference.__dict__["encode_formula"] = inference.encode_formula
         reference.__dict__["_load_processor"] = formula_recognizer._load_processor
         implementations = {
             "reference": reference.recognize_formula_images,
@@ -95,7 +108,10 @@ def main() -> None:
             (ROOT / "mathcraft_ocr/adapters/formula_inference.py").read_bytes()
         ).hexdigest(),
         "reference_sha256": (
-            hashlib.sha256(args.reference.read_bytes()).hexdigest()
+            {
+                name: hashlib.sha256((args.reference / name).read_bytes()).hexdigest()
+                for name in ("formula_recognizer.py", "formula_inference.py")
+            }
             if args.reference is not None
             else None
         ),

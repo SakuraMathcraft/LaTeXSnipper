@@ -83,13 +83,21 @@ def run_python(
     root: Path, code: str, arguments: list[str], *, gpu: bool = False
 ) -> str:
     result = subprocess.run(
-        [str(python_executable(root)), "-I", "-B", "-c", code, *arguments],
+        [
+            str(python_executable(root)),
+            "-I",
+            "-B",
+            "-X",
+            "utf8",
+            "-c",
+            code,
+            *arguments,
+        ],
         cwd=root,
         env=isolated_environment(root, gpu=gpu),
         capture_output=True,
         text=True,
         encoding="utf-8",
-        errors="replace",
         timeout=180,
     )
     if result.returncode:
@@ -147,6 +155,8 @@ def install_dependencies(
                 str(python_executable(root)),
                 "-I",
                 "-B",
+                "-X",
+                "utf8",
                 "-m",
                 "pip",
                 "wheel",
@@ -164,7 +174,7 @@ def install_dependencies(
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
-                errors="replace",
+                errors="backslashreplace",
                 timeout=180,
             )
             if result.returncode:

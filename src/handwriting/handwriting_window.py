@@ -451,7 +451,7 @@ class HandwritingWindow(QWidget):
         self._apply_tool_button_styles()
 
     def _get_active_model_key(self) -> str:
-        return resolve_document_recognition_model(self.models.preferred_model())
+        return resolve_document_recognition_model(self.models.current_model)
 
     def external_config(self):
         return self.models.external_config()

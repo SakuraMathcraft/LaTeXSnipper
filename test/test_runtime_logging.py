@@ -25,6 +25,7 @@ def test_application_log_routes_levels_formats_and_tracebacks(
 ) -> None:
     code = """
 import logging
+import os
 from pathlib import Path
 import sys
 sys.path.insert(0, sys.argv[2])
@@ -34,11 +35,18 @@ from runtime.std_streams import ensure_std_streams
 if sys.argv[3] == "True":
     sys.frozen = True
     sys.stdout = sys.stderr = sys.__stdout__ = sys.__stderr__ = None
+else:
+    sys.stdout.reconfigure(encoding="gbk")
+    sys.stderr.reconfigure(encoding="gbk")
+os.environ["PYTHONIOENCODING"] = "gbk"
+os.environ["PYTHONUTF8"] = "0"
 ensure_std_streams()
 target = Path(sys.argv[1])
 runtime_logging.app_log_dir = lambda: target
 runtime_logging.runtime_log_path().write_text("previous-session", encoding="utf-8")
 runtime_logging.init_app_logging()
+assert os.environ["PYTHONIOENCODING"] == "utf-8"
+assert os.environ["PYTHONUTF8"] == "1"
 runtime_logging.init_app_logging()
 assert runtime_logging.runtime_log_path().read_text(encoding="utf-8") == "previous-session"
 runtime_logging.start_runtime_log_session()
@@ -46,6 +54,7 @@ runtime_logging.start_runtime_log_session()
 logger = logging.getLogger("latexsnipper.test")
 logger.debug("debug-only")
 logger.info("ready")
+logger.info("中文 − ∑ 𝛼 🙂")
 logger.warning("warning-record")
 logging.getLogger("thirdparty").debug("thirdparty-debug")
 logging.getLogger("thirdparty").info("thirdparty-info")
@@ -91,6 +100,7 @@ logging.shutdown()
     assert "previous-session" not in session
     for message in (
         "ready",
+        "中文 − ∑ 𝛼 🙂",
         "warning-record",
         "thirdparty-info",
         "exception-record",
@@ -122,6 +132,35 @@ def test_plain_log_rotation_is_bounded(tmp_path: Path) -> None:
     assert not log.exists()
     assert (tmp_path / "crash-native.log.1").read_text(encoding="utf-8") == "current"
     assert (tmp_path / "crash-native.log.2").read_text(encoding="utf-8") == "previous"
+
+
+def test_log_view_keeps_split_utf8_characters_until_complete(tmp_path):
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PyQt6.QtWidgets import QApplication
+
+    from ui.runtime_log_dialog import RuntimeLogDialog
+
+    app = QApplication.instance() or QApplication(["log-encoding-test"])
+    path = tmp_path / "runtime-session.log"
+    text = "中文 − 𝛼 🙂"
+    data = text.encode("utf-8")
+    path.write_bytes(data[:-1])
+    dialog = RuntimeLogDialog(path)
+    dialog.timer.stop()
+    try:
+        assert dialog.txt.toPlainText() == ""
+        assert dialog._pos == 0
+        with path.open("ab") as stream:
+            stream.write(data[-1:])
+        dialog._poll_file()
+        assert dialog.txt.toPlainText() == text
+        dialog._poll_file()
+        assert dialog.txt.toPlainText() == text
+    finally:
+        dialog.timer.stop()
+        dialog.hide()
+        dialog.deleteLater()
+        app.processEvents()
 
 
 def test_plain_log_below_limit_is_not_rotated(tmp_path: Path) -> None:

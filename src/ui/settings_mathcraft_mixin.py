@@ -3,13 +3,7 @@ from localization.manager import translate as tr
 
 class SettingsMathCraftMixin:
     def _init_model_combo(self):
-        current = self.context.models.desired_model
-        if not current:
-            current = self.context.models.current_model
-        if current and str(current).startswith("mathcraft"):
-            current_key = "mathcraft"
-        else:
-            current_key = current
+        current_key = self.context.models.recognition_backend
         for i, (key, _) in enumerate(self._model_options):
             if key == current_key:
                 self.model_combo.setCurrentIndex(i)
@@ -78,8 +72,8 @@ class SettingsMathCraftMixin:
         if index < 0:
             return
         mode_key = self.mathcraft_mode_combo.itemData(index)
-        self.context.cfg.set("mathcraft_mode", mode_key)
         if not self._is_mathcraft_selected():
+            self.context.cfg.set("mathcraft_mode", mode_key)
             return
         self.select_model(self._mathcraft_mode_to_model(mode_key))
 
@@ -152,12 +146,7 @@ class SettingsMathCraftMixin:
     def update_model_selection(self):
         if getattr(self, "_model_selection_syncing", False):
             return
-        current = "mathcraft"
-        try:
-            current = str(self.context.models.desired_model or "mathcraft")
-        except Exception:
-            current = "mathcraft"
-        target = "external_model" if current == "external_model" else "mathcraft"
+        target = self.context.models.recognition_backend
         self._model_selection_syncing = True
         try:
             for i, (key, _) in enumerate(self._model_options):

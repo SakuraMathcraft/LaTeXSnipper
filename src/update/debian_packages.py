@@ -73,6 +73,7 @@ def build_package(
             ["dpkg-deb", "--root-owner-group", "--build", str(directory), str(output)],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=900,
             env=independent_process_environment(),
         )
@@ -104,6 +105,7 @@ def install_packages(
         [*arguments, *map(str, packages)],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=900,
         env=independent_process_environment(),
     )
@@ -126,6 +128,7 @@ def purge_packages(root: Path, names: list[str]) -> None:
         [*arguments, "--purge", *[package_name(name) for name in names]],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=900,
         env=environment,
     )

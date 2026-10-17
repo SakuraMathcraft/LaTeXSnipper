@@ -11,6 +11,21 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import build_desktop_release as build  # noqa: E402
 
 
+def test_isolated_build_python_uses_utf8_for_unicode_output(tmp_path, monkeypatch):
+    import build_inference_component as inference
+
+    monkeypatch.setattr(
+        inference, "python_executable", lambda _root: Path(sys.executable)
+    )
+    text = "中文 − 𝛼 🙂"
+    result = inference.run_python(
+        tmp_path,
+        "import sys; assert sys.flags.utf8_mode == 1; print(sys.argv[1]); sys.stderr.write(sys.argv[1])",
+        [text],
+    )
+    assert result == text + "\n"
+
+
 @pytest.fixture
 def inputs(tmp_path, monkeypatch):
     locks = tmp_path / "packaging/runtime"
@@ -29,6 +44,7 @@ def inputs(tmp_path, monkeypatch):
         ("linux-x86_64", "packaging/debian/DEBIAN/control", {"application"}),
         ("linux-x86_64", "requirements-linux.txt", {"application"}),
         ("macos-arm64", "requirements-macos.txt", {"application"}),
+        ("windows-x86_64", "mathcraft_ocr/vendor/LICENSE.onnx", {"application"}),
         (
             "macos-arm64",
             "packaging/macos/entitlements.plist",

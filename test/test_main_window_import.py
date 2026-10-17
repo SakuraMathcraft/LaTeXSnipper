@@ -103,7 +103,7 @@ def test_main_window_controls_keep_configuration_and_preview_in_sync(
         assert settings.context.cfg is window.cfg
         assert settings.context.models is window.models
         window.models.select_model("external_model")
-        assert window.cfg.get("desired_model") == "external_model"
+        assert window.cfg.get("recognition_backend") == "external_model"
         assert window.models.current_model == "external_model"
     finally:
         window.lifecycle.prepare_restart()

@@ -12,6 +12,7 @@ from .serialization import (
     mixed_result_to_json,
     warmup_plan_to_json,
 )
+from .text_io import utf8_stream
 
 _PROVIDER_HELP = "auto, cpu, gpu, cuda, tensorrt, directml, coreml, or openvino"
 
@@ -67,6 +68,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    utf8_stream(sys.stdin)
+    utf8_stream(sys.stdout)
+    utf8_stream(sys.stderr, errors="backslashreplace")
     parser = build_parser()
     args = parser.parse_args(argv)
 

@@ -123,16 +123,8 @@ class SettingsExternalModelMixin:
         if parent is None:
             return
         try:
-            preferred = ""
-            preferred = str(parent.models.preferred_model() or "").strip().lower()
-            current = (
-                str(getattr(parent.models, "current_model", "") or "").strip().lower()
-            )
-            if current == "external_model" or preferred == "external_model":
-                if True and True:
-                    parent.status.set_model_status(parent.models.external_status())
-                else:
-                    parent.status.refresh_status_label()
+            if parent.models.recognition_backend == "external_model":
+                parent.status.set_model_status(parent.models.external_status())
         except Exception:
             pass
 

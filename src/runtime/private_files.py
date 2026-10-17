@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import csv
 import os
+import re
 import subprocess
 import threading
 from pathlib import Path
@@ -27,17 +27,14 @@ def _current_user_sid() -> str:
                 ["whoami", "/user", "/fo", "csv", "/nh"],
                 check=True,
                 capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            ).stdout.strip()
+            ).stdout
         except (OSError, subprocess.SubprocessError) as exc:
             raise OSError("无法读取当前 Windows 用户身份。") from exc
-        rows = list(csv.reader([identity]))
-        if not rows or len(rows[0]) < 2 or not rows[0][1].strip():
+        sid = re.search(rb'"(S-\d+(?:-\d+)+)"\s*$', identity)
+        if sid is None:
             raise OSError("无法确定当前 Windows 用户 SID。")
-        _CURRENT_USER_SID = rows[0][1].strip()
+        _CURRENT_USER_SID = sid.group(1).decode("ascii")
         return _CURRENT_USER_SID
 
 
@@ -54,9 +51,6 @@ def _restrict_windows_path(target: Path, permission: str) -> None:
             ],
             check=True,
             capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     except (OSError, subprocess.SubprocessError) as exc:

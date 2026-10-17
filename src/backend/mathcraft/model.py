@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import threading
 from collections import deque
+from io import TextIOWrapper
 from typing import Any, cast
 
 from PIL import Image
@@ -116,12 +117,11 @@ class ModelWrapper(QObject):
 
     status_signal = pyqtSignal(str)
 
-    def __init__(self, default_model: str | None = None, auto_warmup: bool = True):
+    def __init__(self, auto_warmup: bool = True):
         super().__init__()
         self.device = "cpu"
         self.provider_info: dict[str, object] = {}
         self.runtime_info: dict[str, object] = {}
-        self._default_model = self._normalize_model_name(default_model or "mathcraft")
         self._worker: subprocess.Popen | None = None
         self._worker_lock = threading.Lock()
         self._request_lock = threading.Lock()
@@ -160,9 +160,6 @@ class ModelWrapper(QObject):
     def _mode_for_model(self, model_name: str | None) -> str:
         model = self._normalize_model_name(model_name)
         return MODEL_MODES[model]
-
-    def set_default_model(self, model_name: str | None) -> None:
-        self._default_model = self._normalize_model_name(model_name or "mathcraft")
 
     def _next_request_id(self) -> str:
         self._request_seq += 1
@@ -252,10 +249,11 @@ class ModelWrapper(QObject):
                     stderr=subprocess.PIPE,
                     text=True,
                     encoding="utf-8",
-                    errors="replace",
+                    errors="strict",
                     env=self._build_subprocess_env(),
                     **hidden_subprocess_kwargs(),
                 )
+                cast(TextIOWrapper, proc.stderr).reconfigure(errors="backslashreplace")
                 self._worker = proc
                 self._handshake_complete = False
                 self._start_worker_stderr_pump(proc)
@@ -405,10 +403,9 @@ class ModelWrapper(QObject):
         self._ready_modes.clear()
         self.provider_info = {}
 
-    def warmup(self, model_name: str | None = None) -> bool:
-        model = self._normalize_model_name(model_name or self._default_model)
+    def warmup(self, model_name: str = "mathcraft") -> bool:
+        model = self._normalize_model_name(model_name)
         mode = self._mode_for_model(model)
-        self._default_model = model
         if mode in self._ready_modes:
             self._ready = True
             return True

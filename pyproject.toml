@@ -43,6 +43,7 @@ dependencies = [
   "rapidocr==3.5.0",
   "transformers==4.55.4",
   "tokenizers==0.21.4",
+  "protobuf>=4.25,<5",
 ]
 
 [project.optional-dependencies]
@@ -88,7 +89,7 @@ include = ["mathcraft_ocr*"]
 exclude = ["src*", "test*", "scripts*", "docs*", "release_assets*", "build*", "dist*"]
 
 [tool.setuptools.package-data]
-mathcraft_ocr = ["manifests/*.json"]
+mathcraft_ocr = ["manifests/*.json", "vendor/LICENSE.onnx"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

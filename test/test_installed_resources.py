@@ -167,7 +167,6 @@ def test_source_desktop_worker_uses_default_mathcraft_cache(tmp_path, monkeypatc
 def test_installed_worker_reports_model_integrity_without_downloading(
     tmp_path, monkeypatch, installed_content
 ):
-    import mathcraft_ocr.doctor as doctor_module
     import mathcraft_ocr.runtime as runtime_module
     import mathcraft_ocr.worker as worker_module
     import runtime.model_resources as models_module
@@ -176,7 +175,7 @@ def test_installed_worker_reports_model_integrity_without_downloading(
     from mathcraft_ocr.providers import ProviderInfo
 
     monkeypatch.setattr(
-        doctor_module,
+        runtime_module,
         "detect_providers",
         lambda **kwargs: ProviderInfo(
             ("CPUExecutionProvider",), "CPUExecutionProvider", "cpu", False, False

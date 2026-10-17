@@ -12,6 +12,10 @@ on:
 permissions:
   contents: read
 
+env:
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: utf-8
+
 concurrency:
   group: ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
@@ -36,6 +40,9 @@ jobs:
 
       - name: Byte-compile source tree
         run: python -m compileall -q src mathcraft_ocr
+
+      - name: Validate UTF-8 text boundaries
+        run: python test/test_source_encoding.py
 
       - name: Validate desktop distribution inputs
         run: python scripts/desktop_distribution.py sources
@@ -62,7 +69,7 @@ jobs:
               for path in sorted(root.rglob("*.py")):
                   if "deps" in path.parts:
                       continue
-                  text = path.read_text(encoding="utf-8", errors="replace")
+                  text = path.read_text(encoding="utf-8")
                   for token in tokenize.generate_tokens(io.StringIO(text).readline):
                       if token.type == tokenize.COMMENT and any(ord(ch) > 127 for ch in token.string):
                           violations.append(f"{path}:{token.start[0]} non-ASCII comment")

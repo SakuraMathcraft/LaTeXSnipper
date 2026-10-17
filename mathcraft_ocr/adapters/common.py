@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -40,16 +41,25 @@ def session_providers(
     return available
 
 
-def create_session(model_path: str | Path, provider_info: ProviderInfo):
+def create_session(
+    model_path: str | Path,
+    provider_info: ProviderInfo,
+    *,
+    model_transform: Callable[[Path], bytes] | None = None,
+):
     model_path = str(Path(model_path).resolve())
     provider_config = _freeze_provider_config(session_providers(provider_info))
-    session = _create_session_cached(model_path, provider_config)
+    session = _create_session_cached(model_path, provider_config, model_transform)
     enforce_session_provider(session, provider_info)
     return session
 
 
 @lru_cache(maxsize=16)
-def _create_session_cached(model_path: str, providers: tuple[ProviderConfig, ...]):
+def _create_session_cached(
+    model_path: str,
+    providers: tuple[ProviderConfig, ...],
+    model_transform: Callable[[Path], bytes] | None,
+):
     ort = _ort()
     configured = [
         (name, {key: value for key, value in options}) if options else name
@@ -62,7 +72,8 @@ def _create_session_cached(model_path: str, providers: tuple[ProviderConfig, ...
     session_options = _session_options(ort, providers)
     if session_options is not None:
         kwargs["sess_options"] = session_options
-    return ort.InferenceSession(model_path, **kwargs)
+    model = model_transform(Path(model_path)) if model_transform else model_path
+    return ort.InferenceSession(model, **kwargs)
 
 
 def _session_options(ort, providers: tuple[ProviderConfig, ...]):

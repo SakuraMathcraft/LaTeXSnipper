@@ -64,6 +64,7 @@ def build_inputs(target: str) -> dict[str, str]:
     application = list((ROOT / "src").rglob("*")) + list(
         (ROOT / "mathcraft_ocr").rglob("*.py")
     )
+    application.append(ROOT / "mathcraft_ocr/vendor/LICENSE.onnx")
     system = target.split("-")[0]
     requirements = {
         "windows": "requirements.txt",
@@ -383,7 +384,7 @@ def create_macos_bundle(layout: Path, manifest: DistributionManifest) -> Path:
 def package(args) -> None:
     system, architecture = current_target()
     target = f"{system}-{architecture}"
-    version = (ROOT / "VERSION").read_text().strip()
+    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
     release_tag = args.tag or f"v{version}"
     base_url = f"https://github.com/SakuraMathcraft/LaTeXSnipper/releases/download/{release_tag}"
     output = args.output.resolve()
@@ -539,7 +540,7 @@ def main() -> None:
                 lock=ROOT / "packaging/runtime/resources.lock.json",
             )
         )
-        version = (ROOT / "VERSION").read_text().strip()
+        version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
         tag = args.tag or f"v{version}"
         component = package_component(
             args.models / "payload",
@@ -560,7 +561,7 @@ def main() -> None:
     else:
         publish_catalog(
             args.output,
-            (ROOT / "VERSION").read_text().strip(),
+            (ROOT / "VERSION").read_text(encoding="utf-8").strip(),
             args.output / "desktop-release.json",
         )
 

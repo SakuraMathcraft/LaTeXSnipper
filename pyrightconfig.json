@@ -17,6 +17,7 @@
         "**/__pycache__",
         "build",
         "dist",
+        "mathcraft_ocr/vendor",
         ".venv"
     ],
     "executionEnvironments": [

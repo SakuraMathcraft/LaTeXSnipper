@@ -196,6 +196,7 @@ def _try_screenshot_cmd(
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
         )
 
         image = QImage(tmp_path)

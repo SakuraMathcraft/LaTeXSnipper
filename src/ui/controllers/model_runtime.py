@@ -53,58 +53,49 @@ class ModelRuntimeController(QObject):
         self._model_warmup_in_progress = False
         self._model_warmup_cancelled = False
         self._model_warmup_notice_shown = False
-        self._model_cache_repair_notice_shown = False
         self._model_warmup_callbacks = []
-        self._current_model = cfg.get("default_model", "mathcraft")
-        self._desired_model = cfg.get("desired_model", "mathcraft")
         self._sanitize_model_config()
-        self._current_model = self.preferred_model()
         self._model_warmup_result_signal.connect(self._apply_model_warmup_result)
         from backend.mathcraft.model import ModelWrapper
 
-        self.model = ModelWrapper("mathcraft", auto_warmup=False)
+        self.model = ModelWrapper(auto_warmup=False)
         self._warmup_thread = None
 
     def _sanitize_model_config(self):
         """Validate and normalize the supported model configuration."""
         try:
-            valid_models = {
-                "mathcraft",
-                "mathcraft_text",
-                "mathcraft_mixed",
-                "external_model",
-            }
-            default_model = (self.cfg.get("default_model", "") or "").lower()
-            desired_model = (self.cfg.get("desired_model", "") or "").lower()
-            changed = False
-            if default_model not in valid_models:
-                self.cfg.set("default_model", "mathcraft")
-                changed = True
-            if desired_model not in valid_models:
-                self.cfg.set("desired_model", "mathcraft")
-                changed = True
-            mode = (self.cfg.get("mathcraft_mode", "formula") or "formula").lower()
+            backend = (
+                str(self.cfg.get("recognition_backend", "mathcraft") or "")
+                .strip()
+                .lower()
+            )
+            if backend not in {"mathcraft", "external_model"}:
+                backend = "mathcraft"
+            mode = str(self.cfg.get("mathcraft_mode", "formula") or "").strip().lower()
             if mode not in ("formula", "mixed", "text"):
-                self.cfg.set("mathcraft_mode", "formula")
-                changed = True
+                mode = "formula"
+            values = {"recognition_backend": backend, "mathcraft_mode": mode}
             theme_mode = normalize_theme_mode(self.cfg.get("theme_mode", "auto"))
             if self.cfg.get("theme_mode", "auto") != theme_mode:
-                self.cfg.set("theme_mode", theme_mode)
-                changed = True
+                values["theme_mode"] = theme_mode
             external_defaults = load_config_from_mapping(self.cfg).to_mapping()
             for key, default in external_defaults.items():
-                current = self.cfg.get(key, None)
-                if current is None:
-                    self.cfg.set(key, default)
-                    changed = True
-            if changed:
+                if self.cfg.get(key) is None:
+                    values[key] = default
+            changes = {
+                key: value
+                for key, value in values.items()
+                if self.cfg.get(key) != value
+            }
+            if changes:
+                self.cfg.set_many(changes)
                 logger.debug("已校正当前模型配置")
         except Exception as e:
             logger.warning("模型配置校验失败: %s", e)
 
-    def preferred_model(self) -> str:
-        desired = (self.cfg.get("desired_model", "mathcraft") or "mathcraft").lower()
-        if desired == "external_model":
+    @property
+    def current_model(self) -> str:
+        if self.recognition_backend == "external_model":
             return "external_model"
         mode = (self.cfg.get("mathcraft_mode", "formula") or "formula").lower()
         mode_map = {
@@ -176,7 +167,7 @@ class ModelRuntimeController(QObject):
     def warmup_selected(self):
         if not self.model:
             return
-        preferred = self.preferred_model()
+        preferred = self.current_model
         if not preferred:
             return
         if preferred == "external_model":
@@ -195,14 +186,11 @@ class ModelRuntimeController(QObject):
         on_fail=None,
         announce_success: bool = False,
         success_message: str = "",
-        update_preference: bool = True,
     ):
         if self._model_warmup_cancelled or not self.model:
             return
-        preferred = (preferred_model or self.preferred_model() or "mathcraft").lower()
+        preferred = (preferred_model or self.current_model).lower()
         if self.model.is_model_ready(preferred):
-            if update_preference:
-                self.select_current(preferred)
             self.status_changed.emit(tr("已加载"))
             if callable(on_ready):
                 QTimer.singleShot(0, on_ready)
@@ -214,14 +202,6 @@ class ModelRuntimeController(QObject):
             return
         self._model_warmup_in_progress = True
         self._model_warmup_notice_shown = False
-        self._model_cache_repair_notice_shown = False
-        if update_preference:
-            self.select_current(preferred)
-        try:
-            if hasattr(self.model, "set_default_model"):
-                self.model.set_default_model(preferred)
-        except Exception:
-            pass
         self.status_changed.emit(tr("预热中"))
         if self._should_show_mathcraft_warmup_started_infobar(preferred):
             self._show_mathcraft_warmup_started_infobar()
@@ -272,7 +252,7 @@ class ModelRuntimeController(QObject):
         err = str(data.get("err", "") or "")
         announce_success = (
             bool(data.get("announce_success"))
-            and data.get("preferred") == self._current_model
+            and data.get("preferred") == self.current_model
         )
         success_message = str(data.get("success_message", "") or "")
         direct_on_ready = data.get("on_ready")
@@ -281,7 +261,7 @@ class ModelRuntimeController(QObject):
         callbacks = list(self._model_warmup_callbacks)
         self._model_warmup_callbacks.clear()
         if ok:
-            if self.model.is_model_ready(self._current_model):
+            if self.model.is_model_ready(self.current_model):
                 self.status_changed.emit(tr("已加载"))
             if not bool(self.cfg.get("mathcraft_warmup_notice_done", False)):
                 self.cfg.set("mathcraft_warmup_notice_done", True)
@@ -306,7 +286,7 @@ class ModelRuntimeController(QObject):
                 except Exception:
                     pass
             return
-        if data.get("preferred") == self._current_model:
+        if data.get("preferred") == self.current_model:
             self.status_changed.emit(tr("未就绪"))
         fail_info = data.get("failure_info") or classify_mathcraft_failure(err)
         if announce_success:
@@ -348,20 +328,17 @@ class ModelRuntimeController(QObject):
         )
         if m not in valid_modes:
             m = "mathcraft"
-        prev_model = str(getattr(self, "current_model", "") or "")
-        prev_desired = str(getattr(self, "desired_model", "") or "")
+        prev_model = self.current_model
         if m != prev_model and self.tasks.is_busy(source="mode_switch"):
             self.cancel_requested.emit()
         if m == prev_model:
-            if m == "external_model" and prev_desired == "external_model":
+            if m == "external_model":
                 self.status_changed.emit(self.external_status())
-                return
-            if m.startswith("mathcraft") and prev_desired == "mathcraft":
-                if self.model and self.model.is_model_ready(m):
-                    self.status_changed.emit(tr("已加载"))
-                else:
-                    self.status_changed.emit(tr("待识别时加载"))
-                return
+            elif self.model and self.model.is_model_ready(m):
+                self.status_changed.emit(tr("已加载"))
+            else:
+                self.status_changed.emit(tr("待识别时加载"))
+            return
         mode_names = {
             "mathcraft": tr("MathCraft 公式识别"),
             "mathcraft_text": tr("MathCraft 纯文字识别"),
@@ -376,35 +353,26 @@ class ModelRuntimeController(QObject):
             duration=3000,
             position=InfoBarPosition.TOP,
         )
-        self._current_model = m
-        self.cfg.set("default_model", m)
-        self._desired_model = "external_model" if m == "external_model" else "mathcraft"
-        self.cfg.set("desired_model", self._desired_model)
+        values = {
+            "recognition_backend": "external_model"
+            if m == "external_model"
+            else "mathcraft"
+        }
         if m.startswith("mathcraft"):
             mode_map = {
                 "mathcraft": "formula",
                 "mathcraft_mixed": "mixed",
                 "mathcraft_text": "text",
             }
-            self.cfg.set("mathcraft_mode", mode_map.get(m, "formula"))
+            values["mathcraft_mode"] = mode_map[m]
+        self.cfg.set_many(values)
         if m == "external_model":
             self.status_changed.emit(self.external_status())
-            self.selection_changed.emit()
-            return
-        if self.model:
-            if self.model.is_model_ready(m):
-                self.status_changed.emit(tr("已加载"))
-            else:
-                self.status_changed.emit(tr("预热中"))
+        elif self.model and self.model.is_model_ready(m):
+            self.status_changed.emit(tr("已加载"))
         else:
-            self.status_changed.emit(tr("预热中"))
+            self.status_changed.emit(tr("待识别时加载"))
         self.selection_changed.emit()
-        if m.startswith("mathcraft"):
-            if self.model and self.model.is_model_ready(m):
-                self.status_changed.emit(tr("已加载"))
-            else:
-                self.status_changed.emit(tr("待识别时加载"))
-            return
 
     def _mathcraft_profile_for_model(self, model_name: str | None) -> str:
         model = str(model_name or "mathcraft").strip().lower()
@@ -491,22 +459,9 @@ class ModelRuntimeController(QObject):
             thread.join()
         self._model_warmup_in_progress = False
 
-    def select_current(self, model):
-        self._current_model = model
-        self._desired_model = (
-            "external_model" if model == "external_model" else "mathcraft"
-        )
-        self.cfg.set("default_model", model)
-        self.cfg.set("desired_model", self._desired_model)
-        self.selection_changed.emit()
-
     @property
-    def current_model(self):
-        return self._current_model
-
-    @property
-    def desired_model(self):
-        return self._desired_model
+    def recognition_backend(self) -> str:
+        return self.cfg.get("recognition_backend", "mathcraft")
 
     @property
     def warming_up(self):

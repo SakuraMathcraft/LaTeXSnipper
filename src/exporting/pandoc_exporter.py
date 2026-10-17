@@ -110,6 +110,7 @@ def check_pandoc_available(*, force: bool = False) -> bool:
             [pandoc_path, "--version"],
             stderr=subprocess.STDOUT,
             text=True,
+            encoding="utf-8",
             timeout=10,
             **hidden_subprocess_kwargs(),
         )

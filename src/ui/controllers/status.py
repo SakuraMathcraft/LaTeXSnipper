@@ -9,7 +9,6 @@ if TYPE_CHECKING:
 
     from PyQt6.QtWidgets import QWidget
 
-    from runtime.config_manager import ConfigManager
     from ui.controllers.model_runtime import ModelRuntimeController
     from ui.main_window import MainWindow
 from typing import Literal
@@ -28,13 +27,11 @@ class StatusController(QObject):
     def __init__(
         self,
         view: MainWindow,
-        cfg: ConfigManager,
         models: ModelRuntimeController,
         notification_parent: Callable[[], QWidget],
     ):
         super().__init__(view)
         self.view = view
-        self.cfg = cfg
         self.models = models
         self.notification_parent = notification_parent
         self.model_status = tr("未加载")
@@ -55,16 +52,7 @@ class StatusController(QObject):
         return current
 
     def sync_model_status(self) -> None:
-        preferred = str(
-            self.models.preferred_model()
-            or getattr(self.models, "current_model", "mathcraft")
-            or "mathcraft"
-        ).strip()
-        self.models.select_current(preferred)
-        try:
-            self.cfg.set("default_model", preferred)
-        except Exception:
-            pass
+        preferred = self.models.current_model
         if preferred == "external_model":
             self.set_model_status(self.models.external_status())
             return

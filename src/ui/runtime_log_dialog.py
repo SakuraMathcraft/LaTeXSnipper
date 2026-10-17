@@ -134,7 +134,7 @@ class RuntimeLogDialog(QDialog):
 
     def _poll_file(self, _initial: bool = False):
         try:
-            with self._log_file.open("r", encoding="utf-8", errors="ignore") as f:
+            with self._log_file.open("r", encoding="utf-8") as f:
                 f.seek(self._pos)
                 chunk = f.read()
                 self._pos = f.tell()

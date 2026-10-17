@@ -492,7 +492,11 @@ def test_windows_private_file_acl_targets_only_current_sid(
 
     def run(command, **_kwargs):
         calls.append(command)
-        stdout = '"DESKTOP\\User","S-1-5-21-123"\n' if command[0] == "whoami" else ""
+        stdout = (
+            '"DESKTOP\\用户","S-1-5-21-123"\n'.encode("gbk")
+            if command[0] == "whoami"
+            else b""
+        )
         return types.SimpleNamespace(stdout=stdout)
 
     target = tmp_path / "secret.json"
@@ -520,7 +524,11 @@ def test_private_directory_acl_is_applied_once_per_process(
 
     def run(command, **_kwargs):
         calls.append(command)
-        stdout = '"DESKTOP\\User","S-1-5-21-123"\n' if command[0] == "whoami" else ""
+        stdout = (
+            '"DESKTOP\\用户","S-1-5-21-123"\n'.encode("gbk")
+            if command[0] == "whoami"
+            else b""
+        )
         return types.SimpleNamespace(stdout=stdout)
 
     target = tmp_path / "private"

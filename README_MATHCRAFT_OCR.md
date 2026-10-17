@@ -119,6 +119,8 @@ Each JSONL request must include `"protocol": 1` and a non-empty string `id`, for
 
 Responses include the same protocol and request ID, an `ok` flag, and either a `result` or an `error` object. Errors retain their exception type, message, and traceback.
 
+Worker input, output, and diagnostics use UTF-8 on every platform. Hosts must encode requests and decode responses as UTF-8; protocol data is decoded strictly so invalid bytes are reported instead of silently changing recognition text. CLI console output and exported text files also use UTF-8.
+
 ## Model Cache
 
 MathCraft reads models from a platform-specific default user data root:
@@ -169,6 +171,13 @@ Packaged desktop workers use only the installed model component and disable auto
 | `formula` | formula detector + formula recognizer | LaTeX string |
 | `text` | text detector + text recognizer | OCR text and text blocks |
 | `mixed` | formula detector + formula recognizer + text detector + text recognizer | Markdown-ready structured blocks |
+
+Each profile verifies its model files before initialization and reuses the
+initialized sessions and verified paths for subsequent recognition requests.
+`check_models()` and `mathcraft models check` always verify current file contents.
+Restart the process after replacing model resources to load the updated files.
+Formula decoder sessions expose only the last token's logits through an in-memory
+graph transformation; model files and weights on disk remain unchanged.
 
 ## Provider Selection
 

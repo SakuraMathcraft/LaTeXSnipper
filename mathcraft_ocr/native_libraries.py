@@ -5,7 +5,6 @@ from pathlib import Path
 
 def audit_private_gpu_libraries(native: Path) -> dict[str, str]:
     import os
-    from pathlib import Path
 
     native = Path(native).resolve()
     native_modules = {}
@@ -44,7 +43,7 @@ def audit_private_gpu_libraries(native: Path) -> dict[str, str]:
             if psapi.GetModuleFileNameExW(process, modules[index], buffer, len(buffer)):
                 paths.append(Path(buffer.value))
     else:
-        for line in Path("/proc/self/maps").read_text().splitlines():
+        for line in Path("/proc/self/maps").read_text(encoding="utf-8").splitlines():
             parts = line.split(maxsplit=5)
             if len(parts) == 6 and parts[5].startswith("/"):
                 paths.append(Path(parts[5]))
@@ -68,11 +67,12 @@ def audit_private_gpu_libraries(native: Path) -> dict[str, str]:
                 "libnvjitlink",
             )
         ):
-            if not path.resolve().is_relative_to(native.resolve()):
+            resolved = path.resolve()
+            if not resolved.is_relative_to(native):
                 raise RuntimeError(
                     "GPU runtime library loaded outside the component: " + str(path)
                 )
-            native_modules[path.name] = str(path.resolve())
+            native_modules[path.name] = str(resolved)
     if not native_modules:
         raise RuntimeError("No private GPU runtime libraries were observed")
     return native_modules

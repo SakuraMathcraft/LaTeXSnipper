@@ -77,7 +77,7 @@ def main() -> None:
     parser.add_argument("--archives", type=Path)
     parser.add_argument("--verify", action="store_true")
     args = parser.parse_args()
-    manifest = json.loads((HERE / "manifest.json").read_text())
+    manifest = json.loads((HERE / "manifest.json").read_text(encoding="utf-8"))
     files = {}
     if args.archives:
         for package in manifest["packages"]:
@@ -119,11 +119,13 @@ def main() -> None:
         for name, content in generated(manifest, files).items():
             (ASSETS / name).write_bytes(content)
         (HERE / "office.props").write_bytes(
-            office_props(json.loads((ASSETS / "resources.json").read_text()))
+            office_props(
+                json.loads((ASSETS / "resources.json").read_text(encoding="utf-8"))
+            )
         )
     elif not args.verify:
         parser.error("Specify --archives DIR or --verify")
-    resources = json.loads((ASSETS / "resources.json").read_text())
+    resources = json.loads((ASSETS / "resources.json").read_text(encoding="utf-8"))
     if (
         hashlib.sha256((HERE / "liteDOM.js").read_bytes()).hexdigest()
         != manifest["packages"][0]["testAdaptorSha256"]

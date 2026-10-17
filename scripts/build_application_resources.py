@@ -97,6 +97,10 @@ def assemble(args: argparse.Namespace) -> None:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source, target)
         shutil.copy2(ROOT / "LICENSE", staged / "worker/LICENSE")
+        shutil.copy2(
+            ROOT / "mathcraft_ocr/vendor/LICENSE.onnx",
+            package / "vendor/LICENSE.onnx",
+        )
         assemble_pandoc(lock, args.target, staged / "pandoc", args.cache)
         (staged / "worker").rename(application / "worker")
         (staged / "pandoc").rename(application / "pandoc")

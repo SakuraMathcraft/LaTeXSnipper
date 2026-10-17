@@ -111,7 +111,7 @@ class PdfRecognitionController(QObject):
             show_user_notice(tr("提示"), tr("请拖入或选择 PDF 文件。"), self.view)
             return
         recognition_model = resolve_document_recognition_model(
-            self.models.preferred_model()
+            self.models.current_model
         )
         if not self.models.model and recognition_model != EXTERNAL_MODEL:
             show_user_notice(tr("错误"), tr("模型未初始化"), self.view)

@@ -12,6 +12,7 @@ from PIL import Image
 
 from .common import create_session
 from .formula_inference import FormulaDecoder, encode_formula
+from .formula_model import last_token_decoder
 
 
 def _disable_transformers_framework_imports() -> None:
@@ -60,7 +61,7 @@ def warmup_formula_recognizer(model_dir: str | Path, provider_info) -> None:
     if not decoder.is_file():
         raise FileNotFoundError(f"missing decoder model under {root}")
     create_session(encoder, provider_info)
-    create_session(decoder, provider_info)
+    create_session(decoder, provider_info, model_transform=last_token_decoder)
 
 
 def _load_generation_ids(model_dir: Path, tokenizer) -> tuple[int, int | None]:
@@ -120,7 +121,9 @@ def recognize_formula_images(
     root = Path(model_dir)
     processor = _load_processor(str(root))
     encoder_session = create_session(root / "encoder_model.onnx", provider_info)
-    decoder_session = create_session(root / "decoder_model.onnx", provider_info)
+    decoder_session = create_session(
+        root / "decoder_model.onnx", provider_info, model_transform=last_token_decoder
+    )
 
     pil_images = [
         image if isinstance(image, Image.Image) else Image.fromarray(image)

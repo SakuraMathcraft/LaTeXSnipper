@@ -75,7 +75,7 @@ class MainWindow(QMainWindow):
             notice=lambda *a, **k: self.status.show_action_status(*a, **k),
             notification_parent=notification_parent,
         )
-        self.status = StatusController(self, self.cfg, self.models, notification_parent)
+        self.status = StatusController(self, self.models, notification_parent)
         self.preview = PreviewController(
             self, self.status, label_for=lambda text: self.history.label_for(text)
         )

@@ -42,13 +42,13 @@ class FormulaDecoder:
             )[0]
         else:
             self.binding.bind_cpu_input(self.input_name, input_ids)
-            # Prefix length changes every step, so an earlier output allocation
-            # cannot be reused for the new logits shape.
+            # Finished sequences change the active batch size. Let ORT allocate
+            # the output for the current batch rather than pin an earlier shape.
             self.binding.clear_binding_outputs()
             self.binding.bind_output(self.output_name, "cpu")
             self.session.run_with_iobinding(self.binding)
             logits = self.binding.get_outputs()[0].numpy()
-        return logits[:, -1, :]
+        return logits
 
     def retain(self, rows: list[int]) -> None:
         if len(rows) == self.batch_size:

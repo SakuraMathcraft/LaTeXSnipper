@@ -26,6 +26,7 @@ from .adapters.text_recognizer import (
 from .cache import (
     ModelCacheState,
     inspect_manifest_roots,
+    inspect_model_roots,
     resolve_model_roots,
     resolve_user_models_dir,
 )
@@ -65,7 +66,12 @@ from .profiles import (
     TEXT_DETECTOR_ID,
     TEXT_RECOGNIZER_ID,
 )
-from .providers import ProviderInfo, ProviderRequest, confirm_provider_device
+from .providers import (
+    ProviderInfo,
+    ProviderRequest,
+    confirm_provider_device,
+    detect_providers,
+)
 from .results import (
     Box4P,
     FormulaRecognitionResult,
@@ -88,6 +94,7 @@ class WarmupComponentStatus:
 class WarmupPlan:
     profile: str
     required_models: tuple[str, ...]
+    model_dirs: dict[str, Path]
     missing_models: tuple[str, ...]
     unsupported_models: tuple[str, ...]
     component_statuses: tuple[WarmupComponentStatus, ...]
@@ -142,10 +149,6 @@ class MathCraftRuntime:
             self.model_roots, self.manifest, include_optional=include_optional
         )
 
-    def _resolve_model_dir(self, model_id: str) -> Path:
-        states = self.check_models()
-        return states[model_id].model_dir
-
     def get_runtime_info(self) -> DoctorReport:
         return run_doctor(
             cache_dir=self.cache_dir,
@@ -185,7 +188,12 @@ class MathCraftRuntime:
         self,
         model_ids: tuple[str, ...],
     ) -> dict[str, ModelCacheState]:
-        states = self.check_models()
+        states = {
+            model_id: inspect_model_roots(
+                self.model_roots, self.manifest.models[model_id]
+            )
+            for model_id in model_ids
+        }
         broken_or_missing = [
             model_id
             for model_id in model_ids
@@ -215,11 +223,18 @@ class MathCraftRuntime:
                 f"model {model_id} downloaded to {self.cache_dir / model_id}"
             )
         self.clear_warmup_cache()
-        return self.check_models()
+        return {
+            model_id: inspect_model_roots(
+                self.model_roots, self.manifest.models[model_id]
+            )
+            if model_id in broken_or_missing
+            else state
+            for model_id, state in states.items()
+        }
 
     def _repair_model_cache(self, model_id: str):
         if not self.auto_download:
-            return self.check_models()[model_id]
+            return inspect_model_roots(self.model_roots, self.manifest.models[model_id])
         spec = self.manifest.models[model_id]
         self._record_cache_event(f"model {model_id} failed warmup, redownloading")
         download_model_archive(
@@ -232,7 +247,7 @@ class MathCraftRuntime:
             f"model {model_id} repaired to {self.cache_dir / model_id}"
         )
         self.clear_warmup_cache()
-        return self.check_models()[model_id]
+        return inspect_model_roots(self.model_roots, spec)
 
     @staticmethod
     def _looks_like_broken_model_error(exc: Exception) -> bool:
@@ -280,6 +295,7 @@ class MathCraftRuntime:
         text, score = self._recognize_formula_rgb(
             rgb,
             plan.provider_info,
+            model_dir=plan.model_dirs[FORMULA_RECOGNIZER_ID],
             max_new_tokens=max_new_tokens,
         )
         return FormulaRecognitionResult(
@@ -303,7 +319,7 @@ class MathCraftRuntime:
         bgr = rgb_to_bgr(rgb)
         detected_text_boxes, _scores = detect_text_boxes(
             bgr,
-            self._resolve_model_dir(TEXT_DETECTOR_ID),
+            plan.model_dirs[TEXT_DETECTOR_ID],
             plan.provider_info,
         )
         regions: list[OCRRegion] = []
@@ -320,7 +336,7 @@ class MathCraftRuntime:
             ]
             rec_results = recognize_pp_text_lines(
                 crops,
-                self._resolve_model_dir(TEXT_RECOGNIZER_ID),
+                plan.model_dirs[TEXT_RECOGNIZER_ID],
                 plan.provider_info,
                 rec_batch_num=self._rec_batch_num(plan.provider_info),
             )
@@ -368,7 +384,7 @@ class MathCraftRuntime:
         bgr = rgb_to_bgr(rgb)
         formula_boxes = detect_formula_boxes(
             rgb,
-            self._resolve_model_dir(FORMULA_DETECTOR_ID),
+            plan.model_dirs[FORMULA_DETECTOR_ID],
             plan.provider_info,
         )
         formula_boxes = tuple(
@@ -390,6 +406,7 @@ class MathCraftRuntime:
             formula_text, formula_score = self._recognize_formula_rgb(
                 rgb,
                 plan.provider_info,
+                model_dir=plan.model_dirs[FORMULA_RECOGNIZER_ID],
                 max_new_tokens=max_formula_new_tokens,
             )
             formula_block = MathCraftBlock(
@@ -418,7 +435,7 @@ class MathCraftRuntime:
 
         detected_text_boxes, _scores = detect_text_boxes(
             bgr,
-            self._resolve_model_dir(TEXT_DETECTOR_ID),
+            plan.model_dirs[TEXT_DETECTOR_ID],
             plan.provider_info,
         )
         text_regions: list[OCRRegion] = []
@@ -442,7 +459,7 @@ class MathCraftRuntime:
             ]
             rec_results = recognize_pp_text_lines(
                 crops,
-                self._resolve_model_dir(TEXT_RECOGNIZER_ID),
+                plan.model_dirs[TEXT_RECOGNIZER_ID],
                 plan.provider_info,
                 rec_batch_num=self._rec_batch_num(plan.provider_info),
             )
@@ -481,7 +498,7 @@ class MathCraftRuntime:
 
         formula_job_results = recognize_formula_images(
             [image for _index, _line_index, image in formula_jobs],
-            self._resolve_model_dir(FORMULA_RECOGNIZER_ID),
+            plan.model_dirs[FORMULA_RECOGNIZER_ID],
             plan.provider_info,
             max_new_tokens=max_formula_new_tokens,
         )
@@ -515,15 +532,20 @@ class MathCraftRuntime:
                 )
             )
         if not blocks:
-            formula = self.recognize_formula(rgb)
+            formula_text, formula_score = self._recognize_formula_rgb(
+                rgb,
+                plan.provider_info,
+                model_dir=plan.model_dirs[FORMULA_RECOGNIZER_ID],
+                max_new_tokens=max_formula_new_tokens,
+            )
             blocks.append(
                 MathCraftBlock(
                     kind="formula",
                     box=_full_image_box(rgb),
-                    text=formula.text,
-                    score=formula.score,
+                    text=formula_text,
+                    score=formula_score,
                     source="formula_fallback",
-                    confidence_flags=latex_quality_flags(formula.text),
+                    confidence_flags=latex_quality_flags(formula_text),
                 )
             )
         blocks = list(
@@ -544,9 +566,9 @@ class MathCraftRuntime:
         rgb,
         provider_info: ProviderInfo,
         *,
+        model_dir: Path,
         max_new_tokens: int,
     ) -> tuple[str, float]:
-        model_dir = self._resolve_model_dir(FORMULA_RECOGNIZER_ID)
         line_groups = split_formula_line_groups(rgb)
         if line_groups:
             flat_crops = [
@@ -606,9 +628,14 @@ class MathCraftRuntime:
         if cached and cached.ready and cached.required_models == model_ids:
             return cached
 
+        # Validate before loading a profile, not on every inference using its
+        # initialized sessions. Explicit model checks always inspect current bytes.
         self._cache_events = []
         states = self._ensure_selected_models(model_ids)
-        report = self.get_runtime_info()
+        model_dirs = {model_id: state.model_dir for model_id, state in states.items()}
+        provider_info = detect_providers(
+            prefer=self.provider_preference, providers=self.providers
+        )
         missing: list[str] = []
         unsupported: list[str] = []
         component_statuses: list[WarmupComponentStatus] = []
@@ -640,7 +667,7 @@ class MathCraftRuntime:
                 )
                 continue
             try:
-                handler(state.model_dir, report.provider_info)
+                handler(state.model_dir, provider_info)
                 component_statuses.append(
                     WarmupComponentStatus(model_id=model_id, ready=True, detail="ok")
                 )
@@ -648,7 +675,8 @@ class MathCraftRuntime:
                 if self._looks_like_broken_model_error(exc):
                     try:
                         repaired_state = self._repair_model_cache(model_id)
-                        handler(repaired_state.model_dir, report.provider_info)
+                        handler(repaired_state.model_dir, provider_info)
+                        model_dirs[model_id] = repaired_state.model_dir
                         component_statuses.append(
                             WarmupComponentStatus(
                                 model_id=model_id,
@@ -668,12 +696,12 @@ class MathCraftRuntime:
                         traceback="".join(traceback.format_exception(exc)),
                     )
                 )
-        provider_info = report.provider_info
         if any(item.ready for item in component_statuses):
             provider_info = confirm_provider_device(provider_info)
         plan = WarmupPlan(
             profile=profile,
             required_models=model_ids,
+            model_dirs=model_dirs,
             missing_models=tuple(missing),
             unsupported_models=tuple(unsupported),
             component_statuses=tuple(component_statuses),

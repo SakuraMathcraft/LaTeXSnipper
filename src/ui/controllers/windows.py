@@ -108,7 +108,7 @@ class WindowController(QObject):
             pass
 
     def open_handwriting_window(self):
-        preferred = self.models.preferred_model()
+        preferred = self.models.current_model
         handwriting_model = resolve_document_recognition_model(preferred)
         self.status.sync_model_status()
         if not self.models.model and handwriting_model != "external_model":
@@ -140,7 +140,7 @@ class WindowController(QObject):
 
     def _warmup_handwriting_model_async(self, model):
         if is_internal_document_model(model):
-            self.models.ensure_warmup(preferred_model=model, update_preference=False)
+            self.models.ensure_warmup(preferred_model=model)
 
     def show_window(self):
         self.system_provider.activate_window(self.view)

@@ -62,7 +62,7 @@ class SettingsLayoutMixin:
         root.addWidget(self.scroll_area)
         self._theme_mode_values = ["auto", "light", "dark"]
         self._ui_language_values = ["auto", "zh_CN", "en_US"]
-        lay.addWidget(QLabel(tr("选择识别模型:")))
+        lay.addWidget(QLabel(tr("识别后端:")))
         self.model_combo = ComboBox()
         self.model_combo.setFixedHeight(36)
         self._model_options = [

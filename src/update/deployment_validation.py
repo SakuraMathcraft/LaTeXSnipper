@@ -30,7 +30,6 @@ def validate_installed_worker(root: Path, manifest: DistributionManifest) -> Non
         capture_output=True,
         text=True,
         encoding="utf-8",
-        errors="replace",
         timeout=90,
         env=worker_environment(resources),
         **hidden_subprocess_kwargs(),
