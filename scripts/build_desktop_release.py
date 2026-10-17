@@ -401,8 +401,12 @@ def package(args) -> None:
         {"input": keys["application"], "component": application.to_dict()},
     )
     models = Component.from_dict(read_json(args.models / "models.component.json"))
-    if verify_component(args.models / "payload", models):
-        raise ManifestError("Common model artifact failed its inventory validation")
+    damaged_models = verify_component(args.models / "payload", models)
+    if damaged_models:
+        raise ManifestError(
+            "Common model artifact failed its inventory validation: "
+            + ", ".join(damaged_models)
+        )
     model_archive = args.models / Path(models.artifact.url).name
     if artifact(model_archive, base_url) != models.artifact:
         raise ManifestError("Common models do not belong to the current release")
