@@ -45,6 +45,7 @@ def inputs(tmp_path, monkeypatch):
         ("linux-x86_64", "requirements-linux.txt", {"application"}),
         ("macos-arm64", "requirements-macos.txt", {"application"}),
         ("windows-x86_64", "mathcraft_ocr/vendor/LICENSE.onnx", {"application"}),
+        ("windows-x86_64", "scripts/payload_pruning.py", {"application", "inference"}),
         (
             "macos-arm64",
             "packaging/macos/entitlements.plist",
@@ -73,6 +74,136 @@ def test_unrelated_platform_requirements_preserve_cached_components(inputs):
     before = build.build_inputs("windows-x86_64")
     (inputs / "requirements-macos.txt").write_text("changed", encoding="utf-8")
     assert build.build_inputs("windows-x86_64") == before
+
+
+@pytest.mark.parametrize(
+    ("library", "platform_plugin", "optional_libraries"),
+    [
+        ("bin/Qt6Core.dll", "qwindows.dll", ("bin/Qt6Pdf.dll",)),
+        (
+            "lib/libQt6Core.so.6",
+            "libqxcb.so",
+            ("lib/libQt6Pdf.so.6", "lib/libQt6Pdf.so.6.9.0"),
+        ),
+        (
+            "lib/QtCore.framework/Versions/A/QtCore",
+            "libqcocoa.dylib",
+            ("lib/QtPdf.framework/Versions/A/QtPdf", "lib/libQt6Pdf.dylib"),
+        ),
+    ],
+)
+def test_qt_pruning_retains_native_platform_and_webengine_payload(
+    tmp_path, library, platform_plugin, optional_libraries
+):
+    from payload_pruning import prune_qt_payload
+
+    qt = tmp_path / "PyQt6/Qt6"
+    retained = {
+        library,
+        f"plugins/platforms/{platform_plugin}",
+        "resources/qtwebengine_resources.pak",
+        "resources/icudtl.dat",
+        "translations/qtbase_zh_CN.qm",
+        "translations/qtwebengine_locales/en-US.pak",
+        "translations/qtwebengine_locales/zh-CN.pak",
+    }
+    optional = {
+        *optional_libraries,
+        "qml/QtQuick/qmldir",
+        "resources/qtwebengine_devtools_resources.pak",
+        "translations/qtbase_fr.qm",
+        "translations/qtwebengine_locales/fr.pak",
+    }
+    for relative in retained | optional:
+        path = qt / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(relative.encode("utf-8"))
+    prune_qt_payload(tmp_path)
+    assert {
+        p.relative_to(qt).as_posix() for p in qt.rglob("*") if p.is_file()
+    } == retained
+    for relative in retained:
+        assert (qt / relative).read_bytes() == relative.encode("utf-8")
+
+
+@pytest.mark.parametrize("standard", ("Lib", "lib/python3.11"))
+def test_inference_pruning_keeps_imports_native_libraries_and_metadata(
+    tmp_path, standard
+):
+    import csv
+
+    from payload_pruning import prune_runtime_payload
+
+    library = tmp_path / standard
+    site = library / "site-packages"
+    kept = {
+        "unittest/mock.py",
+        "ssl.py",
+        "ctypes/__init__.py",
+        "site-packages/cv2/__init__.py",
+        "site-packages/cv2/cv2.pyd",
+        "site-packages/cv2/data/__init__.py",
+        "site-packages/cv2/LICENSE.txt",
+        "site-packages/opencv_python.libs/libavcodec.so.1",
+        "site-packages/core/__init__.py",
+        "site-packages/core-1.dist-info/METADATA",
+    }
+    optional = {
+        "idlelib/main.py",
+        "ensurepip/_bundled/pip.whl",
+        "venv/__init__.py",
+        "tkinter/__init__.py",
+        "turtle.py",
+        "turtledemo/demo.py",
+        "test/test_os.py",
+        "lib-dynload/_tkinter.so",
+        "site-packages/pip/__init__.py",
+        "site-packages/cv2/opencv_videoio_ffmpeg4130_64.dll",
+        "site-packages/cv2/data/haarcascade_frontalface_default.xml",
+        "site-packages/cv2/qt/fonts/font.ttf",
+        "site-packages/cv2/samples/demo.py",
+    }
+    for relative in kept | optional:
+        path = library / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"fixture")
+    native = tmp_path / "native/runtime.dll"
+    native.parent.mkdir()
+    native.write_bytes(b"GPU runtime")
+    record = site / "core-1.dist-info/RECORD"
+    with record.open("w", encoding="utf-8", newline="") as stream:
+        csv.writer(stream).writerows(
+            (name, "", "")
+            for name in (
+                "core/__init__.py",
+                "cv2/opencv_videoio_ffmpeg4130_64.dll",
+                "core-1.dist-info/RECORD",
+            )
+        )
+    prune_runtime_payload(tmp_path)
+    assert {
+        p.relative_to(library).as_posix() for p in library.rglob("*") if p.is_file()
+    } == (kept | {"site-packages/core-1.dist-info/RECORD"})
+    with record.open(encoding="utf-8", newline="") as stream:
+        assert {row[0] for row in csv.reader(stream)} == {
+            "core/__init__.py",
+            "core-1.dist-info/RECORD",
+        }
+    assert native.read_bytes() == b"GPU runtime"
+
+
+def test_payload_pruning_refuses_paths_outside_staging(tmp_path):
+    from payload_pruning import remove_owned
+
+    owned = tmp_path / "staging"
+    owned.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    file = outside / "data"
+    file.write_bytes(b"preserve")
+    with pytest.raises(ValueError, match="escaped"):
+        remove_owned(outside, owned)
+    assert file.read_bytes() == b"preserve"
 
 
 def test_linux_application_package_owns_its_launchers_and_dependencies(

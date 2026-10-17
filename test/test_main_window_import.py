@@ -94,6 +94,9 @@ def test_main_window_controls_keep_configuration_and_preview_in_sync(
     monkeypatch.setattr(main_window_layout, "ensure_webengine_loaded", lambda: False)
     window = MainWindow()
     try:
+        assert (
+            window.results.coordinator is window.automation_api.recognition_coordinator
+        )
         window.preview.set_source("x+1", "mathcraft")
         window.history.add_named_record("x+1", "mathcraft", "sample")
         assert window.latex_editor.toPlainText() == "x+1"

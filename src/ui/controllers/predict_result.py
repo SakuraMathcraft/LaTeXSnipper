@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from PyQt6.QtWidgets import QSystemTrayIcon
 
     from platform_services.protocols import ISystemProvider
+    from recognition.jobs import RecognitionJobCoordinator
     from runtime.config_manager import ConfigManager
     from ui.controllers.editor_actions import EditorActionsController
     from ui.controllers.history import HistoryController
@@ -37,7 +38,11 @@ from recognition.error_messages import (
     CANCELED_WORKER_MESSAGE,
     recognition_failure_user_message,
 )
-from runtime.content_types import normalize_content_type
+from runtime.content_types import (
+    MIXED_CONTENT_TYPE,
+    TEXT_CONTENT_TYPE,
+    normalize_content_type,
+)
 from runtime.hotkey_config import display_hotkey, normalize_hotkey_or_default
 from runtime.webengine_runtime import ensure_webengine_loaded
 from ui.notifications import show_user_notice
@@ -60,6 +65,7 @@ class RecognitionResultController(QObject):
         status: StatusController,
         system_provider: ISystemProvider,
         tasks: RecognitionTaskController,
+        coordinator: RecognitionJobCoordinator,
         tray_icon: Callable[[], QSystemTrayIcon | None],
     ):
         super().__init__(view)
@@ -71,6 +77,7 @@ class RecognitionResultController(QObject):
         self.status = status
         self.system_provider = system_provider
         self.tasks = tasks
+        self.coordinator = coordinator
         self.tray_icon = tray_icon
         self._predict_result_dialog = None
         self._next_predict_result_screen_index = None
@@ -290,23 +297,21 @@ class RecognitionResultController(QObject):
         self, content: str, content_type: str, model_name: str, elapsed: float | None
     ):
         self.tasks.clear_cancellation()
-        coordinator = getattr(self, "coordinator", None)
-        if coordinator is not None:
-            normalized_type = normalize_content_type(content_type)
-            mode = (
-                "text"
-                if normalized_type == "text"
-                else "mixed"
-                if normalized_type == "markdown"
-                else "formula"
-            )
-            internal_models = {"mathcraft", "mathcraft_text", "mathcraft_mixed"}
-            backend = (
-                "mathcraft"
-                if str(model_name).strip().lower() in internal_models
-                else "external"
-            )
-            coordinator.publish_next_result(content, backend=backend, mode=mode)
+        normalized_type = normalize_content_type(content_type)
+        mode = (
+            "text"
+            if normalized_type == TEXT_CONTENT_TYPE
+            else "mixed"
+            if normalized_type == MIXED_CONTENT_TYPE
+            else "formula"
+        )
+        internal_models = {"mathcraft", "mathcraft_text", "mathcraft_mixed"}
+        backend = (
+            "mathcraft"
+            if str(model_name).strip().lower() in internal_models
+            else "external"
+        )
+        self.coordinator.publish_next_result(content, backend=backend, mode=mode)
         self.status.set_model_status(tr("完成"))
         self.status.set_action_status(tr("识别完成"), auto_clear_ms=3000)
         if elapsed is not None:
@@ -435,19 +440,15 @@ class RecognitionResultController(QObject):
         self._next_predict_result_screen_index = None
         canceled = self._is_user_cancelled_recognition_error(msg)
         content = self.failure_content(msg, external_model=external_model)
-        coordinator = getattr(self, "coordinator", None)
-        if coordinator is not None:
-            empty_codes = {
-                tr("未识别到公式内容"): "empty_formula",
-                tr("未识别到文本内容"): "empty_text",
-                tr("未检测到可识别内容"): "empty_content",
-            }
-            code = (
-                "canceled"
-                if canceled
-                else empty_codes.get(content, "recognition_failed")
-            )
-            coordinator.fail_next_result(content, code=code)
+        empty_codes = {
+            tr("未识别到公式内容"): "empty_formula",
+            tr("未识别到文本内容"): "empty_text",
+            tr("未检测到可识别内容"): "empty_content",
+        }
+        code = (
+            "canceled" if canceled else empty_codes.get(content, "recognition_failed")
+        )
+        self.coordinator.fail_next_result(content, code=code)
         if canceled:
             try:
                 logger.debug("识别已中断: %s", msg)

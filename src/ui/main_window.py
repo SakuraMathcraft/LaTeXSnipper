@@ -122,6 +122,7 @@ class MainWindow(QMainWindow):
             self.status,
             providers.system,
             self.tasks,
+            self.coordinator,
             tray_icon=lambda: self.tray.tray_icon,
         )
         self.recognition = ImageRecognitionController(

@@ -45,6 +45,8 @@
 
 发行来源、依赖和资源锁定在 `packaging/runtime/`。应用与推理组件分别计算输入指纹，覆盖源码、实际平台依赖和构建辅助脚本；缓存命中还必须通过载荷完整性校验。
 
+`scripts/payload_pruning.py` 统一维护三平台载荷裁剪：推理环境移除开发工具、交互式 Python/Tk 工具和 OpenCV 非识别资源，保留 `unittest` 等依赖可能导入的标准库。Windows 的独立 FFmpeg 视频插件可移除；Linux/macOS 保留 OpenCV 扩展直接链接的编解码及图形库。Qt 按相同模块清单处理 DLL、ELF、dylib 和 framework 布局，保留 WebEngine 核心资源及中英文本地化。GPU 私有运行库仍由原有白名单提取。裁剪后在目标平台执行导入、推理与应用原生验收。
+
 普通 CI 保留编译、发行输入、翻译、注释和 Office 构建检查。完整测试、类型检查及 Qt 实际渲染检查用于变更验证。
 
 开发检查使用启动应用的 Python：

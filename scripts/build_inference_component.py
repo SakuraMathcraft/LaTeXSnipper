@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import csv
 import fnmatch
 import json
 import os
@@ -20,6 +19,7 @@ sys.path[:0] = [str(ROOT), str(ROOT / "scripts"), str(ROOT / "src")]
 from distribution_archives import download_artifact  # noqa: E402
 from distribution_inputs import load_dependencies, load_sources  # noqa: E402
 from mathcraft_ocr.protocol import MODEL_FORMAT, WORKER_PROTOCOL  # noqa: E402
+from payload_pruning import prune_runtime_payload, remove_owned  # noqa: E402
 from runtime.component_archive import extract_archive  # noqa: E402
 from runtime.component_inventory import file_sha256, inventory_component  # noqa: E402
 from runtime.distribution_manifest import Artifact, ManifestError  # noqa: E402
@@ -110,17 +110,6 @@ def run_python(
 def pip_command(root: Path, pip_wheel: Path, arguments: list[str]) -> None:
     code = "import sys; sys.path.insert(0, sys.argv[1]); from pip._internal.cli.main import main; raise SystemExit(main(sys.argv[2:]))"
     run_python(root, code, [str(pip_wheel), *arguments])
-
-
-def remove_owned(path: Path, owner: Path) -> None:
-    if not path.exists() and not path.is_symlink():
-        return
-    if not path.resolve().is_relative_to(owner.resolve()):
-        raise ManifestError("Build cleanup escaped its staging directory")
-    if path.is_symlink() or path.is_file():
-        path.unlink()
-    else:
-        shutil.rmtree(path)
 
 
 def install_dependencies(
@@ -248,63 +237,6 @@ def deploy_native_libraries(
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, target)
         remove_owned(extracted, work)
-
-
-def prune_runtime_payload(root: Path) -> None:
-    sites = (
-        [root / "Lib/site-packages"]
-        if os.name == "nt"
-        else list((root / "lib").glob("python*/site-packages"))
-    )
-    for site in sites:
-        for path in site.iterdir():
-            if path.name in {
-                "pip",
-                "setuptools",
-                "wheel",
-                "pkg_resources",
-                "_distutils_hack",
-                "distutils-precedence.pth",
-            } or path.name.startswith(("pip-", "setuptools-", "wheel-")):
-                remove_owned(path, root)
-    scripts = root / ("Scripts" if os.name == "nt" else "bin")
-    if scripts.exists():
-        for path in scripts.iterdir():
-            if path.name not in {"python", "python3", "python3.11", "python.exe"}:
-                remove_owned(path, root)
-    for name in ("include", "libs", "tcl", "Tools", "Doc"):
-        remove_owned(root / name, root)
-    for site in sites:
-        # Desktop GPU inference selects CUDA; it does not ship TensorRT.
-        for path in (site / "onnxruntime/capi").glob("*providers_tensorrt*"):
-            remove_owned(path, root)
-        # OCR supplies its own model component; RapidOCR dictionaries stay in place.
-        for path in (site / "rapidocr/models").glob("*.onnx"):
-            remove_owned(path, root)
-        for path in list(site.rglob("tests")):
-            if path.is_dir():
-                remove_owned(path, root)
-        for extension in ("*.h", "*.hpp", "*.pxd", "*.pyi", "*.a", "*.lib", "*.o"):
-            for path in list(site.rglob(extension)):
-                remove_owned(path, root)
-    for path in list(root.rglob("direct_url.json")):
-        if path.parent.name.endswith(".dist-info"):
-            remove_owned(path, root)
-    for path in list(root.rglob("__pycache__")):
-        remove_owned(path, root)
-    for site in sites:
-        for record in site.glob("*.dist-info/RECORD"):
-            with record.open(encoding="utf-8", newline="") as stream:
-                rows = list(csv.reader(stream))
-            kept = [
-                row
-                for row in rows
-                if row
-                and (site / row[0]).resolve().is_relative_to(root.resolve())
-                and (site / row[0]).is_file()
-            ]
-            with record.open("w", encoding="utf-8", newline="") as stream:
-                csv.writer(stream).writerows(kept)
 
 
 def assemble(args: argparse.Namespace) -> None:

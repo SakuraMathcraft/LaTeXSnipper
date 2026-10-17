@@ -91,6 +91,7 @@ def build_inputs(target: str) -> dict[str, str]:
         ROOT / "scripts/build_desktop_resources.py",
         ROOT / "scripts/distribution_archives.py",
         ROOT / "scripts/distribution_inputs.py",
+        ROOT / "scripts/payload_pruning.py",
     ]
     if target.startswith("windows-"):
         application.append(ROOT / "scripts/normalize_windows_crt.ps1")
@@ -104,6 +105,7 @@ def build_inputs(target: str) -> dict[str, str]:
     inference = [
         ROOT / "packaging/runtime/dependencies.lock.json",
         ROOT / "scripts/build_inference_component.py",
+        ROOT / "scripts/payload_pruning.py",
         ROOT / "scripts/distribution_archives.py",
         ROOT / "scripts/distribution_inputs.py",
         ROOT / "mathcraft_ocr/protocol.py",

@@ -431,7 +431,7 @@ Make sure PyQtWebEngine is installed.</translation>
       <translation>ONNX Runtime resources are damaged or unavailable. Check and repair the inference component.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/predict_result.py" line="405" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="410" />
       <source>{content}
 可使用快捷键 {hotkey} 重试。</source>
       <translation>{content}
@@ -771,7 +771,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Internal images must use RGB format.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/predict_result.py" line="492" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="493" />
       <source>写入历史失败：{error}</source>
       <translation>Failed to write history: {error}</translation>
     </message>
@@ -890,7 +890,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Failed to enable: {message}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/predict_result.py" line="164" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="171" />
       <source>固定为小窗口并保持置顶，再点一次恢复可调整大小</source>
       <translation>Pin as a compact always-on-top window; click again to restore resizable mode</translation>
     </message>
@@ -999,7 +999,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Copy failed: {error}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/predict_result.py" line="484" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="485" />
       <source>复制失败：{error}</source>
       <translation>Copy failed: {error}</translation>
     </message>
@@ -1082,7 +1082,7 @@ Retry with the {hotkey} shortcut.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/controllers/pdf.py" line="374" />
-      <location filename="../../../src/ui/controllers/predict_result.py" line="458" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="459" />
       <source>失败</source>
       <translation>Failed</translation>
     </message>
@@ -1122,7 +1122,7 @@ Retry with the {hotkey} shortcut.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/controllers/pdf.py" line="338" />
-      <location filename="../../../src/ui/controllers/predict_result.py" line="310" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="315" />
       <source>完成</source>
       <translation>Done</translation>
     </message>
@@ -1218,8 +1218,8 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Screen-recording permission passed the preflight check, but neither Qt nor screencapture returned an image. This is not an OCR failure; check the capture area, display connection, and application log, then try again.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/predict_result.py" line="535" />
-      <location filename="../../../src/ui/controllers/predict_result.py" line="529" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="536" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="530" />
       <source>已中断</source>
       <translation>Canceled</translation>
     </message>
@@ -1229,7 +1229,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Document saved</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/predict_result.py" line="546" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="547" />
       <source>已停止当前识别任务，可重新截图或切换识别类型后再试。</source>
       <translation>The current recognition task was stopped. Capture again or switch recognition type and retry.</translation>
     </message>
@@ -1274,7 +1274,7 @@ Retry with the {hotkey} shortcut.</translation>
       <location filename="../../../src/handwriting/recognizer.py" line="70" />
       <location filename="../../../src/recognition/error_messages.py" line="9" />
       <location filename="../../../src/ui/controllers/pdf.py" line="307" />
-      <location filename="../../../src/ui/controllers/predict_result.py" line="528" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="529" />
       <source>已取消</source>
       <translation>Canceled</translation>
     </message>
@@ -1407,7 +1407,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Name cleared</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/predict_result.py" line="498" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="499" />
       <source>已确认并复制到剪贴板</source>
       <translation>Confirmed and copied to clipboard</translation>
     </message>
@@ -1802,8 +1802,8 @@ Retry with the {hotkey} shortcut.</translation>
       <location filename="../../../src/ui/controllers/pdf.py" line="123" />
       <location filename="../../../src/ui/controllers/pdf.py" line="356" />
       <location filename="../../../src/ui/controllers/pdf.py" line="179" />
-      <location filename="../../../src/ui/controllers/predict_result.py" line="510" />
-      <location filename="../../../src/ui/controllers/predict_result.py" line="517" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="511" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="518" />
       <location filename="../../../src/ui/controllers/recognition.py" line="139" />
       <location filename="../../../src/ui/controllers/status.py" line="110" />
       <location filename="../../../src/ui/favorites_window.py" line="358" />
@@ -2042,7 +2042,7 @@ Retry with the {hotkey} shortcut.</translation>
     </message>
     <message>
       <location filename="../../../src/recognition/error_messages.py" line="20" />
-      <location filename="../../../src/ui/controllers/predict_result.py" line="443" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="446" />
       <source>未检测到可识别内容</source>
       <translation>No recognizable content detected</translation>
     </message>
@@ -2053,13 +2053,13 @@ Retry with the {hotkey} shortcut.</translation>
     </message>
     <message>
       <location filename="../../../src/recognition/error_messages.py" line="21" />
-      <location filename="../../../src/ui/controllers/predict_result.py" line="441" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="444" />
       <source>未识别到公式内容</source>
       <translation>No formula content recognized</translation>
     </message>
     <message>
       <location filename="../../../src/recognition/error_messages.py" line="22" />
-      <location filename="../../../src/ui/controllers/predict_result.py" line="442" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="445" />
       <source>未识别到文本内容</source>
       <translation>No text content recognized</translation>
     </message>
@@ -2306,7 +2306,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Recognizing PDF...</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/predict_result.py" line="511" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="512" />
       <source>正在识别，请稍候</source>
       <translation>Recognition is in progress. Please wait.</translation>
     </message>
@@ -2525,18 +2525,18 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Confirm</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/predict_result.py" line="152" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="159" />
       <source>确认或修改公式：</source>
       <translation>Confirm or edit formula:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/predict_result.py" line="154" />
-      <location filename="../../../src/ui/controllers/predict_result.py" line="156" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="161" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="163" />
       <source>确认或修改内容：</source>
       <translation>Confirm or edit content:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/predict_result.py" line="153" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="160" />
       <source>确认或修改文本：</source>
       <translation>Confirm or edit text:</translation>
     </message>
@@ -2790,8 +2790,8 @@ Retry with the {hotkey} shortcut.</translation>
     </message>
     <message>
       <location filename="../../../src/handwriting/handwriting_window.py" line="585" />
-      <location filename="../../../src/ui/controllers/predict_result.py" line="423" />
-      <location filename="../../../src/ui/controllers/predict_result.py" line="404" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="428" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="409" />
       <source>识别失败</source>
       <translation>Recognition failed</translation>
     </message>
@@ -2806,7 +2806,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Recognition failed. Retry; if the issue persists, review the runtime log.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/predict_result.py" line="311" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="316" />
       <source>识别完成</source>
       <translation>Recognition completed</translation>
     </message>
@@ -2826,7 +2826,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Recognition display: Automatic</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/predict_result.py" line="545" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="546" />
       <source>识别已中断</source>
       <translation>Recognition canceled</translation>
     </message>
@@ -2854,8 +2854,8 @@ Retry with the {hotkey} shortcut.</translation>
       <location filename="../../../src/handwriting/recognizer.py" line="141" />
       <location filename="../../../src/recognition/error_messages.py" line="10" />
       <location filename="../../../src/ui/controllers/pdf.py" line="356" />
-      <location filename="../../../src/ui/controllers/predict_result.py" line="324" />
-      <location filename="../../../src/ui/controllers/predict_result.py" line="472" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="329" />
+      <location filename="../../../src/ui/controllers/predict_result.py" line="473" />
       <location filename="../../../src/ui/predict_result_dialog.py" line="187" />
       <source>识别结果为空</source>
       <translation>The recognition result is empty</translation>

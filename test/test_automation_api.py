@@ -598,8 +598,38 @@ def test_tls_initialization_failure_closes_the_bound_server(
         coordinator.stop()
 
 
-def test_next_result_idempotency_and_publication(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("content_type", "model_name", "backend", "mode"),
+    [
+        ("mathcraft", "mathcraft", "mathcraft", "formula"),
+        ("mathcraft_text", "mathcraft_text", "mathcraft", "text"),
+        ("mathcraft_mixed", "mathcraft_mixed", "mathcraft", "mixed"),
+        ("mathcraft_mixed", "external-model", "external", "mixed"),
+    ],
+)
+def test_next_result_idempotency_and_publication(
+    tmp_path: Path, monkeypatch, content_type, model_name, backend, mode
+) -> None:
+    from ui.controllers.predict_result import RecognitionResultController
+
     coordinator = RecognitionJobCoordinator(lambda _image, _mode: "ok")
+    controller = RecognitionResultController(
+        view=None,
+        cfg=None,
+        editor=None,
+        history=None,
+        models=None,
+        status=types.SimpleNamespace(
+            set_model_status=lambda *_args, **_kwargs: None,
+            set_action_status=lambda *_args, **_kwargs: None,
+        ),
+        system_provider=None,
+        tasks=types.SimpleNamespace(clear_cancellation=lambda: None),
+        coordinator=coordinator,
+        tray_icon=lambda: None,
+    )
+    monkeypatch.setattr(controller, "show_confirm_dialog", lambda *_args: None)
+    monkeypatch.setattr(controller, "_show_recognition_failure_notice", lambda *_: None)
     server = AutomationApiServer(
         coordinator,
         settings=AutomationApiSettings(port=0),
@@ -623,9 +653,30 @@ def test_next_result_idempotency_and_publication(tmp_path: Path) -> None:
         assert first[0] == second[0] == 202
         assert first[2]["job"]["id"] == second[2]["job"]["id"]
         assert first[2]["job"]["state"] == "awaiting_result"
-        assert coordinator.publish_next_result(
-            "x^2", backend="mathcraft", mode="formula"
+        upload_body, upload_type = _multipart({"mode": "text"}, [("image.png", _png())])
+        status, _, uploaded = _request(
+            server,
+            "POST",
+            "/api/v1/recognition/jobs",
+            body=upload_body,
+            headers={
+                "Authorization": "Bearer local",
+                "Content-Type": upload_type,
+                "Prefer": "wait=2",
+            },
         )
+        assert status == 200
+        assert uploaded["job"]["state"] == "completed"
+        assert uploaded["job"]["items"][0]["text"] == "ok"
+        status, _, waiting = _request(
+            server,
+            "GET",
+            f"/api/v1/recognition/jobs/{first[2]['job']['id']}",
+            headers={"Authorization": "Bearer local"},
+        )
+        assert status == 200
+        assert waiting["job"]["state"] == "awaiting_result"
+        controller.show_result("x^2 − α 中文", content_type, model_name, 0.1)
         status, _, completed = _request(
             server,
             "GET",
@@ -633,7 +684,29 @@ def test_next_result_idempotency_and_publication(tmp_path: Path) -> None:
             headers={"Authorization": "Bearer local"},
         )
         assert status == 200
-        assert completed["job"]["items"][0]["text"] == "x^2"
+        assert completed["job"]["state"] == "completed"
+        assert completed["job"]["backend"] == backend
+        assert completed["job"]["mode"] == mode
+        assert completed["job"]["items"][0]["text"] == "x^2 − α 中文"
+
+        status, _, waiting = _request(
+            server,
+            "POST",
+            "/api/v1/recognition/jobs",
+            body=body,
+            headers={**headers, "Idempotency-Key": "next-result-failure"},
+        )
+        assert status == 202
+        controller.show_failure("未识别到公式内容", "mathcraft", 0.1, False)
+        status, _, failed = _request(
+            server,
+            "GET",
+            f"/api/v1/recognition/jobs/{waiting['job']['id']}",
+            headers={"Authorization": "Bearer local"},
+        )
+        assert status == 200
+        assert failed["job"]["state"] == "failed"
+        assert failed["job"]["error"]["code"] == "empty_formula"
 
         invalid_body = json.dumps({"input": {"type": "unsupported"}}).encode()
         status, _, error = _request(
