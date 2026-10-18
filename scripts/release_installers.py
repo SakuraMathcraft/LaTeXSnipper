@@ -50,7 +50,15 @@ def linux_installer(layout: Path, output: Path, manifest: DistributionManifest) 
     carrier = layout.parent / f"linux-installer-{manifest.edition}"
     carrier.mkdir()
     payload = carrier / "payload"
-    shutil.copytree(layout, payload, symlinks=True, copy_function=link_or_copy)
+    payload.mkdir()
+    for component in manifest.components:
+        shutil.copytree(
+            layout / component.name,
+            payload / component.name,
+            symlinks=True,
+            copy_function=link_or_copy,
+        )
+    shutil.copy2(layout / "distribution.json", payload / "distribution.json")
     script = carrier / "install.sh"
     script.write_text(
         """#!/bin/sh
