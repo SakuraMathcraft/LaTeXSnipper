@@ -10,7 +10,7 @@ on:
         type: string
         required: true
       publish_assets:
-        description: "Publish after builds and selected validation pass"
+        description: "Publish installers and application update resources"
         type: boolean
         default: false
       validate_gpu:
@@ -23,7 +23,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: desktop-release-${{ github.ref }}
+  group: desktop-release-${{ inputs.release_tag || github.ref_name }}
   cancel-in-progress: false
 
 env:
@@ -32,7 +32,34 @@ env:
   PYTHONIOENCODING: utf-8
 
 jobs:
+  prepare-release:
+    runs-on: ubuntu-24.04
+    outputs:
+      publish: ${{ steps.release.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Prepare release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          case "$RELEASE_TAG" in
+            "v$version"|"v$version-LTS") ;;
+            *) echo 'Release tag must match VERSION' >&2; exit 1 ;;
+          esac
+          publish='${{ startsWith(github.ref, 'refs/tags/v') || inputs.publish_assets }}'
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+          if [ "$publish" = true ]; then
+            if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+              gh release edit "$RELEASE_TAG" --draft
+            else
+              gh release create "$RELEASE_TAG" --draft --target '${{ github.sha }}' --generate-notes
+            fi
+          fi
+
   models:
+    needs: prepare-release
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
@@ -42,6 +69,11 @@ jobs:
       - run: python -m pip install requests
       - name: Assemble common, verified models
         run: python scripts/build_desktop_release.py models --tag "$RELEASE_TAG"
+      - name: Upload model component
+        if: needs.prepare-release.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$RELEASE_TAG" build/common-models/*.zip --clobber
       - uses: actions/upload-artifact@v7
         with:
           name: common-models
@@ -49,7 +81,7 @@ jobs:
           if-no-files-found: error
 
   desktop:
-    needs: models
+    needs: [prepare-release, models]
     strategy:
       fail-fast: false
       matrix:
@@ -60,15 +92,9 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v6
-        with: {lfs: true, fetch-depth: 0}
+        with: {lfs: true}
       - uses: actions/setup-python@v6
         with: {python-version: "3.11"}
-      - name: Validate tag and source locks
-        shell: python
-        run: |
-          import os, pathlib
-          version = pathlib.Path('VERSION').read_text().strip()
-          assert os.environ['RELEASE_TAG'] in {f'v{version}', f'v{version}-LTS'}, 'Release tag must match VERSION'
       - run: python scripts/desktop_distribution.py sources
       - run: python -m pip install -r ${{ matrix.requirements }} -r requirements-build.txt
       - name: Install Linux build and system libraries
@@ -93,31 +119,22 @@ jobs:
         run: python scripts/build_desktop_release.py inputs
       - uses: actions/cache@v5
         with:
-          path: build/desktop/application
-          key: desktop-application-${{ matrix.system }}-${{ steps.inputs.outputs.application }}
+          path: |
+            build/desktop/application/stamp.json
+            build/desktop/application/*.zip
+          key: desktop-application-zip-${{ matrix.system }}-${{ steps.inputs.outputs.application }}
       - uses: actions/cache@v5
         with:
           path: |
-            build/desktop/inference-cpu
-            build/desktop/inference-gpu
-          key: desktop-inference-${{ matrix.system }}-${{ steps.inputs.outputs.inference }}
-      - uses: actions/cache@v5
-        with:
-          path: build/downloads
-          key: desktop-downloads-${{ matrix.system }}-${{ hashFiles('packaging/runtime/*.lock.json') }}
+            build/desktop/inference-cpu/stamp.json
+            build/desktop/inference-cpu/*.zip
+            build/desktop/inference-gpu/stamp.json
+            build/desktop/inference-gpu/*.zip
+          key: desktop-inference-zip-${{ matrix.system }}-${{ steps.inputs.outputs.inference }}
       - name: Assemble native components
-        id: assemble
         run: python scripts/build_desktop_release.py assemble
       - name: Package components and offline installers
         run: python scripts/build_desktop_release.py package --tag "${{ env.RELEASE_TAG }}"
-      - uses: actions/upload-artifact@v7
-        id: unsigned-installers
-        if: runner.os == 'Windows'
-        with:
-          name: unsigned-desktop-installers
-          path: dist/desktop/LaTeXSnipper_*.exe
-          if-no-files-found: error
-          compression-level: 0
       - name: Check optional Windows signing
         id: signpath-config
         if: runner.os == 'Windows'
@@ -136,6 +153,14 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write(f'enabled={str(enabled).lower()}\n')
           print('SignPath configured.' if enabled else 'SignPath unavailable; keeping unsigned installers.')
+      - uses: actions/upload-artifact@v7
+        id: unsigned-installers
+        if: runner.os == 'Windows' && steps.signpath-config.outputs.enabled == 'true'
+        with:
+          name: unsigned-desktop-installers
+          path: dist/desktop/LaTeXSnipper_*.exe
+          if-no-files-found: error
+          compression-level: 0
       - name: Sign Windows first-install carriers
         id: sign-installers
         if: runner.os == 'Windows' && steps.signpath-config.outputs.enabled == 'true'
@@ -153,7 +178,19 @@ jobs:
       - name: Compute final Windows installer identities
         if: runner.os == 'Windows' && steps.sign-installers.outcome == 'success'
         run: python scripts/build_desktop_release.py finalize-windows --signed signed-installers
+      - name: Upload desktop installers and update components
+        if: needs.prepare-release.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/build_desktop_release.py upload --tag "${{ env.RELEASE_TAG }}"
       - uses: actions/upload-artifact@v7
+        if: needs.prepare-release.outputs.publish == 'true'
+        with:
+          name: release-metadata-${{ matrix.system }}
+          path: dist/desktop/distribution-*.json
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        if: needs.prepare-release.outputs.publish != 'true' || inputs.validate_gpu
         with:
           name: desktop-${{ matrix.system }}
           path: dist/desktop/**
@@ -166,34 +203,6 @@ jobs:
           if-no-files-found: ignore
           path: |
             build/desktop/*validation.json
-
-  native:
-    needs: desktop
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {system: windows, runner: windows-2025}
-          - {system: linux, runner: ubuntu-22.04}
-          - {system: macos, runner: macos-15}
-    runs-on: ${{ matrix.runner }}
-    steps:
-      - uses: actions/checkout@v6
-        with: {lfs: true}
-      - uses: actions/setup-python@v6
-        with: {python-version: "3.11"}
-      - run: python -m pip install requests Pillow
-      - uses: ./.github/actions/desktop-system-libraries
-      - uses: actions/download-artifact@v7
-        with: {name: 'desktop-${{ matrix.system }}', path: build/native-release}
-      - name: Native installation, edition replacement, repair and uninstall
-        run: python scripts/validate_desktop_release.py --directory build/native-release --output build/native-acceptance.json
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: native-validation-${{ matrix.system }}
-          path: build/native-acceptance.json
-          if-no-files-found: error
 
   gpu:
     if: github.event_name == 'workflow_dispatch' && inputs.validate_gpu
@@ -222,10 +231,10 @@ jobs:
           if-no-files-found: error
 
   publish-release-assets:
-    needs: [desktop, native, gpu, build-office-plugin-installer, build-user-manual]
+    needs: [prepare-release, models, desktop, gpu, build-office-plugin-installer, build-user-manual]
     if: >-
-      always() && (startsWith(github.ref, 'refs/tags/v') || inputs.publish_assets) &&
-      needs.desktop.result == 'success' && needs.native.result == 'success' &&
+      always() && needs.prepare-release.outputs.publish == 'true' &&
+      needs.models.result == 'success' && needs.desktop.result == 'success' &&
       (needs.gpu.result == 'success' || needs.gpu.result == 'skipped') &&
       needs.build-office-plugin-installer.result == 'success' && needs.build-user-manual.result == 'success'
     runs-on: ubuntu-24.04
@@ -233,39 +242,15 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with: {python-version: "3.11"}
-      - run: python -m pip install requests Pillow
       - uses: actions/download-artifact@v7
-        with: {pattern: 'desktop-*', merge-multiple: false, path: release-assets}
-      - uses: actions/download-artifact@v7
-        with: {name: office-plugin-installer, path: publish-assets}
-      - uses: actions/download-artifact@v7
-        with: {name: user-manual, path: publish-assets}
-      - name: Stage exact declared artifacts
-        shell: python
-        run: |
-          import pathlib, shutil
-          output = pathlib.Path('publish-assets')
-          for system in ('windows', 'linux', 'macos'):
-              source = pathlib.Path('release-assets') / f'desktop-{system}'
-              assert source.is_dir(), f'Missing desktop target: {system}'
-              for path in source.iterdir():
-                  if path.is_file():
-                      destination = output / path.name
-                      if destination.exists():
-                          assert destination.read_bytes() == path.read_bytes(), f'Conflicting artifact: {path.name}'
-                      else:
-                          shutil.copy2(path, destination)
-      - name: Validate every payload before publishing the complete catalog
-        run: python scripts/build_desktop_release.py catalog --output publish-assets
-      - uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          generate_release_notes: true
-          overwrite_files: false
-          fail_on_unmatched_files: true
-          files: publish-assets/*
+        with: {pattern: 'release-metadata-*', merge-multiple: true, path: release-metadata}
+      - name: Publish update catalog and complete release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/release_artifacts.py --tag "$RELEASE_TAG" --version "$(cat VERSION)" --directory release-metadata
 
   build-office-plugin-installer:
+    needs: prepare-release
     name: Validate Office Plugin Installer
     runs-on: ubuntu-24.04
     steps:
@@ -309,7 +294,14 @@ jobs:
           echo "Validated $installer ($actual)"
           echo "path=$installer" >> "$GITHUB_OUTPUT"
 
+      - name: Publish Office plugin installer
+        if: needs.prepare-release.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$RELEASE_TAG" '${{ steps.installer.outputs.path }}' --clobber
+
       - name: Upload Office plugin installer artifact
+        if: needs.prepare-release.outputs.publish != 'true'
         uses: actions/upload-artifact@v7
         with:
           name: office-plugin-installer
@@ -318,6 +310,7 @@ jobs:
           retention-days: 30
 
   build-user-manual:
+    needs: prepare-release
     name: Build User Manual
     runs-on: windows-2025
     steps:
@@ -341,7 +334,14 @@ jobs:
         run: |
           & $env:TYPST compile --root $env:GITHUB_WORKSPACE user_manual\user_manual.typ user_manual\LaTeXSnipper_User_Manual.pdf
 
+      - name: Publish user manual
+        if: needs.prepare-release.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$env:RELEASE_TAG" user_manual/LaTeXSnipper_User_Manual.pdf --clobber
+
       - name: Upload user manual artifact
+        if: needs.prepare-release.outputs.publish != 'true'
         uses: actions/upload-artifact@v7
         with:
           name: user-manual

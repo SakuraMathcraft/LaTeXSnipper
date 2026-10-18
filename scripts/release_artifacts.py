@@ -1,14 +1,22 @@
-"""Package immutable resources and validate the bytes handed to a release."""
+"""Package and publish immutable desktop resources."""
 
+import argparse
+import json
 import stat
+import subprocess
+import sys
 import zipfile
 from argparse import Namespace
 from dataclasses import replace
 from pathlib import Path
 
-from desktop_distribution import build_component, write_json
-from runtime.component_inventory import file_sha256, inventory_component
-from runtime.distribution_manifest import (
+ROOT = Path(__file__).resolve().parents[1]
+sys.path[:0] = [str(ROOT / "scripts"), str(ROOT / "src")]
+
+from desktop_distribution import build_component, write_json  # noqa: E402
+from release_installers import link_or_copy  # noqa: E402
+from runtime.component_inventory import file_sha256, inventory_component  # noqa: E402
+from runtime.distribution_manifest import (  # noqa: E402
     Artifact,
     BundleSeal,
     Component,
@@ -20,6 +28,8 @@ from runtime.distribution_manifest import (
 
 
 def artifact(path: Path, base_url: str) -> Artifact:
+    if path.stat().st_size >= 2**31:
+        raise ManifestError(f"Release asset exceeds GitHub's 2 GiB limit: {path.name}")
     return Artifact(f"{base_url}/{path.name}", file_sha256(path), path.stat().st_size)
 
 
@@ -28,6 +38,16 @@ def package_component(
 ) -> Component:
     platform, architecture = target.split("-")
     from mathcraft_ocr.protocol import MODEL_FORMAT, WORKER_PROTOCOL
+
+    stamp = source.parent / "stamp.json"
+    if stamp.is_file():
+        component = Component.from_dict(read_json(stamp)["component"])
+        filename = component.artifact.url.rsplit("/", 1)[-1]
+        link_or_copy(source.parent / filename, output / filename)
+        return replace(
+            component,
+            artifact=replace(component.artifact, url=f"{base_url}/{filename}"),
+        )
 
     records_before = set(
         output.glob(f"{name}-{platform}-{architecture}-{variant}-*.zip.json")
@@ -49,7 +69,11 @@ def package_component(
     changed = records - records_before
     if len(changed) != 1:
         raise ManifestError("Component packaging requires a fresh output directory")
-    return Component.from_dict(read_json(changed.pop()))
+    component = Component.from_dict(read_json(changed.pop()))
+    filename = component.artifact.url.rsplit("/", 1)[-1]
+    if source.parent.resolve() != output.resolve():
+        link_or_copy(output / filename, source.parent / filename)
+    return component
 
 
 def package_bundle_seal(bundle: Path, output: Path, base_url: str) -> BundleSeal:
@@ -91,7 +115,7 @@ def package_bundle_seal(bundle: Path, output: Path, base_url: str) -> BundleSeal
     return BundleSeal(artifact(output, base_url), files)
 
 
-def publish_catalog(directory: Path, version: str, output: Path) -> None:
+def publish_catalog(directory: Path, version: str, output: Path) -> ReleaseCatalog:
     distributions = tuple(
         DistributionManifest.load(path)
         for path in sorted(directory.glob("distribution-*.json"))
@@ -108,36 +132,74 @@ def publish_catalog(directory: Path, version: str, output: Path) -> None:
         raise ManifestError(
             "Release does not contain all five declared desktop distributions"
         )
-    for distribution in distributions:
+    write_json(output, catalog.to_dict())
+    return catalog
+
+
+def publish_release(directory: Path, version: str, tag: str) -> None:
+    catalog_path = directory / "desktop-release.json"
+    catalog = publish_catalog(directory, version, catalog_path)
+    names = {
+        catalog_path.name,
+        f"LaTeXSnipperOffice_{version}_amd64.exe",
+        "LaTeXSnipper_User_Manual.pdf",
+    }
+    for distribution in catalog.distributions:
         resources = [component.artifact for component in distribution.components]
         if distribution.installer is None:
             raise ManifestError("Release is missing its installer")
         resources.append(distribution.installer)
         if distribution.bundle_seal:
             resources.append(distribution.bundle_seal.artifact)
-        for resource in resources:
-            if resource is None:
-                raise ManifestError("Release is missing a required artifact")
-            from urllib.parse import unquote, urlsplit
+        names.update(resource.url.rsplit("/", 1)[-1] for resource in resources)
+    subprocess.run(
+        ["gh", "release", "upload", tag, str(catalog_path), "--clobber"], check=True
+    )
+    assets = json.loads(
+        subprocess.check_output(
+            ["gh", "release", "view", tag, "--json", "assets"], encoding="utf-8"
+        )
+    )["assets"]
+    for asset in assets:
+        if asset["name"] not in names:
+            subprocess.run(
+                ["gh", "release", "delete-asset", tag, asset["name"], "--yes"],
+                check=True,
+            )
+    subprocess.run(
+        ["gh", "release", "edit", tag, "--draft=false", "--latest"], check=True
+    )
 
-            path = directory / unquote(urlsplit(resource.url).path.rsplit("/", 1)[-1])
-            if (
-                not path.is_file()
-                or path.stat().st_size != resource.size
-                or file_sha256(path) != resource.sha256
-            ):
-                raise ManifestError(
-                    f"Release payload failed final verification: {path.name}"
-                )
-    write_json(output, catalog.to_dict())
-    checksums = {
-        path.name: file_sha256(path)
-        for path in directory.iterdir()
-        if path.is_file() and path.suffix != ".json"
-    }
-    (directory / "SHA256SUMS.txt").write_text(
-        "".join(f"{digest}  {name}\n" for name, digest in sorted(checksums.items())),
-        encoding="utf-8",
+
+def upload_desktop_assets(directory: Path, tag: str) -> None:
+    from urllib.parse import unquote, urlsplit
+
+    resources = set()
+    for path in directory.glob("distribution-*.json"):
+        distribution = DistributionManifest.load(path)
+        if distribution.installer is None:
+            raise ManifestError("Release is missing its installer")
+        resources.add(distribution.installer)
+        resources.update(
+            component.artifact
+            for component in distribution.components
+            if component.name != "models"
+        )
+        if distribution.bundle_seal:
+            resources.add(distribution.bundle_seal.artifact)
+    paths = [
+        directory / unquote(urlsplit(resource.url).path.rsplit("/", 1)[-1])
+        for resource in sorted(resources, key=lambda item: item.url)
+    ]
+    if not paths:
+        raise ManifestError("No desktop release assets")
+    for path in paths:
+        if path.stat().st_size >= 2**31:
+            raise ManifestError(
+                f"Release asset exceeds GitHub's 2 GiB limit: {path.name}"
+            )
+    subprocess.run(
+        ["gh", "release", "upload", tag, "--clobber", *map(str, paths)], check=True
     )
 
 
@@ -156,3 +218,14 @@ def finalize_windows(directory: Path, signed: Path) -> None:
             distribution, installer=artifact(directory / filename, base_url)
         )
         write_json(path, distribution.to_dict())
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Complete a desktop release from build metadata"
+    )
+    parser.add_argument("--directory", type=Path, required=True)
+    parser.add_argument("--version", required=True)
+    parser.add_argument("--tag", required=True)
+    arguments = parser.parse_args()
+    publish_release(arguments.directory, arguments.version, arguments.tag)

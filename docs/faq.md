@@ -27,14 +27,14 @@ The main differences are platform integration details:
 | Window close / background behavior | Closing the main window hides it to the system tray; use the tray menu to exit. | Closing the main window hides it to the system tray when a tray is available; without a tray, the app asks before exiting. | Closing the main window minimizes it while the app keeps running; Dock/menu Quit exits the app. |
 | Permission model | No explicit screenshot permission is required for the normal capture path. | Wayland compositors can restrict global shortcuts or screenshot capture. | Screen Recording permission is required for screenshots. The native Carbon hotkey path normally does not require Accessibility permission. |
 | Inference runtime | Installed independent Python; CPU or NVIDIA GPU edition. | Installed independent Python; CPU or NVIDIA GPU edition. | Installed independent Python; Apple Silicon CPU edition. |
-| Packaging | Inno installer with optional SignPath signing. | Offline `.tar.gz` carrier installing dpkg-owned components on Debian/Ubuntu. | `.dmg` / `.app` with ad-hoc signing. |
+| Packaging | Inno installer with optional SignPath signing. | Offline `.tar.xz` carrier installing dpkg-owned components on Debian/Ubuntu. | `.dmg` / `.app` with ad-hoc signing. |
 
 The shortcut UI uses the platform's primary modifier: `Ctrl` on Windows/Linux and `Command` on macOS. macOS system and editing shortcuts such as `Command+Q`, `Command+H`, `Command+M`, `Command+W`, `Command+A`, `Command+C`, `Command+V`, `Command+X`, `Command+Z`, `Command+Space`, `Command+Tab`, and screenshot shortcuts are intentionally rejected; use an `Option+Command` combination when a plain Command shortcut is reserved.
 
 ## Which installer should I use?
 
 - Windows x86_64: choose the CPU or NVIDIA GPU `.exe` installer.
-- Debian/Ubuntu-compatible Linux x86_64: choose the CPU or NVIDIA GPU offline `.tar.gz`, extract it, and run `install.sh`.
+- Debian/Ubuntu-compatible Linux x86_64: choose the CPU or NVIDIA GPU offline `.tar.xz`, extract it, and run `install.sh`.
 - macOS 14.0 or later on Apple Silicon: use the CPU `.dmg`, copy the app to Applications, then launch that copy.
 
 Windows installers are unsigned unless optional SignPath signing succeeds.

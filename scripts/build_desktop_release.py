@@ -11,6 +11,7 @@ import shutil
 import sys
 import tempfile
 from argparse import Namespace
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
 
@@ -24,7 +25,7 @@ from release_artifacts import (  # noqa: E402
     finalize_windows,
     package_bundle_seal,
     package_component,
-    publish_catalog,
+    upload_desktop_assets,
 )
 from release_installers import (  # noqa: E402
     link_or_copy,
@@ -148,11 +149,15 @@ def cached_payload(work: Path, name: str, key: str) -> Path | None:
     if stamp.is_file():
         saved = read_json(stamp)
         component = Component.from_dict(saved["component"])
-        if saved["input"] != key or verify_component(directory / "payload", component):
+        archive = directory / component.artifact.url.rsplit("/", 1)[-1]
+        base_url = component.artifact.url.rsplit("/", 1)[0]
+        if saved["input"] != key or artifact(archive, base_url) != component.artifact:
             raise ManifestError(
                 f"Cached build failed its input or inventory check: {name}"
             )
-        return directory / "payload"
+        payload = directory / "payload"
+        extract_archive(archive, payload, component=component)
+        return payload
     if directory.exists():
         raise ManifestError(f"Incomplete cached build: {name}")
     return None
@@ -411,7 +416,8 @@ def package(args) -> None:
     if artifact(model_archive, base_url) != models.artifact:
         raise ManifestError("Common models do not belong to the current release")
     shutil.copy2(model_archive, output / model_archive.name)
-    for edition in ("cpu", "gpu") if system != "macos" else ("cpu",):
+
+    def package_edition(edition: str) -> None:
         source = work / f"inference-{edition}/payload"
         inference = package_component(
             source, output, "inference", target, edition, base_url
@@ -502,6 +508,10 @@ def package(args) -> None:
             manifest.to_dict(),
         )
 
+    editions = ("cpu", "gpu") if system != "macos" else ("cpu",)
+    with ThreadPoolExecutor(max_workers=len(editions)) as packagers:
+        list(packagers.map(package_edition, editions))
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -513,7 +523,7 @@ def main() -> None:
             "assemble",
             "package",
             "finalize-windows",
-            "catalog",
+            "upload",
         ),
     )
     parser.add_argument("--work", type=Path, default=ROOT / "build/desktop")
@@ -564,12 +574,8 @@ def main() -> None:
     elif args.command == "finalize-windows":
         validate_windows_signatures(args.signed)
         finalize_windows(args.output, args.signed)
-    else:
-        publish_catalog(
-            args.output,
-            (ROOT / "VERSION").read_text(encoding="utf-8").strip(),
-            args.output / "desktop-release.json",
-        )
+    elif args.command == "upload":
+        upload_desktop_assets(args.output, args.tag)
 
 
 if __name__ == "__main__":
