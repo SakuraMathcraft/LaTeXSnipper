@@ -69,7 +69,7 @@ printf 'Installed LaTeXSnipper. Start it from your application menu.\\n'
         output
         / f"LaTeXSnipper_{manifest.version}_linux_x86_64_{manifest.edition}.tar.gz"
     )
-    with tarfile.open(path, "w:gz") as archive:
+    with tarfile.open(path, "w:gz", compresslevel=1) as archive:
         archive.add(carrier, arcname="LaTeXSnipper")
     return path
 
@@ -89,6 +89,8 @@ def macos_installer(bundle: Path, output: Path, manifest: DistributionManifest) 
             "-srcfolder",
             staging,
             "-ov",
+            "-fs",
+            "APFS",
             "-format",
             "UDZO",
             path,

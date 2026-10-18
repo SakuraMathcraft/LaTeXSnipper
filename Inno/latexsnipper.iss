@@ -24,6 +24,7 @@ OutputDir={#MyOutputDir}
 OutputBaseFilename=LaTeXSnipper_{#MyAppVersion}_windows_x86_64_{#MyEdition}
 SetupIconFile={#MyRepoRoot}\src\assets\icon.ico
 Compression=lzma2
+LZMANumBlockThreads=2
 SolidCompression=yes
 WizardStyle=modern
 CloseApplications=yes
