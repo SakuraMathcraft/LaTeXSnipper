@@ -14,6 +14,11 @@ def validate_application(output: Path) -> None:
     from PyQt6.QtCore import QCoreApplication, QEvent
     from PyQt6.QtWidgets import QApplication
 
+    from runtime.webengine_runtime import ensure_webengine_loaded
+
+    if not ensure_webengine_loaded():
+        raise RuntimeError("Packaged Qt WebEngine runtime failed validation")
+
     from exporting import mathjax_converter
 
     application = QApplication.instance() or QApplication(

@@ -44,6 +44,7 @@ def prune_runtime_payload(root: Path) -> None:
         for path in (root / "lib").glob(pattern):
             remove_owned(path, root)
     remove_owned(root / "pythonw.exe", root)
+    remove_owned(root / "share/terminfo", root)
     for site in sites:
         for path in site.iterdir():
             if path.name in {
@@ -159,6 +160,11 @@ QT_OPTIONAL_PLUGINS = (
 
 def prune_qt_payload(dist_root: Path) -> None:
     """Apply the same optional-module policy to DLL, ELF and framework layouts."""
+    links = [
+        (path, path.resolve())
+        for path in dist_root.rglob("*")
+        if path.is_symlink() and path.exists()
+    ]
     for qt_root in (dist_root / "PyQt6/Qt6", dist_root / "Qt6"):
         if not qt_root.is_dir():
             continue
@@ -209,3 +215,6 @@ def prune_qt_payload(dist_root: Path) -> None:
                 f"{plugin.stem}.dylib",
             ):
                 remove_owned(directory / name, dist_root)
+    for path, target in links:
+        if path.is_symlink() and not target.exists():
+            remove_owned(path, dist_root)

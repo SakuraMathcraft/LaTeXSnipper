@@ -50,7 +50,15 @@ def linux_installer(layout: Path, output: Path, manifest: DistributionManifest) 
     carrier = layout.parent / f"linux-installer-{manifest.edition}"
     carrier.mkdir()
     payload = carrier / "payload"
-    shutil.copytree(layout, payload, symlinks=True, copy_function=link_or_copy)
+    payload.mkdir()
+    for component in manifest.components:
+        shutil.copytree(
+            layout / component.name,
+            payload / component.name,
+            symlinks=True,
+            copy_function=link_or_copy,
+        )
+    shutil.copy2(layout / "distribution.json", payload / "distribution.json")
     script = carrier / "install.sh"
     script.write_text(
         """#!/bin/sh
@@ -69,7 +77,7 @@ printf 'Installed LaTeXSnipper. Start it from your application menu.\\n'
         output
         / f"LaTeXSnipper_{manifest.version}_linux_x86_64_{manifest.edition}.tar.gz"
     )
-    with tarfile.open(path, "w:gz") as archive:
+    with tarfile.open(path, "w:gz", compresslevel=1) as archive:
         archive.add(carrier, arcname="LaTeXSnipper")
     return path
 
@@ -89,6 +97,8 @@ def macos_installer(bundle: Path, output: Path, manifest: DistributionManifest) 
             "-srcfolder",
             staging,
             "-ov",
+            "-fs",
+            "APFS",
             "-format",
             "UDZO",
             path,

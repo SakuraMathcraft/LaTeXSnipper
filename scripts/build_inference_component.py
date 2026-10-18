@@ -10,6 +10,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 from pathlib import Path
 
@@ -263,7 +264,10 @@ def assemble(args: argparse.Namespace) -> None:
     ) as temporary:
         work = Path(temporary)
         archive = download_artifact(Artifact.from_dict(config["python"]), cache)
-        extract_archive(archive, work / "python-source")
+        # Vendor Python carries POSIX case-sensitive names. Its SHA-256 is
+        # locked; the data filter confines extraction before payload pruning.
+        with tarfile.open(archive) as package:
+            package.extractall(work / "python-source", filter="data")
         python_root = work / "python-source/python"
         if not python_executable(python_root).is_file():
             raise ManifestError("Standalone Python archive has an unexpected layout")

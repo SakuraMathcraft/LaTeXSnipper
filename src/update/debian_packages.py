@@ -69,8 +69,16 @@ def build_package(
                 f"Description: LaTeXSnipper {component.name} resource component\n",
                 encoding="utf-8",
             )
+        # Transaction packages stay local; compression only adds install latency.
         result = subprocess.run(
-            ["dpkg-deb", "--root-owner-group", "--build", str(directory), str(output)],
+            [
+                "dpkg-deb",
+                "--root-owner-group",
+                "-Znone",
+                "--build",
+                str(directory),
+                str(output),
+            ],
             capture_output=True,
             text=True,
             encoding="utf-8",

@@ -67,6 +67,10 @@ def assemble_models(lock: dict, output: Path, cache: Path) -> None:
         Artifact.from_dict(lock["licenses"]["models"]), cache
     )
     shutil.copy2(license_source, output / "LICENSE")
+    # Shared model data must survive artifact transfer and be readable after install.
+    for path in output.rglob("*"):
+        if path.is_file():
+            path.chmod(0o644)
 
 
 def assemble_pandoc(lock: dict, target: str, output: Path, cache: Path) -> None:
@@ -91,6 +95,7 @@ def assemble_pandoc(lock: dict, target: str, output: Path, cache: Path) -> None:
         Artifact.from_dict(lock["licenses"]["pandoc"]), cache
     )
     shutil.copy2(license_source, output / "COPYING.md")
+    (output / "COPYING.md").chmod(0o644)
     host = {"win32": "windows", "linux": "linux", "darwin": "macos"}.get(sys.platform)
     if target.split("-")[0] != host:
         raise ManifestError("Pandoc must be verified on its target platform")
