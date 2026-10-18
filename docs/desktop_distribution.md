@@ -43,7 +43,7 @@
 
 ## 构建与验收
 
-发行来源、依赖和资源锁定在 `packaging/runtime/`。应用与推理组件分别计算输入指纹，覆盖源码、实际平台依赖和构建辅助脚本；缓存命中还必须通过载荷完整性校验。
+发行来源、依赖和资源锁定在 `packaging/runtime/`。应用与推理组件分别计算输入指纹，覆盖源码、实际平台依赖和构建辅助脚本。构建缓存保存组件 ZIP 与身份清单；命中后校验并解压到构建目录，打包时复用 ZIP。
 
 `scripts/payload_pruning.py` 统一维护三平台载荷裁剪：推理环境移除开发工具、交互式 Python/Tk 工具和 OpenCV 非识别资源，保留 `unittest` 等依赖可能导入的标准库。Windows 的独立 FFmpeg 视频插件可移除；Linux/macOS 保留 OpenCV 扩展直接链接的编解码及图形库。Qt 按相同模块清单处理 DLL、ELF、dylib 和 framework 布局，保留 WebEngine 核心资源及中英文本地化。GPU 私有运行库仍由原有白名单提取。裁剪后在目标平台执行导入、推理与应用原生验收。
 
@@ -64,6 +64,8 @@ Bandit 通过 `security` extra 提供，用于网络、文件及进程边界的�
 
 安装器只在 GitHub Actions 构建。Windows 默认生成未签名安装包；SignPath 配置完整时尝试签名，未配置或签名失败仍使用未签名产物。macOS 使用不需要开发者证书的本地 ad-hoc 签名，不要求 Apple 公证。
 
-常规构建使用 GitHub 托管 runner 完成装配与原生安装检查。CUDA 硬件验收仅在手动选择 `validate_gpu` 时使用自托管 runner；未选择时不阻塞构建或发布。平台系统调用的模拟测试不能替代原生安装与硬件测试。
+常规发布由各平台 runner 构建并直接上传安装包和更新组件。用户手册与 Office 安装包独立上传；最终任务仅汇总发行元数据并公开草稿，不重新下载载荷。发行页保留安装包、用户手册、`desktop-release.json`、组件 ZIP 和 macOS 签名资源；构建旁文件不公开。Linux 离线安装包使用 `.tar.xz`，发行资源须小于 GitHub 单文件 2 GiB 限制。
+
+完整安装、修复、版本类型替换和卸载验收使用 `scripts/validate_desktop_release.py` 单独运行，不作为每次发布的强制关卡。CUDA 硬件验收仅在手动选择 `validate_gpu` 时使用自托管 runner。平台系统调用的模拟测试不能替代原生安装与硬件测试。
 
 MathJax 原生检查入口为 `tools/mathjax/smoke_qt.py`，覆盖预览、字体和 SVG/MathML 转换。冻结应用验收还检查 PDF、XML、MathJax 转换与网络速度计所需模块。

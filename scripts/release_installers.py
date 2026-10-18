@@ -75,9 +75,9 @@ printf 'Installed LaTeXSnipper. Start it from your application menu.\\n'
     script.chmod(0o755)
     path = (
         output
-        / f"LaTeXSnipper_{manifest.version}_linux_x86_64_{manifest.edition}.tar.gz"
+        / f"LaTeXSnipper_{manifest.version}_linux_x86_64_{manifest.edition}.tar.xz"
     )
-    with tarfile.open(path, "w:gz", compresslevel=1) as archive:
+    with tarfile.open(path, "w:xz", preset=3) as archive:
         archive.add(carrier, arcname="LaTeXSnipper")
     return path
 
