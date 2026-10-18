@@ -20,6 +20,7 @@ public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime
     private readonly TaskCompletionSource<Form> _hostReady = new TaskCompletionSource<Form>();
     private readonly TaskCompletionSource<WebView2> _webViewReady = new TaskCompletionSource<WebView2>();
     private ApplicationContext? _applicationContext;
+    private Task? _coreInitialization;
     private bool _initialized;
     private bool _disposed;
 
@@ -56,14 +57,11 @@ public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime
 
         return RunOnUiThreadAsync(async webView =>
         {
-            string userDataFolder = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "LaTeXSnipper",
-                "OfficePlugin",
-                _hostName,
-                "MathJaxWebView2");
-            CoreWebView2Environment environment = await CoreWebView2Environment.CreateAsync(null, userDataFolder).ConfigureAwait(true);
-            await webView.EnsureCoreWebView2Async(environment).ConfigureAwait(true);
+            if (_coreInitialization == null || _coreInitialization.IsFaulted || _coreInitialization.IsCanceled)
+            {
+                _coreInitialization = InitializeCoreAsync(webView);
+            }
+            await _coreInitialization.ConfigureAwait(true);
             webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
             webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
             string mathJaxRoot = Path.GetDirectoryName(mathJaxBundlePath)!;
@@ -77,6 +75,18 @@ public sealed class WebView2MathJaxJavaScriptRuntime : IMathJaxJavaScriptRuntime
             await WaitForMathJaxStartupAsync(webView, cancellationToken).ConfigureAwait(true);
             _initialized = true;
         }, cancellationToken);
+    }
+
+    private async Task InitializeCoreAsync(WebView2 webView)
+    {
+        string userDataFolder = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "LaTeXSnipper",
+            "OfficePlugin",
+            _hostName,
+            "MathJaxWebView2");
+        CoreWebView2Environment environment = await CoreWebView2Environment.CreateAsync(null, userDataFolder).ConfigureAwait(true);
+        await webView.EnsureCoreWebView2Async(environment).ConfigureAwait(true);
     }
 
     public Task<string> EvaluateAsync(string script, CancellationToken cancellationToken)

@@ -21,7 +21,7 @@ public sealed partial class WordPluginController : IDisposable
     private readonly IWordFormulaOptionsProvider _optionsProvider;
     private readonly Func<WordPluginSettings> _settingsLoader;
     private readonly MathJaxSvgRenderer _mathJaxRenderer;
-    private readonly MathMlToOmmlConverter _ommlConverter;
+    private MathMlToOmmlConverter? _ommlConverter;
     private readonly OlePresentationPipeline _olePresentationPipeline;
     private readonly SemaphoreSlim _commandGate = new SemaphoreSlim(1, 1);
     private WordFormulaOptions? _pendingEditorInsertOptions;
@@ -75,7 +75,7 @@ public sealed partial class WordPluginController : IDisposable
         _automationClient = automationClient ?? throw new ArgumentNullException(nameof(automationClient));
         _wordAdapter = wordAdapter ?? throw new ArgumentNullException(nameof(wordAdapter));
         _mathJaxRenderer = mathJaxRenderer ?? throw new ArgumentNullException(nameof(mathJaxRenderer));
-        _ommlConverter = ommlConverter ?? new MathMlToOmmlConverter();
+        _ommlConverter = ommlConverter;
         _olePresentationPipeline = olePresentationPipeline ?? throw new ArgumentNullException(nameof(olePresentationPipeline));
         _statusSink = statusSink ?? NullWordStatusSink.Instance;
         _optionsProvider = optionsProvider ?? DefaultWordFormulaOptionsProvider.Instance;
@@ -450,8 +450,9 @@ public sealed partial class WordPluginController : IDisposable
         {
             _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("OmmlInsertingStatus"));
         }
+        MathMlToOmmlConverter converter = _ommlConverter ??= new MathMlToOmmlConverter();
         string mathMl = await _mathJaxRenderer.ConvertTypographyToMathMlAsync(renderedLatex, metadata.DisplayMode, metadata.Typography, cancellationToken);
-        string omml = OmmlTypographyMapper.Apply(_ommlConverter.Convert(mathMl), metadata.Typography);
+        string omml = OmmlTypographyMapper.Apply(converter.Convert(mathMl), metadata.Typography);
         string ooxml = WordOmmlDocumentBuilder.BuildFlatOpcDocument(omml, metadata, IsDisplay(metadata), settings.NumberPlacement);
         string? equationOoxml = includeEquationOoxml ? WordOmmlDocumentBuilder.BuildFlatOpcInlineEquationDocument(omml, metadata) : null;
         string? equationContentOoxml = includeEquationOoxml ? WordOmmlDocumentBuilder.BuildFlatOpcEquationContentDocument(omml) : null;
