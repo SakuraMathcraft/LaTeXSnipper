@@ -177,10 +177,7 @@ def test_staging_only_downloads_changed_component_and_preserves_live_files(
     application, archive = payload_component("application", b"new app")
     target = replace(
         distribution("4.0.0"),
-        components=tuple(
-            application if item.name == "application" else item
-            for item in installed.components
-        ),
+        application=application,
     )
     session = Session(Response(archive))
     monkeypatch.setattr("update.component_download.requests.Session", lambda: session)

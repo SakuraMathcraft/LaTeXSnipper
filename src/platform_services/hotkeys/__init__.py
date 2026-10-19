@@ -4,7 +4,7 @@ from typing import Any
 
 def _select_provider(platform: str) -> tuple[type[Any], type[Any] | None]:
     if platform == "win32":
-        from .qhotkey import GlobalHotkey, QHotkey
+        from .qhotkey_windows import GlobalHotkey, QHotkey
 
         return QHotkey, GlobalHotkey
     if platform == "darwin":

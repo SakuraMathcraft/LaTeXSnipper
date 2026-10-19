@@ -11,13 +11,7 @@ def hidden_subprocess_kwargs() -> dict:
     """Keep background subprocesses from opening console windows on Windows."""
     if os.name != "nt":
         return {}
-    startupinfo = subprocess.STARTUPINFO()
-    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    startupinfo.wShowWindow = subprocess.SW_HIDE
-    return {
-        "creationflags": subprocess.CREATE_NO_WINDOW,
-        "startupinfo": startupinfo,
-    }
+    return {"creationflags": subprocess.CREATE_NO_WINDOW}
 
 
 def independent_process_environment() -> dict[str, str]:

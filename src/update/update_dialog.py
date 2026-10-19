@@ -82,13 +82,13 @@ class ComponentUpdateDialog(QDialog):
             "source": tr(
                 "源码运行使用开发者环境，请通过源码更新；安装包可在发布页面获取。"
             ),
-            "checking": tr("正在检查发行组件，请稍候。"),
-            "downloading": tr("正在下载所需组件。"),
-            "verifying": tr("正在校验并暂存组件，当前安装仍可使用。"),
+            "checking": tr("正在检查应用更新，请稍候。"),
+            "downloading": tr("正在下载应用业务包。"),
+            "verifying": tr("正在校验并暂存业务包，当前安装仍可使用。"),
             "paused": tr("下载已暂停。"),
-            "ready": tr("组件已校验完成。安装时应用将退出并自动重新打开。"),
+            "ready": tr("业务包已校验完成。安装时应用将退出并自动重新打开。"),
             "handoff": tr("正在准备独立安装进程；如有系统权限提示，请完成授权。"),
-            "handoff-ready": tr("正在退出应用并安装已校验的组件。"),
+            "handoff-ready": tr("正在退出应用并安装已校验的业务包。"),
             "cancelled": tr("更新已取消，当前安装未改变。"),
             "failed": tr("更新失败：{error}").format(error=data.get("error", "")),
         }
@@ -111,30 +111,25 @@ class ComponentUpdateDialog(QDialog):
         if state == "available":
             release, plan, resources = data["release"], data["plan"], data["resources"]
             self._show_release_notes(release)
-            if (
-                not plan.downloads
-                and not plan.seal_required
-                and plan.target.version == resources.manifest.version
+            if plan.installer_required:
+                self.status.setText(
+                    tr(
+                        "此版本需要新的固定底座，请从发布页面下载并运行对应的完整安装包。"
+                    )
+                )
+                self.action.setEnabled(False)
+            elif (
+                not plan.downloads and plan.target.version == resources.manifest.version
             ):
-                self.status.setText(tr("当前发行组件已完整且为最新版本。"))
+                self.status.setText(tr("当前应用已是最新版本。"))
                 self.action.setEnabled(False)
             else:
-                names = {
-                    "application": tr("应用"),
-                    "inference": tr("推理环境"),
-                    "models": tr("模型"),
-                }
-                summary = ", ".join(names[item.name] for item in plan.downloads)
-                if plan.seal_required:
-                    summary = ", ".join(filter(None, (summary, tr("应用签名资源"))))
-                if not summary:
-                    summary = tr("发行信息")
                 self.status.setText(
                     tr(
                         "目标版本 {version}；需要更新：{components}；下载约 {size:.1f} MB。"
                     ).format(
                         version=plan.target.version,
-                        components=summary,
+                        components=tr("应用"),
                         size=plan.download_bytes / 1048576,
                     )
                 )

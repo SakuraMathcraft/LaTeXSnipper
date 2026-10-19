@@ -1,0 +1,7 @@
+{
+  "modules": ["PyQt6.QtCore", "PyQt6.QtGui", "PyQt6.QtWidgets", "PyQt6.QtWebEngineCore", "PyQt6.QtWebEngineWidgets", "PyQt6.sip"],
+  "packages": ["qfluentwidgets", "qframelesswindow", "PIL", "pymupdf", "fitz", "lxml", "packaging", "psutil", "pypandoc", "pyperclip", "requests", "charset_normalizer", "certifi", "urllib3", "idna"],
+  "windows": ["pythoncom", "pywintypes", "win32api", "win32con", "win32gui", "win32com.client", "win32comext.shell.shell", "win32comext.shell.shellcon", "win32timezone"],
+  "linux": ["jeepney.io.blocking", "dbus", "gi", "gi.repository.GLib", "gi.repository.GObject"],
+  "macos": []
+}

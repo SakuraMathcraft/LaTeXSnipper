@@ -51,18 +51,15 @@ def distribution(
     edition="cpu",
     protocol=1,
     application=b"original",
-    inference=b"original",
+    base_id="1" * 64,
 ):
     return DistributionManifest(
         version,
         "windows",
         "x86_64",
         edition,
-        (
-            component("application", application, protocol=protocol),
-            component("inference", inference, edition=edition, protocol=protocol),
-            component("models"),
-        ),
+        component("application", application, protocol=protocol),
+        base_id,
     )
 
 
@@ -70,7 +67,7 @@ def test_distribution_round_trip_and_content_identity():
     original = distribution()
     loaded = DistributionManifest.from_dict(json.loads(json.dumps(original.to_dict())))
     assert loaded == original
-    application = original.component("application")
+    application = original.application
     rehosted = replace(
         application,
         artifact=replace(
@@ -86,21 +83,15 @@ def test_business_update_skips_inference_and_models_across_versions():
     target = distribution("5.0.0", application=b"new application")
     plan = plan_component_update(installed, target)
     assert [item.name for item in plan.downloads] == ["application"]
-    assert plan.download_bytes == target.component("application").artifact.size
+    assert plan.download_bytes == target.application.artifact.size
 
 
-def test_protocol_change_updates_worker_without_redownloading_models():
+def test_fixed_base_change_requires_complete_installer():
     installed = distribution()
-    target = distribution("4.0.0", protocol=2)
+    target = distribution("4.0.0", base_id="2" * 64)
     plan = plan_component_update(installed, target)
-    assert {item.name for item in plan.downloads} == {"application", "inference"}
-
-
-def test_repair_downloads_damaged_component_at_same_version():
-    installed = distribution()
-    plan = plan_component_update(installed, installed, damaged_components=["models"])
-    assert [item.name for item in plan.downloads] == ["models"]
-    assert not plan_component_update(installed, installed).downloads
+    assert plan.installer_required
+    assert plan.download_bytes == 0
 
 
 @pytest.mark.parametrize(
@@ -110,10 +101,7 @@ def test_repair_downloads_damaged_component_at_same_version():
         replace(
             distribution(),
             platform="linux",
-            components=tuple(
-                component(name, platform="linux")
-                for name in ("application", "inference", "models")
-            ),
+            application=component("application", platform="linux"),
         ),
     ],
 )
@@ -128,24 +116,14 @@ def test_cache_identity_separates_cpu_and_gpu_payloads():
     assert cpu.cache_key != gpu.cache_key
 
 
-def test_incompatible_worker_combination_is_rejected():
-    components = (
-        component("application", protocol=2),
-        component("inference"),
-        component("models"),
-    )
-    with pytest.raises(ManifestError, match="Worker protocol"):
-        DistributionManifest("4.0.0", "windows", "x86_64", "cpu", components)
-
-
 def test_tampered_inventory_is_rejected_before_update_planning():
     data = distribution().to_dict()
-    data["components"][0]["files"][0]["sha256"] = "1" * 64
+    data["application"]["files"][0]["sha256"] = "1" * 64
     with pytest.raises(ManifestError, match="identity"):
         DistributionManifest.from_dict(data)
 
 
-@pytest.mark.parametrize("schema", [True, 0, 2, "1"])
+@pytest.mark.parametrize("schema", [True, 0, 1, "2"])
 def test_unsupported_protocol_schema_is_rejected(schema):
     data = distribution().to_dict()
     data["schema"] = schema

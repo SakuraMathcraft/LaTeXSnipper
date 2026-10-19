@@ -47,6 +47,9 @@ class HotkeyController(QObject):
         self.hotkey_provider = hotkey_provider
         self.status = status
         self.shortcut_window = None
+        self._pending_change: tuple[str, QDialog] | None = None
+        if hotkey_provider.registration_finished is not None:
+            hotkey_provider.registration_finished.connect(self._registration_finished)
 
     def register_hotkey(self, seq: str):
         if not getattr(self, "hotkey_provider", None):
@@ -55,6 +58,13 @@ class HotkeyController(QObject):
             self.hotkey_provider.register(seq)
         except Exception as e:
             logger.warning("全局快捷键注册失败: %s", e)
+            self._registration_finished(False, str(e))
+
+    def display_hotkey(self) -> str:
+        return self.hotkey_provider.shortcut_description or display_hotkey(
+            normalize_hotkey_or_default(self.cfg.get("hotkey", None), sys.platform),
+            sys.platform,
+        )
 
     def _blocking_window(self):
         app = QApplication.instance()
@@ -109,10 +119,7 @@ class HotkeyController(QObject):
         if self.shortcut_window:
             show_normal_window(self.shortcut_window)
             return
-        current_hotkey = display_hotkey(
-            normalize_hotkey_or_default(self.cfg.get("hotkey", None), sys.platform),
-            sys.platform,
-        )
+        current_hotkey = self.display_hotkey()
         dlg = create_hotkey_dialog(
             self.view,
             current_hotkey,
@@ -120,6 +127,7 @@ class HotkeyController(QObject):
             on_destroyed=lambda: setattr(self, "shortcut_window", None),
         )
         self.shortcut_window = dlg
+        dlg.destroyed.connect(lambda: self._cancel_pending_change(dlg))
         show_normal_window(dlg)
 
     def update_hotkey(self, text: str, dialog: QDialog):
@@ -135,13 +143,39 @@ class HotkeyController(QObject):
                 position=InfoBarPosition.TOP,
             )
             return
+        if self._pending_change is not None:
+            return
+        self._pending_change = normalized_hotkey, dialog
         self.register_hotkey(normalized_hotkey)
-        if getattr(self, "hotkey_provider", None) and (
-            not self.hotkey_provider.is_registered()
-        ):
+        if self._pending_change is not None:
+            InfoBar.info(
+                title=tr("提示"),
+                content=tr("正在注册全局快捷键；如有系统授权提示，请完成确认。"),
+                parent=dialog,
+                duration=4000,
+                position=InfoBarPosition.TOP,
+            )
+
+    def _cancel_pending_change(self, dialog: QDialog) -> None:
+        if self._pending_change is not None and self._pending_change[1] is dialog:
+            self._pending_change = None
+            self.hotkey_provider.cancel_registration()
+
+    def _registration_finished(self, ok: bool, error: str) -> None:
+        pending, self._pending_change = self._pending_change, None
+        if pending is None:
+            if not ok:
+                self.status.show_action_status(
+                    tr("全局快捷键不可用：{error}").format(error=error), level="warning"
+                )
+            self.changed.emit()
+            return
+        normalized_hotkey, dialog = pending
+        if not ok:
             InfoBar.error(
                 title=tr("快捷键注册失败"),
-                content=tr("请更换其他 {format} 组合后重试").format(
+                content=error
+                or tr("请更换其他 {format} 组合后重试").format(
                     format=localized_hotkey_help_text(sys.platform)
                 ),
                 parent=dialog,
@@ -156,9 +190,7 @@ class HotkeyController(QObject):
             pass
         InfoBar.success(
             title=tr("快捷键已更新"),
-            content=tr("已更新为 {hotkey}").format(
-                hotkey=display_hotkey(normalized_hotkey, sys.platform)
-            ),
+            content=tr("已更新为 {hotkey}").format(hotkey=self.display_hotkey()),
             parent=self.status.notification_parent(),
             duration=2500,
             position=InfoBarPosition.TOP,
@@ -166,6 +198,7 @@ class HotkeyController(QObject):
         self.changed.emit()
 
     def shutdown(self):
+        self._pending_change = None
         self.hotkey_provider.cleanup()
         if self.shortcut_window is not None:
             self.shortcut_window.close()

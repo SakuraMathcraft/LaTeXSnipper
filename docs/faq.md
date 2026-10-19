@@ -20,12 +20,12 @@ The main differences are platform integration details:
 
 | Area | Windows | Linux | macOS |
 |---|---|---|---|
-| Global screenshot hotkey | Native Win32 global hotkey. | `pynput` global hotkey; X11 is the most reliable path, while Wayland/compositor policy can block global shortcuts. | Native Carbon global hotkey. |
+| Global screenshot hotkey | Native Win32 global hotkey. | `pynput` on X11; GlobalShortcuts portal on Wayland when supported by the desktop. | Native Carbon global hotkey. |
 | User-configurable hotkeys | `Ctrl+letter` and `Ctrl+Shift+letter`. | `Ctrl+letter` and `Ctrl+Shift+letter`. | `Command+letter` / `Command+Shift+letter` for non-reserved keys; `Option+Command` variants are also supported. |
 | Default hotkey | `Ctrl+F`. | `Ctrl+F`. | `Command+F`. |
 | Screenshot capture | Qt overlay. | Qt overlay first, then optional CLI/portal fallbacks such as `grim`, `maim`, and `gnome-screenshot`. | Qt overlay with native `screencapture` fallback; macOS may ask for Screen Recording permission. |
-| Window close / background behavior | Closing the main window hides it to the system tray; use the tray menu to exit. | Closing the main window hides it to the system tray when a tray is available; without a tray, the app asks before exiting. | Closing the main window minimizes it while the app keeps running; Dock/menu Quit exits the app. |
-| Permission model | No explicit screenshot permission is required for the normal capture path. | Wayland compositors can restrict global shortcuts or screenshot capture. | Screen Recording permission is required for screenshots. The native Carbon hotkey path normally does not require Accessibility permission. |
+| Window close / background behavior | Closing the main window hides it to the system tray; use the tray menu to exit. | Closing the main window hides it to the system tray when a tray is available; without a tray, the app asks before exiting. | Closing the main window hides it while the app keeps running; reopen it from the Dock or menu bar, and use Quit or Command+Q to exit. |
+| Permission model | No explicit screenshot permission is required for the normal capture path. | Wayland global shortcuts require desktop authorization through the GlobalShortcuts portal; screenshot capture follows compositor policy. | Screen Recording permission is required for screenshots. The native Carbon hotkey path normally does not require Accessibility permission. |
 | Inference runtime | Installed independent Python; CPU or NVIDIA GPU edition. | Installed independent Python; CPU or NVIDIA GPU edition. | Installed independent Python; Apple Silicon CPU edition. |
 | Packaging | Inno installer with optional SignPath signing. | Offline `.tar.xz` carrier installing dpkg-owned components on Debian/Ubuntu. | `.dmg` / `.app` with ad-hoc signing. |
 
@@ -89,19 +89,13 @@ LaTeXSnipper Office integration is developed in the Windows-native `office_plugi
 
 ## Does LaTeXSnipper require an internet connection?
 
-Core editing and local recognition workflows are designed to work locally after a complete desktop installation. Some optional downloads, update checks, and model repairs require network access.
+Core editing and local recognition workflows are designed to work locally after a complete desktop installation. Business updates and source-mode model downloads require network access.
 
 ## Where are installation resources stored?
 
-The self-contained resource model separates `application`, `inference` and
-`models` components from user data. Installation metadata fixes the platform,
-architecture and CPU/GPU edition. The application component also owns Pandoc.
-The app does not offer interpreter or dependency-directory selection.
+The installation separates business files in `application/` from the fixed Python, Qt/WebEngine, Pandoc, MathJax, inference dependencies and model weights. Business updates reuse the fixed base. A release requiring a different base directs you to its complete installer. Installation resources are separate from user data; see the [storage map](user_data_storage.md).
 
-Source development uses the Python that starts the application and standard
-developer tooling for its packages. It can use Pandoc from PATH. The release workflow deploys independent inference Python on each supported
-platform. Windows uses its installation root, Linux uses dpkg-owned components
-and external installation metadata, and macOS rebuilds the entire signed app.
+Source development uses the Python that starts the application and Pandoc from PATH. Packaged applications use their bundled runtimes. Linux tracks files through dpkg; macOS keeps the fixed base in an independently signed nested bundle. See the [desktop distribution contract](desktop_distribution.md) for platform ownership.
 
 ## Where are logs stored?
 
@@ -114,8 +108,8 @@ If the app crashes, include `crash-native.log` when reporting the issue.
 ## Where are MathCraft OCR models stored?
 
 Packaged workers use only the installed model component. Missing or corrupt
-weights are reported as resource failures; **App updates** repairs the component
-in the installation. Source desktop workers use the platform default MathCraft
+weights are reported as resource failures; rerun the complete desktop installer
+to restore the installed base. Source desktop workers use the platform default MathCraft
 cache, which also serves the standalone library and CLI.
 Platform locations are documented in the
 [user data map](user_data_storage.md).
@@ -123,7 +117,7 @@ Platform locations are documented in the
 ## What should I do if MathCraft OCR does not start?
 
 Open **App diagnostics** and the runtime log. A packaged
-resource failure can be repaired through **App updates**. For source
+resource failure requires rerunning the complete desktop installer. For source
 development, check packages in the Python environment used to start the app.
 GPU failures report hardware, driver or private-runtime problems. Changing the
 installed CPU/GPU edition requires the matching installer; the app does not
@@ -140,6 +134,12 @@ LATEXSNIPPER_FORCE_LINUX_GRAPHICS_FALLBACKS=1 latexsnipper
 LATEXSNIPPER_DISABLE_LINUX_GRAPHICS_FALLBACKS=1 latexsnipper
 ```
 
+## Why does Wayland ask me to authorize a global shortcut?
+
+On Wayland, LaTeXSnipper registers its screenshot shortcut through the desktop's GlobalShortcuts portal. Complete the system authorization dialog; the desktop may assign a different combination, which LaTeXSnipper shows as the active shortcut. Cancelling a shortcut change keeps the previous authorized shortcut.
+
+The desktop must provide `org.freedesktop.portal.GlobalShortcuts`. If registration fails, check that `xdg-desktop-portal` and the portal backend for your desktop are installed and running. Unsupported desktop environments can still use the screenshot button, or an X11 session for global shortcuts. Root privileges are not required.
+
 ## Why does screenshot capture behave differently on Wayland?
 
 Wayland restricts application-level screen capture. LaTeXSnipper uses Qt capture first and can fall back to tools such as `grim`, `maim`, or `gnome-screenshot` when available. These system tools are installed by the user or distribution package manager, not by LaTeXSnipper.
@@ -148,7 +148,7 @@ Wayland restricts application-level screen capture. LaTeXSnipper uses Qt capture
 
 Pandoc is only needed for the optional desktop export formats: Word `.docx`, ODT `.odt`, PowerPoint `.pptx`, EPUB `.epub`, PDF `.pdf`, standalone HTML `.html`, Typst `.typ`, and plain text `.txt`. PDF export also requires a LaTeX PDF engine such as XeLaTeX, LuaLaTeX, or pdfLaTeX. Core recognition, editing, preview, handwriting, and built-in LaTeX/Markdown/MathML/HTML/SVG exports work without Pandoc.
 
-The self-contained application component owns the Pandoc binary. Source development uses PATH Pandoc. The app does not install or uninstall it separately, persist its path, or modify PATH. A missing packaged Pandoc is an installation resource failure.
+The fixed desktop runtime owns the Pandoc binary. Source development uses PATH Pandoc. The app does not install or uninstall it separately, persist its path, or modify PATH. If packaged Pandoc is missing, rerun the complete installer.
 
 ## How does PDF recognition work?
 
@@ -183,4 +183,4 @@ Issues without logs are usually not actionable.
 
 ## Which Python environment should contributors use?
 
-Use a supported Python environment of your choice (venv, Conda, uv, or another manager). Activate it for development and checks, and select the same interpreter in your IDE. No repository-specific environment path is required. Desktop installers are built by `.github/workflows/release.yml`, which assembles application, inference and model components from the declared build inputs. See the [desktop distribution architecture](desktop_distribution.md) for component ownership and build checks.
+Use a supported Python environment of your choice (venv, Conda, uv, or another manager). Activate it for development and checks, and select the same interpreter in your IDE. No repository-specific environment path is required. Desktop installers are built by `.github/workflows/release.yml`, which builds the business payload and assembles offline installers from persistent fixed-resource artifacts. See the [desktop distribution architecture](desktop_distribution.md) for component ownership and build checks.

@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from runtime.distribution_manifest import Component, ManifestError
+from runtime.distribution_manifest import ManifestError
 from runtime.installation_layout import linux_prefix
 from runtime.processes import independent_process_environment
 
@@ -17,16 +17,14 @@ def package_name(name: str) -> str:
     return "latexsnipper" if name == "application" else f"latexsnipper-{name}"
 
 
-def build_package(
-    source: Path, component: Component, output: Path, *, integration: Path | None = None
-) -> None:
+def build_package(source: Path, name: str, identity: str, output: Path) -> None:
     """No dependency resolution or network is involved in packaging the payload."""
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(
         prefix="debian-component-", dir=output.parent
     ) as temporary:
         directory = Path(temporary)
-        payload = directory / "usr/lib/latexsnipper" / component.name
+        payload = directory / "usr/lib/latexsnipper" / name
         payload.parent.mkdir(parents=True)
         if source.is_symlink():
             raise ManifestError(
@@ -43,10 +41,8 @@ def build_package(
 
             shutil.copytree(source, payload, symlinks=True, copy_function=link_or_copy)
         control = directory / "DEBIAN"
-        if component.name == "application":
-            integration = (
-                integration if integration is not None else source / "linux-integration"
-            )
+        if name == "application":
+            integration = source / "linux-integration"
             if not integration.is_dir():
                 raise ManifestError(
                     "Application component lacks its owned Linux package integration"
@@ -54,19 +50,16 @@ def build_package(
             shutil.copytree(integration, directory, dirs_exist_ok=True, symlinks=True)
             control_path = control / "control"
             text = control_path.read_text(encoding="utf-8").replace(
-                "Version: 0.0.0", f"Version: 0+{component.content_sha256}"
+                "Version: 0.0.0", f"Version: 0+{identity}"
             )
             control_path.write_text(text, encoding="utf-8")
         else:
             control.mkdir()
-            architecture = {"x86_64": "amd64", "arm64": "arm64", "any": "all"}[
-                component.architecture
-            ]
             (control / "control").write_text(
-                f"Package: {package_name(component.name)}\nVersion: 0+{component.content_sha256}\n"
-                f"Architecture: {architecture}\nMaintainer: MathCraft\nSection: utils\nPriority: optional\n"
+                f"Package: {package_name(name)}\nVersion: 0+{identity}\n"
+                f"Architecture: amd64\nMaintainer: MathCraft\nSection: utils\nPriority: optional\n"
                 "Depends: latexsnipper\n"
-                f"Description: LaTeXSnipper {component.name} resource component\n",
+                f"Description: LaTeXSnipper {name} resource component\n",
                 encoding="utf-8",
             )
         # Transaction packages stay local; compression only adds install latency.

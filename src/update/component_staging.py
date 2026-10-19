@@ -10,7 +10,6 @@ from collections.abc import Callable
 from pathlib import Path
 
 from runtime.component_archive import extract_archive
-from runtime.component_inventory import verify_component
 from runtime.distribution_manifest import DistributionManifest, ManifestError
 from runtime.installation_layout import installation_manifest
 from runtime.installed_resources import current_target
@@ -44,19 +43,11 @@ def prepare_components(
         raise ManifestError(
             "Component staging must be fresh and separate from installation and cache"
         )
-    damaged = [
-        item.name
-        for item in installed.components
-        if verify_component(installed_root / item.name, item)
-    ]
-    damaged_bundle = False
-    if target.platform == "macos":
-        from update.macos_transaction import bundle_is_damaged
-
-        damaged_bundle = bundle_is_damaged(installed_root)
-    plan = plan_component_update(
-        installed, target, damaged_components=damaged, damaged_bundle=damaged_bundle
-    )
+    plan = plan_component_update(installed, target)
+    if plan.installer_required:
+        raise ManifestError(
+            "Fixed base changed; install the complete desktop installer"
+        )
     output.parent.mkdir(parents=True, exist_ok=True)
     required = sum(record.size for item in plan.downloads for record in item.files)
     if shutil.disk_usage(output.parent).free < required:
@@ -87,24 +78,6 @@ def prepare_components(
             if status:
                 status("verifying", component.name)
             extract_archive(archive, staging / component.name, component=component)
-        if plan.seal_required:
-            seal = target.bundle_seal
-            if seal is None:
-                raise ManifestError("Missing signed macOS bundle resources")
-            if status:
-                status("downloading", "bundle-seal")
-            archive = download_component(
-                seal.artifact,
-                cache,
-                control=control,
-                progress=lambda done, total: (
-                    progress("bundle-seal", done, total) if progress else None
-                ),
-            )
-            control.checkpoint()
-            if status:
-                status("verifying", "bundle-seal")
-            extract_archive(archive, staging / ".bundle-seal", component=seal)
         control.checkpoint()
         manifest = staging / "distribution.json"
         with manifest.open("w", encoding="utf-8", newline="\n") as stream:

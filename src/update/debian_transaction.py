@@ -17,65 +17,58 @@ class DebianDeploymentTransaction(DeploymentTransaction):
 
     def _rollback(self, state: dict) -> None:
         self._save(state, "rolling-back")
-        packages = [
-            self.directory / "backup" / f"{name}.deb" for name in state["replacements"]
-        ]
-        if state["before"] is None:
-            purge_packages(self.root, state["replacements"])
-        else:
-            install_packages(self.root, packages)
+        original = [name for name in state["replacements"] if state["present"][name]]
+        missing = [name for name in state["replacements"] if not state["present"][name]]
+        purge_packages(self.root, missing)
+        install_packages(
+            self.root, [self.directory / "backup" / f"{name}.deb" for name in original]
+        )
         self._restore_identity(state)
 
     def _prepare(self, staged, before, target, replacements) -> dict:
-        incoming_bytes = sum(
-            record.size for component in replacements for record in component.files
-        )
-        backup_bytes = (
-            sum(
-                record.size
-                for component in replacements
-                for record in before.component(component.name).files
-            )
-            if before
-            else 0
-        )
         required = (
-            max(incoming_bytes * 2, incoming_bytes + backup_bytes) + 8 * 1024 * 1024
+            sum(
+                path.stat().st_size
+                for name in replacements
+                for path in (staged / name).rglob("*")
+                if path.is_file()
+            )
+            * 3
         )
         if shutil.disk_usage(self.root).free < required:
-            raise OSError(
-                "Insufficient space for component packages and failure recovery"
-            )
+            raise OSError("Insufficient space for packages and failure recovery")
         (self.directory / "incoming").mkdir()
         (self.directory / "backup").mkdir()
-        for component in replacements:
-            build_package(
-                staged / component.name,
-                component,
-                self.directory / "incoming" / f"{component.name}.deb",
+        for name in replacements:
+            identity = (
+                target.application.content_sha256
+                if name == "application"
+                else target.base_id
             )
-            if before is not None:
-                previous = before.component(component.name)
-                integration = None
-                if (
-                    component.name == "application"
-                    and previous.content_sha256 == component.content_sha256
-                ):
-                    # A same-content repair can rebuild package metadata from its
-                    # verified payload even when the installed copy is damaged.
-                    integration = staged / component.name / "linux-integration"
+            build_package(
+                staged / name,
+                name,
+                identity,
+                self.directory / "incoming" / f"{name}.deb",
+            )
+            if (self.root / name).is_dir():
+                identity = (
+                    before.application.content_sha256
+                    if before is not None and name == "application"
+                    else before.base_id
+                    if before is not None
+                    else "0" * 64
+                )
                 build_package(
-                    self.root / component.name,
-                    previous,
-                    self.directory / "backup" / f"{component.name}.deb",
-                    integration=integration,
+                    self.root / name,
+                    name,
+                    identity,
+                    self.directory / "backup" / f"{name}.deb",
                 )
         return {}
 
     def _install(self, state, checkpoint):
         names = state["replacements"]
-        for name in names:
-            self._remove(self.root / name)
         install_packages(
             self.root,
             [self.directory / "incoming" / f"{name}.deb" for name in names],

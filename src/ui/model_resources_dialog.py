@@ -28,7 +28,7 @@ class ModelResourcesDialog(QDialog):
         self.setWindowTitle(tr("模型资源"))
         self.resize(720, 480)
         layout = QVBoxLayout(self)
-        self.description = QLabel(tr("正在校验模型资源，请稍候。"), self)
+        self.description = QLabel(tr("正在读取模型路径，请稍候。"), self)
         self.description.setWordWrap(True)
         self.description.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
@@ -54,7 +54,7 @@ class ModelResourcesDialog(QDialog):
         def inspect():
             try:
                 resources = desktop_model_resources(installed_resources())
-                result = resources, resources.inspect()
+                result = resources
                 error = ""
             except Exception as exc:
                 logger.exception("桌面模型资源检查失败")
@@ -79,13 +79,13 @@ class ModelResourcesDialog(QDialog):
                 tr("模型资源检查失败：{error}").format(error=error)
             )
             return
-        resources, states = result
+        resources = result
         self._directory = resources.root
         self.open_directory.setEnabled(self._directory.is_dir())
         self.open_directory.setToolTip(str(self._directory))
         if resources.manifest_path is not None:
             self.description.setText(
-                tr("使用安装目录中的模型；缺失或损坏时，请通过“应用更新”修复模型组件。")
+                tr("使用安装目录中的模型；缺失或损坏时，请重新运行完整安装包。")
             )
             self._add_directory_row(tr("安装模型"), resources.root)
         else:
@@ -99,10 +99,9 @@ class ModelResourcesDialog(QDialog):
             "mathcraft-text-det": tr("文字检测"),
             "mathcraft-text-rec": tr("文字识别"),
         }
-        for model_id, state in states.items():
-            status = tr("可用") if state.complete else tr("缺失或损坏")
+        for model_id in resources.manifest.models:
             self._add_directory_row(
-                f"{names.get(model_id, model_id)} · {status}", state.model_dir
+                names.get(model_id) or model_id, resources.root / model_id
             )
 
     def showEvent(self, event):

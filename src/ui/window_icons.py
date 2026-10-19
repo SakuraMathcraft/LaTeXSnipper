@@ -26,7 +26,7 @@ def apply_app_window_icon(win, icon_path: str | os.PathLike[str] | None) -> None
         win.setWindowIcon(icon)
 
 
-def schedule_native_dialog_icon(
+def schedule_native_dialog_icon_windows(
     title: str, icon_path: str | os.PathLike[str] | None, attempts: int = 40
 ):
     """Repeatedly apply the app icon to a native Windows dialog while it opens."""

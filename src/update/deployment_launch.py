@@ -1,4 +1,4 @@
-"""Copy the verified updater outside active components before requesting exit."""
+"""Launch installed applications, deployment helpers and interrupted-update recovery."""
 
 from __future__ import annotations
 
@@ -17,12 +17,76 @@ from runtime.app_paths import app_cache_dir
 from runtime.component_inventory import file_sha256
 from runtime.deployment_feedback import cleanup_deployment_task
 from runtime.distribution_manifest import DistributionManifest, ManifestError, read_json
-from runtime.installation_layout import deployment_write_root
-from runtime.installed_resources import InstalledResources
+from runtime.installation_layout import (
+    deployment_directory,
+    deployment_write_root,
+    installation_manifest,
+)
+from runtime.installed_resources import InstalledResources, current_target
 from runtime.processes import hidden_subprocess_kwargs, independent_process_environment
-from update.deployment_transaction import atomic_json
+from update.deployment_transaction import atomic_json, needs_recovery
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
+
+
+def launch_installed(root: Path) -> None:
+    executable = "LaTeXSnipper.exe" if os.name == "nt" else "LaTeXSnipper"
+    system, _ = current_target()
+    transaction = deployment_directory(root, system)
+    if needs_recovery(transaction):
+        helper_name = "updater.exe" if os.name == "nt" else "updater"
+        helper = transaction / helper_name
+        if not helper.is_file():
+            helper = root / "application" / helper_name
+            manifest = DistributionManifest.load(installation_manifest(root, system))
+            record = next(
+                (
+                    item
+                    for item in manifest.application.files
+                    if item.path == helper_name
+                ),
+                None,
+            )
+            if record is None or file_sha256(helper) != record.sha256:
+                raise ManifestError("No verified recovery helper is available")
+        directory = Path(tempfile.mkdtemp(prefix="recovery-", dir=app_cache_dir()))
+        copy = directory / helper_name
+        if helper.is_symlink():
+            raise ManifestError("Recovery executable cannot be a symbolic link")
+        shutil.copy2(helper, copy)
+        request = directory / "request.json"
+        atomic_json(
+            request,
+            {
+                "schema": 1,
+                "root": str(root),
+                "staged": "",
+                "wait_pid": os.getpid(),
+                "recover": True,
+            },
+        )
+        try:
+            with tempfile.TemporaryFile(dir=deployment_write_root(root, system)):
+                pass
+            elevated = False
+        except PermissionError:
+            elevated = True
+        _start_updater(copy, request, elevated=elevated)
+        subprocess.Popen(
+            [str(copy), "--watch", str(request)],
+            env=independent_process_environment(),
+            **hidden_subprocess_kwargs(),
+        )
+        return
+    manifest = DistributionManifest.load(installation_manifest(root, system))
+    resources = InstalledResources(root, manifest)
+    target = resources.resource("runtime", executable)
+    subprocess.Popen(
+        [str(target), *sys.argv[1:]],
+        cwd=root / "application",
+        env=independent_process_environment(),
+        **hidden_subprocess_kwargs(),
+    )
 
 
 def retire_deployment(request: Path) -> None:
@@ -118,9 +182,9 @@ def launch_deployment(resources: InstalledResources, staged: Path) -> Path:
     target = DistributionManifest.load(staged / "distribution.json")
     relative = "updater.exe" if target.platform == "windows" else "updater"
     component = (
-        target.component("application")
+        target.application
         if (staged / "application").is_dir()
-        else resources.manifest.component("application")
+        else resources.manifest.application
     )
     source = (
         staged / "application" / relative

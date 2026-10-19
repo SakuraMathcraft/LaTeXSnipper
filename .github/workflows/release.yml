@@ -23,7 +23,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: desktop-release-${{ inputs.release_tag || github.ref_name }}
+  group: desktop-release
   cancel-in-progress: false
 
 env:
@@ -36,6 +36,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       publish: ${{ steps.release.outputs.publish }}
+      python: ${{ steps.release.outputs.python }}
     steps:
       - uses: actions/checkout@v6
       - name: Prepare release
@@ -43,6 +44,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          python3 -c 'import json; print("python=" + json.load(open("packaging/runtime/sources.lock.json", encoding="utf-8"))["python_version"])' >> "$GITHUB_OUTPUT"
           version="$(tr -d '[:space:]' < VERSION)"
           case "$RELEASE_TAG" in
             "v$version"|"v$version-LTS") ;;
@@ -58,50 +60,78 @@ jobs:
             fi
           fi
 
-  models:
-    needs: prepare-release
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v6
-        with: {lfs: true}
-      - uses: actions/setup-python@v6
-        with: {python-version: "3.11"}
-      - run: python -m pip install requests
-      - name: Assemble common, verified models
-        run: python scripts/build_desktop_release.py models --tag "$RELEASE_TAG"
-      - name: Upload model component
-        if: needs.prepare-release.outputs.publish == 'true'
+      - name: Probe shared model cache
+        id: models
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$RELEASE_TAG" build/common-models/*.zip --clobber
-      - uses: actions/upload-artifact@v7
-        with:
-          name: common-models
-          path: build/common-models/**
-          if-no-files-found: error
+        run: python3 -X utf8 scripts/build_desktop_release.py models-plan
+      - name: Seed missing immutable model resources
+        if: steps.models.outputs.models_missing == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -m venv build/model-tools
+          build/model-tools/bin/python -m pip install -c requirements.txt requests
+          build/model-tools/bin/python -X utf8 scripts/build_desktop_release.py models
 
   desktop:
-    needs: [prepare-release, models]
+    needs: prepare-release
     strategy:
       fail-fast: false
       matrix:
         include:
-          - {system: windows, runner: windows-2025, requirements: requirements.txt}
-          - {system: linux, runner: ubuntu-22.04, requirements: requirements-linux.txt}
-          - {system: macos, runner: macos-15, requirements: requirements-macos.txt}
+          - {system: windows, runner: windows-2025}
+          - {system: linux, runner: ubuntu-22.04}
+          - {system: macos, runner: macos-15}
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v6
-        with: {lfs: true}
       - uses: actions/setup-python@v6
-        with: {python-version: "3.11"}
+        with:
+          python-version: ${{ needs.prepare-release.outputs.python }}
       - run: python scripts/desktop_distribution.py sources
-      - run: python -m pip install -r ${{ matrix.requirements }} -r requirements-build.txt
+      - name: Probe immutable build inputs before dependency installation
+        id: cache
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python -X utf8 scripts/build_desktop_release.py plan
+      - name: Select dependency cache for this build
+        id: dependencies
+        shell: python
+        env:
+          GUI_MISSING: ${{ steps.cache.outputs.gui_missing }}
+          MAINTENANCE_MISSING: ${{ steps.cache.outputs.maintenance_missing }}
+        run: |
+          import os, subprocess, sys
+          profile = 'gui' if os.environ['GUI_MISSING'] == 'true' else 'freeze' if os.environ['MAINTENANCE_MISSING'] == 'true' else 'release'
+          directory = subprocess.check_output([sys.executable, '-m', 'pip', 'cache', 'dir'], text=True, encoding='utf-8').strip()
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f'profile={profile}\npath={directory}\n')
+      - name: Reuse only the required dependency cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.dependencies.outputs.path }}
+          key: pip-${{ runner.os }}-${{ needs.prepare-release.outputs.python }}-${{ steps.dependencies.outputs.profile }}-${{ hashFiles('requirements*.txt') }}
+      - name: Install release assembly dependencies
+        run: python -m pip install -c requirements.txt requests Pillow
+      - name: Install freezing tools for missing native payloads
+        if: steps.cache.outputs.gui_missing == 'true' || steps.cache.outputs.maintenance_missing == 'true'
+        run: python -m pip install -r requirements-build.txt
+      - name: Install GUI dependencies for missing runtime
+        if: steps.cache.outputs.gui_missing == 'true'
+        run: python -m pip install -r requirements.txt
       - name: Install Linux build and system libraries
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && steps.cache.outputs.native_missing == 'true'
         uses: ./.github/actions/desktop-system-libraries
-      - name: Install Windows packaging tool
+      - name: Reuse Windows packaging tool
+        id: inno
         if: runner.os == 'Windows'
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}/inno-setup-7
+          key: inno-setup-windows-x64-7.1.0
+      - name: Install Windows packaging tool
+        if: runner.os == 'Windows' && steps.inno.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           $installer = Join-Path $env:RUNNER_TEMP 'innosetup-7.1.0-x64.exe'
@@ -111,29 +141,15 @@ jobs:
           if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notlike '*Pyrsys*') { throw 'Inno Setup publisher verification failed.' }
           $process = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$compilerRoot") -WindowStyle Hidden -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw 'Inno Setup installation failed.' }
-          $compilerRoot >> $env:GITHUB_PATH
-      - uses: actions/download-artifact@v7
-        with: {name: common-models, path: build/common-models}
-      - name: Calculate component build inputs
-        id: inputs
-        run: python scripts/build_desktop_release.py inputs
-      - uses: actions/cache@v5
-        with:
-          path: |
-            build/desktop/application/stamp.json
-            build/desktop/application/*.zip
-          key: desktop-application-zip-${{ matrix.system }}-${{ steps.inputs.outputs.application }}
-      - uses: actions/cache@v5
-        with:
-          path: |
-            build/desktop/inference-cpu/stamp.json
-            build/desktop/inference-cpu/*.zip
-            build/desktop/inference-gpu/stamp.json
-            build/desktop/inference-gpu/*.zip
-          key: desktop-inference-zip-${{ matrix.system }}-${{ steps.inputs.outputs.inference }}
-      - name: Assemble native components
-        run: python scripts/build_desktop_release.py assemble
-      - name: Package components and offline installers
+      - name: Configure Windows packaging tool
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: (Join-Path $env:RUNNER_TEMP 'inno-setup-7') >> $env:GITHUB_PATH
+      - name: Reuse fixed resources and build business payload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python -X utf8 scripts/build_desktop_release.py assemble
+      - name: Package business update and offline installers
         run: python scripts/build_desktop_release.py package --tag "${{ env.RELEASE_TAG }}"
       - name: Check optional Windows signing
         id: signpath-config
@@ -150,7 +166,7 @@ jobs:
           names = ('SIGNPATH_API_TOKEN', 'SIGNPATH_ORGANIZATION_ID', 'SIGNPATH_PROJECT_SLUG',
                    'SIGNPATH_SIGNING_POLICY_SLUG', 'SIGNPATH_ARTIFACT_CONFIGURATION_SLUG')
           enabled = all(os.environ.get(name, '').strip() for name in names)
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
               output.write(f'enabled={str(enabled).lower()}\n')
           print('SignPath configured.' if enabled else 'SignPath unavailable; keeping unsigned installers.')
       - uses: actions/upload-artifact@v7
@@ -178,7 +194,7 @@ jobs:
       - name: Compute final Windows installer identities
         if: runner.os == 'Windows' && steps.sign-installers.outcome == 'success'
         run: python scripts/build_desktop_release.py finalize-windows --signed signed-installers
-      - name: Upload desktop installers and update components
+      - name: Upload installers and business update
         if: needs.prepare-release.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -196,17 +212,10 @@ jobs:
           path: dist/desktop/**
           if-no-files-found: error
           compression-level: 0
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: desktop-validation-${{ matrix.system }}
-          if-no-files-found: ignore
-          path: |
-            build/desktop/*validation.json
 
   gpu:
     if: github.event_name == 'workflow_dispatch' && inputs.validate_gpu
-    needs: desktop
+    needs: [desktop, prepare-release]
     strategy:
       fail-fast: false
       matrix:
@@ -216,10 +225,9 @@ jobs:
     runs-on: ${{ fromJSON(matrix.runner) }}
     steps:
       - uses: actions/checkout@v6
-        with: {lfs: true}
       - uses: actions/setup-python@v6
-        with: {python-version: "3.11"}
-      - run: python -m pip install requests Pillow
+        with: {python-version: "${{ needs.prepare-release.outputs.python }}"}
+      - run: python -m pip install -c requirements.txt requests Pillow
       - uses: actions/download-artifact@v7
         with: {name: 'desktop-${{ matrix.system }}', path: build/gpu-release}
       - name: Real CUDA recognition and loaded-library audit
@@ -231,17 +239,17 @@ jobs:
           if-no-files-found: error
 
   publish-release-assets:
-    needs: [prepare-release, models, desktop, gpu, build-office-plugin-installer, build-user-manual]
+    needs: [prepare-release, desktop, gpu, build-office-plugin-installer, build-user-manual]
     if: >-
       always() && needs.prepare-release.outputs.publish == 'true' &&
-      needs.models.result == 'success' && needs.desktop.result == 'success' &&
+      needs.desktop.result == 'success' &&
       (needs.gpu.result == 'success' || needs.gpu.result == 'skipped') &&
       needs.build-office-plugin-installer.result == 'success' && needs.build-user-manual.result == 'success'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
-        with: {python-version: "3.11"}
+        with: {python-version: "${{ needs.prepare-release.outputs.python }}"}
       - uses: actions/download-artifact@v7
         with: {pattern: 'release-metadata-*', merge-multiple: true, path: release-metadata}
       - name: Publish update catalog and complete release
@@ -317,22 +325,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Reuse compiled manual
+        id: manual
+        uses: actions/cache@v5
+        with:
+          path: user_manual/LaTeXSnipper_User_Manual.pdf
+          key: manual-windows-typst-0.14.2-${{ hashFiles('user_manual/**/*.typ', 'user_manual/**/*.png', 'docs/latexsnipper.png') }}
+
+      - name: Reuse Typst
+        id: typst
+        if: steps.manual.outputs.cache-hit != 'true'
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}/typst
+          key: typst-windows-x64-0.14.2
+
       - name: Setup Typst
+        if: steps.manual.outputs.cache-hit != 'true' && steps.typst.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           $typstVersion = "0.14.2"
           $typstZip = "typst-x86_64-pc-windows-msvc.zip"
           $typstUrl = "https://github.com/typst/typst/releases/download/v$typstVersion/$typstZip"
           Invoke-WebRequest -Uri $typstUrl -OutFile $env:TEMP\$typstZip
-          Expand-Archive -Path $env:TEMP\$typstZip -DestinationPath $env:TEMP\typst -Force
-          $typst = Get-ChildItem -Path $env:TEMP\typst -Recurse -Filter "typst.exe" | Select-Object -First 1
-          if (-not $typst) { throw "Typst binary not found after extraction." }
-          "TYPST=$($typst.FullName)" >> $env:GITHUB_ENV
+          Expand-Archive -Path $env:TEMP\$typstZip -DestinationPath $env:RUNNER_TEMP\typst -Force
 
       - name: Compile user manual
+        if: steps.manual.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          & $env:TYPST compile --root $env:GITHUB_WORKSPACE user_manual\user_manual.typ user_manual\LaTeXSnipper_User_Manual.pdf
+          $typst = Get-ChildItem -Path $env:RUNNER_TEMP\typst -Recurse -Filter "typst.exe" | Select-Object -First 1
+          if (-not $typst) { throw "Typst binary not found after extraction." }
+          & $typst.FullName compile --root $env:GITHUB_WORKSPACE user_manual\user_manual.typ user_manual\LaTeXSnipper_User_Manual.pdf
+          if ($LASTEXITCODE -ne 0) { throw "User manual compilation failed." }
 
       - name: Publish user manual
         if: needs.prepare-release.outputs.publish == 'true'

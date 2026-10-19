@@ -33,24 +33,19 @@ opening or closing the window does not activate or stop logging.
 
 | Data | Path under app cache | Owner |
 |---|---|---|
-| Component downloads | `components/<content-identity>/payload` and `payload.part` | Component downloader; length and SHA256 checked before reuse, interrupted downloads retained for resume |
-| Update staging | `component-update-*` | Update controller; private verified component staging, removed on cancellation/close or after deployment feedback |
+| Business package downloads | `components/<content-identity>/payload` and `payload.part` | Business package downloader; length and SHA256 checked before reuse, interrupted downloads retained for resume |
+| Update staging | `component-update-*` | Update controller; private verified business-package staging, removed on cancellation/close or after deployment feedback |
 | Deployment handoff | `deployment-*`, `recovery-*` | Independent helper and unelevated watcher; request/result files removed after feedback or failed-handoff cleanup |
 
 ## Installation Resources
 
 The source app uses the developer-selected Python environment directly.
 
-Installation metadata (`distribution.json`) owns the platform, architecture,
-CPU/GPU edition and immutable application/inference/models component identities.
-Windows resource lookup uses the installation root with `application/`,
-`inference/`, `models/` and `distribution.json`. Linux components are owned by
-dpkg under `/usr/lib/latexsnipper`; mutable metadata is stored outside the
-package payload at `/var/lib/latexsnipper/distribution.json`. macOS uses
-`LaTeXSnipper.app/Contents/Resources/desktop` for the three components and
-metadata; the outer signed app is rebuilt and verified as a whole.
-These resources are not user configuration or writable dependency environments.
-The application component owns `pandoc/` and the worker implementation.
+Installation metadata (`distribution.json`) records the platform, architecture, CPU/GPU edition, business-file identity and fixed `base_id`. Windows installs `application/`, `runtime/`, `inference/` and `models/` under the installation root. Linux owns these through the `latexsnipper`, `latexsnipper-runtime`, `latexsnipper-inference` and `latexsnipper-models` dpkg packages, with metadata at `/var/lib/latexsnipper/distribution.json`.
+
+macOS keeps business files and metadata in `LaTeXSnipper.app/Contents/Resources/desktop`. Its fixed resource directories live in `Contents/Frameworks/LaTeXSnipperBase.bundle/Contents/Resources` within the app. The independent nested signature allows business updates to retain that base without traversing its files.
+
+The business directory owns project code, worker source and translations. The fixed runtime owns Pandoc and MathJax. Business updates replace only business files; changing or restoring the fixed base requires the complete installer. Installation resources are separate from writable user configuration.
 
 Windows/Linux transactions keep a temporary `.deployment/` journal and backup
 under the resource root. The signed macOS app keeps transaction state beside
@@ -65,8 +60,8 @@ for the active transaction, not a retained history of application versions.
 
 Packaged workers read only the installed model component and its
 `models.v1.json`, verifying model files against their declared digests. Automatic
-model downloads are disabled. Missing or corrupt weights require component
-replacement through App updates; the worker never repairs installed files or
+model downloads are disabled. Missing or corrupt weights require rerunning
+the complete desktop installer; the worker never repairs installed files or
 uses an external model cache.
 
 Source desktop workers and the standalone library use the platform default
@@ -78,7 +73,7 @@ library also supports its explicit cache argument and `MATHCRAFT_HOME`;
 source desktop workers explicitly use the platform default cache regardless
 of that override. Packaged desktop workers do not use this cache.
 
-Component payload caches use component platform/architecture/variant/identity
+Business payload caches use platform/architecture/variant/identity
 and validate size and SHA256 before reuse. Interrupted transfers retain `.part`
 files. Update staging is separate from the installed components and is removed
 after its task finishes; payload caches remain available for verified reuse.
@@ -104,7 +99,7 @@ history, logs and update caches are separate user data. The shared MathCraft
 cache also serves the standalone library and is not an installation component.
 Windows uninstall owns the installation components and offers separate app-data
 and shared-model-cache cleanup choices. Linux uses dpkg removal/purge of the
-three component packages; macOS removes the app. While installed, Linux provides
+four installation packages; macOS removes the app. While installed, Linux provides
 `latexsnipper-clean-user-data` with separate app-data and shared-model-cache
 options. The repository script `scripts/latexsnipper-clean-user-data.sh` supports
 both Linux and macOS; it is not deployed inside the macOS app. On macOS, user

@@ -1,8 +1,5 @@
-"""Plan complete component replacements without patch chains or filename guessing."""
+"""Select the business payload only when its fixed base matches."""
 
-from __future__ import annotations
-
-from collections.abc import Iterable
 from dataclasses import dataclass
 
 from runtime.distribution_manifest import Component, DistributionManifest, ManifestError
@@ -12,46 +9,25 @@ from runtime.distribution_manifest import Component, DistributionManifest, Manif
 class ComponentUpdatePlan:
     target: DistributionManifest
     downloads: tuple[Component, ...]
-    seal_required: bool = False
+    installer_required: bool = False
 
     @property
     def download_bytes(self) -> int:
-        seal = (
-            self.target.bundle_seal.artifact.size
-            if self.seal_required and self.target.bundle_seal
-            else 0
-        )
-        return sum(item.artifact.size for item in self.downloads) + seal
+        return sum(item.artifact.size for item in self.downloads)
 
 
 def plan_component_update(
-    installed: DistributionManifest,
-    target: DistributionManifest,
-    *,
-    damaged_components: Iterable[str] = (),
-    damaged_bundle: bool = False,
+    installed: DistributionManifest, target: DistributionManifest
 ) -> ComponentUpdatePlan:
-    """Keep the installed edition and select all changed or damaged target components."""
     if installed.target != target.target:
         raise ManifestError(
             "An update cannot change platform, architecture or installed edition"
         )
-    current_version = tuple(int(part) for part in installed.version.split("."))
-    target_version = tuple(int(part) for part in target.version.split("."))
-    if target_version < current_version:
+    if tuple(map(int, target.version.split("."))) < tuple(
+        map(int, installed.version.split("."))
+    ):
         raise ManifestError("A normal update cannot downgrade the product")
-    damaged = frozenset(damaged_components)
-    if not damaged <= {item.name for item in installed.components}:
-        raise ManifestError("Unknown damaged component")
-    downloads = tuple(
-        item
-        for item in target.components
-        if item.name in damaged
-        or installed.component(item.name).content_sha256 != item.content_sha256
-    )
-    seal_required = target.platform == "macos" and (
-        bool(downloads) or target.version != installed.version or damaged_bundle
-    )
-    if seal_required and target.bundle_seal is None:
-        raise ManifestError("A macOS update requires a signed bundle-seal payload")
-    return ComponentUpdatePlan(target, downloads, seal_required)
+    if installed.base_id != target.base_id:
+        return ComponentUpdatePlan(target, (), installer_required=True)
+    changed = installed.application.content_sha256 != target.application.content_sha256
+    return ComponentUpdatePlan(target, (target.application,) if changed else ())

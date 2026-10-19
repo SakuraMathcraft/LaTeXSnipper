@@ -17,7 +17,9 @@ def read_product_version() -> str:
         from runtime.installation_layout import installation_manifest
 
         system = {"win32": "windows", "linux": "linux", "darwin": "macos"}[sys.platform]
-        root = Path(sys.executable).resolve().parent.parent
+        from runtime.installed_resources import installation_root
+
+        root = installation_root(Path(sys.executable))
         return DistributionManifest.load(installation_manifest(root, system)).version
     path = _version_file()
     try:

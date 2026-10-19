@@ -20,7 +20,8 @@ sys.path[:0] = [str(ROOT), str(ROOT / "scripts"), str(ROOT / "src")]
 from distribution_archives import download_artifact  # noqa: E402
 from distribution_inputs import load_dependencies, load_sources  # noqa: E402
 from mathcraft_ocr.protocol import MODEL_FORMAT, WORKER_PROTOCOL  # noqa: E402
-from payload_pruning import prune_runtime_payload, remove_owned  # noqa: E402
+from payload_paths import remove_owned  # noqa: E402
+from payload_pruning import prune_runtime_payload  # noqa: E402
 from runtime.component_archive import extract_archive  # noqa: E402
 from runtime.component_inventory import file_sha256, inventory_component  # noqa: E402
 from runtime.distribution_manifest import Artifact, ManifestError  # noqa: E402

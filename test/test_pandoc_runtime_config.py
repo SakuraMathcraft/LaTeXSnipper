@@ -20,18 +20,16 @@ def test_development_pandoc_uses_path(tmp_path, monkeypatch):
     assert pandoc_runtime.resolve_pandoc() == pandoc
 
 
-def test_packaged_pandoc_uses_verified_application_resource(tmp_path, monkeypatch):
+def test_packaged_pandoc_uses_fixed_runtime_resource(tmp_path, monkeypatch):
     from test_installed_resources import installed
 
     resources = installed(tmp_path, monkeypatch)
     monkeypatch.setattr(pandoc_runtime, "installed_resources", lambda: resources)
-    assert pandoc_runtime.resolve_pandoc() == tmp_path / "application/pandoc/pandoc.exe"
-    (tmp_path / "application/pandoc/pandoc.exe").write_bytes(b"corrupt")
+    assert pandoc_runtime.resolve_pandoc() == tmp_path / "runtime/pandoc/pandoc.exe"
+    (tmp_path / "runtime/pandoc/pandoc.exe").unlink()
     import pytest
 
-    from runtime.distribution_manifest import ManifestError
-
-    with pytest.raises(ManifestError, match="missing or corrupt"):
+    with pytest.raises(FileNotFoundError):
         pandoc_runtime.resolve_pandoc()
 
 

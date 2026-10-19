@@ -65,19 +65,27 @@ _MATHCRAFT_DIAGNOSTIC_TEXTS = (
     mark_for_translation("缺少 MathCraft OCR"),
     mark_for_translation("未找到 MathCraft OCR 包，请检查程序文件是否完整。"),
     mark_for_translation("缺少 onnxruntime"),
-    mark_for_translation("推理组件缺少 onnxruntime，请检查并修复安装资源。"),
+    mark_for_translation(
+        "缺少 onnxruntime；安装版请重新运行完整安装包，源码运行请检查当前 Python 环境。"
+    ),
     mark_for_translation("onnxruntime 依赖异常"),
-    mark_for_translation("onnxruntime 运行资源损坏或不可用，请检查并修复推理组件。"),
+    mark_for_translation(
+        "onnxruntime 运行资源损坏或不可用；安装版请重新运行完整安装包，源码运行请检查当前 Python 环境。"
+    ),
     mark_for_translation("MathCraft 依赖不完整"),
-    mark_for_translation("MathCraft OCR 运行资源缺失或不完整，请检查并修复安装资源。"),
+    mark_for_translation(
+        "MathCraft OCR 运行资源缺失或不完整；安装版请重新运行完整安装包，源码运行请检查当前 Python 环境。"
+    ),
     mark_for_translation("模型资源不完整"),
     mark_for_translation(
-        "MathCraft OCR 模型资源缺失或损坏；安装版请通过“应用更新”修复。"
+        "MathCraft OCR 模型资源缺失或损坏；安装版请重新运行完整安装包。"
     ),
     mark_for_translation("模型权重下载失败"),
     mark_for_translation("MathCraft OCR 模型权重下载失败，请检查网络连接或稍后重试。"),
     mark_for_translation("GPU 运行资源异常"),
-    mark_for_translation("GPU 推理不可用，请检查 NVIDIA 显卡、驱动及推理组件完整性。"),
+    mark_for_translation(
+        "GPU 推理不可用，请检查 NVIDIA 显卡与驱动；安装资源损坏时请重新运行完整安装包。"
+    ),
     mark_for_translation("GPU 推理不可用"),
     mark_for_translation(
         "当前 GPU 推理不可用，请检查显卡、驱动和安装资源。更换发行类型需使用对应安装包。"

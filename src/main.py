@@ -32,12 +32,13 @@ if len(sys.argv) == 3 and sys.argv[1] == "--validate-application":
 
 if getattr(sys, "frozen", False):
     from runtime.installation_layout import deployment_directory
-    from runtime.installed_resources import current_target
+    from runtime.installed_resources import current_target, installation_root
+    from update.deployment_transaction import needs_recovery
 
-    _installation = Path(sys.executable).resolve().parent.parent
-    if deployment_directory(_installation, current_target()[0]).exists():
-        from launcher_main import launch_installed
+    _installation = installation_root(Path(sys.executable))
+    if needs_recovery(deployment_directory(_installation, current_target()[0])):
         from runtime.runtime_logging import init_app_logging
+        from update.deployment_launch import launch_installed
 
         init_app_logging()
         launch_installed(_installation)

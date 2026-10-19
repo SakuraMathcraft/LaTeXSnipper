@@ -94,16 +94,23 @@ def test_coordinator_serializes_concurrent_inference_and_preserves_order() -> No
         coordinator.stop()
 
 
-def test_cancel_interrupts_a_running_mathcraft_worker() -> None:
+@pytest.mark.parametrize("interrupted_error", [False, True])
+def test_cancel_interrupts_a_running_mathcraft_worker(
+    caplog, interrupted_error
+) -> None:
     class InterruptiblePredictor:
         def __init__(self) -> None:
             self.started = threading.Event()
             self.release = threading.Event()
             self.interruptions = 0
+            self.calls = 0
 
         def predict_result(self, _image, *, model_name: str):
+            self.calls += 1
             self.started.set()
             self.release.wait(2)
+            if interrupted_error and self.calls == 1:
+                raise RuntimeError("worker was terminated during inference")
             return {"text": model_name}
 
         def stop(self) -> None:
@@ -128,6 +135,19 @@ def test_cancel_interrupts_a_running_mathcraft_worker() -> None:
         assert predictor.interruptions == 1
         assert snapshot["state"] == "canceled"
         assert snapshot["error"]["code"] == "canceled"
+        assert snapshot["items"][0]["state"] == "canceled"
+        assert "识别执行异常" not in caplog.text
+        next_job = coordinator.submit(
+            [_image()],
+            principal_id="desktop-ui",
+            source=JobSource.UI,
+            mode="text",
+            timeout_seconds=5,
+        )
+        recovered = coordinator.wait(
+            next_job["id"], principal_id="desktop-ui", timeout=1
+        )
+        assert recovered["state"] == "completed"
     finally:
         predictor.release.set()
         coordinator.stop()

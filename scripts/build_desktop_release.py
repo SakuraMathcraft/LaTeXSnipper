@@ -1,4 +1,4 @@
-"""Build the three desktop components and native offline carriers in GitHub Actions."""
+"""Build business updates and assemble offline installers from persistent fixed resources."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ import os
 import plistlib
 import shutil
 import sys
-import tempfile
 from argparse import Namespace
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
@@ -19,14 +18,15 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / "src"), str(ROOT / "scripts")]
 
 from desktop_distribution import write_json  # noqa: E402
-from distribution_inputs import load_resources, load_sources  # noqa: E402
+from distribution_inputs import load_sources  # noqa: E402
 from release_artifacts import (  # noqa: E402
     artifact,
     finalize_windows,
-    package_bundle_seal,
     package_component,
     upload_desktop_assets,
 )
+from release_build_inputs import build_inputs as resource_inputs  # noqa: E402
+from release_build_inputs import model_input  # noqa: E402
 from release_installers import (  # noqa: E402
     link_or_copy,
     linux_installer,
@@ -35,112 +35,83 @@ from release_installers import (  # noqa: E402
     windows_installer,
 )
 from runtime.component_archive import extract_archive  # noqa: E402
-from runtime.component_inventory import verify_component  # noqa: E402
 from runtime.distribution_manifest import (  # noqa: E402
     Component,
     DistributionManifest,
     ManifestError,
     read_json,
 )
+from runtime.installation_layout import macos_bundle  # noqa: E402
 from runtime.installed_resources import current_target  # noqa: E402
-from update.deployment_transaction import verify_distribution  # noqa: E402
-from update.deployment_validation import validate_installed_worker  # noqa: E402
-
-
-def fingerprint(paths: list[Path], configuration: object) -> str:
-    digest = hashlib.sha256(json.dumps(configuration, sort_keys=True).encode())
-    for path in sorted(set(paths)):
-        if (
-            path.is_file()
-            and "__pycache__" not in path.parts
-            and path.suffix not in {".pyc", ".pyo"}
-        ):
-            digest.update(path.relative_to(ROOT).as_posix().encode() + b"\0")
-            digest.update(path.read_bytes())
-    return digest.hexdigest()
 
 
 def build_inputs(target: str) -> dict[str, str]:
-    resources = load_resources(ROOT / "packaging/runtime/resources.lock.json")
-    application = list((ROOT / "src").rglob("*")) + list(
-        (ROOT / "mathcraft_ocr").rglob("*.py")
+    return resource_inputs(ROOT, target)
+
+
+def outputs(values: dict) -> None:
+    print(json.dumps(values))
+    if os.environ.get("GITHUB_OUTPUT"):
+        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
+            for name, value in values.items():
+                stream.write(
+                    f"{name}={str(value).lower() if isinstance(value, bool) else value}\n"
+                )
+
+
+def plan_build(args) -> dict:
+    from desktop_base_cache import cache_tag, exists
+
+    target = "-".join(current_target())
+    keys = build_inputs(target)
+    names = (
+        ["base", "maintenance"]
+        if target.startswith("macos-")
+        else ["runtime", "inference-cpu", "inference-gpu", "models", "maintenance"]
     )
-    application.append(ROOT / "mathcraft_ocr/vendor/LICENSE.onnx")
-    system = target.split("-")[0]
-    requirements = {
-        "windows": "requirements.txt",
-        "linux": "requirements-linux.txt",
-        "macos": "requirements-macos.txt",
-    }[system]
-    application += [
-        ROOT / name
-        for name in (
-            requirements,
-            "requirements-build.txt",
-            {
-                "windows": "LaTeXSnipper.spec",
-                "linux": "LaTeXSnipper-linux.spec",
-                "macos": "LaTeXSnipper-macos.spec",
-            }[target.split("-")[0]],
-            "LICENSE",
+    available = {}
+
+    def check(name):
+        return name, exists(
+            cache_tag(name, "any-any" if name == "models" else target, keys[name])
         )
-    ]
-    application += [
-        ROOT / "scripts/build_application_resources.py",
-        ROOT / "scripts/build_maintenance.spec",
-        ROOT / "scripts/build_desktop_release.py",
-        ROOT / "scripts/build_desktop_resources.py",
-        ROOT / "scripts/distribution_archives.py",
-        ROOT / "scripts/distribution_inputs.py",
-        ROOT / "scripts/payload_pruning.py",
-    ]
-    if target.startswith("windows-"):
-        application.append(ROOT / "scripts/normalize_windows_crt.ps1")
-    if target.startswith("linux-"):
-        application += [
-            ROOT / "scripts/linux_hotkey_packaging.py",
-            ROOT / "scripts/latexsnipper-clean-user-data.sh",
-        ]
-        application += list((ROOT / "packaging/debian").rglob("*"))
-    sources = load_sources(ROOT / "packaging/runtime/sources.lock.json")
-    inference = [
-        ROOT / "packaging/runtime/dependencies.lock.json",
-        ROOT / "scripts/build_inference_component.py",
-        ROOT / "scripts/payload_pruning.py",
-        ROOT / "scripts/distribution_archives.py",
-        ROOT / "scripts/distribution_inputs.py",
-        ROOT / "mathcraft_ocr/protocol.py",
-        ROOT / "src/runtime/inference_probe.py",
-        ROOT / "src/runtime/component_inventory.py",
-        ROOT / "src/runtime/component_archive.py",
-        ROOT / "src/runtime/distribution_manifest.py",
-        ROOT / "src/runtime/processes.py",
-        ROOT / "scripts/build_desktop_release.py",
-    ]
-    if target.startswith("macos-"):
-        application.append(ROOT / "packaging/macos/entitlements.plist")
-        inference.append(ROOT / "packaging/macos/entitlements.plist")
-    return {
-        "application": fingerprint(
-            application, {"target": target, "pandoc": resources["pandoc"][target]}
-        ),
-        "inference": fingerprint(
-            inference,
-            {
-                "target": target,
-                "sources": sources["targets"][target],
-                "versions": {
-                    key: sources[key]
-                    for key in (
-                        "python_version",
-                        "ort_version",
-                        "cuda_version",
-                        "cudnn_version",
-                    )
-                },
-            },
-        ),
-    }
+
+    with ThreadPoolExecutor(max_workers=5) as probes:
+        available.update(probes.map(check, names))
+        if "base" in available and not available["base"]:
+            available.update(probes.map(check, ["runtime", "inference-cpu", "models"]))
+    plan = {"schema": 1, "target": target, "keys": keys, "available": available}
+    write_json(args.plan, plan)
+    missing = {name for name, cached in available.items() if not cached}
+    outputs(
+        {
+            "gui_missing": "runtime" in missing,
+            "maintenance_missing": "maintenance" in missing,
+            "native_missing": bool(
+                missing & {"runtime", "inference-cpu", "inference-gpu"}
+            ),
+        }
+    )
+    return plan
+
+
+def load_plan(args) -> dict:
+    if not args.plan.is_file():
+        return plan_build(args)
+    plan = read_json(args.plan)
+    if (
+        set(plan) != {"schema", "target", "keys", "available"}
+        or plan["schema"] != 1
+        or plan["target"] != "-".join(current_target())
+    ):
+        raise ManifestError("Invalid build plan")
+    if (
+        not isinstance(plan["keys"], dict)
+        or not isinstance(plan["available"], dict)
+        or any(type(value) is not bool for value in plan["available"].values())
+    ):
+        raise ManifestError("Invalid build cache decisions")
+    return plan
 
 
 def cached_payload(work: Path, name: str, key: str) -> Path | None:
@@ -163,147 +134,158 @@ def cached_payload(work: Path, name: str, key: str) -> Path | None:
     return None
 
 
-def sign_macos_tree(directory: Path) -> None:
-    magic = {
-        b"\xcf\xfa\xed\xfe",
-        b"\xce\xfa\xed\xfe",
-        b"\xfe\xed\xfa\xcf",
-        b"\xfe\xed\xfa\xce",
-        b"\xca\xfe\xba\xbe",
-        b"\xbe\xba\xfe\xca",
-        b"\xca\xfe\xba\xbf",
-    }
-    for path in sorted(
-        directory.rglob("*"), key=lambda item: len(item.parts), reverse=True
-    ):
-        if path.is_symlink():
-            continue
-        if path.is_file():
-            with path.open("rb") as stream:
-                executable = stream.read(4) in magic
-            if executable:
-                run(
-                    [
-                        "codesign",
-                        "--force",
-                        "--entitlements",
-                        ROOT / "packaging/macos/entitlements.plist",
-                        "--sign",
-                        "-",
-                        path,
-                    ]
-                )
-        elif path.suffix in {".framework", ".app"}:
-            run(["codesign", "--force", "--sign", "-", path])
+def reuse_payload(args, name: str, key: str, build, *, available: bool) -> Path:
+    from desktop_base_cache import cache_tag, restore, store
+
+    target = "-".join(current_target()) if name != "models" else "any-any"
+    tag = cache_tag(name, target, key)
+    directory = args.work.resolve() / name
+    if not directory.exists() and available:
+        restore(directory, tag)
+    payload = cached_payload(args.work.resolve(), name, key)
+    if payload is not None:
+        return payload
+    directory.mkdir(parents=True)
+    payload = directory / "payload"
+    build(payload)
+    if current_target()[0] == "macos" and name in {
+        "runtime",
+        "inference-cpu",
+        "maintenance",
+    }:
+        from build_macos_base import sign_macos_tree
+
+        sign_macos_tree(payload)
+    component = package_component(
+        payload,
+        directory,
+        name.split("-")[0],
+        target,
+        name.split("-", 1)[1] if name.startswith("inference-") else "common",
+        f"https://github.com/SakuraMathcraft/LaTeXSnipper/releases/download/{tag}",
+    )
+    write_json(
+        directory / "stamp.json", {"input": key, "component": component.to_dict()}
+    )
+    store(directory, tag)
+    return payload
 
 
-def validate_windows_signatures(directory: Path) -> None:
-    script = """param([string]$Root)
-$ErrorActionPreference = 'Stop'
-Get-ChildItem -LiteralPath $Root -Recurse -File | Where-Object { $_.Extension -in '.exe', '.dll', '.pyd' } | ForEach-Object {
-    $signature = Get-AuthenticodeSignature -LiteralPath $_.FullName
-    if ($signature.Status -ne 'Valid') { throw "Untrusted Windows executable: $($_.FullName) $($signature.Status)" }
-}
-"""
-    with tempfile.TemporaryDirectory(prefix="signature-check-") as temporary:
-        path = Path(temporary) / "verify.ps1"
-        path.write_text(script, encoding="utf-8")
-        run(["pwsh", "-NoProfile", "-File", path, directory])
+def build_maintenance(payload: Path) -> None:
+    build = payload.parent
+    run(
+        [
+            sys.executable,
+            "-X",
+            "utf8",
+            "-m",
+            "PyInstaller",
+            "--noconfirm",
+            "--distpath",
+            build / "frozen",
+            "--workpath",
+            build / "pyinstaller",
+            ROOT / "scripts/build_maintenance.spec",
+        ]
+    )
+    payload.mkdir()
+    (payload / "bootstrap").mkdir()
+    extension = ".exe" if current_target()[0] == "windows" else ""
+    shutil.copy2(
+        build / "frozen" / f"updater{extension}", payload / f"updater{extension}"
+    )
+    shutil.copy2(
+        build / "frozen" / f"LaTeXSnipper{extension}",
+        payload / "bootstrap" / f"LaTeXSnipper{extension}",
+    )
+    for name in ("frozen", "pyinstaller"):
+        shutil.rmtree(build / name)
+
+
+def build_models(payload: Path, cache: Path) -> None:
+    from build_desktop_resources import assemble as assemble_resources
+
+    assemble_resources(
+        Namespace(
+            resource="models",
+            target=None,
+            output=payload,
+            cache=cache,
+            lock=ROOT / "packaging/runtime/resources.lock.json",
+        )
+    )
 
 
 def assemble(args) -> None:
     from build_application_resources import assemble as assemble_application
-    from build_inference_component import assemble as assemble_inference
 
-    target = "-".join(current_target())
-    keys = build_inputs(target)
+    plan = load_plan(args)
+    keys, available = plan["keys"], plan["available"]
+    target = plan["target"]
     work = args.work.resolve()
     work.mkdir(parents=True, exist_ok=True)
-    if cached_payload(work, "application", keys["application"]) is None:
-        build = work / "application"
-        build.mkdir()
-        spec = {
-            "windows": "LaTeXSnipper.spec",
-            "linux": "LaTeXSnipper-linux.spec",
-            "macos": "LaTeXSnipper-macos.spec",
-        }[current_target()[0]]
-        run(
-            [
-                sys.executable,
-                "-m",
-                "PyInstaller",
-                "--noconfirm",
-                "--distpath",
-                build / "frozen",
-                "--workpath",
-                build / "pyinstaller",
-                ROOT / spec,
-            ]
-        )
-        (build / "frozen/LaTeXSnipper").rename(build / "payload")
-        run(
-            [
-                sys.executable,
-                "-m",
-                "PyInstaller",
-                "--noconfirm",
-                "--distpath",
-                build / "maintenance",
-                "--workpath",
-                build / "maintenance-work",
-                ROOT / "scripts/build_maintenance.spec",
-            ]
-        )
-        executable = ".exe" if current_target()[0] == "windows" else ""
-        shutil.copy2(
-            build / "maintenance" / f"updater{executable}",
-            build / "payload" / f"updater{executable}",
-        )
-        (build / "payload/bootstrap").mkdir()
-        shutil.copy2(
-            build / "maintenance" / f"LaTeXSnipper{executable}",
-            build / "payload/bootstrap" / f"LaTeXSnipper{executable}",
-        )
-        assemble_application(
+    parts = {}
+
+    def build_runtime(payload):
+        from build_gui_runtime import build_gui_runtime
+
+        build_gui_runtime(payload, target, args.cache)
+
+    def build_inference(payload, edition):
+        from build_inference_component import assemble as assemble_inference
+
+        assemble_inference(
             Namespace(
-                application=build / "payload",
                 target=target,
+                edition=edition,
+                output=payload,
                 cache=args.cache,
-                lock=ROOT / "packaging/runtime/resources.lock.json",
+                catalog=ROOT / "packaging/runtime/sources.lock.json",
+                dependencies=ROOT / "packaging/runtime/dependencies.lock.json",
+                validate_gpu=False,
             )
         )
-        if current_target()[0] == "windows":
-            run(
-                [
-                    "pwsh",
-                    "-NoProfile",
-                    "-File",
-                    ROOT / "scripts/normalize_windows_crt.ps1",
-                    "-DistributionRoot",
-                    build / "payload",
-                ]
-            )
-        for directory in ("frozen", "pyinstaller", "maintenance", "maintenance-work"):
-            shutil.rmtree(build / directory)
-        if current_target()[0] == "macos":
-            sign_macos_tree(build / "payload")
-    for edition in ("cpu", "gpu") if current_target()[0] != "macos" else ("cpu",):
-        name = f"inference-{edition}"
-        if cached_payload(work, name, keys["inference"]) is None:
-            (work / name).mkdir()
-            assemble_inference(
-                Namespace(
-                    target=target,
-                    edition=edition,
-                    output=work / name / "payload",
-                    cache=args.cache,
-                    catalog=ROOT / "packaging/runtime/sources.lock.json",
-                    dependencies=ROOT / "packaging/runtime/dependencies.lock.json",
-                    validate_gpu=False,
-                )
-            )
-            if current_target()[0] == "macos":
-                sign_macos_tree(work / name / "payload")
+
+    def build_base(payload):
+        from build_macos_base import build_macos_base
+
+        build_macos_base(
+            payload, parts["runtime"], parts["inference-cpu"], parts["models"]
+        )
+
+    builders = {
+        "runtime": build_runtime,
+        "models": lambda payload: build_models(payload, args.cache),
+        "inference-cpu": lambda payload: build_inference(payload, "cpu"),
+        "inference-gpu": lambda payload: build_inference(payload, "gpu"),
+        "maintenance": build_maintenance,
+        "base": build_base,
+    }
+
+    def reuse(name):
+        owner = Namespace(work=args.models) if name == "models" else args
+        return name, reuse_payload(
+            owner, name, keys[name], builders[name], available=available[name]
+        )
+
+    # Warm builds restore independent archives in parallel. Cold builds are
+    # serialized to reuse shared downloads and limit peak memory usage.
+    with ThreadPoolExecutor(max_workers=5) as restorers:
+        parts.update(
+            restorers.map(reuse, [name for name in available if available[name]])
+        )
+    for name in available:
+        if not available[name] and name != "base":
+            key, payload = reuse(name)
+            parts[key] = payload
+    if "base" in available and not available["base"]:
+        key, payload = reuse("base")
+        parts[key] = payload
+    application = work / "application/payload"
+    assemble_application(Namespace(application=application, target=target))
+    shutil.copytree(
+        parts["maintenance"], application, dirs_exist_ok=True, symlinks=True
+    )
 
 
 def create_macos_bundle(layout: Path, manifest: DistributionManifest) -> Path:
@@ -317,7 +299,10 @@ def create_macos_bundle(layout: Path, manifest: DistributionManifest) -> Path:
     bundle = layout.parent / "LaTeXSnipper.app"
     desktop = bundle / "Contents/Resources/desktop"
     desktop.parent.mkdir(parents=True)
-    shutil.copytree(layout, desktop, symlinks=True)
+    shutil.copytree(layout, desktop, symlinks=True, copy_function=link_or_copy)
+    framework = bundle / "Contents/Frameworks"
+    framework.mkdir()
+    (desktop / "LaTeXSnipperBase.bundle").rename(framework / "LaTeXSnipperBase.bundle")
     (bundle / "Contents/MacOS").mkdir()
     run(
         [
@@ -382,9 +367,6 @@ def create_macos_bundle(layout: Path, manifest: DistributionManifest) -> Path:
         plistlib.dump(plist, stream)
     run(["codesign", "--force", "--sign", "-", bundle / "Contents/MacOS/LaTeXSnipper"])
     run(["codesign", "--force", "--sign", "-", bundle])
-    from update.macos_transaction import verify_bundle
-
-    verify_bundle(bundle)
     return bundle
 
 
@@ -397,56 +379,66 @@ def package(args) -> None:
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     work = args.work.resolve()
-    keys = build_inputs(target)
     application = package_component(
         work / "application/payload", output, "application", target, "common", base_url
     )
-    write_json(
-        work / "application/stamp.json",
-        {"input": keys["application"], "component": application.to_dict()},
-    )
-    models = Component.from_dict(read_json(args.models / "models.component.json"))
-    damaged_models = verify_component(args.models / "payload", models)
-    if damaged_models:
-        raise ManifestError(
-            "Common model artifact failed its inventory validation: "
-            + ", ".join(damaged_models)
-        )
-    model_archive = args.models / Path(models.artifact.url).name
-    if artifact(model_archive, base_url) != models.artifact:
-        raise ManifestError("Common models do not belong to the current release")
-    shutil.copy2(model_archive, output / model_archive.name)
+    models = args.models / "models/payload"
 
     def package_edition(edition: str) -> None:
-        source = work / f"inference-{edition}/payload"
-        inference = package_component(
-            source, output, "inference", target, edition, base_url
-        )
-        write_json(
-            work / f"inference-{edition}/stamp.json",
-            {"input": keys["inference"], "component": inference.to_dict()},
-        )
+        if system == "macos":
+            base_id = Component.from_dict(
+                read_json(work / "base/stamp.json")["component"]
+            ).content_sha256
+        else:
+            source = work / f"inference-{edition}/payload"
+            base_id = hashlib.sha256(
+                json.dumps(
+                    {
+                        "runtime": Component.from_dict(
+                            read_json(work / "runtime/stamp.json")["component"]
+                        ).content_sha256,
+                        "inference": Component.from_dict(
+                            read_json(source.parent / "stamp.json")["component"]
+                        ).content_sha256,
+                        "models": Component.from_dict(
+                            read_json(args.models / "models/stamp.json")["component"]
+                        ).content_sha256,
+                        "edition": edition,
+                    },
+                    sort_keys=True,
+                ).encode("utf-8")
+            ).hexdigest()
         manifest = DistributionManifest(
             version,
             system,
             architecture,
             edition,
-            (application, inference, models),
+            application,
+            base_id,
             release_tag=release_tag,
         )
         prefix = work / f"layout-{edition}"
         layout = prefix / "usr/lib/latexsnipper" if system == "linux" else prefix
         layout.mkdir(parents=True)
-        for component, directory in (
-            (application, work / "application/payload"),
-            (inference, source),
-            (models, args.models / "payload"),
-        ):
+        directories = [("application", work / "application/payload")]
+        if system == "macos":
+            directories.append(
+                (
+                    "LaTeXSnipperBase.bundle",
+                    work / "base/payload/LaTeXSnipperBase.bundle",
+                )
+            )
+        else:
+            directories.extend(
+                (
+                    ("runtime", work / "runtime/payload"),
+                    ("inference", work / f"inference-{edition}/payload"),
+                    ("models", models),
+                )
+            )
+        for name, directory in directories:
             shutil.copytree(
-                directory,
-                layout / component.name,
-                symlinks=True,
-                copy_function=link_or_copy,
+                directory, layout / name, symlinks=True, copy_function=link_or_copy
             )
         executable = "LaTeXSnipper.exe" if system == "windows" else "LaTeXSnipper"
         shutil.copy2(layout / "application/bootstrap" / executable, layout / executable)
@@ -458,50 +450,16 @@ def package(args) -> None:
                 prefix / "var/lib/latexsnipper/distribution.json",
                 manifest.installed_identity().to_dict(),
             )
-        verify_distribution(layout, manifest)
-        validate_installed_worker(layout, manifest)
-        # Launch a relocated frozen application. Source-import checks cannot
-        # prove that Qt WebEngine, PDF and XML payloads survived freezing.
-        if edition == "cpu":
-            env = os.environ.copy()
-            env["QTWEBENGINE_CHROMIUM_FLAGS"] = "--disable-gpu --no-sandbox"
-            if system == "linux":
-                env["QT_QPA_PLATFORM"] = "offscreen"
-            run(
-                [
-                    layout / "application" / executable,
-                    "--validate-application",
-                    work / "application-validation.json",
-                ],
-                env=env,
-                timeout=180,
+        if system == "macos":
+            layout = (
+                create_macos_bundle(layout, manifest) / "Contents/Resources/desktop"
             )
         if system == "windows":
             carrier = windows_installer(layout, output, manifest)
         elif system == "linux":
             carrier = linux_installer(layout, output, manifest)
         else:
-            bundle = create_macos_bundle(layout, manifest)
-            seal = package_bundle_seal(
-                bundle, output / f"bundle-seal-macos-arm64-{version}.zip", base_url
-            )
-            manifest = replace(manifest, bundle_seal=seal)
-            # Prove that independently archived components reconstruct the
-            # same bundle with valid local code signatures.
-            reconstructed = work / "reconstructed/LaTeXSnipper.app"
-            extract_archive(
-                output / Path(seal.artifact.url).name, reconstructed, component=seal
-            )
-            for component in manifest.components:
-                extract_archive(
-                    output / Path(component.artifact.url).name,
-                    reconstructed / "Contents/Resources/desktop" / component.name,
-                    component=component,
-                )
-            from update.macos_transaction import verify_bundle
-
-            verify_bundle(reconstructed)
-            carrier = macos_installer(bundle, output, manifest)
+            carrier = macos_installer(macos_bundle(layout), output, manifest)
         manifest = replace(manifest, installer=artifact(carrier, base_url))
         write_json(
             output / f"distribution-{system}-{architecture}-{edition}.json",
@@ -520,6 +478,8 @@ def main() -> None:
         choices=(
             "inputs",
             "models",
+            "models-plan",
+            "plan",
             "assemble",
             "package",
             "finalize-windows",
@@ -531,48 +491,39 @@ def main() -> None:
     parser.add_argument("--models", type=Path, default=ROOT / "build/common-models")
     parser.add_argument("--output", type=Path, default=ROOT / "dist/desktop")
     parser.add_argument("--signed", type=Path)
+    parser.add_argument("--plan", type=Path)
     parser.add_argument("--tag", default="")
     args = parser.parse_args()
+    args.plan = args.plan or args.work / "plan.json"
     if args.command == "inputs":
         keys = build_inputs("-".join(current_target()))
         print(json.dumps(keys))
-        if os.environ.get("GITHUB_OUTPUT"):
-            with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
-                for name, key in keys.items():
-                    stream.write(f"{name}={key}\n")
         return
     if os.environ.get("GITHUB_ACTIONS") != "true":
         raise ManifestError("Desktop installers must be built by GitHub Actions")
-    if args.command == "models":
-        from build_desktop_resources import assemble as assemble_resources
+    if args.command == "plan":
+        plan_build(args)
+    elif args.command in {"models", "models-plan"}:
+        from desktop_base_cache import cache_tag, exists
 
-        args.models.mkdir(parents=True, exist_ok=True)
-        assemble_resources(
-            Namespace(
-                resource="models",
-                target=None,
-                output=args.models / "payload",
-                cache=args.cache,
-                lock=ROOT / "packaging/runtime/resources.lock.json",
+        key = model_input(ROOT)
+        available = exists(cache_tag("models", "any-any", key))
+        if args.command == "models-plan":
+            outputs({"models_missing": not available})
+        else:
+            args.work = args.models
+            reuse_payload(
+                args,
+                "models",
+                key,
+                lambda payload: build_models(payload, args.cache),
+                available=available,
             )
-        )
-        version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
-        tag = args.tag or f"v{version}"
-        component = package_component(
-            args.models / "payload",
-            args.models,
-            "models",
-            "any-any",
-            "common",
-            f"https://github.com/SakuraMathcraft/LaTeXSnipper/releases/download/{tag}",
-        )
-        write_json(args.models / "models.component.json", component.to_dict())
     elif args.command == "assemble":
         assemble(args)
     elif args.command == "package":
         package(args)
     elif args.command == "finalize-windows":
-        validate_windows_signatures(args.signed)
         finalize_windows(args.output, args.signed)
     elif args.command == "upload":
         upload_desktop_assets(args.output, args.tag)

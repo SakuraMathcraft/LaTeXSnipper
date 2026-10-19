@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import html as html_module
 import logging
-import re
 
 from localization.manager import translate as tr
+from preview.content_preview import mixed_content_css, render_mixed_content
 from preview.math_preview import (
     build_math_html,
     mathjax_loader_script,
@@ -126,6 +126,7 @@ body {{
 .MathJax {{ font-size: 1.4em; }}
 .formula-content mjx-container,
 .block-content mjx-container {{ font-size: 140% !important; }}
+{mixed_content_css(tokens)}
 </style>
 </head>
 <body>{body_content}</body>
@@ -166,7 +167,9 @@ def render_content_block(
         if content_type == "mathcraft":
             rendered_content = f'<div class="formula-content">$${content}$$</div>'
         elif content_type == "mathcraft_mixed":
-            rendered_content = render_mixed_content(content)
+            rendered_content = (
+                f'<div class="mixed-content">{render_mixed_content(content)}</div>'
+            )
         else:
             rendered_content = (
                 f'<div class="text-content">{html_module.escape(content)}</div>'
@@ -192,29 +195,3 @@ def render_content_block(
             f'<div style="color: {tokens["error_text"]}; padding: 10px; '
             f'background: {tokens["error_bg"]}; border-radius: 4px;">{html_module.escape(error_msg)}</div>'
         )
-
-
-def render_mixed_content(content: str) -> str:
-    try:
-        if not content:
-            return ""
-
-        formula_pattern = r"(\$\$(?:[^$]|\$(?!\$))+?\$\$|\$(?:[^$]|\$(?!\$))+?\$)"
-        parts = re.split(formula_pattern, content)
-        result_parts = []
-
-        for part in parts:
-            if not part:
-                continue
-            if part.startswith("$$") and part.endswith("$$"):
-                result_parts.append(part)
-            elif part.startswith("$") and part.endswith("$"):
-                result_parts.append(part)
-            else:
-                result_parts.append(html_module.escape(part).replace("\n", "<br>"))
-
-        return "".join(result_parts)
-    except Exception as exc:
-        logger.warning("混合内容渲染失败: %s", exc)
-        message = tr("混合内容渲染失败: {error}").format(error=exc)
-        return f'<div style="color: red;">{html_module.escape(message)}</div>'

@@ -202,7 +202,7 @@ Windows/Linux 提供 CPU 与 NVIDIA GPU 两种发行，macOS Apple Silicon 使�
 
 == 资源异常时
 
-打开设置中的“应用诊断”查看组件完整性、运行版本和错误。“模型资源”显示权重位置与校验状态；安装版只使用安装目录中的模型。“应用更新”统一更新和修复应用、推理环境及模型组件。
+“应用诊断”报告运行版本、状态和实际错误；“模型资源”显示实际使用路径。应用更新只下载业务包并保留固定底座。底座有变化或安装资源损坏时，运行对应的完整安装包。
 
 截图权限和系统热键限制与 OCR 独立。macOS 需要为实际运行的应用授予屏幕录制权限；Linux Wayland 的截屏与全局热键取决于桌面环境。
 
@@ -345,7 +345,7 @@ curl -sS "http://100.x.x.x:28765/api/v1/recognition/jobs" \
 
 == 权重在哪里
 
-发行程序只使用安装目录中的模型组件，每个文件按当前清单校验。权重缺失或校验失败时停止加载，通过“应用更新”替换受损模型组件，不使用外部缓存或自动下载权重。
+发行程序只使用安装目录中的模型，加载前按模型清单校验。权重缺失或损坏时停止加载，请重新运行完整安装包；安装版不使用外部模型缓存或自动下载权重。
 
 源码桌面端和独立库、CLI 使用以下默认缓存位置：
 
@@ -353,13 +353,13 @@ curl -sS "http://100.x.x.x:28765/api/v1/recognition/jobs" \
 - Linux：`${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper/MathCraft/models`
 - macOS：`~/Library/Application Support/LaTeXSnipper/MathCraft/models`
 
-可以在设置的“模型资源”中查看各模型实际使用的路径和校验状态。
+可以通过“模型资源”查看各模型实际使用的路径；加载错误请查看“应用诊断”和运行日志。
 
 源码桌面端显式使用默认缓存位置，不读取 `MATHCRAFT_HOME`。独立使用 mathcraft-ocr 库或 CLI 时，可以用公开参数或环境变量指定缓存，并保留自动下载行为。安装版不使用该缓存；清理缓存可能影响源码运行及 CLI。
 
 == 下载失败或识别不可用
 
-组件修复和源码运行的模型下载需要网络。检查网络、代理、磁盘空间及应用运行日志；需要代理时可以为启动进程配置 `HTTP_PROXY`、`HTTPS_PROXY`。安装资源异常可先查看“应用诊断”，再通过“应用更新”修复；程序无法启动时重新运行安装器。
+业务更新和源码运行的模型下载需要网络。检查网络、代理、磁盘空间及应用运行日志；需要代理时可以为启动进程配置 `HTTP_PROXY`、`HTTPS_PROXY`。安装资源异常或程序无法启动时，重新运行完整安装包。
 
 CPU 发行固定使用 CPU；GPU 发行固定请求 CUDA，并在推理后核对私有库加载位置。GPU 失败时诊断硬件、驱动或资源问题，不自动改变发行类型。需要 CPU 时使用 CPU 安装器。
 
@@ -533,22 +533,22 @@ CPU 发行固定使用 CPU；GPU 发行固定请求 CUDA，并在推理后核对
 
 == 安装资源与用户数据
 
-Windows 安装目录包含 `application`、`inference`、`models` 与 `distribution.json`。Linux 组件由 dpkg 管理，位于 `/usr/lib/latexsnipper`，安装身份位于 `/var/lib/latexsnipper/distribution.json`。macOS 组件位于应用的 `Contents/Resources/desktop` 内，更新时重建并验证整个应用。
+Windows 安装目录包含业务目录 `application` 和固定资源目录 `runtime`、`inference`、`models`，以及 `distribution.json`。Linux 文件由 dpkg 管理，位于 `/usr/lib/latexsnipper`，安装身份位于 `/var/lib/latexsnipper/distribution.json`。macOS 业务目录位于应用的 `Contents/Resources/desktop`，固定资源位于 `Contents/Frameworks/LaTeXSnipperBase.bundle/Contents/Resources`。
 
 配置、历史、收藏和日志属于用户数据。Windows/Linux 应用状态位于 `~/.latexsnipper`；macOS 位于 `~/Library/Application Support/LaTeXSnipper`，日志位于 `~/Library/Logs/LaTeXSnipper`。MathCraft 默认模型缓存独立于安装组件。
 
 == 权限与重装
 
-默认用户安装位置可由当前用户更新；受保护位置的部署由独立更新进程申请平台权限。Linux 安装和组件替换通过 dpkg 完成；macOS 在旁侧重建并验证完整签名应用，再原子交换。
+默认用户安装位置可由当前用户更新；受保护位置的部署由独立更新进程申请平台权限。Linux 通过 dpkg 更新业务包和文件归属；macOS 保留独立签名底座，只替换业务资源并重新执行本地 ad-hoc 签名。
 
 重新运行安装器会按目标清单部署完整组合。Windows/Linux 更换 CPU/GPU 发行使用对应安装器，正常更新保持当前类型。下载和暂存阶段不会覆盖运行中的组件。
 
 == 卸载与清理
 
-Windows 使用系统卸载入口；Linux 卸载三个组件包：
+Windows 使用系统卸载入口；Linux 卸载四个安装包：
 
 ```bash
-sudo dpkg --purge latexsnipper-inference latexsnipper-models latexsnipper
+sudo dpkg --purge latexsnipper-runtime latexsnipper-inference latexsnipper-models latexsnipper
 ```
 
 macOS 删除安装的应用。卸载只移除产品拥有的安装资源；用户配置、日志及共享模型缓存可另外按需清理。Windows 卸载选项分别提供应用数据与模型缓存清理；Linux 在卸载前可使用 `latexsnipper-clean-user-data` 命令选择清理范围。macOS 退出应用后可按用户数据位置手动清理，源码仓库也提供支持 Linux/macOS 的 `scripts/latexsnipper-clean-user-data.sh`。共享模型缓存可能也被 mathcraft-ocr CLI 使用。用户保存的导出文件和外部工具由用户自行管理。
@@ -560,15 +560,15 @@ macOS 删除安装的应用。卸载只移除产品拥有的安装资源；用�
 
 == 何时需要联网
 
-完整安装后，本地识别、编辑与内置 MathJax 预览可以离线使用。HTML 独立页导出使用 CDN，接收者打开文件时需要联网加载公式和字体。应用更新、损坏权重下载、外部在线模型需要网络。外部本地服务是否需要网络取决于其部署方式。
+完整安装后，本地识别、编辑与内置 MathJax 预览可以离线使用。HTML 独立页导出使用 CDN，接收者打开文件时需要联网加载公式和字体。业务更新、源码模型下载、外部在线模型需要网络。外部本地服务是否需要网络取决于其部署方式。
 
-== 应用更新与修复
+== 应用更新与完整安装
 
-设置中的“应用更新”检查匹配当前平台、架构及 CPU/GPU 类型的发行清单。程序校验已安装内容，仅下载变化或损坏的完整组件；更新仅安装与当前发行匹配的应用、推理和模型组合。
+“应用更新”检查匹配当前平台、架构及 CPU/GPU 类型的发行。日常更新只下载和校验业务包，替换业务文件并删除废弃业务文件，保留 Python、Qt、Pandoc、推理依赖、模型与用户数据，不全量扫描固定资源。目标版本需要新的底座时，会提示下载完整安装包；首次切换到该架构也需要完整安装。
 
 下载支持暂停、继续与取消；中断文件按内容身份保存，复用前验证长度和 SHA256。准备完成后确认安装，应用停止识别与 worker 并退出，独立部署进程完成替换和验证。需要权限时由操作系统显示授权窗口。
 
-“应用诊断”只报告问题；“应用更新”在已是最新版本时也会修复受损组件。校验或部署失败时不提交新安装身份；中断事务在下次启动前恢复。部署临时备份只用于失败恢复，成功提交后清理；文件暂被占用时稍后重试清理，已完成的更新不受影响，不提供历史版本选择或手动降级。
+“应用诊断”报告版本、运行状态与实际错误，不执行推理环境或权重的完整性扫描。底座损坏或业务程序无法启动时，请重新运行完整安装包。更新校验或部署失败时不提交新身份，中断事务在下次启动前恢复。临时备份只用于本次失败恢复，成功提交后清理；清理失败稍后重试，不撤销已完成的更新。不提供历史版本选择或手动降级。
 
 == 常见失败
 
@@ -640,7 +640,7 @@ macOS 删除安装的应用。卸载只移除产品拥有的安装资源；用�
 
 公式预览固定使用内置 MathJax。修改 LaTeX 后实时查看结果；复制菜单提供 LaTeX、Markdown、MathML、HTML、SVG、图片和 Office 公式等输出。按用途选择格式，纯源码编辑保留原文。
 
-桌面发行随应用组件提供 Pandoc，支持 DOCX、ODT、PPTX、EPUB、独立 HTML、Typst、纯文本和 PDF 文件导出。PDF 导出还需要外部 XeLaTeX、LuaLaTeX 或 pdfLaTeX。源码开发使用 PATH 中的 Pandoc；随包 Pandoc 缺失时通过“应用更新”修复应用组件。
+桌面发行的固定底座提供 Pandoc，支持 DOCX、ODT、PPTX、EPUB、独立 HTML、Typst、纯文本和 PDF 文件导出。PDF 导出还需要外部 XeLaTeX、LuaLaTeX 或 pdfLaTeX。源码开发使用 PATH 中的 Pandoc；随包 Pandoc 缺失时重新运行完整安装包。
 
 == 手写识别
 
@@ -652,7 +652,7 @@ macOS 删除安装的应用。卸载只移除产品拥有的安装资源；用�
 
 == 窗口关闭与退出
 
-Windows 有托盘时关闭主窗口会隐藏，使用托盘退出。Linux 无托盘时会询问退出；macOS 关闭窗口会最小化，使用菜单退出或 Command+Q。
+Windows 有托盘时关闭主窗口会隐藏，使用托盘退出。Linux 无托盘时会询问退出；macOS 关闭窗口会隐藏主窗口并保留应用进程，可通过 Dock 或菜单栏重新打开，使用菜单退出或 Command+Q。
 
 // ═══════════════════════════════════════════
 // 平台特定
@@ -661,7 +661,9 @@ Windows 有托盘时关闭主窗口会隐藏，使用托盘退出。Linux 无托
 
 == Linux 图形环境与截图
 
-X11 通常可以正常使用全局热键。Wayland 的热键和截图受合成器策略限制；应用先尝试 Qt 截图，可使用可用的 `grim`、`maim`、`gnome-screenshot` 等后备工具。这些系统工具由用户或发行版安装。
+X11 使用 pynput 监听全局热键。Wayland 使用桌面提供的 GlobalShortcuts Portal，需要完成系统授权；实际组合键由桌面确认，应用显示授权后的快捷键。取消修改会保留原有授权。若桌面未提供该接口，请检查 `xdg-desktop-portal` 及对应桌面后端，也可使用截图按钮或切换 X11 会话，无需以 root 运行。
+
+Wayland 的截图仍受合成器策略限制；应用先尝试 Qt 截图，可使用可用的 `grim`、`maim`、`gnome-screenshot` 等后备工具。这些系统工具由用户或发行版安装。
 
 出现 EGL、GLOzone 或 WebEngine 画面异常时，先检查桌面会话和系统图形库。应用对 Wayland、虚拟机、WSL 等高风险会话启用软件图形后备；可用以下变量手动控制：
 
@@ -686,9 +688,9 @@ tccutil reset ScreenCapture com.mathcraft.latexsnipper
 
 应用不会自动执行重置。若授权检查成功但截图为空，报告屏幕布局、选区和截图日志。
 
-== macOS 签名与资源修复
+== macOS 签名与重新安装
 
-macOS 安装包使用 ad-hoc 签名，未经 Apple 公证。资源损坏时，可通过“应用更新”修复或重新安装。
+macOS 安装包使用 ad-hoc 签名，未经 Apple 公证，不需要用户提供 Developer ID。业务更新保留固定底座签名并重新签署外层应用；安装资源损坏时重新安装。
 
 // ═══════════════════════════════════════════
 // 软件冲突
@@ -708,7 +710,7 @@ macOS 安装包使用 ad-hoc 签名，未经 Apple 公证。资源损坏时，�
 *解决：*
 - 运行 `python -c "import sys; print(sys.executable)"` 确认当前解释器
 - 在 IDE 中选择同一环境，并在该环境安装项目依赖
-- 桌面安装包使用随包部署的独立推理环境；安装资源异常应通过“应用更新”修复或重新安装
+- 桌面安装包使用随包部署的独立推理环境；安装资源异常应重新运行完整安装包
 
 == 输入法 / 屏幕取词软件干扰截图
 
@@ -733,13 +735,13 @@ macOS 安装包使用 ad-hoc 签名，未经 Apple 公证。资源损坏时，�
 
 == 诊断与日志
 
-设置中的“应用诊断”显示实际安装组件、Python/ORT 版本、计算提供者及资源异常。“运行日志”显示当前会话诊断。请附应用日志目录；闪退时还需 `crash-native.log`（如果生成）。
+设置中的“应用诊断”显示安装版本、底座身份、Python/ORT 版本、计算提供者及实际运行错误。“运行日志”显示当前会话诊断。请附应用日志目录；闪退时还需 `crash-native.log`（如果生成）。
 
 - Windows：`%USERPROFILE%/.latexsnipper/logs`
 - Linux：`~/.latexsnipper/logs`
 - macOS：`~/Library/Logs/LaTeXSnipper`
 
-模型问题请附“模型资源”中的实际路径及校验状态；GPU 问题请附显卡型号与驱动版本；修复失败请附完整日志。
+模型问题请附实际模型路径及加载错误；GPU 问题请附显卡型号与驱动版本；更新或重新安装失败请附完整日志。
 
 // ═══════════════════════════════════════════
 // 从源码运行
@@ -748,7 +750,7 @@ macOS 安装包使用 ad-hoc 签名，未经 Apple 公证。资源损坏时，�
 
 == 使用同一开发 Python
 
-选择 venv、Conda、uv 等受支持的 Python 环境，运行、测试和 IDE 使用同一解释器。Windows 安装 `requirements.txt`，Linux/macOS 分别安装 `requirements-linux.txt`、`requirements-macos.txt`；后两者包含公共依赖。本地 OCR 还需要 CPU extra：
+选择 venv、Conda、uv 等受支持的 Python 环境，运行、测试和 IDE 使用同一解释器。三平台统一安装 `requirements.txt`，平台专用依赖由环境标记自动选择。本地 OCR 还需要 CPU extra：
 
 ```bash
 python -m pip install -r requirements.txt
@@ -756,7 +758,7 @@ python -m pip install -e '.[cpu]'
 python src/main.py
 ```
 
-Linux/macOS 替换第一行的 requirements 文件即可。源码 worker 使用启动应用的 Python，固定 CPU，并显式使用库的平台默认缓存。开发依赖由标准开发工具管理。源码 Pandoc 从 PATH 获取；PDF 文件导出的 LaTeX 引擎同样由开发者提供。
+源码 worker 使用启动应用的 Python，固定 CPU，并显式使用库的平台默认缓存。开发依赖由标准开发工具管理。源码 Pandoc 从 PATH 获取；PDF 文件导出的 LaTeX 引擎同样由开发者提供。
 
 == 检查与发行构建
 
@@ -770,7 +772,7 @@ python scripts/update_translations.py --check
 python scripts/check_ui_translations.py
 ```
 
-客户端安装器由 GitHub Actions 构建；发行维护与验收约束见仓库中的 `docs/desktop_distribution.md`。
+客户端安装器由 GitHub Actions 构建，复用输入未变化的固定底座和维护程序；原生安装与识别验收按需单独运行。发行维护与验收约束见仓库中的 `docs/desktop_distribution.md`。
 
 #pagebreak()
 
@@ -1517,7 +1519,7 @@ MathLive 所见即所得公式编辑器，支持中文界面和本地化：
 - Python ONNX Runtime（公式/文字/混合识别）
 - Qt WebEngine（编辑器、公式渲染）
 - Pandoc 系统命令（文件格式转换）
-- Win32 / Carbon / pynput（全局快捷键）
+- Win32 / Carbon / pynput / GlobalShortcuts Portal（全局快捷键）
 
 #text(weight: "bold")[移动端]
 - Vite 8 / Capacitor 8 / WebView
@@ -1875,7 +1877,7 @@ MathCraft OCR 是 LaTeXSnipper 内置的本地公式、文本与混合文档识�
 - *本地离线识别：* 模型安装完成后无需网络连接，识别在本地完成
 - *ONNX 运行时：* 基于 ONNX Runtime，支持 CPU 与 CUDA GPU 路径
 - *多任务识别：* 支持公式、纯文字、混合文档与 PDF 文档识别
-- *自动缓存修复：* 按清单校验模型，缺失或损坏时复用有效缓存或按需下载修复
+- *独立库 / CLI 自动缓存修复：* 按清单校验模型，缺失或损坏时复用有效缓存或按需下载修复
 
 *独立库安装方式（桌面安装包无需执行）：*
 ```text

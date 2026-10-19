@@ -1,4 +1,4 @@
-"""Assemble official, locked models and application Pandoc resources for Actions."""
+"""Assemble official, locked models and fixed Pandoc resources for Actions."""
 
 from __future__ import annotations
 

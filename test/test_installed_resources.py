@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 import runtime.installed_resources as resources_module
-from mathcraft_ocr.cache import inspect_model_roots
+from mathcraft_ocr.cache import inspect_manifest_cache, inspect_model_roots
 from mathcraft_ocr.manifest import ModelFileSpec, ModelSpec, load_manifest
 from mathcraft_ocr.protocol import validate_request, validate_response
 from runtime.component_inventory import inventory_component
@@ -41,8 +41,8 @@ def windows_resource_fixture(monkeypatch, tmp_path):
 
 def installed(tmp_path, monkeypatch, edition="cpu"):
     payloads = {
+        "runtime": {"pandoc/pandoc.exe": b"pandoc"},
         "application": {
-            "pandoc/pandoc.exe": b"pandoc",
             "worker/mathcraft_ocr/worker.py": b"worker",
             "worker/mathcraft_ocr/protocol.py": b"protocol",
             "worker/mathcraft_ocr/runtime.py": b"runtime",
@@ -85,7 +85,12 @@ def installed(tmp_path, monkeypatch, edition="cpu"):
             )
         )
     manifest = DistributionManifest(
-        "3.1.0", "windows", "x86_64", edition, tuple(components)
+        "3.1.0",
+        "windows",
+        "x86_64",
+        edition,
+        next(item for item in components if item.name == "application"),
+        "1" * 64,
     )
     (tmp_path / "distribution.json").write_text(
         json.dumps(manifest.to_dict()), encoding="utf-8"
@@ -237,7 +242,7 @@ def test_installed_worker_reports_model_integrity_without_downloading(
     complete = installed_content == b"current"
     assert result["ready"] is complete
     assert result["missing_models"] == ([] if complete else [spec.model_id])
-    state = models.inspect()[spec.model_id]
+    state = inspect_manifest_cache(models.root, models.manifest)[spec.model_id]
     assert state.complete is complete
     assert state.model_dir == installed_file.parent
     assert warmed == ([installed_file.parent] if complete else [])
@@ -301,20 +306,6 @@ def test_inference_metadata_cannot_change_installation_edition(tmp_path, monkeyp
     details = json.loads(path.read_text())
     details["edition"] = "gpu"
     path.write_text(json.dumps(details))
-    inference = replace(
-        resources.manifest.component("inference"),
-        files=inventory_component(tmp_path / "inference"),
-    )
-    resources = replace(
-        resources,
-        manifest=replace(
-            resources.manifest,
-            components=tuple(
-                inference if item.name == "inference" else item
-                for item in resources.manifest.components
-            ),
-        ),
-    )
     with pytest.raises(ManifestError, match="installation contract"):
         resources.verify_runtime()
 
@@ -389,8 +380,11 @@ def test_model_manifest_rejects_traversal_before_download(tmp_path):
         load_manifest(path)
 
 
-def test_macos_resource_layout_is_inside_bundle():
-    executable = Path(
-        "/Applications/LaTeXSnipper.app/Contents/Resources/desktop/application/LaTeXSnipper"
+def test_macos_resource_layout_resolves_signed_nested_base(tmp_path, monkeypatch):
+    bundle = tmp_path / "LaTeXSnipper.app"
+    executable = (
+        bundle
+        / "Contents/Frameworks/LaTeXSnipperBase.bundle/Contents/Resources/runtime/LaTeXSnipper"
     )
-    assert installation_root(executable) == executable.resolve().parent.parent
+    monkeypatch.setattr(resources_module, "sys", SimpleNamespace(platform="darwin"))
+    assert installation_root(executable) == bundle / "Contents/Resources/desktop"

@@ -21,7 +21,6 @@ from PyQt6.QtWidgets import QSystemTrayIcon
 
 from localization.manager import translate as tr
 from platform_services import TrayMenuHandlers
-from runtime.hotkey_config import display_hotkey, normalize_hotkey_or_default
 
 
 class TrayController(QObject):
@@ -63,10 +62,7 @@ class TrayController(QObject):
         self._tray_activation_connected = True
 
     def update_tray_tooltip(self):
-        hk = display_hotkey(
-            normalize_hotkey_or_default(self.cfg.get("hotkey", None), sys.platform),
-            sys.platform,
-        )
+        hk = self.view.hotkey.display_hotkey()
         mode = self.display_mode()
         if mode == "index":
             idx = self.display_index()
@@ -149,10 +145,7 @@ class TrayController(QObject):
             )
 
     def update_tray_menu(self):
-        hk = display_hotkey(
-            normalize_hotkey_or_default(self.cfg.get("hotkey", None), sys.platform),
-            sys.platform,
-        )
+        hk = self.view.hotkey.display_hotkey()
         handlers = TrayMenuHandlers(
             on_open=self.windows.show_window,
             on_capture=self.capture.start_capture,

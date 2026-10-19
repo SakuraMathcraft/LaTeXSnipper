@@ -48,13 +48,13 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
         return _pack(
             "ONNXRUNTIME_MISSING",
             "缺少 onnxruntime",
-            "推理组件缺少 onnxruntime，请检查并修复安装资源。",
+            "缺少 onnxruntime；安装版请重新运行完整安装包，源码运行请检查当前 Python 环境。",
             "onnxruntime 模块缺失，MathCraft ONNX 后端不可用。",
         )
     if missing_module.startswith(
         "onnxruntime."
     ) or looks_like_onnxruntime_install_error(raw):
-        runtime_hint = "onnxruntime 运行资源损坏或不可用，请检查并修复推理组件。"
+        runtime_hint = "onnxruntime 运行资源损坏或不可用；安装版请重新运行完整安装包，源码运行请检查当前 Python 环境。"
         return _pack(
             "ONNXRUNTIME_BROKEN",
             "onnxruntime 依赖异常",
@@ -67,7 +67,7 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
             if "." in missing_module
             else "MATHCRAFT_DEP_MISSING",
             "MathCraft 依赖不完整",
-            "MathCraft OCR 运行资源缺失或不完整，请检查并修复安装资源。",
+            "MathCraft OCR 运行资源缺失或不完整；安装版请重新运行完整安装包，源码运行请检查当前 Python 环境。",
             f"无法导入模块 {missing_module!r}。"
             + (
                 "请检查所属包的安装完整性与版本兼容性。"
@@ -79,7 +79,7 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
         return _pack(
             "MODEL_CACHE_INCOMPLETE",
             "模型资源不完整",
-            "MathCraft OCR 模型资源缺失或损坏；安装版请通过“应用更新”修复。",
+            "MathCraft OCR 模型资源缺失或损坏；安装版请重新运行完整安装包。",
             f"MathCraft 模型资源不完整: {raw[:300]}",
         )
     if "failed to download model" in lower or "no usable download source" in lower:
@@ -93,7 +93,7 @@ def classify_mathcraft_failure(detail: str) -> dict[str, str]:
         return _pack(
             "CUDA_RUNTIME_BROKEN",
             "GPU 运行资源异常",
-            "GPU 推理不可用，请检查 NVIDIA 显卡、驱动及推理组件完整性。",
+            "GPU 推理不可用，请检查 NVIDIA 显卡与驱动；安装资源损坏时请重新运行完整安装包。",
             f"私有 CUDA/cuDNN 初始化失败: {raw[:1000]}",
         )
     if looks_like_gpu_provider_error(raw):
