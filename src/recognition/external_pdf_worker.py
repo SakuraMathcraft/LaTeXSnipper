@@ -1,7 +1,6 @@
 import time
-from typing import cast
 
-from PyQt6.QtCore import QObject, QThread, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal
 
 from backend.external_model.asset_store import PdfAssetStore
 from backend.external_model.document_pipeline import ExternalDocumentPipeline
@@ -55,8 +54,6 @@ class ExternalModelPdfWorker(QObject):
             self.failed.emit(
                 recognition_error_code_message("upstream_error", "external_model")
             )
-        return
-        self._run_uncoordinated()
 
     def _run_uncoordinated(self):
         t0 = time.perf_counter()
@@ -84,10 +81,7 @@ class ExternalModelPdfWorker(QObject):
                 result = MineruClient(self.config).parse_pdf(
                     self.pdf_path, page_start, page_end
                 )
-                if (
-                    self._cancelled
-                    or cast(QThread, QThread.currentThread()).isInterruptionRequested()
-                ):
+                if self._cancelled:
                     asset_store.cleanup()
                     _set_elapsed()
                     self.failed.emit(CANCELED_WORKER_MESSAGE)
@@ -157,10 +151,7 @@ class ExternalModelPdfWorker(QObject):
         results = []
         try:
             for progress_index, page_index in enumerate(page_indices):
-                if (
-                    self._cancelled
-                    or cast(QThread, QThread.currentThread()).isInterruptionRequested()
-                ):
+                if self._cancelled:
                     if asset_store is not None:
                         asset_store.cleanup()
                     _set_elapsed()
@@ -178,10 +169,7 @@ class ExternalModelPdfWorker(QObject):
                 if page_result:
                     results.append(page_result)
                 self.progress.emit(progress_index + 1, total)
-                if (
-                    self._cancelled
-                    or cast(QThread, QThread.currentThread()).isInterruptionRequested()
-                ):
+                if self._cancelled:
                     if asset_store is not None:
                         asset_store.cleanup()
                     _set_elapsed()

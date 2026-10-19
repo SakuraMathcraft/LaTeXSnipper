@@ -74,11 +74,12 @@ class PreviewController(QObject):
         latex = latex.strip()
         if not latex:
             return
-        existing_formulas = [f for f, _, _ in self._rendered_formulas]
-        if latex in existing_formulas:
-            return
         self._editor_preview_source = latex
         self._editor_preview_content_type = content_type
+        existing_formulas = [f for f, _, _ in self._rendered_formulas]
+        if latex in existing_formulas:
+            self.refresh()
+            return
         if label is None:
             label = self.label_for(latex)
         self._rendered_formulas.insert(0, (latex, label, content_type))
@@ -137,6 +138,9 @@ class PreviewController(QObject):
         self.refresh()
 
     def replace_content(self, old, new):
+        if self.view.latex_editor.toPlainText().strip() == old:
+            self.set_editor_text(new)
+            self._editor_preview_source = new
         self._rendered_formulas = [
             (new if text == old else text, label, content_type)
             for text, label, content_type in self._rendered_formulas

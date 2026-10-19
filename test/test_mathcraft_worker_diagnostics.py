@@ -4,6 +4,7 @@ import json
 import logging
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -11,7 +12,12 @@ import pytest
 from backend.mathcraft.diagnostics import classify_mathcraft_failure
 from backend.mathcraft.model import ModelWrapper, _MathCraftWorkerError
 from mathcraft_ocr.hardware import _run_powershell_json
-from runtime.installed_resources import worker_command, worker_environment
+from runtime.installed_resources import (
+    InstalledResources,
+    worker_command,
+    worker_environment,
+)
+from test_distribution_components import distribution
 
 ROOT = Path(__file__).resolve().parents[1]
 UNICODE_TEXT = "中文 − ∑ 𝛼 🙂 café"
@@ -193,6 +199,70 @@ def _script_worker(monkeypatch, script):
         wrapper, "_worker_argv", lambda: [sys.executable, "-u", "-c", script]
     )
     return wrapper
+
+
+@pytest.mark.parametrize("platform", ["windows", "linux", "macos"])
+@pytest.mark.parametrize("matching_version", [True, False])
+def test_installed_handshake_uses_owned_runtime_and_checks_versions(
+    tmp_path, monkeypatch, platform, matching_version
+):
+    root = tmp_path / "installation"
+    if platform == "macos":
+        root = tmp_path / "LaTeXSnipper.app/Contents/Resources/desktop"
+    root.mkdir(parents=True)
+    original = distribution()
+    architecture = "arm64" if platform == "macos" else "x86_64"
+    manifest = replace(
+        original,
+        platform=platform,
+        architecture=architecture,
+        application=replace(
+            original.application, platform=platform, architecture=architecture
+        ),
+    )
+    resources = InstalledResources(root.resolve(), manifest)
+    runtime = resources.directory("inference") / "runtime.json"
+    runtime.parent.mkdir(parents=True)
+    runtime.write_text(
+        json.dumps({"python_version": "3.11.0", "ort_version": "1.27.0"}),
+        encoding="utf-8",
+    )
+    script = """
+import json, sys
+for line in sys.stdin:
+    request = json.loads(line)
+    result = {'worker_protocol': 1, 'model_format': 1,
+              'python_version': '3.11.0', 'ort_version': sys.argv[1]}
+    if request['action'] != 'hello':
+        result = {'ready': True}
+    print(json.dumps({'protocol': 1, 'id': request['id'], 'ok': True,
+                      'result': result}), flush=True)
+"""
+    wrapper = ModelWrapper(auto_warmup=False)
+    wrapper._resources = resources
+    monkeypatch.setattr(
+        wrapper,
+        "_worker_argv",
+        lambda: [
+            sys.executable,
+            "-X",
+            "utf8",
+            "-u",
+            "-c",
+            script,
+            "1.27.0" if matching_version else "1.26.0",
+        ],
+    )
+    try:
+        if matching_version:
+            assert wrapper._send_worker_request({"action": "warmup"}) == {"ready": True}
+            assert wrapper.runtime_info["python_version"] == "3.11.0"
+        else:
+            with pytest.raises(RuntimeError, match="versions do not match"):
+                wrapper._send_worker_request({"action": "warmup"})
+            assert wrapper._worker is None
+    finally:
+        wrapper.stop()
 
 
 def test_worker_exit_drains_stderr_and_reports_exit_code(monkeypatch, caplog):

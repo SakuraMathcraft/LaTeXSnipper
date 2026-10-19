@@ -189,6 +189,50 @@ def test_formula_warmup_plan_reports_missing_models() -> None:
         assert plan.unsupported_models == ()
 
 
+@pytest.mark.parametrize("profile", ["formula", "text", "mixed"])
+@pytest.mark.parametrize("auto_download", [False, True])
+def test_custom_manifest_reports_undeclared_component_and_can_be_completed(
+    tmp_path, monkeypatch, profile, auto_download
+):
+    manifest = load_manifest()
+    required = runtime_mod.PROFILE_MODEL_IDS[profile]
+    missing_id = required[0]
+    absent_spec = manifest.models.pop(missing_id)
+    for model_id in required[1:]:
+        _touch_model(tmp_path, manifest, model_id)
+    warmed = []
+    monkeypatch.setattr(
+        runtime_mod,
+        "ONNX_WARMUP_HANDLERS",
+        {
+            model_id: lambda path, provider: warmed.append(path.name)
+            for model_id in required
+        },
+    )
+    monkeypatch.setattr(
+        runtime_mod,
+        "download_model_archive",
+        lambda *args, **kwargs: pytest.fail("Cannot download an undeclared component"),
+    )
+    runtime = MathCraftRuntime(
+        cache_dir=tmp_path,
+        manifest=manifest,
+        provider_preference="cpu",
+        auto_download=auto_download,
+    )
+    plan = runtime.warmup(profile)
+    assert not plan.ready
+    assert plan.missing_models == (missing_id,)
+    assert plan.unsupported_models == ()
+    assert set(warmed) == set(required[1:])
+    with pytest.raises(ModelCacheError, match=missing_id):
+        getattr(runtime, f"recognize_{profile}")(None)
+
+    manifest.models[missing_id] = absent_spec
+    _touch_model(tmp_path, manifest, missing_id)
+    assert runtime.warmup(profile).ready
+
+
 def test_warmup_auto_downloads_missing_models_before_handlers() -> None:
     manifest = load_manifest()
     old_download = runtime_mod.download_model_archive

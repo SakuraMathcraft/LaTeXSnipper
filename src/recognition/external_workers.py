@@ -90,20 +90,26 @@ class ExternalModelWorker(QObject):
 
 
 class ExternalModelConnectionWorker(QObject):
-    finished = pyqtSignal(bool, str)
+    finished = pyqtSignal(object)
     failed = pyqtSignal(object)
 
     def __init__(self, config: ExternalModelConfig):
         super().__init__()
         self.config = config
         self.elapsed = None
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
 
     def run(self):
+        if self._cancelled:
+            return
         t0 = time.perf_counter()
         try:
             ok, message = ExternalModelClient(self.config).test_connection()
             self.elapsed = time.perf_counter() - t0
-            self.finished.emit(bool(ok), str(message or ""))
+            self.finished.emit((bool(ok), str(message or "")))
         except Exception as e:
             self.elapsed = time.perf_counter() - t0
             self.failed.emit(e)

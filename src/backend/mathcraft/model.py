@@ -303,7 +303,9 @@ class ModelWrapper(QObject):
             if self._resources is not None:
                 from runtime.distribution_manifest import read_json
 
-                details = read_json(self._resources.root / "inference/runtime.json")
+                details = read_json(
+                    self._resources.resource("inference", "runtime.json")
+                )
                 if any(
                     hello.get(key) != details[key]
                     for key in ("python_version", "ort_version")

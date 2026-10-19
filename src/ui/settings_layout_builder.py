@@ -21,8 +21,7 @@ class SettingsLayoutMixin:
     def __init__(self, parent=None):
         super().__init__(parent)  # pyright: ignore[reportCallIssue]
         self._model_selection_syncing = False
-        self._external_test_thread = None
-        self._external_test_worker = None
+        self._external_test_task = None
         self._external_help_window = None
         self._compute_mode_state = "unknown"
         self._theme_is_dark_cached = None

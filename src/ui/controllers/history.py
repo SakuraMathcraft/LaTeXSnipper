@@ -143,7 +143,6 @@ class HistoryController(QObject):
             except Exception as e:
                 logger.warning("保存历史失败: %s", e)
         self.preview.replace_content(old_latex, new_latex)
-        self.preview.refresh()
         self.status.set_action_status(tr("已更新"))
 
     def _history_display_entries(self):

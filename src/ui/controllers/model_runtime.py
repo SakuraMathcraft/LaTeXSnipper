@@ -57,6 +57,7 @@ class ModelRuntimeController(QObject):
         self._model_warmup_in_progress = False
         self._model_warmup_cancelled = False
         self._model_warmup_notice_shown = False
+        self._model_cache_repair_notice_shown = False
         self._model_warmup_callbacks = []
         self._sanitize_model_config()
         self._model_warmup_result_signal.connect(self._apply_model_warmup_result)
@@ -206,6 +207,7 @@ class ModelRuntimeController(QObject):
             return
         self._model_warmup_in_progress = True
         self._model_warmup_notice_shown = False
+        self._model_cache_repair_notice_shown = False
         self.status_changed.emit(tr("预热中"))
         if self._should_show_mathcraft_warmup_started_infobar(preferred):
             self._show_mathcraft_warmup_started_infobar()
@@ -472,7 +474,9 @@ class ModelRuntimeController(QObject):
         self.stop_worker()
         thread = self._warmup_thread
         if thread is not None:
-            thread.join()
+            thread.join(timeout=1)
+            if thread.is_alive():
+                logger.debug("退出期间忽略尚未返回的模型预热任务")
         self._model_warmup_in_progress = False
 
     @property

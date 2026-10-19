@@ -193,11 +193,10 @@ class MathCraftRuntime:
                 self.model_roots, self.manifest.models[model_id]
             )
             for model_id in model_ids
+            if model_id in self.manifest.models
         }
         broken_or_missing = [
-            model_id
-            for model_id in model_ids
-            if model_id in self.manifest.models and not states[model_id].complete
+            model_id for model_id, state in states.items() if not state.complete
         ]
         if not broken_or_missing or not self.auto_download:
             return states
@@ -640,11 +639,11 @@ class MathCraftRuntime:
         unsupported: list[str] = []
         component_statuses: list[WarmupComponentStatus] = []
         for model_id in model_ids:
-            state = states[model_id]
-            spec = self.manifest.models[model_id]
-            if not state.complete:
+            state = states.get(model_id)
+            if state is None or not state.complete:
                 missing.append(model_id)
                 continue
+            spec = self.manifest.models[model_id]
             if spec.runtime != "onnx":
                 unsupported.append(model_id)
                 component_statuses.append(

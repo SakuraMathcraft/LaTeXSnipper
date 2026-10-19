@@ -1,6 +1,6 @@
 from typing import cast
 
-from PyQt6.QtCore import QObject, QThread
+from PyQt6.QtCore import QObject
 from PyQt6.QtWidgets import QLineEdit
 from qfluentwidgets import ComboBox
 
@@ -8,6 +8,7 @@ from backend.external_model import get_preset, load_config_from_mapping
 from localization.manager import translate as tr
 from recognition.error_messages import external_model_test_error_user_message
 from recognition.external_workers import ExternalModelConnectionWorker
+from runtime.background_task import BackgroundTask
 from ui.settings_external_help import ExternalModelHelpWindow
 from ui.window_helpers import show_normal_window
 
@@ -188,7 +189,7 @@ class SettingsExternalModelMixin:
         )
 
     def _test_external_model_connection(self):
-        if self._external_test_thread and self._external_test_thread.isRunning():
+        if self._external_test_task and self._external_test_task.busy:
             self._show_info(
                 tr("测试进行中"), tr("当前已有一个测试连接任务在后台运行。"), "warning"
             )
@@ -197,9 +198,8 @@ class SettingsExternalModelMixin:
         self._save_external_model_config()
         self.external_test_btn.setEnabled(False)
         self.external_test_btn.setText(tr("测试中..."))
-        self._external_test_thread = QThread(cast(QObject, self))
-        self._external_test_worker = ExternalModelConnectionWorker(config)
-        self._external_test_worker.moveToThread(self._external_test_thread)
+        task = BackgroundTask(cast(QObject, self))
+        self._external_test_task = task
 
         def _cleanup():
             try:
@@ -207,14 +207,14 @@ class SettingsExternalModelMixin:
                 self.external_test_btn.setText(tr("测试连接"))
             except Exception:
                 pass
-            if self._external_test_worker:
-                self._external_test_worker.deleteLater()
-                self._external_test_worker = None
-            if self._external_test_thread:
-                self._external_test_thread.deleteLater()
-                self._external_test_thread = None
+            self._external_test_task = None
+            task.deleteLater()
 
-        def _on_ok(_ok: bool, _message: str):
+        def _on_ok(result):
+            ok, message = result
+            if not ok:
+                _on_fail(message)
+                return
             provider = config.normalized_provider()
             title = tr("健康检查通过") if provider == "mineru" else tr("测试成功")
             if provider == "mineru":
@@ -231,13 +231,10 @@ class SettingsExternalModelMixin:
             pretty = self._format_external_test_error(error)
             self._show_info(tr("测试失败"), pretty, "error")
 
-        self._external_test_thread.started.connect(self._external_test_worker.run)
-        self._external_test_worker.finished.connect(_on_ok)
-        self._external_test_worker.failed.connect(_on_fail)
-        self._external_test_worker.finished.connect(self._external_test_thread.quit)
-        self._external_test_worker.failed.connect(self._external_test_thread.quit)
-        self._external_test_thread.finished.connect(_cleanup)
-        self._external_test_thread.start()
+        task.succeeded.connect(_on_ok)
+        task.failed.connect(_on_fail)
+        task.finished.connect(_cleanup)
+        task.start(ExternalModelConnectionWorker(config))
 
     def _format_external_test_error(self, error: object) -> str:
         return external_model_test_error_user_message(error)
