@@ -24,3 +24,7 @@ class SettingsWindow(
 
     "Settings window."
     model_changed = pyqtSignal(str)
+
+    def shutdown(self):
+        if self._external_test_task is not None:
+            self._external_test_task.shutdown()

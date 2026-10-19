@@ -121,12 +121,12 @@
       <translation>LaTeX (inline)</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="686" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="676" />
       <source>LaTeX 已复制到剪贴板。</source>
       <translation>LaTeX has been copied to the clipboard.</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="174" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="176" />
       <source>LaTeX 结果</source>
       <translation>LaTeX Result</translation>
     </message>
@@ -203,7 +203,7 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>Markdown inline</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="280" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="282" />
       <source>MathCraft OCR 已就绪</source>
       <translation>MathCraft OCR is ready</translation>
     </message>
@@ -228,7 +228,7 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>MathCraft OCR model resources are missing or damaged. For an installed app, rerun the complete installer.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="435" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="437" />
       <source>MathCraft OCR 正在预热</source>
       <translation>MathCraft OCR is warming up</translation>
     </message>
@@ -258,7 +258,7 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>MathCraft OCR warm-up failed. Open the runtime log for details.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="183" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="184" />
       <source>MathCraft OCR 预热完成，可直接识别</source>
       <translation>MathCraft OCR warm-up completed and is ready to recognize</translation>
     </message>
@@ -268,17 +268,17 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>Incomplete MathCraft dependencies</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="358" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="360" />
       <source>MathCraft 公式识别</source>
       <translation>MathCraft Formula Recognition</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="360" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="362" />
       <source>MathCraft 混合识别</source>
       <translation>MathCraft Mixed Recognition</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="359" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="361" />
       <source>MathCraft 纯文字识别</source>
       <translation>MathCraft Text Recognition</translation>
     </message>
@@ -288,7 +288,7 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>MathCraft cache</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="83" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="82" />
       <source>MathCraft 识别类型:</source>
       <translation>MathCraft recognition type:</translation>
     </message>
@@ -298,12 +298,12 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>Whether MathJax resources exist</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="154" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="153" />
       <source>MinerU Local 健康检查路径（例如 /health）</source>
       <translation>MinerU Local health-check path (for example, /health)</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="148" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="147" />
       <source>MinerU Local 解析接口路径（例如 /file_parse）</source>
       <translation>MinerU Local parsing endpoint path (for example, /file_parse)</translation>
     </message>
@@ -330,8 +330,8 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
 Check App diagnostics. For an installed app, rerun the complete installer. When running from source, check the current Python environment.</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/external_pdf_worker.py" line="141" />
-      <location filename="../../../src/recognition/workers.py" line="157" />
+      <location filename="../../../src/recognition/external_pdf_worker.py" line="135" />
+      <location filename="../../../src/recognition/workers.py" line="154" />
       <location filename="../../../src/ui/controllers/pdf.py" line="143" />
       <source>PDF 打开失败: {error}</source>
       <translation>Failed to open PDF: {error}</translation>
@@ -352,7 +352,7 @@ Check App diagnostics. For an installed app, rerun the complete installer. When 
       <translation>PDF Document Parsing Result</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/external_pdf_worker.py" line="118" />
+      <location filename="../../../src/recognition/external_pdf_worker.py" line="112" />
       <source>PDF 渲染 DPI 未设置</source>
       <translation>PDF rendering DPI is not set</translation>
     </message>
@@ -393,7 +393,7 @@ Check App diagnostics. For an installed app, rerun the complete installer. When 
       <translation>Wayland global shortcut unavailable: {error}</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="609" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="599" />
       <source>WebEngine 不可用。
 
 当前内容:
@@ -404,7 +404,7 @@ Current content:
 </translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="215" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="217" />
       <source>WebEngine 不可用，无法显示公式预览。</source>
       <translation>WebEngine is unavailable; the formula preview cannot be displayed.</translation>
     </message>
@@ -448,12 +448,12 @@ Make sure PyQtWebEngine is installed.</translation>
 Retry with the {hotkey} shortcut.</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="590" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="580" />
       <source>{error}。可手动擦除后重写，或直接编辑右侧 LaTeX 结果。</source>
       <translation>{error}. Erase and rewrite the handwriting, or edit the LaTeX result on the right.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/recognition.py" line="122" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="116" />
       <source>{images};;所有文件 (*.*)</source>
       <translation>{images};;All files (*.*)</translation>
     </message>
@@ -497,7 +497,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Download update</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="104" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="103" />
       <source>不使用预设</source>
       <translation>No preset</translation>
     </message>
@@ -527,12 +527,12 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Main window shown</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="705" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="689" />
       <source>主窗口正在识别，请稍候。</source>
       <translation>Recognition is in progress in the main window. Please wait.</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="508" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="514" />
       <source>主窗口识别中，等待继续...</source>
       <translation>Recognition is running in the main window; waiting...</translation>
     </message>
@@ -542,13 +542,13 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Theme applied</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="117" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="119" />
       <source>书写</source>
       <translation>Draw</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="499" />
-      <location filename="../../../src/handwriting/handwriting_window.py" line="432" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="503" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="434" />
       <source>书写中</source>
       <translation>Drawing</translation>
     </message>
@@ -631,12 +631,12 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Health check passed</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="435" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="437" />
       <source>像素级局部擦除命中的笔迹片段，保留其余部分</source>
       <translation>Erase the touched stroke segments at pixel level while preserving the rest</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="252" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="251" />
       <source>允许 Office 插件、本机自动化工具及已授权远程设备调用 LaTeXSnipper</source>
       <translation>Allow the Office add-in, local automation tools, and authorized remote devices to use LaTeXSnipper</translation>
     </message>
@@ -646,7 +646,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Allow remote devices to use the configured external model (may incur charges)</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="514" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="520" />
       <source>先写入笔迹后再尝试识别。</source>
       <translation>Write something before starting recognition.</translation>
     </message>
@@ -668,12 +668,12 @@ Retry with the {hotkey} shortcut.</translation>
     <message>
       <location filename="../../../src/preview/smart_preview.py" line="162" />
       <location filename="../../../src/ui/favorites_window.py" line="267" />
-      <location filename="../../../src/ui/settings_layout_builder.py" line="86" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="85" />
       <source>公式</source>
       <translation>Formula</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="165" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="164" />
       <source>公式 OCR</source>
       <translation>Formula OCR</translation>
     </message>
@@ -759,8 +759,8 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Closing this window will quit LaTeXSnipper completely. Continue?</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/history.py" line="195" />
-      <location filename="../../../src/ui/controllers/history.py" line="210" />
+      <location filename="../../../src/ui/controllers/history.py" line="194" />
+      <location filename="../../../src/ui/controllers/history.py" line="209" />
       <source>内容不存在</source>
       <translation>Content Not Found</translation>
     </message>
@@ -776,7 +776,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Content block rendering failed: {error}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="427" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="426" />
       <source>内置 MathCraft OCR，支持公式、混合、文字与 PDF 文档识别。</source>
       <translation>Built-in MathCraft OCR for formulas, mixed content, text, and PDF documents.</translation>
     </message>
@@ -786,7 +786,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The built-in PDF recognizer requires a rendering DPI</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="69" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="68" />
       <source>内置模型</source>
       <translation>Built-in model</translation>
     </message>
@@ -818,12 +818,6 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Delete</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/recognition.py" line="71" />
-      <location filename="../../../src/ui/controllers/recognition.py" line="99" />
-      <source>前一识别线程尚未结束</source>
-      <translation>The previous recognition task is still running</translation>
-    </message>
-    <message>
       <location filename="../../../src/ui/controllers/status.py" line="67" />
       <source>加载失败</source>
       <translation>Load Failed</translation>
@@ -836,7 +830,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Loading interface components...</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="115" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="114" />
       <source>协议:</source>
       <translation>Protocol:</translation>
     </message>
@@ -885,22 +879,22 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Optional</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="111" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="112" />
       <source>可选：模型名（MinerU Local 通常可留空）</source>
       <translation>Optional: model name (usually blank for MinerU Local)</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="238" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="237" />
       <source>启动后显示运行日志窗口</source>
       <translation>Show the runtime log window after startup</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="224" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="223" />
       <source>启动行为:</source>
       <translation>Startup behavior:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="390" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="389" />
       <source>启用失败: {message}</source>
       <translation>Failed to enable: {message}</translation>
     </message>
@@ -915,7 +909,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The image is empty.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/recognition.py" line="157" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="151" />
       <source>图片加载失败：{error}</source>
       <translation>Failed to load image: {error}</translation>
     </message>
@@ -945,12 +939,12 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The image data is corrupt or uses an unsupported format.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/recognition.py" line="117" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="111" />
       <source>图片文件 ({patterns})</source>
       <translation>Image files ({patterns})</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/recognition.py" line="133" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="127" />
       <source>图片文件不存在: {path}</source>
       <translation>Image file not found: {path}</translation>
     </message>
@@ -965,8 +959,8 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Image</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="119" />
-      <location filename="../../../src/handwriting/handwriting_window.py" line="438" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="121" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="440" />
       <source>圈选修正</source>
       <translation>Lasso Correction</translation>
     </message>
@@ -986,7 +980,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Copy</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="227" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="229" />
       <source>复制 LaTeX</source>
       <translation>Copy LaTeX</translation>
     </message>
@@ -1002,7 +996,7 @@ Retry with the {hotkey} shortcut.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/controllers/editor_actions.py" line="60" />
-      <location filename="../../../src/ui/controllers/history.py" line="205" />
+      <location filename="../../../src/ui/controllers/history.py" line="204" />
       <location filename="../../../src/ui/formula_export_menu.py" line="169" />
       <location filename="../../../src/ui/formula_export_menu.py" line="183" />
       <source>复制失败</source>
@@ -1024,13 +1018,13 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Copy access key</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="209" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="208" />
       <source>外观主题:</source>
       <translation>Theme:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="361" />
-      <location filename="../../../src/ui/settings_layout_builder.py" line="70" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="363" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="69" />
       <source>外部模型</source>
       <translation>External model</translation>
     </message>
@@ -1055,18 +1049,18 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The external model is not configured or is unavailable. Check the external model settings.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="153" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="154" />
       <source>外部模型已配置</source>
       <translation>External model configured</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="520" />
-      <location filename="../../../src/handwriting/handwriting_window.py" line="529" />
-      <location filename="../../../src/handwriting/handwriting_window.py" line="534" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="526" />
       <location filename="../../../src/handwriting/handwriting_window.py" line="535" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="540" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="541" />
       <location filename="../../../src/handwriting/recognizer.py" line="77" />
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="154" />
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="158" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="155" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="159" />
       <source>外部模型未配置</source>
       <translation>External model is not configured</translation>
     </message>
@@ -1076,7 +1070,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Configure the external model before continuing.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/recognition.py" line="108" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="102" />
       <source>外部模型识别中...</source>
       <translation>Recognizing with external model...</translation>
     </message>
@@ -1147,7 +1141,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Live Preview</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="191" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="193" />
       <source>实时预览</source>
       <translation>Live Preview</translation>
     </message>
@@ -1201,9 +1195,9 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Export Format</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="223" />
-      <location filename="../../../src/handwriting/handwriting_window.py" line="442" />
-      <location filename="../../../src/handwriting/handwriting_window.py" line="475" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="225" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="444" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="477" />
       <source>就绪</source>
       <translation>Ready</translation>
     </message>
@@ -1249,19 +1243,19 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The current recognition task was stopped. Capture again or switch recognition type and retry.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="366" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="368" />
       <source>已切换到 {mode}</source>
       <translation>Switched to {mode}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/history.py" line="299" />
-      <location filename="../../../src/ui/controllers/history.py" line="219" />
+      <location filename="../../../src/ui/controllers/history.py" line="298" />
+      <location filename="../../../src/ui/controllers/history.py" line="218" />
       <location filename="../../../src/ui/favorites_window.py" line="262" />
       <source>已删除</source>
       <translation>Deleted</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/history.py" line="273" />
+      <location filename="../../../src/ui/controllers/history.py" line="272" />
       <source>已加入历史</source>
       <translation>Added to history</translation>
     </message>
@@ -1271,16 +1265,16 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Added to favorites</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="198" />
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="273" />
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="387" />
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="353" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="199" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="275" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="389" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="355" />
       <location filename="../../../src/ui/controllers/status.py" line="63" />
       <source>已加载</source>
       <translation>Loaded</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/history.py" line="238" />
+      <location filename="../../../src/ui/controllers/history.py" line="237" />
       <location filename="../../../src/ui/favorites_window.py" line="173" />
       <source>已加载到编辑器</source>
       <translation>Loaded into editor</translation>
@@ -1315,24 +1309,24 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Named: {name}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="186" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="187" />
       <source>已填入推荐配置，请按你的本地服务实际情况检查模型名。</source>
       <translation>Recommended settings were applied. Verify the model name against your local service.</translation>
     </message>
     <message>
       <location filename="../../../src/capture/overlay.py" line="594" />
-      <location filename="../../../src/handwriting/handwriting_window.py" line="686" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="676" />
       <location filename="../../../src/ui/automation_access_dialog.py" line="360" />
       <location filename="../../../src/ui/controllers/editor_actions.py" line="52" />
       <location filename="../../../src/ui/controllers/editor_actions.py" line="58" />
-      <location filename="../../../src/ui/controllers/history.py" line="199" />
-      <location filename="../../../src/ui/controllers/history.py" line="203" />
+      <location filename="../../../src/ui/controllers/history.py" line="198" />
+      <location filename="../../../src/ui/controllers/history.py" line="202" />
       <location filename="../../../src/ui/runtime_log_dialog.py" line="106" />
       <source>已复制</source>
       <translation>Copied</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="685" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="675" />
       <source>已复制 LaTeX</source>
       <translation>LaTeX copied</translation>
     </message>
@@ -1368,23 +1362,23 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Favorites exported to: {path}</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="674" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="664" />
       <source>已插入</source>
       <translation>Inserted</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="673" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="663" />
       <source>已插入主窗口，当前内容已保留</source>
       <translation>Inserted into the main window; current content was kept</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="658" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="648" />
       <source>已撤销</source>
       <translation>Undone</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="580" />
-      <location filename="../../../src/ui/controllers/history.py" line="147" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="570" />
+      <location filename="../../../src/ui/controllers/history.py" line="146" />
       <location filename="../../../src/ui/favorites_window.py" line="252" />
       <source>已更新</source>
       <translation>Updated</translation>
@@ -1401,13 +1395,13 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Minimized to the system tray</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="654" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="644" />
       <location filename="../../../src/ui/runtime_log_dialog.py" line="124" />
       <source>已清空</source>
       <translation>Cleared</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/history.py" line="347" />
+      <location filename="../../../src/ui/controllers/history.py" line="346" />
       <source>已清空历史</source>
       <translation>History cleared</translation>
     </message>
@@ -1417,7 +1411,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Favorites cleared</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/preview.py" line="117" />
+      <location filename="../../../src/ui/controllers/preview.py" line="118" />
       <source>已清空预览</source>
       <translation>Preview cleared</translation>
     </message>
@@ -1432,7 +1426,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Confirmed and copied to clipboard</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="662" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="652" />
       <source>已重做</source>
       <translation>Redone</translation>
     </message>
@@ -1442,7 +1436,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Application</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="269" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="268" />
       <location filename="../../../src/update/update_dialog.py" line="29" />
       <source>应用更新</source>
       <translation>App updates</translation>
@@ -1454,7 +1448,7 @@ Retry with the {hotkey} shortcut.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/resource_diagnostics.py" line="25" />
-      <location filename="../../../src/ui/settings_layout_builder.py" line="277" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="276" />
       <source>应用诊断</source>
       <translation>App diagnostics</translation>
     </message>
@@ -1465,7 +1459,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>App shutdown is unavailable. Installation has not started.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="108" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="107" />
       <source>应用预设</source>
       <translation>Apply preset</translation>
     </message>
@@ -1510,12 +1504,12 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Current theme: {theme}</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="108" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="110" />
       <source>当前圈选修正为自由圈选矢量裁剪并保留剩余笔段</source>
       <translation>Lasso correction uses a freeform vector selection and preserves unselected strokes</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="193" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="194" />
       <source>当前已有一个测试连接任务在后台运行。</source>
       <translation>A connection test is already running in the background.</translation>
     </message>
@@ -1556,13 +1550,13 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Currently showing oldest first; click to show newest first</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="669" />
-      <location filename="../../../src/handwriting/handwriting_window.py" line="681" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="659" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="671" />
       <source>当前无内容</source>
       <translation>No Content</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/history.py" line="307" />
+      <location filename="../../../src/ui/controllers/history.py" line="306" />
       <source>当前无历史记录，点击会提示</source>
       <translation>No history is available; clicking will show a notice</translation>
     </message>
@@ -1572,7 +1566,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Current model: {model} | Status: {status}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/history.py" line="325" />
+      <location filename="../../../src/ui/controllers/history.py" line="324" />
       <source>当前没有历史记录可清空</source>
       <translation>There is no history to clear</translation>
     </message>
@@ -1597,22 +1591,22 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The current recognition mode is unsupported. Check the recognition settings.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="299" />
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="389" />
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="355" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="301" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="391" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="357" />
       <location filename="../../../src/ui/controllers/status.py" line="60" />
       <location filename="../../../src/ui/controllers/status.py" line="69" />
       <source>待识别时加载</source>
       <translation>Load when recognition starts</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="127" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="126" />
       <source>必填：Base URL，例如本地 http://127.0.0.1:11434 或线上 https://api.example.com</source>
       <translation>Required: Base URL, such as local http://127.0.0.1:11434 or hosted https://api.example.com</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="115" />
-      <location filename="../../../src/ui/settings_layout_builder.py" line="135" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="116" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="134" />
       <source>必填：模型名，例如 qwen2.5vl:7b；必须与服务中的真实名称一致</source>
       <translation>Required: model name, such as qwen2.5vl:7b; it must match the name exposed by the service</translation>
     </message>
@@ -1690,24 +1684,24 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Capture &amp; Recognize ({hotkey})</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="145" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="147" />
       <source>手写画布</source>
       <translation>Handwriting Canvas</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="82" />
-      <location filename="../../../src/handwriting/handwriting_window.py" line="105" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="84" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="107" />
       <location filename="../../../src/ui/main_window_layout.py" line="89" />
       <source>手写识别</source>
       <translation>Handwriting</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="589" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="579" />
       <source>手写识别失败</source>
       <translation>Handwriting recognition failed</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="181" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="183" />
       <source>手写识别结果会显示在这里，可直接手动修正。</source>
       <translation>Handwriting recognition results appear here and can be corrected manually.</translation>
     </message>
@@ -1800,12 +1794,12 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Recommended</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="101" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="100" />
       <source>推荐预设:</source>
       <translation>Recommended preset:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/history.py" line="324" />
+      <location filename="../../../src/ui/controllers/history.py" line="323" />
       <location filename="../../../src/ui/controllers/hotkey.py" line="152" />
       <location filename="../../../src/ui/controllers/hotkey.py" line="107" />
       <location filename="../../../src/ui/controllers/pdf.py" line="111" />
@@ -1814,7 +1808,7 @@ Retry with the {hotkey} shortcut.</translation>
       <location filename="../../../src/ui/controllers/pdf.py" line="179" />
       <location filename="../../../src/ui/controllers/predict_result.py" line="513" />
       <location filename="../../../src/ui/controllers/predict_result.py" line="520" />
-      <location filename="../../../src/ui/controllers/recognition.py" line="139" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="133" />
       <location filename="../../../src/ui/controllers/status.py" line="110" />
       <location filename="../../../src/ui/favorites_window.py" line="358" />
       <location filename="../../../src/ui/pdf_result_window.py" line="133" />
@@ -1822,7 +1816,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Notice</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="161" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="160" />
       <source>提示词模板:</source>
       <translation>Prompt template:</translation>
     </message>
@@ -1837,12 +1831,12 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Prompt Scope</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="228" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="230" />
       <source>插入</source>
       <translation>Insert</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="121" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="123" />
       <source>撤销</source>
       <translation>Undo</translation>
     </message>
@@ -1867,7 +1861,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Supported format: PDF</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="147" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="149" />
       <source>支持鼠标与触控笔，可按住鼠标右键拖动画布。</source>
       <translation>Mouse and pen input are supported. Hold the right mouse button to pan the canvas.</translation>
     </message>
@@ -1989,7 +1983,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Pause</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="488" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="492" />
       <source>更新中，等待当前识别完成...</source>
       <translation>Updating; waiting for the current recognition task to finish...</translation>
     </message>
@@ -2036,7 +2030,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Not loaded</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="303" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="305" />
       <source>未就绪</source>
       <translation>Not Ready</translation>
     </message>
@@ -2074,7 +2068,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>No text content recognized</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="159" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="160" />
       <source>未选择预设</source>
       <translation>No preset selected</translation>
     </message>
@@ -2105,12 +2099,12 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>View logs</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="282" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="281" />
       <source>查看桌面端实际使用的模型权重目录</source>
       <translation>View the model weight directories used by the desktop app</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="190" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="189" />
       <source>查看说明</source>
       <translation>View Help</translation>
     </message>
@@ -2125,7 +2119,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Checks:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="448" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="450" />
       <source>检测到 MathCraft 模型权重缺失或不完整，正在自动补全。</source>
       <translation>MathCraft model weights are missing or incomplete. Completing them automatically.</translation>
     </message>
@@ -2147,7 +2141,7 @@ Retry with the {hotkey} shortcut.</translation>
       <location filename="../../../src/ui/controllers/capture.py" line="82" />
       <location filename="../../../src/ui/controllers/pdf.py" line="117" />
       <location filename="../../../src/ui/controllers/recognition.py" line="68" />
-      <location filename="../../../src/ui/controllers/recognition.py" line="150" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="144" />
       <location filename="../../../src/ui/controllers/windows.py" line="115" />
       <source>模型未初始化</source>
       <translation>Model is not initialized</translation>
@@ -2159,7 +2153,7 @@ Retry with the {hotkey} shortcut.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/model_resources_dialog.py" line="28" />
-      <location filename="../../../src/ui/settings_layout_builder.py" line="280" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="279" />
       <source>模型资源</source>
       <translation>Model resources</translation>
     </message>
@@ -2179,17 +2173,17 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Model runtime error</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/recognition.py" line="78" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="75" />
       <source>模型预热中，完成后将自动开始识别</source>
       <translation>Warming up the model; recognition will start automatically when ready</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/recognition.py" line="206" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="200" />
       <source>模型预热失败: {message}</source>
       <translation>Model warm-up failed: {message}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="279" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="281" />
       <source>模型预热完成</source>
       <translation>Model warm-up complete</translation>
     </message>
@@ -2199,17 +2193,17 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Model warm-up incomplete</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="365" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="367" />
       <source>模式切换成功</source>
       <translation>Mode switched</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="118" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="120" />
       <source>橡皮</source>
       <translation>Eraser</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="434" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="436" />
       <source>橡皮模式</source>
       <translation>Eraser mode</translation>
     </message>
@@ -2234,7 +2228,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Saving...</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="453" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="455" />
       <source>正在修复模型缓存</source>
       <translation>Repairing model cache</translation>
     </message>
@@ -2244,7 +2238,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Preparing installation. Authorize the system permission prompt if one appears.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="436" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="438" />
       <source>正在初始化模型，请稍候。</source>
       <translation>Initializing models. Please wait.</translation>
     </message>
@@ -2294,7 +2288,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Parsing PDF document structure...</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="705" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="689" />
       <location filename="../../../src/ui/controllers/capture.py" line="65" />
       <location filename="../../../src/ui/controllers/capture.py" line="198" />
       <source>正在识别</source>
@@ -2336,7 +2330,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>This version requires a new fixed runtime base. Download and run the matching complete installer from the release page.</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="679" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="669" />
       <source>没有可复制的内容</source>
       <translation>There is no content to copy</translation>
     </message>
@@ -2346,23 +2340,23 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>No key to copy</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="667" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="657" />
       <source>没有可插入的内容</source>
       <translation>There is no content to insert</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="514" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="520" />
       <source>没有可识别内容</source>
       <translation>No recognizable content</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="213" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="212" />
       <location filename="../../../src/ui/settings_theme_mixin.py" line="51" />
       <source>浅色</source>
       <translation>Light</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="199" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="200" />
       <source>测试中...</source>
       <translation>Testing...</translation>
     </message>
@@ -2377,13 +2371,13 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Test successful</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="193" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="194" />
       <source>测试进行中</source>
       <translation>Test in progress</translation>
     </message>
     <message>
       <location filename="../../../src/ui/settings_external_model_mixin.py" line="207" />
-      <location filename="../../../src/ui/settings_layout_builder.py" line="186" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="185" />
       <source>测试连接</source>
       <translation>Test Connection</translation>
     </message>
@@ -2393,7 +2387,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Allowed browser origins</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="214" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="213" />
       <location filename="../../../src/ui/settings_theme_mixin.py" line="51" />
       <source>深色</source>
       <translation>Dark</translation>
@@ -2401,7 +2395,7 @@ Retry with the {hotkey} shortcut.</translation>
     <message>
       <location filename="../../../src/preview/smart_preview.py" line="164" />
       <location filename="../../../src/ui/favorites_window.py" line="269" />
-      <location filename="../../../src/ui/settings_layout_builder.py" line="87" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="86" />
       <source>混合</source>
       <translation>Mixed</translation>
     </message>
@@ -2431,18 +2425,18 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Cleanup incomplete</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="120" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="122" />
       <location filename="../../../src/ui/main_window_layout.py" line="59" />
       <source>清空</source>
       <translation>Clear</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/history.py" line="303" />
+      <location filename="../../../src/ui/controllers/history.py" line="302" />
       <source>清空历史记录</source>
       <translation>Clear History</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/history.py" line="305" />
+      <location filename="../../../src/ui/controllers/history.py" line="304" />
       <source>清空所有历史记录</source>
       <translation>Clear all history</translation>
     </message>
@@ -2482,12 +2476,12 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Generate a separate remote access token</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="513" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="519" />
       <source>画布为空</source>
       <translation>The canvas is empty</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="216" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="215" />
       <source>界面语言:</source>
       <translation>Language:</translation>
     </message>
@@ -2507,7 +2501,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Version {version}; components: {components}; download: about {size:.1f} MB.</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="432" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="434" />
       <source>直接书写，停笔后自动识别</source>
       <translation>Write directly; recognition starts after you stop writing</translation>
     </message>
@@ -2519,7 +2513,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>OK</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/history.py" line="334" />
+      <location filename="../../../src/ui/controllers/history.py" line="333" />
       <source>确定要清空所有 {count} 条历史记录吗？</source>
       <translation>Clear all {count} history entries?</translation>
     </message>
@@ -2529,7 +2523,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Clear all {count} favorites?</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/history.py" line="333" />
+      <location filename="../../../src/ui/controllers/history.py" line="332" />
       <location filename="../../../src/ui/favorites_window.py" line="367" />
       <source>确认</source>
       <translation>Confirm</translation>
@@ -2581,7 +2575,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Port</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="220" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="219" />
       <source>简体中文</source>
       <translation>Simplified Chinese</translation>
     </message>
@@ -2591,7 +2585,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Paste</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="88" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="87" />
       <source>纯文字</source>
       <translation>Text only</translation>
     </message>
@@ -2601,7 +2595,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Plain text (.txt)</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="167" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="166" />
       <source>纯文本 OCR</source>
       <translation>Plain-text OCR</translation>
     </message>
@@ -2611,7 +2605,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Online Services</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="674" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="664" />
       <source>结果已写入主窗口，当前手写窗口内容已保留。</source>
       <translation>The result was inserted into the main window. The handwriting content was preserved.</translation>
     </message>
@@ -2634,7 +2628,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Edit</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/preview.py" line="98" />
+      <location filename="../../../src/ui/controllers/preview.py" line="99" />
       <source>编辑中</source>
       <translation>Editing</translation>
     </message>
@@ -2650,13 +2644,13 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>MathCraft OCR missing</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/external_pdf_worker.py" line="134" />
+      <location filename="../../../src/recognition/external_pdf_worker.py" line="128" />
       <source>缺少 Pillow 依赖: {error}</source>
       <translation>Missing Pillow dependency: {error}</translation>
     </message>
     <message>
-      <location filename="../../../src/recognition/external_pdf_worker.py" line="125" />
-      <location filename="../../../src/recognition/workers.py" line="150" />
+      <location filename="../../../src/recognition/external_pdf_worker.py" line="119" />
+      <location filename="../../../src/recognition/workers.py" line="147" />
       <source>缺少 PyMuPDF 依赖: {error}</source>
       <translation>Missing PyMuPDF dependency: {error}</translation>
     </message>
@@ -2674,19 +2668,19 @@ Retry with the {hotkey} shortcut.</translation>
       <location filename="../../../src/ui/automation_access_dialog.py" line="75" />
       <location filename="../../../src/ui/automation_access_dialog.py" line="101" />
       <location filename="../../../src/ui/automation_access_dialog.py" line="441" />
-      <location filename="../../../src/ui/settings_layout_builder.py" line="241" />
-      <location filename="../../../src/ui/settings_layout_builder.py" line="395" />
-      <location filename="../../../src/ui/settings_layout_builder.py" line="389" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="240" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="394" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="388" />
       <source>自动化接口</source>
       <translation>Automation API</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="362" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="361" />
       <source>自动化接口: 关</source>
       <translation>Automation API: Off</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="362" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="361" />
       <source>自动化接口: 开</source>
       <translation>Automation API: On</translation>
     </message>
@@ -2696,7 +2690,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Automation API failed to start</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="404" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="403" />
       <source>自动化接口控制器不可用</source>
       <translation>The Automation API controller is unavailable</translation>
     </message>
@@ -2711,12 +2705,12 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Automatically select a display</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="178" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="177" />
       <source>自定义提示词（覆盖图片、截图、手写及 OpenAI/Ollama PDF 模板）</source>
       <translation>Custom prompt (overrides image, capture, handwriting, and OpenAI/Ollama PDF templates)</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="439" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="441" />
       <source>自由圈选后只擦除圈内笔段，便于局部重写</source>
       <translation>Erase only the stroke segments inside a freeform selection for local rewriting</translation>
     </message>
@@ -2727,7 +2721,7 @@ Retry with the {hotkey} shortcut.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/main_window_layout.py" line="62" />
-      <location filename="../../../src/ui/settings_layout_builder.py" line="43" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="42" />
       <source>设置</source>
       <translation>Settings</translation>
     </message>
@@ -2740,12 +2734,12 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Settings...</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="376" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="375" />
       <source>设置已保存</source>
       <translation>Settings saved</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="395" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="394" />
       <source>设置已更新</source>
       <translation>Settings updated</translation>
     </message>
@@ -2761,7 +2755,7 @@ Retry with the {hotkey} shortcut.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/automation_access_dialog.py" line="116" />
-      <location filename="../../../src/ui/settings_layout_builder.py" line="263" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="262" />
       <source>访问范围</source>
       <translation>Access Scope</translation>
     </message>
@@ -2776,13 +2770,13 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Recognize, preview, and export your formulas.</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="540" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="545" />
       <source>识别中</source>
       <translation>Recognizing</translation>
     </message>
     <message>
       <location filename="../../../src/ui/controllers/pdf.py" line="194" />
-      <location filename="../../../src/ui/controllers/recognition.py" line="89" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="86" />
       <source>识别中...</source>
       <translation>Recognizing...</translation>
     </message>
@@ -2792,7 +2786,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Too many recognition tasks. Retry later.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="65" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="64" />
       <source>识别后端:</source>
       <translation>Recognition backend:</translation>
     </message>
@@ -2802,14 +2796,14 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The recognition backend configuration is invalid. Check the recognition settings.</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="585" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="575" />
       <location filename="../../../src/ui/controllers/predict_result.py" line="430" />
       <location filename="../../../src/ui/controllers/predict_result.py" line="411" />
       <source>识别失败</source>
       <translation>Recognition failed</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="586" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="576" />
       <source>识别失败: {error}</source>
       <translation>Recognition failed: {error}</translation>
     </message>
@@ -2904,22 +2898,22 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Close the current dialog before starting capture recognition.</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="529" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="535" />
       <source>请先在设置中完成外部模型配置。</source>
       <translation>Configure the external model in Settings first.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="148" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="149" />
       <source>请先在设置页填写 Base URL 和 MinerU Local 解析接口路径。</source>
       <translation>Enter the Base URL and MinerU Local parsing endpoint in Settings first.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="149" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="150" />
       <source>请先在设置页填写 Base URL 和模型名。</source>
       <translation>Enter the Base URL and model name in Settings first.</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="535" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="541" />
       <source>请先完成必要配置。</source>
       <translation>Complete the required configuration first.</translation>
     </message>
@@ -2929,12 +2923,12 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Generate a remote access key first.</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="681" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="671" />
       <source>请先识别或手动编辑 LaTeX 后再复制。</source>
       <translation>Recognize or edit the LaTeX manually before copying.</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="669" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="659" />
       <source>请先识别或手动编辑 LaTeX 后再插入。</source>
       <translation>Recognize or edit the LaTeX manually before inserting.</translation>
     </message>
@@ -2950,7 +2944,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Drop or select a PDF file.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/recognition.py" line="140" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="134" />
       <source>请拖入或选择图片文件。支持格式：{formats}。</source>
       <translation>Drop or select an image file. Supported formats: {formats}.</translation>
     </message>
@@ -2985,7 +2979,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Select a PDF rendering resolution:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="159" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="160" />
       <source>请选择一个推荐预设后再应用。</source>
       <translation>Select a recommended preset before applying it.</translation>
     </message>
@@ -3005,13 +2999,13 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The first page cannot be greater than the last page.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="169" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="168" />
       <source>超时(秒):</source>
       <translation>Timeout (seconds):</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="212" />
-      <location filename="../../../src/ui/settings_layout_builder.py" line="219" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="211" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="218" />
       <location filename="../../../src/ui/settings_theme_mixin.py" line="51" />
       <source>跟随系统</source>
       <translation>Follow system</translation>
@@ -3029,22 +3023,22 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Enter a formula name:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="229" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="228" />
       <source>运行日志</source>
       <translation>Runtime Log</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="354" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="353" />
       <source>运行日志: 关</source>
       <translation>Runtime Log: Off</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="354" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="353" />
       <source>运行日志: 开</source>
       <translation>Runtime Log: On</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="376" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="375" />
       <source>运行日志显示偏好已更新</source>
       <translation>Runtime log display preference updated</translation>
     </message>
@@ -3094,7 +3088,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Remote access revoked</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="430" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="429" />
       <source>连接多模态 OCR / VLM 接口，支持本地服务和部分线上服务。</source>
       <translation>Connect to multimodal OCR/VLM APIs hosted locally or by supported online services.</translation>
     </message>
@@ -3146,7 +3140,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Supported Services</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="141" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="140" />
       <source>选填：API Key。本地加密保存，线上接口通常必填</source>
       <translation>Optional: API key. It is encrypted locally and usually required by hosted services</translation>
     </message>
@@ -3173,7 +3167,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Select PDF File</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/recognition.py" line="120" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="114" />
       <source>选择图片</source>
       <translation>Select Image</translation>
     </message>
@@ -3188,7 +3182,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Select Page</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="266" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="265" />
       <source>配置 Automation API 的本机或远程访问范围</source>
       <translation>Configure local or remote access to the Automation API</translation>
     </message>
@@ -3209,7 +3203,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Configure local automation tools and remote devices that you explicitly authorize.</translation>
     </message>
     <message>
-      <location filename="../../../src/handwriting/handwriting_window.py" line="122" />
+      <location filename="../../../src/handwriting/handwriting_window.py" line="124" />
       <source>重做</source>
       <translation>Redo</translation>
     </message>
@@ -3247,11 +3241,9 @@ Retry with the {hotkey} shortcut.</translation>
       <location filename="../../../src/ui/controllers/pdf.py" line="130" />
       <location filename="../../../src/ui/controllers/pdf.py" line="143" />
       <location filename="../../../src/ui/controllers/recognition.py" line="68" />
-      <location filename="../../../src/ui/controllers/recognition.py" line="71" />
-      <location filename="../../../src/ui/controllers/recognition.py" line="99" />
-      <location filename="../../../src/ui/controllers/recognition.py" line="133" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="127" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="144" />
       <location filename="../../../src/ui/controllers/recognition.py" line="150" />
-      <location filename="../../../src/ui/controllers/recognition.py" line="156" />
       <location filename="../../../src/ui/notifications.py" line="11" />
       <location filename="../../../src/ui/pdf_result_window.py" line="178" />
       <location filename="../../../src/ui/pdf_result_window.py" line="172" />
@@ -3311,14 +3303,14 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Use 3 or 3-7 as the page-range format.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="209" />
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="205" />
-      <location filename="../../../src/ui/controllers/recognition.py" line="76" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="211" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="206" />
+      <location filename="../../../src/ui/controllers/recognition.py" line="73" />
       <source>预热中</source>
       <translation>Warming up</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_external_model_mixin.py" line="185" />
+      <location filename="../../../src/ui/settings_external_model_mixin.py" line="186" />
       <source>预设已应用</source>
       <translation>Preset applied</translation>
     </message>
@@ -3328,7 +3320,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>High DPI: scanned document</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/settings_layout_builder.py" line="258" />
+      <location filename="../../../src/ui/settings_layout_builder.py" line="257" />
       <source>高级设置:</source>
       <translation>Advanced settings:</translation>
     </message>

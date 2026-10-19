@@ -8,7 +8,7 @@ import time
 from typing import cast
 
 from PIL import Image
-from PyQt6.QtCore import QObject, QThread, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal
 
 from localization.manager import translate as tr
 from recognition.error_messages import (
@@ -96,10 +96,7 @@ class PredictionWorker(QObject):
             self.failed.emit(str(exc))
 
     def _cancel_requested(self) -> bool:
-        return (
-            self._cancelled
-            or cast(QThread, QThread.currentThread()).isInterruptionRequested()
-        )
+        return self._cancelled
 
 
 class PdfPredictWorker(QObject):
@@ -228,10 +225,7 @@ class PdfPredictWorker(QObject):
         self.finished.emit(content.strip())
 
     def _cancel_requested(self) -> bool:
-        return (
-            self._cancelled
-            or cast(QThread, QThread.currentThread()).isInterruptionRequested()
-        )
+        return self._cancelled
 
     def _put_render_item(self, render_queue: queue.Queue, item) -> bool:
         while not self._cancelled:

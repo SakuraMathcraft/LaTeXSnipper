@@ -161,6 +161,9 @@ class WindowController(QObject):
         )
 
     def shutdown(self):
+        if self.settings_window is not None:
+            self.settings_window.shutdown()
+            self.settings_window.close()
         self.favorites_window.save_favorites()
         for window in (
             self.handwriting_window,

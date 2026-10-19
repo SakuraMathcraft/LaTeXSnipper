@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -162,3 +163,82 @@ def test_main_window_controls_keep_configuration_and_preview_in_sync(
         window.close()
         window.deleteLater()
         controller_app.processEvents()
+
+
+@pytest.fixture
+def settings_window(controller_app, monkeypatch, tmp_path):
+    from runtime import app_paths
+    from ui import main_window_layout
+    from ui.main_window import MainWindow
+
+    monkeypatch.setattr(app_paths, "_APP_STATE_DIR_CACHE", tmp_path)
+    monkeypatch.setattr(main_window_layout, "ensure_webengine_loaded", lambda: False)
+    window = MainWindow()
+    window.windows.open_settings()
+    try:
+        yield window.windows.settings_window
+    finally:
+        window.lifecycle.prepare_restart()
+        window.close()
+        window.deleteLater()
+        controller_app.processEvents()
+
+
+@pytest.mark.parametrize("ok", [True, False])
+def test_connection_check_restores_controls_and_reports_outcome(
+    controller_app, monkeypatch, settings_window, ok
+):
+    notices = []
+    monkeypatch.setattr(
+        "recognition.external_workers.ExternalModelClient.test_connection",
+        lambda self: (ok, "connection refused"),
+    )
+    monkeypatch.setattr(
+        settings_window, "_show_info", lambda *notice: notices.append(notice)
+    )
+    settings_window._test_external_model_connection()
+    for _ in range(100):
+        QTest.qWait(10)
+        if settings_window._external_test_task is None:
+            break
+    assert settings_window.external_test_btn.isEnabled()
+    assert notices[-1][-1] == ("success" if ok else "error")
+
+
+@pytest.mark.parametrize("delete_window", [False, True])
+def test_settings_close_ignores_pending_connection_check(
+    controller_app, monkeypatch, settings_window, delete_window
+):
+    from PyQt6 import sip
+
+    started, release, returned = (threading.Event() for _ in range(3))
+    errors = []
+    monkeypatch.setattr(sys, "excepthook", lambda *error: errors.append(error))
+    notices = []
+    monkeypatch.setattr(
+        settings_window, "_show_info", lambda *notice: notices.append(notice)
+    )
+
+    def test_connection(self):
+        started.set()
+        assert release.wait(5)
+        returned.set()
+        return True, "connected"
+
+    monkeypatch.setattr(
+        "recognition.external_workers.ExternalModelClient.test_connection",
+        test_connection,
+    )
+    try:
+        settings_window._test_external_model_connection()
+        assert started.wait(2)
+        settings_window.shutdown()
+        if delete_window:
+            sip.delete(settings_window)
+        release.set()
+        assert returned.wait(2)
+        QTest.qWait(100)
+        assert not errors
+        assert not notices
+    finally:
+        release.set()

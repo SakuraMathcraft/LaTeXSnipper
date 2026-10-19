@@ -165,7 +165,7 @@ class FavoritesWindow(QMainWindow):
 
     def _on_item_double_clicked(self, item):
         latex = item.data(Qt.ItemDataRole.UserRole) or item.text()
-        self.preview.set_source(latex, self._favorite_types[latex])
+        self.preview.set_editor_text(latex)
         name = self._favorite_names.get(latex, "") or self.history.label_for(latex)
         index = self.list_widget.row(item) + 1
         label = f"#{index} {name}".strip()

@@ -167,7 +167,6 @@ class MainWindow(QMainWindow):
                 self.models.cancel_warmup,
                 self.automation_api.shutdown,
                 lambda: self.coordinator.stop(wait=False),
-                self.models.stop_worker,
                 self.tasks.shutdown,
                 self.models.shutdown,
                 self.preview.shutdown,

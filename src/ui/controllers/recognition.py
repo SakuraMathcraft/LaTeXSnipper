@@ -67,9 +67,6 @@ class ImageRecognitionController(QObject):
         if not self.models.model:
             show_user_notice(tr("错误"), tr("模型未初始化"), self.view)
             return
-        if self.tasks.thread and self.tasks.thread.isRunning():
-            show_user_notice(tr("错误"), tr("前一识别线程尚未结束"), self.view)
-            return
         preferred = self.models.current_model
         if self.models.model and (not self.models.model.is_model_ready(preferred)):
             token = self.tasks.prepare()
@@ -95,9 +92,6 @@ class ImageRecognitionController(QObject):
     def _start_external_predict_with_pil(
         self, img: Image.Image, external_prompt_template: str | None = None
     ):
-        if self.tasks.thread and self.tasks.thread.isRunning():
-            show_user_notice(tr("错误"), tr("前一识别线程尚未结束"), self.view)
-            return
         config = self.models.external_config()
         one_shot_template = str(external_prompt_template or "").strip()
         if one_shot_template:

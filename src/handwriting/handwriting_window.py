@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from dataclasses import replace
 
-from PyQt6.QtCore import QEvent, Qt, QThread, QTimer, pyqtSignal
+from PyQt6.QtCore import QEvent, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QGuiApplication, QIcon, QWheelEvent
 from PyQt6.QtWidgets import (
     QApplication,
@@ -28,6 +28,7 @@ from localization.manager import translate as tr
 from preview.math_preview import get_mathjax_base_url
 from recognition.model_policy import resolve_document_recognition_model
 from runtime.app_paths import resource_path
+from runtime.background_task import BackgroundTask
 
 from .ink_canvas import InkCanvas
 from .latex_preview import (
@@ -61,10 +62,11 @@ class HandwritingWindow(QWidget):
         self.coordinator = coordinator
         self.tasks = tasks
         self.owner = owner
-        self._recognizing = False
         self._recognize_pending = False
-        self._recognize_thread = None
-        self._recognize_worker = None
+        self._recognition_task = BackgroundTask(self)
+        self._recognition_task.succeeded.connect(self._on_recognition_finished)
+        self._recognition_task.failed.connect(self._on_recognition_failed)
+        self._recognition_task.finished.connect(self._teardown_recognition)
         self._closing = False
         self._last_result = ""
         self._last_external_output_mode = ""
@@ -483,7 +485,9 @@ class HandwritingWindow(QWidget):
         return (time.monotonic() - self._last_stroke_ts) * 1000.0
 
     def _schedule_recognition(self) -> None:
-        if self._recognizing:
+        if self._closing:
+            return
+        if self._recognition_task.busy:
             self._recognize_pending = True
             self.status_label.setText(tr("更新中，等待当前识别完成..."))
             return
@@ -499,7 +503,9 @@ class HandwritingWindow(QWidget):
         self.status_label.setText(tr("书写中"))
 
     def _run_recognition(self) -> None:
-        if self._recognizing:
+        if self._closing:
+            return
+        if self._recognition_task.busy:
             self._recognize_pending = True
             return
         if self._is_owner_recognition_busy():
@@ -535,33 +541,17 @@ class HandwritingWindow(QWidget):
                 self._show_warning(tr("外部模型未配置"), tr("请先完成必要配置。"))
                 return
             self._last_external_output_mode = external_config.resolved_output_mode()
-        self._recognizing = True
         self._recognize_pending = False
         self.status_label.setText(tr("识别中"))
-        self._recognize_thread = QThread()
-        self._recognize_worker = HandwritingRecognitionWorker(
+        worker = HandwritingRecognitionWorker(
             self.coordinator,
             export.image,
             model_name=active_model,
             external_config=external_config,
         )
-        thread = self._recognize_thread
-        worker = self._recognize_worker
-        worker.moveToThread(thread)
-        thread.started.connect(worker.run)
-        worker.finished.connect(self._on_recognition_finished)
-        worker.failed.connect(self._on_recognition_failed)
-        worker.finished.connect(thread.quit)
-        worker.failed.connect(thread.quit)
-        thread.finished.connect(worker.deleteLater)
-        thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(self._teardown_recognition)
-        thread.start()
+        self._recognition_task.start(worker)
 
     def _teardown_recognition(self, *_args) -> None:
-        self._recognize_thread = None
-        self._recognize_worker = None
-        self._recognizing = False
         if self._closing:
             return
         if self._recognize_pending:
@@ -686,13 +676,7 @@ class HandwritingWindow(QWidget):
         self._show_info(tr("已复制"), tr("LaTeX 已复制到剪贴板。"))
 
     def is_recognizing_busy(self) -> bool:
-        return bool(
-            self._recognizing
-            or (
-                self._recognize_thread is not None
-                and self._recognize_thread.isRunning()
-            )
-        )
+        return self._recognition_task.busy
 
     def _is_owner_recognition_busy(self) -> bool:
         return self.tasks.is_busy(source="handwriting")
@@ -746,11 +730,4 @@ class HandwritingWindow(QWidget):
             return
         self._closing = True
         self.recognize_timer.stop()
-        for worker in (self._recognize_worker,):
-            if worker is not None:
-                worker.cancel()
-        for thread in (self._recognize_thread,):
-            if thread is not None:
-                thread.requestInterruption()
-                thread.quit()
-                thread.wait()
+        self._recognition_task.shutdown()
