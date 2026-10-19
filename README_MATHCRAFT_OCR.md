@@ -162,13 +162,13 @@ Linux: ${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper/MathCraft/models
 
 Model artifacts are downloaded from the MathCraft-Models release assets declared in `mathcraft_ocr/manifests/models.v1.json`.
 
-Packaged desktop workers use only the installed model component and disable automatic model downloads. **App updates** replaces damaged components in the installation. Source desktop workers use the platform default cache; standalone library and CLI cache settings and automatic downloads remain independent. See the [user data map](https://github.com/SakuraMathcraft/LaTeXSnipper/blob/main/docs/user_data_storage.md).
+Packaged desktop workers use only the installed model component and disable automatic model downloads. Application updates replace only the application layer; use the complete desktop installer to restore missing or damaged inference environments and models. Source desktop workers use the platform default cache; standalone library and CLI cache settings and automatic downloads remain independent. See the [user data map](https://github.com/SakuraMathcraft/LaTeXSnipper/blob/main/docs/user_data_storage.md).
 
 ## Runtime Profiles
 
 | Profile | Models | Output |
 | --- | --- | --- |
-| `formula` | formula detector + formula recognizer | LaTeX string |
+| `formula` | formula recognizer | LaTeX string |
 | `text` | text detector + text recognizer | OCR text and text blocks |
 | `mixed` | formula detector + formula recognizer + text detector + text recognizer | Markdown-ready structured blocks |
 
@@ -178,6 +178,12 @@ initialized sessions and verified paths for subsequent recognition requests.
 Restart the process after replacing model resources to load the updated files.
 Formula decoder sessions expose only the last token's logits through an in-memory
 graph transformation; model files and weights on disk remain unchanged.
+
+When a custom manifest omits a model required by the selected profile, `warmup()`
+reports its ID in `missing_models` and recognition raises `ModelCacheError`.
+Add the model's file records, SHA-256 digests and download sources to the manifest.
+Automatic downloads repair missing or corrupt files for declared models; they
+cannot supply models that the manifest does not describe.
 
 ## Provider Selection
 
