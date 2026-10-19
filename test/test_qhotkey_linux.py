@@ -145,6 +145,8 @@ def test_shortcut_preferences_wait_for_system_authorization(
 ):
     import ui.controllers.hotkey as controller_module
 
+    monkeypatch.setattr(controller_module, "sys", SimpleNamespace(platform="linux"))
+
     class Provider(QObject):
         registration_finished = pyqtSignal(bool, str)
         shortcut_description = "Super+G"
