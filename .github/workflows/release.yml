@@ -1,8 +1,6 @@
 name: Desktop Release
 
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
     inputs:
       release_tag:
@@ -27,7 +25,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+  RELEASE_TAG: ${{ inputs.release_tag }}
   PYTHONUTF8: "1"
   PYTHONIOENCODING: utf-8
 
@@ -37,6 +35,7 @@ jobs:
     outputs:
       publish: ${{ steps.release.outputs.publish }}
       python: ${{ steps.release.outputs.python }}
+      release_id: ${{ steps.release.outputs.release_id }}
     steps:
       - uses: actions/checkout@v6
       - name: Prepare release
@@ -50,14 +49,10 @@ jobs:
             "v$version"|"v$version-LTS") ;;
             *) echo 'Release tag must match VERSION' >&2; exit 1 ;;
           esac
-          publish='${{ startsWith(github.ref, 'refs/tags/v') || inputs.publish_assets }}'
+          publish='${{ inputs.publish_assets }}'
           echo "publish=$publish" >> "$GITHUB_OUTPUT"
           if [ "$publish" = true ]; then
-            if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-              gh release edit "$RELEASE_TAG" --draft
-            else
-              gh release create "$RELEASE_TAG" --draft --target '${{ github.sha }}' --generate-notes
-            fi
+            python3 -X utf8 scripts/release_artifacts.py prepare --tag "$RELEASE_TAG" --target '${{ github.sha }}'
           fi
 
       - name: Probe shared model cache
@@ -198,7 +193,7 @@ jobs:
         if: needs.prepare-release.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python scripts/build_desktop_release.py upload --tag "${{ env.RELEASE_TAG }}"
+        run: python -X utf8 scripts/build_desktop_release.py upload --release-id "${{ needs.prepare-release.outputs.release_id }}"
       - uses: actions/upload-artifact@v7
         if: needs.prepare-release.outputs.publish == 'true'
         with:
@@ -214,7 +209,7 @@ jobs:
           compression-level: 0
 
   gpu:
-    if: github.event_name == 'workflow_dispatch' && inputs.validate_gpu
+    if: inputs.validate_gpu
     needs: [desktop, prepare-release]
     strategy:
       fail-fast: false
@@ -255,7 +250,7 @@ jobs:
       - name: Publish update catalog and complete release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python scripts/release_artifacts.py --tag "$RELEASE_TAG" --version "$(cat VERSION)" --directory release-metadata
+        run: python -X utf8 scripts/release_artifacts.py publish --release-id "${{ needs.prepare-release.outputs.release_id }}" --tag "$RELEASE_TAG" --version "$(cat VERSION)" --directory release-metadata
 
   build-office-plugin-installer:
     needs: prepare-release
@@ -270,15 +265,9 @@ jobs:
       - name: Validate committed Office installer
         id: installer
         shell: bash
-        env:
-          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
         run: |
           product_version="$(tr -d '[:space:]' < VERSION)"
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            release_source="${RELEASE_TAG_INPUT:-v${product_version}-LTS}"
-          else
-            release_source="${{ github.ref_name }}"
-          fi
+          release_source="$RELEASE_TAG"
           if [[ "$release_source" =~ v?([0-9]+\.[0-9]+\.[0-9]+) ]]; then
             version="${BASH_REMATCH[1]}"
           else
@@ -306,7 +295,7 @@ jobs:
         if: needs.prepare-release.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$RELEASE_TAG" '${{ steps.installer.outputs.path }}' --clobber
+        run: python3 -X utf8 scripts/release_artifacts.py upload --release-id "${{ needs.prepare-release.outputs.release_id }}" '${{ steps.installer.outputs.path }}'
 
       - name: Upload Office plugin installer artifact
         if: needs.prepare-release.outputs.publish != 'true'
@@ -363,7 +352,7 @@ jobs:
         if: needs.prepare-release.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$env:RELEASE_TAG" user_manual/LaTeXSnipper_User_Manual.pdf --clobber
+        run: python -X utf8 scripts/release_artifacts.py upload --release-id "${{ needs.prepare-release.outputs.release_id }}" user_manual/LaTeXSnipper_User_Manual.pdf
 
       - name: Upload user manual artifact
         if: needs.prepare-release.outputs.publish != 'true'

@@ -493,6 +493,7 @@ def main() -> None:
     parser.add_argument("--signed", type=Path)
     parser.add_argument("--plan", type=Path)
     parser.add_argument("--tag", default="")
+    parser.add_argument("--release-id", type=int)
     args = parser.parse_args()
     args.plan = args.plan or args.work / "plan.json"
     if args.command == "inputs":
@@ -526,7 +527,9 @@ def main() -> None:
     elif args.command == "finalize-windows":
         finalize_windows(args.output, args.signed)
     elif args.command == "upload":
-        upload_desktop_assets(args.output, args.tag)
+        if args.release_id is None:
+            parser.error("upload requires --release-id")
+        upload_desktop_assets(args.output, args.release_id)
 
 
 if __name__ == "__main__":

@@ -2,11 +2,13 @@
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from argparse import Namespace
 from dataclasses import replace
 from pathlib import Path
+from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "scripts"), str(ROOT / "src")]
@@ -21,6 +23,73 @@ from runtime.distribution_manifest import (  # noqa: E402
     ReleaseCatalog,
     read_json,
 )
+
+RELEASES = "repos/{owner}/{repo}/releases"
+
+
+def github_api(endpoint: str, *, method="GET", data=None, file=None, paginate=False):
+    command = ["gh", "api", "--method", method, endpoint]
+    if paginate:
+        command += ["--paginate", "--slurp"]
+    if file is not None:
+        command += [
+            "--header",
+            "Content-Type: application/octet-stream",
+            "--input",
+            str(file),
+        ]
+    elif data is not None:
+        command += ["--input", "-"]
+    result = subprocess.check_output(
+        command,
+        input=json.dumps(data) if data is not None else None,
+        encoding="utf-8",
+    )
+    return json.loads(result) if result.strip() else {}
+
+
+def prepare_release(tag: str, target: str) -> int:
+    pages = github_api(f"{RELEASES}?per_page=100", paginate=True)
+    matches = [item for page in pages for item in page if item["tag_name"] == tag]
+    if len(matches) > 1:
+        raise ManifestError(
+            f"Multiple releases have tag {tag}; resolve the duplicate before publishing"
+        )
+    if matches:
+        release = github_api(
+            f"{RELEASES}/{matches[0]['id']}", method="PATCH", data={"draft": True}
+        )
+    else:
+        release = github_api(
+            RELEASES,
+            method="POST",
+            data={
+                "tag_name": tag,
+                "target_commitish": target,
+                "name": tag,
+                "draft": True,
+                "generate_release_notes": True,
+            },
+        )
+    return release["id"]
+
+
+def upload_assets(release_id: int, paths: list[Path]) -> None:
+    release = github_api(f"{RELEASES}/{release_id}")
+    existing = {asset["name"]: asset for asset in release["assets"]}
+    upload_url = release["upload_url"].split("{", 1)[0]
+    for path in paths:
+        if path.stat().st_size >= 2**31:
+            raise ManifestError(
+                f"Release asset exceeds GitHub's 2 GiB limit: {path.name}"
+            )
+        if path.name in existing:
+            github_api(
+                f"{RELEASES}/assets/{existing[path.name]['id']}", method="DELETE"
+            )
+        github_api(
+            f"{upload_url}?name={quote(path.name, safe='')}", method="POST", file=path
+        )
 
 
 def artifact(path: Path, base_url: str) -> Artifact:
@@ -80,7 +149,7 @@ def publish_catalog(directory: Path, version: str, output: Path) -> ReleaseCatal
     return catalog
 
 
-def publish_release(directory: Path, version: str, tag: str) -> None:
+def publish_release(directory: Path, version: str, tag: str, release_id: int) -> None:
     catalog_path = directory / "desktop-release.json"
     catalog = publish_catalog(directory, version, catalog_path)
     names = {
@@ -94,26 +163,29 @@ def publish_release(directory: Path, version: str, tag: str) -> None:
             raise ManifestError("Release is missing its installer")
         resources.append(distribution.installer)
         names.update(resource.url.rsplit("/", 1)[-1] for resource in resources)
-    subprocess.run(
-        ["gh", "release", "upload", tag, str(catalog_path), "--clobber"], check=True
-    )
-    assets = json.loads(
-        subprocess.check_output(
-            ["gh", "release", "view", tag, "--json", "assets"], encoding="utf-8"
+    release = github_api(f"{RELEASES}/{release_id}")
+    if release["tag_name"] != tag:
+        raise ManifestError("Release ID does not match the requested tag")
+    upload_assets(release_id, [catalog_path])
+    assets = github_api(f"{RELEASES}/{release_id}")["assets"]
+    missing = names - {
+        asset["name"] for asset in assets if asset["state"] == "uploaded"
+    }
+    if missing:
+        raise ManifestError(
+            f"Release is missing uploaded assets: {', '.join(sorted(missing))}"
         )
-    )["assets"]
     for asset in assets:
         if asset["name"] not in names:
-            subprocess.run(
-                ["gh", "release", "delete-asset", tag, asset["name"], "--yes"],
-                check=True,
-            )
-    subprocess.run(
-        ["gh", "release", "edit", tag, "--draft=false", "--latest"], check=True
+            github_api(f"{RELEASES}/assets/{asset['id']}", method="DELETE")
+    github_api(
+        f"{RELEASES}/{release_id}",
+        method="PATCH",
+        data={"draft": False, "make_latest": "true"},
     )
 
 
-def upload_desktop_assets(directory: Path, tag: str) -> None:
+def upload_desktop_assets(directory: Path, release_id: int) -> None:
     from urllib.parse import unquote, urlsplit
 
     resources = set()
@@ -129,14 +201,7 @@ def upload_desktop_assets(directory: Path, tag: str) -> None:
     ]
     if not paths:
         raise ManifestError("No desktop release assets")
-    for path in paths:
-        if path.stat().st_size >= 2**31:
-            raise ManifestError(
-                f"Release asset exceeds GitHub's 2 GiB limit: {path.name}"
-            )
-    subprocess.run(
-        ["gh", "release", "upload", tag, "--clobber", *map(str, paths)], check=True
-    )
+    upload_assets(release_id, paths)
 
 
 def finalize_windows(directory: Path, signed: Path) -> None:
@@ -158,10 +223,30 @@ def finalize_windows(directory: Path, signed: Path) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Complete a desktop release from build metadata"
+        description="Prepare, upload and publish one desktop release"
     )
-    parser.add_argument("--directory", type=Path, required=True)
-    parser.add_argument("--version", required=True)
-    parser.add_argument("--tag", required=True)
+    commands = parser.add_subparsers(dest="command", required=True)
+    prepare = commands.add_parser("prepare")
+    prepare.add_argument("--tag", required=True)
+    prepare.add_argument("--target", required=True)
+    upload = commands.add_parser("upload")
+    upload.add_argument("--release-id", type=int, required=True)
+    upload.add_argument("files", nargs="+", type=Path)
+    publish = commands.add_parser("publish")
+    publish.add_argument("--directory", type=Path, required=True)
+    publish.add_argument("--version", required=True)
+    publish.add_argument("--tag", required=True)
+    publish.add_argument("--release-id", type=int, required=True)
     arguments = parser.parse_args()
-    publish_release(arguments.directory, arguments.version, arguments.tag)
+    if arguments.command == "prepare":
+        release_id = prepare_release(arguments.tag, arguments.target)
+        print(f"release_id={release_id}")
+        if os.environ.get("GITHUB_OUTPUT"):
+            with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+                output.write(f"release_id={release_id}\n")
+    elif arguments.command == "upload":
+        upload_assets(arguments.release_id, arguments.files)
+    else:
+        publish_release(
+            arguments.directory, arguments.version, arguments.tag, arguments.release_id
+        )
