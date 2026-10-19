@@ -12,7 +12,6 @@ from pathlib import Path
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from runtime.app_paths import app_cache_dir
-from runtime.component_inventory import verify_component
 from runtime.distribution_manifest import read_json
 from runtime.installed_resources import installed_resources
 from update.component_download import DownloadCancelled, DownloadControl
@@ -62,7 +61,7 @@ class ComponentUpdateController(QObject):
             except DownloadCancelled:
                 result = "cancelled", {}
             except Exception as exc:
-                logger.exception("组件更新任务失败")
+                logger.exception("应用更新任务失败")
                 result = "failed", {"error": str(exc)}
             finally:
                 if self._request is not None and (
@@ -90,22 +89,7 @@ class ComponentUpdateController(QObject):
             self._control.checkpoint()
             installed = self.resources.manifest
             target = self.release.catalog.select(*installed.target)
-            damaged = [
-                item.name
-                for item in installed.components
-                if verify_component(self.resources.root / item.name, item)
-            ]
-            damaged_bundle = False
-            if installed.platform == "macos":
-                from update.macos_transaction import bundle_is_damaged
-
-                damaged_bundle = bundle_is_damaged(self.resources.root)
-            self.plan = plan_component_update(
-                installed,
-                target,
-                damaged_components=damaged,
-                damaged_bundle=damaged_bundle,
-            )
+            self.plan = plan_component_update(installed, target)
             return "available", {
                 "release": self.release,
                 "plan": self.plan,

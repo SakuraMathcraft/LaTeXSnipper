@@ -8,6 +8,17 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      platform_validation:
+        description: Optional native desktop integration checks
+        type: choice
+        default: none
+        options:
+          - none
+          - windows
+          - linux
+          - macos
+          - all
 
 permissions:
   contents: read
@@ -22,6 +33,7 @@ concurrency:
 
 jobs:
   compile-check:
+    if: github.event_name != 'workflow_dispatch' || inputs.platform_validation == 'none'
     name: Compile Check
     runs-on: windows-2025
     steps:
@@ -97,3 +109,36 @@ jobs:
       - name: Build Office plugin managed projects
         shell: pwsh
         run: dotnet build office_plugin\LaTeXSnipper.OfficePlugin.slnx -c Release
+
+  platform-validation:
+    name: Desktop integration (${{ matrix.runner }})
+    if: github.event_name == 'workflow_dispatch' && inputs.platform_validation != 'none'
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: ${{ fromJSON('{"windows":["windows-2025"],"linux":["ubuntu-22.04"],"macos":["macos-15"],"all":["windows-2025","ubuntu-22.04","macos-15"]}')[inputs.platform_validation] }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    env:
+      LATEXSNIPPER_PLATFORM_VALIDATION: "1"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install Linux GUI libraries
+        if: runner.os == 'Linux'
+        uses: ./.github/actions/desktop-system-libraries
+      - name: Install GUI and test dependencies
+        run: python -m pip install -r requirements.txt "pytest>=8,<10"
+      - name: Validate X11 and portal protocol handling
+        if: runner.os == 'Linux'
+        env:
+          XDG_SESSION_TYPE: x11
+          QT_QPA_PLATFORM: xcb
+        run: dbus-run-session -- xvfb-run -a python -X utf8 -m pytest -q -rs test/test_platform_integration.py test/test_qhotkey_linux.py test/test_qhotkey_macos.py
+      - name: Validate native platform integration
+        if: runner.os != 'Linux'
+        run: python -X utf8 -m pytest -q -rs test/test_platform_integration.py test/test_qhotkey_linux.py test/test_qhotkey_macos.py

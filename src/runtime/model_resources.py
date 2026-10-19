@@ -6,11 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from mathcraft_ocr.cache import (
-    ModelCacheState,
-    default_user_models_dir,
-    inspect_manifest_cache,
-)
+from mathcraft_ocr.cache import default_user_models_dir
 from mathcraft_ocr.manifest import Manifest, load_manifest
 
 if TYPE_CHECKING:
@@ -23,9 +19,6 @@ class DesktopModelResources:
     root: Path
     manifest_path: Path | None = None
 
-    def inspect(self) -> dict[str, ModelCacheState]:
-        return inspect_manifest_cache(self.root, self.manifest)
-
 
 def desktop_model_resources(
     resources: InstalledResources | None,
@@ -34,7 +27,7 @@ def desktop_model_resources(
         manifest_path = resources.resource("models", "models.v1.json")
         return DesktopModelResources(
             load_manifest(manifest_path),
-            resources.root / "models",
+            resources.directory("models"),
             manifest_path,
         )
     manifest = load_manifest()

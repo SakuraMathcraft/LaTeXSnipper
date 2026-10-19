@@ -4,11 +4,10 @@ import json
 import os
 import threading
 import time
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from PyQt6.QtCore import QCoreApplication, QEvent, QObject, QTimer, pyqtSignal
+from PyQt6.QtCore import QCoreApplication, QEvent, QObject, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QWidget
 
 from backend.mathcraft.model import ModelWrapper
@@ -109,88 +108,5 @@ def test_diagnostics_follow_warmup_completion_and_reopen(
         complete.set()
         thread.join(3)
         settings.deleteLater()
-        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
-        app.processEvents()
-
-
-def test_component_hashing_keeps_gui_responsive_and_runtime_current(app, monkeypatch):
-    models = Models()
-    release = threading.Event()
-    component = SimpleNamespace(name="application", content_sha256="a" * 64)
-    manifest = SimpleNamespace(
-        version="4.0.0", target=("windows", "x86_64", "cpu"), components=(component,)
-    )
-    monkeypatch.setattr(
-        resource_diagnostics,
-        "installed_resources",
-        lambda: SimpleNamespace(root=Path("installed"), manifest=manifest),
-    )
-
-    def verify(*_args):
-        assert release.wait(3)
-        return ("missing.dll",)
-
-    monkeypatch.setattr(resource_diagnostics, "verify_component", verify)
-    dialog = resource_diagnostics.ResourceDiagnosticsDialog(models)
-    try:
-        dialog.show()
-        events = []
-        QTimer.singleShot(0, lambda: events.append("responsive"))
-        pump(app, lambda: bool(events))
-        models.warming_up = False
-        models.model.provider_info = {"active_provider": "CPUExecutionProvider"}
-        models.model._ready = True
-        models.status_changed.emit("ready")
-        release.set()
-        pump(app, lambda: dialog._report is not None)
-        report = json.loads(dialog.output.toPlainText())
-        assert report["status"] == "ready"
-        assert report["provider"]["active_provider"] == "CPUExecutionProvider"
-        assert report["components"]["application"]["damaged"] == ["missing.dll"]
-    finally:
-        release.set()
-        dialog.deleteLater()
-        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
-        app.processEvents()
-
-
-def test_reopening_refreshes_component_integrity(app, monkeypatch):
-    models = Models()
-    manifest = SimpleNamespace(
-        version="4.0.0",
-        target=("windows", "x86_64", "cpu"),
-        components=(SimpleNamespace(name="application", content_sha256="a" * 64),),
-    )
-    monkeypatch.setattr(
-        resource_diagnostics,
-        "installed_resources",
-        lambda: SimpleNamespace(root=Path("installed"), manifest=manifest),
-    )
-    damaged = []
-    monkeypatch.setattr(
-        resource_diagnostics, "verify_component", lambda *args: tuple(damaged)
-    )
-    dialog = resource_diagnostics.ResourceDiagnosticsDialog(models)
-    try:
-        dialog.show()
-        pump(app, lambda: not dialog._checking)
-        assert (
-            json.loads(dialog.output.toPlainText())["components"]["application"][
-                "damaged"
-            ]
-            == []
-        )
-        dialog.close()
-        damaged.append("damaged.dll")
-        dialog.show()
-        pump(app, lambda: not dialog._checking)
-        assert (
-            json.loads(dialog.output.toPlainText())["components"]["application"][
-                "damaged"
-            ]
-            == damaged
-        )
-    finally:
-        dialog.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         app.processEvents()

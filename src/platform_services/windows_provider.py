@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import ctypes
 
-from PyQt6.QtCore import QObject, Qt
+from PyQt6.QtCore import QObject, Qt, pyqtBoundSignal, pyqtSignal
 from PyQt6.QtGui import QIcon, QKeySequence
 from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
 
@@ -21,6 +21,8 @@ from platform_services.protocols import (
 class WindowsHotkeyProvider(QObject):
     """Windows hotkey provider (strict global hotkey path)."""
 
+    _registration_finished = pyqtSignal(bool, str)
+
     def __init__(self, parent=None, global_enabled: bool = True):
         super().__init__(parent)
         self._global_enabled = bool(global_enabled)
@@ -30,11 +32,23 @@ class WindowsHotkeyProvider(QObject):
     def activated(self):
         return self._hotkey.activated if self._hotkey else None
 
+    @property
+    def registration_finished(self) -> pyqtBoundSignal:
+        return self._registration_finished
+
     def register(self, seq: str) -> None:
         if not self._hotkey:
             raise RuntimeError("global hotkey disabled")
         self._hotkey.setShortcut(QKeySequence(seq))
         self._hotkey.register()
+        self.registration_finished.emit(True, "")
+
+    @property
+    def shortcut_description(self) -> str:
+        return ""
+
+    def cancel_registration(self) -> None:
+        """Registration completes synchronously on this platform."""
 
     def is_registered(self) -> bool:
         if not self._hotkey:
@@ -100,6 +114,8 @@ class WindowsSystemProvider:
         )
         if callable(handlers.build_capture_submenu):
             handlers.build_capture_submenu(tray_menu)
+        if callable(handlers.on_preferences):
+            tray_menu.addAction(tr("设置..."), handlers.on_preferences)
         tray_menu.addAction(tr("退出"), handlers.on_exit)
         tray.setContextMenu(tray_menu)
 

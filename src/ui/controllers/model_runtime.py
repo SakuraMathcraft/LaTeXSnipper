@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from ui.main_window import MainWindow
 import logging
 import threading
+from concurrent.futures import CancelledError
 
 from PyQt6 import sip
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
@@ -22,7 +23,10 @@ from qfluentwidgets import InfoBar, InfoBarPosition
 from backend.external_model import load_config_from_mapping
 from backend.mathcraft.diagnostics import classify_mathcraft_failure
 from localization.manager import translate as tr
-from recognition.error_messages import translate_mathcraft_diagnostic
+from recognition.error_messages import (
+    CANCELED_WORKER_MESSAGE,
+    translate_mathcraft_diagnostic,
+)
 from ui.controllers.theme import normalize_theme_mode
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
@@ -210,6 +214,7 @@ class ModelRuntimeController(QObject):
             ok = False
             err = ""
             failure_info = {}
+            cancelled = False
             try:
                 if self._model_warmup_cancelled:
                     return
@@ -220,6 +225,8 @@ class ModelRuntimeController(QObject):
                     getter = getattr(self.model, "get_error", None)
                     if callable(getter):
                         err = str(getter() or "")
+            except CancelledError:
+                cancelled = True
             except Exception as e:
                 ok = False
                 err = str(e)
@@ -228,6 +235,7 @@ class ModelRuntimeController(QObject):
                     return
                 data = {
                     "ok": ok,
+                    "cancelled": cancelled,
                     "err": err,
                     "failure_info": failure_info,
                     "announce_success": bool(announce_success),
@@ -286,25 +294,32 @@ class ModelRuntimeController(QObject):
                 except Exception:
                     pass
             return
-        if data.get("preferred") == self.current_model:
-            self.status_changed.emit(tr("未就绪"))
-        fail_info = data.get("failure_info") or classify_mathcraft_failure(err)
-        if announce_success:
-            InfoBar.warning(
-                title=translate_mathcraft_diagnostic(
-                    fail_info["title"] or "模型预热未完成"
-                ),
-                content=translate_mathcraft_diagnostic(
-                    fail_info["user_message"]
-                    or "MathCraft OCR 预热失败，将在首次识别时重试"
-                ),
-                parent=self.notification_parent(),
-                duration=4200,
-                position=InfoBarPosition.TOP,
+        if data.get("cancelled"):
+            if data.get("preferred") == self.current_model:
+                self.status_changed.emit(tr("待识别时加载"))
+            fail_msg = tr(CANCELED_WORKER_MESSAGE)
+        else:
+            if data.get("preferred") == self.current_model:
+                self.status_changed.emit(tr("未就绪"))
+            fail_info = data.get("failure_info") or classify_mathcraft_failure(err)
+            if announce_success:
+                InfoBar.warning(
+                    title=translate_mathcraft_diagnostic(
+                        fail_info["title"] or "模型预热未完成"
+                    ),
+                    content=translate_mathcraft_diagnostic(
+                        fail_info["user_message"]
+                        or "MathCraft OCR 预热失败，将在首次识别时重试"
+                    ),
+                    parent=self.notification_parent(),
+                    duration=4200,
+                    position=InfoBarPosition.TOP,
+                )
+            fail_msg = translate_mathcraft_diagnostic(
+                fail_info["user_message"]
+                or err
+                or "MathCraft OCR 模型未部署或加载失败。"
             )
-        fail_msg = translate_mathcraft_diagnostic(
-            fail_info["user_message"] or err or "MathCraft OCR 模型未部署或加载失败。"
-        )
         for _, cb_fail in callbacks:
             if callable(cb_fail):
                 try:

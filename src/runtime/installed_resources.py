@@ -10,12 +10,21 @@ from pathlib import Path
 
 from mathcraft_ocr.protocol import MODEL_FORMAT, WORKER_PROTOCOL
 from runtime.component_inventory import verify_component
-from runtime.distribution_manifest import DistributionManifest, ManifestError, read_json
+from runtime.distribution_manifest import (
+    DistributionManifest,
+    ManifestError,
+    read_json,
+    safe_relative_path,
+)
 from runtime.installation_layout import installation_manifest
 
 
 def installation_root(executable: Path) -> Path:
     executable = executable.resolve()
+    if sys.platform == "darwin":
+        for parent in executable.parents:
+            if parent.name == "LaTeXSnipperBase.bundle":
+                return parent.parent.parent / "Resources/desktop"
     return executable.parent.parent
 
 
@@ -43,7 +52,13 @@ class InstalledResources:
         root = root.resolve()
         if any(
             (root / name).is_symlink()
-            for name in ("application", "inference", "models", "distribution.json")
+            for name in (
+                "application",
+                "runtime",
+                "inference",
+                "models",
+                "distribution.json",
+            )
         ):
             raise ManifestError(
                 "Installation components must not redirect outside the installation"
@@ -57,34 +72,44 @@ class InstalledResources:
         if (manifest.platform, manifest.architecture) != current_target():
             raise ManifestError("Installed distribution does not match this platform")
         if (
-            manifest.component("application").worker_protocol != WORKER_PROTOCOL
-            or manifest.component("models").model_format != MODEL_FORMAT
+            manifest.application.worker_protocol != WORKER_PROTOCOL
+            or manifest.application.model_format != MODEL_FORMAT
         ):
             raise ManifestError(
                 "Installed resources are incompatible with this application"
             )
         return cls(root, manifest)
 
+    def directory(self, component: str) -> Path:
+        if component not in {"application", "runtime", "inference", "models"}:
+            raise ManifestError("Unknown installation resource")
+        if self.manifest.platform == "macos" and component != "application":
+            from runtime.installation_layout import macos_bundle
+
+            return (
+                macos_bundle(self.root)
+                / "Contents/Frameworks/LaTeXSnipperBase.bundle/Contents/Resources"
+                / component
+            )
+        return self.root / component
+
     def resource(self, component: str, relative: str) -> Path:
-        """Verify a launch-critical file against its declared identity."""
-        record = next(
-            (
-                item
-                for item in self.manifest.component(component).files
-                if item.path == relative
-            ),
-            None,
-        )
-        if record is None:
-            raise ManifestError(f"Installation does not declare {component}/{relative}")
-        path = self.root / component / relative
-        if verify_component(
-            self.root / component,
-            replace(self.manifest.component(component), files=(record,)),
-            exact=False,
+        declared = self.directory(component)
+        directory = declared.resolve(strict=True)
+        owner = self.root
+        if self.manifest.platform == "macos":
+            from runtime.installation_layout import macos_bundle
+
+            owner = macos_bundle(self.root)
+        if declared.is_symlink() or not directory.is_relative_to(owner):
+            raise ManifestError("Installation resource directory escaped its owner")
+        path = directory / safe_relative_path(relative)
+        if (
+            not path.resolve(strict=True).is_relative_to(directory)
+            or not path.is_file()
         ):
             raise ManifestError(
-                f"Installed resource is missing or corrupt: {component}/{relative}"
+                f"Installed resource is missing or unsafe: {component}/{relative}; rerun the full installer"
             )
         return path
 
@@ -112,27 +137,19 @@ class InstalledResources:
                 "Inference runtime does not match the installation contract"
             )
         _ = self.python
-        application = self.manifest.component("application")
+        application = self.manifest.application
         worker_files = tuple(
-            item for item in application.files if item.path.startswith("worker/")
+            record for record in application.files if record.path.startswith("worker/")
         )
         required = {
-            "worker/mathcraft_ocr/worker.py",
-            "worker/mathcraft_ocr/protocol.py",
-            "worker/mathcraft_ocr/runtime.py",
+            f"worker/mathcraft_ocr/{name}.py"
+            for name in ("worker", "protocol", "runtime")
         }
-        if not required <= {item.path for item in worker_files}:
-            raise ManifestError(
-                "Application component does not contain the worker implementation"
-            )
-        worker_component = replace(
-            application,
-            files=tuple(
-                replace(item, path=item.path.removeprefix("worker/"))
-                for item in worker_files
-            ),
-        )
-        if verify_component(self.root / "application/worker", worker_component):
+        if not required <= {record.path for record in worker_files} or verify_component(
+            self.root / "application",
+            replace(application, files=worker_files),
+            exact=False,
+        ):
             raise ManifestError("Installed worker implementation is missing or corrupt")
         self.resource("models", "models.v1.json")
 
@@ -165,7 +182,7 @@ def worker_environment(resources: InstalledResources | None) -> dict[str, str]:
         PYTHONFAULTHANDLER="1",
     )
     if resources is not None:
-        root = resources.root / "inference"
+        root = resources.directory("inference")
         if resources.manifest.platform == "windows":
             system_root = env.get("SYSTEMROOT") or env.get("SystemRoot")
             if not system_root:
@@ -210,12 +227,12 @@ def worker_command(resources: InstalledResources | None) -> list[str]:
             "auto_download": False,
         }
         if resources.manifest.edition == "gpu":
-            arguments["native_dir"] = str(resources.root / "inference/native")
+            arguments["native_dir"] = str(resources.directory("inference") / "native")
     prefix = ""
     if os.name == "nt":
         prefix = "import ctypes; ctypes.windll.kernel32.SetDllDirectoryW(None); "
         if resources is not None:
-            native = resources.root / "inference/native"
+            native = resources.directory("inference") / "native"
             prefix += f"import os; _dll_handles=[os.add_dll_directory({str(python.parent)!r})]; "
             if resources.manifest.edition == "gpu":
                 prefix += (

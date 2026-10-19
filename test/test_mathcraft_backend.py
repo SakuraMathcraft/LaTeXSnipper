@@ -2,10 +2,14 @@
 
 import io
 import json
+import sys
+import time
 import unittest
+from concurrent.futures import CancelledError, ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -166,3 +170,90 @@ class TestMathcraftBackend(unittest.TestCase):
             ),
             "未识别到公式内容",
         )
+
+
+@pytest.mark.parametrize("blocked_action", ["hello", "warmup", "recognize_text"])
+def test_stopping_worker_cancels_inflight_work_and_allows_recovery(
+    tmp_path, monkeypatch, caplog, blocked_action
+):
+    from backend.mathcraft.model import ModelWrapper
+
+    marker = tmp_path / "request-started"
+    code = """
+import json, sys, time
+from pathlib import Path
+marker = Path(sys.argv[1])
+for line in sys.stdin:
+    request = json.loads(line)
+    action = request['action']
+    if action == sys.argv[2] and not marker.exists():
+        marker.write_text(action, encoding='utf-8')
+        time.sleep(30)
+    if action == 'hello':
+        result = {'worker_protocol': 1, 'model_format': 1}
+    elif action == 'warmup':
+        result = {'ready': True, 'provider_info': {'active_provider': 'CPUExecutionProvider'}}
+    else:
+        result = {'text': 'recovered'}
+    print(json.dumps({'protocol': 1, 'id': request['id'], 'ok': True, 'result': result}), flush=True)
+"""
+    wrapper = ModelWrapper(auto_warmup=False)
+    monkeypatch.setattr(
+        wrapper,
+        "_worker_argv",
+        lambda: [
+            sys.executable,
+            "-X",
+            "utf8",
+            "-u",
+            "-c",
+            code,
+            str(marker),
+            blocked_action,
+        ],
+    )
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        operation = (
+            (lambda: wrapper.predict_result(_nonblank_test_image(), "mathcraft_text"))
+            if blocked_action == "recognize_text"
+            else lambda: wrapper.warmup("mathcraft_text")
+        )
+        future = pool.submit(operation)
+        try:
+            deadline = time.monotonic() + 5
+            while not marker.exists() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            assert marker.exists(), (
+                "Worker did not reach the requested cancellation stage"
+            )
+            wrapper.stop()
+            with pytest.raises(CancelledError):
+                future.result(timeout=3)
+            assert not wrapper.is_ready() and not wrapper.is_model_ready(
+                "mathcraft_text"
+            )
+            assert wrapper.get_failure_info() == {} and wrapper.get_error() is None
+            assert "预热失败" not in caplog.text
+            assert (
+                wrapper.predict_result(_nonblank_test_image(), "mathcraft_text")["text"]
+                == "recovered"
+            )
+        finally:
+            wrapper.stop()
+
+
+def test_unexpected_worker_exit_is_still_reported_as_failure(monkeypatch, caplog):
+    from backend.mathcraft.model import ModelWrapper
+
+    wrapper = ModelWrapper(auto_warmup=False)
+    monkeypatch.setattr(
+        wrapper,
+        "_worker_argv",
+        lambda: [sys.executable, "-X", "utf8", "-c", "import sys; sys.exit(1)"],
+    )
+    try:
+        assert not wrapper.warmup("mathcraft_text")
+        assert wrapper.get_error() and wrapper.get_failure_info()
+        assert "预热失败" in caplog.text and "exit_code=1" in caplog.text
+    finally:
+        wrapper.stop()

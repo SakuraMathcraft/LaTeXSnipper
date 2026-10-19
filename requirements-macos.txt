@@ -1,7 +1,0 @@
-# macOS-specific dependencies for LaTeXSnipper.
-# This file includes the common runtime requirements and can be installed alone.
-
--r requirements.txt
-
-# The screenshot fallback uses the built-in screencapture command.
-# Source development uses PATH Pandoc. PDF export may use an external TeX engine.

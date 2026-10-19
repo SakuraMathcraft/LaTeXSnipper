@@ -43,6 +43,8 @@
 
 Windows/Linux 安装包提供 CPU 与 NVIDIA GPU 发行，macOS 14.0 及以上的 Apple Silicon 设备使用 CPU。Python、推理依赖、模型及 Pandoc 属于安装资源。GPU 发行自带私有 CUDA/cuDNN 库，要求支持的 NVIDIA 显卡与驱动。源码开发通过标准开发工具提供 Python 依赖和 PATH Pandoc。
 
+日常应用更新只下载业务包，保留 Python、Qt、Pandoc、推理依赖和模型。若提示底座需要升级，或安装资源缺失、损坏，请运行对应的完整安装包；配置、历史和其他用户数据保留。详见[应用更新与完整安装](user_manual/user_manual.md#应用更新与完整安装)。
+
 > [!TIP]
 > 权限、安装资源和故障排查见[常见问题](docs/faq.md)、[用户数据位置](docs/user_data_storage.md)和[完整用户手册](user_manual/user_manual.md)。
 

@@ -129,7 +129,7 @@ class PdfRecognitionController(QObject):
             show_user_notice(
                 tr("错误"),
                 tr(
-                    "PDF 处理资源不可用: {error}\n请查看应用诊断，并通过“应用更新”修复应用组件。"
+                    "PDF 处理资源不可用: {error}\n请查看应用诊断；安装版请重新运行完整安装包，源码运行请检查当前 Python 环境。"
                 ).format(error=e),
                 self.view,
             )
@@ -301,7 +301,6 @@ class PdfRecognitionController(QObject):
 
     def _on_pdf_cancel_requested(self):
         self.tasks.cancel()
-        self.models.stop_worker()
         if self.pdf_progress is not None:
             self.pdf_progress.setLabelText(tr("正在取消识别..."))
         self.status.show_action_status(tr("已取消"), level="info", auto_clear_ms=3000)

@@ -1,19 +1,14 @@
-"""Add owned worker source and locked Pandoc to a staged application component."""
+"""Assemble the owned business source, worker and desktop integration."""
 
 from __future__ import annotations
 
 import argparse
 import shutil
 import sys
-import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / "scripts"), str(ROOT / "src")]
-
-from build_desktop_resources import assemble_pandoc  # noqa: E402
-from distribution_inputs import load_resources  # noqa: E402
-from runtime.distribution_manifest import ManifestError  # noqa: E402
 
 
 def assemble_linux_integration(directory: Path) -> None:
@@ -72,40 +67,30 @@ def assemble_linux_integration(directory: Path) -> None:
 
 
 def assemble(args: argparse.Namespace) -> None:
-    lock = load_resources(args.lock)
-    application = args.application.resolve(strict=True)
-    if not application.is_dir() or any(
-        (application / name).exists()
-        for name in ("worker", "pandoc", "linux-integration")
-    ):
-        raise ManifestError(
-            "Application resources require a staged app without existing worker or Pandoc"
-        )
-    with tempfile.TemporaryDirectory(
-        prefix="application-resources-", dir=application.parent
-    ) as temporary:
-        staged = Path(temporary)
-        package = staged / "worker/mathcraft_ocr"
-        package.mkdir(parents=True)
-        for source in (ROOT / "mathcraft_ocr").rglob("*"):
-            if (
-                source.is_file()
-                and source.suffix == ".py"
-                and "__pycache__" not in source.parts
-            ):
-                target = package / source.relative_to(ROOT / "mathcraft_ocr")
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(source, target)
-        shutil.copy2(ROOT / "LICENSE", staged / "worker/LICENSE")
-        shutil.copy2(
-            ROOT / "mathcraft_ocr/vendor/LICENSE.onnx",
-            package / "vendor/LICENSE.onnx",
-        )
-        assemble_pandoc(lock, args.target, staged / "pandoc", args.cache)
-        (staged / "worker").rename(application / "worker")
-        (staged / "pandoc").rename(application / "pandoc")
-        if args.target.startswith("linux-"):
-            assemble_linux_integration(application / "linux-integration")
+    application = args.application.resolve()
+    application.mkdir(parents=True, exist_ok=True)
+    for source in (ROOT / "src").rglob("*"):
+        relative = source.relative_to(ROOT / "src")
+        if (
+            not source.is_file()
+            or "__pycache__" in relative.parts
+            or "MathJax" in relative.parts
+        ):
+            continue
+        if source.suffix in {".pyc", ".pyo"}:
+            continue
+        destination = application / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+    package = application / "worker/mathcraft_ocr"
+    shutil.copytree(
+        ROOT / "mathcraft_ocr",
+        package,
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo", "*.onnx"),
+    )
+    shutil.copy2(ROOT / "LICENSE", application / "LICENSE")
+    if args.target.startswith("linux-"):
+        assemble_linux_integration(application / "linux-integration")
 
 
 def main() -> None:
@@ -115,10 +100,6 @@ def main() -> None:
         "--target",
         choices=("windows-x86_64", "linux-x86_64", "macos-arm64"),
         required=True,
-    )
-    parser.add_argument("--cache", type=Path, required=True)
-    parser.add_argument(
-        "--lock", type=Path, default=ROOT / "packaging/runtime/resources.lock.json"
     )
     assemble(parser.parse_args())
 

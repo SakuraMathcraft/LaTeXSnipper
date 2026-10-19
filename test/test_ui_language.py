@@ -91,14 +91,17 @@ def test_compiled_catalog_is_loaded_at_runtime():
     assert translate("设置") == "设置"
 
 
-def test_all_release_specs_package_the_localization_assets():
-    for name in (
-        "LaTeXSnipper.spec",
-        "LaTeXSnipper-linux.spec",
-        "LaTeXSnipper-macos.spec",
-    ):
-        content = (ROOT / name).read_text(encoding="utf-8")
-        assert '"assets"' in content
-    catalog = ROOT / "src" / "assets" / "i18n" / "latexsnipper_en_US.qm"
-    assert catalog.is_file()
-    assert catalog.stat().st_size > 0
+def test_business_payload_contains_compiled_localization_assets(tmp_path):
+    import sys
+    from argparse import Namespace
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from build_application_resources import assemble
+
+    output = tmp_path / "application"
+    assemble(Namespace(application=output, target="windows-x86_64"))
+    catalog = output / "assets/i18n/latexsnipper_en_US.qm"
+    assert (
+        catalog.read_bytes()
+        == (ROOT / "src/assets/i18n/latexsnipper_en_US.qm").read_bytes()
+    )

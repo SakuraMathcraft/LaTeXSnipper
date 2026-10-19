@@ -185,7 +185,7 @@ class RecognitionResultController(QObject):
         except Exception:
             pass
 
-    def _set_predict_result_native_caption_buttons(
+    def _set_predict_result_native_caption_buttons_windows(
         self, dlg: QDialog, pinned: bool
     ) -> bool:
         if os.name != "nt":
@@ -213,7 +213,9 @@ class RecognitionResultController(QObject):
         except Exception:
             return False
 
-    def _set_predict_result_native_topmost(self, dlg: QDialog, topmost: bool) -> bool:
+    def _set_predict_result_native_topmost_windows(
+        self, dlg: QDialog, topmost: bool
+    ) -> bool:
         if os.name != "nt":
             return False
         try:
@@ -263,11 +265,11 @@ class RecognitionResultController(QObject):
                     dlg.move(restore_geometry.topLeft())
                 except Exception:
                     pass
-        if not self._set_predict_result_native_topmost(dlg, pinned):
+        if not self._set_predict_result_native_topmost_windows(dlg, pinned):
             dlg.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, pinned)
         self._set_predict_result_transient_owner(dlg, pinned)
         show_normal_window(dlg)
-        self._set_predict_result_native_caption_buttons(dlg, pinned)
+        self._set_predict_result_native_caption_buttons_windows(dlg, pinned)
         self._set_predict_result_pin_button_style(pin_btn, pinned)
         try:
             pin_btn.setChecked(pinned)

@@ -11,21 +11,24 @@ from update.deployment_transaction import DeploymentTransaction
 class WindowsDeploymentTransaction(DeploymentTransaction):
     def _prepare(self, staged, before, target, replacements) -> dict:
         required = sum(
-            record.size for component in replacements for record in component.files
+            path.stat().st_size
+            for name in replacements
+            for path in (staged / name).rglob("*")
+            if path.is_file()
         )
         if shutil.disk_usage(self.root).free < required:
-            raise OSError("Insufficient space for deployment and rollback")
+            raise OSError("Insufficient space for deployment and failure recovery")
         incoming, backup = self.directory / "incoming", self.directory / "backup"
         incoming.mkdir()
         backup.mkdir()
-        for component in replacements:
-            shutil.copytree(
-                staged / component.name, incoming / component.name, symlinks=True
-            )
-            if verify_component(incoming / component.name, component):
-                raise ManifestError(f"Copied {component.name} failed validation")
+        for name in replacements:
+            shutil.copytree(staged / name, incoming / name, symlinks=True)
+            if name == "application" and verify_component(
+                incoming / name, target.application
+            ):
+                raise ManifestError("Copied application failed validation")
         entry = self.root / "LaTeXSnipper.exe"
-        if any(item.name == "application" for item in replacements) and entry.is_file():
+        if "application" in replacements and entry.is_file():
             shutil.copy2(entry, backup / entry.name)
         return {}
 

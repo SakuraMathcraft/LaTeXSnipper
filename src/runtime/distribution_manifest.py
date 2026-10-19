@@ -9,7 +9,9 @@ from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
-_COMPONENTS = frozenset({"application", "inference", "models"})
+_COMPONENTS = frozenset(
+    {"application", "runtime", "inference", "models", "base", "maintenance"}
+)
 _PLATFORMS = frozenset({"windows", "linux", "macos"})
 _ARCHITECTURES = frozenset({"x86_64", "arm64"})
 _DIGEST = re.compile(r"[0-9a-f]{64}")
@@ -314,56 +316,15 @@ def validate_inventory(files: tuple[FileRecord, ...]) -> None:
 
 
 @dataclass(frozen=True)
-class BundleSeal:
-    artifact: Artifact
-    files: tuple[FileRecord, ...]
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.artifact, Artifact):
-            raise ManifestError("Invalid bundle-seal artifact")
-        validate_inventory(self.files)
-        components = tuple(
-            PurePosixPath("Contents/Resources/desktop") / name for name in _COMPONENTS
-        )
-        for record in self.files:
-            path = PurePosixPath(record.path)
-            if path.parts[0] != "Contents" or any(
-                path == prefix or path.is_relative_to(prefix) for prefix in components
-            ):
-                raise ManifestError(
-                    "Bundle seal must contain only outer Contents resources"
-                )
-
-    @classmethod
-    def from_dict(cls, value: object) -> BundleSeal:
-        data = _fields(value, {"artifact", "files"})
-        if not isinstance(data["files"], list):
-            raise ManifestError("Bundle-seal inventory must be an array")
-        return cls(
-            Artifact.from_dict(data["artifact"]),
-            tuple(FileRecord.from_dict(item) for item in data["files"]),
-        )
-
-    def to_dict(self) -> dict:
-        return {
-            "artifact": self.artifact.to_dict(),
-            "files": [
-                record.to_dict()
-                for record in sorted(self.files, key=lambda item: item.path)
-            ],
-        }
-
-
-@dataclass(frozen=True)
 class DistributionManifest:
     version: str
     platform: str
     architecture: str
     edition: str
-    components: tuple[Component, ...]
+    application: Component
+    base_id: str
     installer: Artifact | None = None
     release_tag: str = ""
-    bundle_seal: BundleSeal | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.version, str) or not _VERSION.fullmatch(self.version):
@@ -372,91 +333,54 @@ class DistributionManifest:
             object.__setattr__(self, "release_tag", f"v{self.version}")
         if self.release_tag not in {f"v{self.version}", f"v{self.version}-LTS"}:
             raise ManifestError("Release tag does not match the product version")
-        if self.installer is not None and not isinstance(self.installer, Artifact):
-            raise ManifestError("Invalid first-install artifact")
-        if self.bundle_seal is not None and (
-            self.platform != "macos" or not isinstance(self.bundle_seal, BundleSeal)
-        ):
-            raise ManifestError(
-                "Only macOS distributions declare bundle-seal resources"
-            )
         _choice(self.platform, _PLATFORMS, "platform")
         _choice(self.architecture, _ARCHITECTURES, "architecture")
         _choice(self.edition, frozenset({"cpu", "gpu"}), "edition")
+        _digest(self.base_id)
         if self.platform == "macos" and self.edition == "gpu":
             raise ManifestError("macOS has no CUDA GPU distribution")
-        if not isinstance(self.components, tuple) or not all(
-            isinstance(item, Component) for item in self.components
+        if not isinstance(self.application, Component) or (
+            self.application.name != "application"
+            or self.application.platform != self.platform
+            or self.application.architecture != self.architecture
         ):
-            raise ManifestError("Invalid components")
-        if (
-            len(self.components) != 3
-            or {item.name for item in self.components} != _COMPONENTS
-        ):
-            raise ManifestError(
-                "Exactly one application, inference and models component is required"
-            )
-        for item in self.components:
-            if item.platform not in {self.platform, "any"} or item.architecture not in {
-                self.architecture,
-                "any",
-            }:
-                raise ManifestError(f"Component target mismatch: {item.name}")
-            if item.name == "inference" and item.variant != self.edition:
-                raise ManifestError(
-                    "Inference component does not match the installed edition"
-                )
-        if (
-            len(
-                {
-                    item.worker_protocol
-                    for item in self.components
-                    if item.name != "models"
-                }
-            )
-            != 1
-        ):
-            raise ManifestError("Worker protocol mismatch")
-        if len({item.model_format for item in self.components}) != 1:
-            raise ManifestError("Model format mismatch")
+            raise ManifestError("Application target mismatch")
+        if self.installer is not None and not isinstance(self.installer, Artifact):
+            raise ManifestError("Invalid first-install artifact")
 
     @property
     def target(self) -> tuple[str, str, str]:
         return self.platform, self.architecture, self.edition
 
-    def component(self, name: str) -> Component:
-        _choice(name, _COMPONENTS, "component")
-        return next(item for item in self.components if item.name == name)
-
     @classmethod
     def from_dict(cls, value: object) -> DistributionManifest:
-        keys = {
-            "schema",
-            "product",
-            "version",
-            "platform",
-            "architecture",
-            "edition",
-            "components",
-            "installer",
-            "release_tag",
-            "bundle_seal",
-        }
-        data = dict(_fields(value, keys))
+        data = dict(
+            _fields(
+                value,
+                {
+                    "schema",
+                    "product",
+                    "version",
+                    "platform",
+                    "architecture",
+                    "edition",
+                    "application",
+                    "base_id",
+                    "installer",
+                    "release_tag",
+                },
+            )
+        )
         schema = data.pop("schema")
-        if type(schema) is not int or schema != 1:
-            raise ManifestError("Unsupported distribution schema")
+        if type(schema) is not int or schema != 2:
+            raise ManifestError(
+                "Unsupported distribution schema; use the full installer"
+            )
         if data.pop("product") != "latexsnipper":
             raise ManifestError("Unexpected product")
-        if not isinstance(data["components"], list):
-            raise ManifestError("Components must be an array")
-        data["components"] = tuple(
-            Component.from_dict(item) for item in data["components"]
-        )
+        data["application"] = Component.from_dict(data["application"])
         if data["installer"] is not None:
             data["installer"] = Artifact.from_dict(data["installer"])
-        if data["bundle_seal"] is not None:
-            data["bundle_seal"] = BundleSeal.from_dict(data["bundle_seal"])
         return cls(**data)
 
     @classmethod
@@ -465,23 +389,20 @@ class DistributionManifest:
 
     def to_dict(self) -> dict:
         return {
-            "schema": 1,
+            "schema": 2,
             "product": "latexsnipper",
             "version": self.version,
             "platform": self.platform,
             "architecture": self.architecture,
             "edition": self.edition,
-            "components": [
-                self.component(name).to_dict() for name in sorted(_COMPONENTS)
-            ],
+            "base_id": self.base_id,
+            "application": self.application.to_dict(),
             "installer": self.installer.to_dict() if self.installer else None,
             "release_tag": self.release_tag,
-            "bundle_seal": self.bundle_seal.to_dict() if self.bundle_seal else None,
         }
 
     def installed_identity(self) -> DistributionManifest:
-        """Carrier digests cannot be embedded in the very carrier they identify."""
-        return replace(self, installer=None, bundle_seal=None)
+        return replace(self, installer=None)
 
 
 @dataclass(frozen=True)
@@ -505,10 +426,6 @@ class ReleaseCatalog:
                 raise ManifestError(
                     "A published distribution needs a first-install artifact"
                 )
-            if item.platform == "macos" and item.bundle_seal is None:
-                raise ManifestError(
-                    "A macOS release needs its signed bundle-seal payload"
-                )
             if item.target in seen:
                 raise ManifestError("Duplicate release target")
             seen.add(item.target)
@@ -527,7 +444,7 @@ class ReleaseCatalog:
         data = _fields(value, {"schema", "product", "version", "distributions"})
         if (
             type(data["schema"]) is not int
-            or data["schema"] != 1
+            or data["schema"] != 2
             or data["product"] != "latexsnipper"
         ):
             raise ManifestError("Unsupported release catalog")
@@ -546,7 +463,7 @@ class ReleaseCatalog:
 
     def to_dict(self) -> dict:
         return {
-            "schema": 1,
+            "schema": 2,
             "product": "latexsnipper",
             "version": self.version,
             "distributions": [

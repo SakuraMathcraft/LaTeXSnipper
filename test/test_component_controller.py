@@ -115,32 +115,18 @@ def test_closed_controller_ignores_late_release_result(app, updates, monkeypatch
     assert states == ["checking"]
 
 
-@pytest.mark.parametrize("name", ["application", "inference", "models"])
-def test_update_repairs_damaged_components_at_current_version(
-    app, updates, monkeypatch, name
-):
-    resources, latest, _ = updates
-    target = replace(
-        resources.manifest, installer=latest.catalog.distributions[0].installer
-    )
-    release = VerifiedRelease(
-        ReleaseCatalog(target.version, (target,)),
-        target.release_tag,
-        "Current release",
-        "https://example.com/release",
-    )
+def test_base_change_offers_complete_installation(app, updates, monkeypatch):
+    _, latest, _ = updates
+    target = replace(latest.catalog.distributions[0], base_id="2" * 64)
+    release = replace(latest, catalog=ReleaseCatalog(target.version, (target,)))
     monkeypatch.setattr(
         controller_module, "fetch_component_release", lambda *args, **kwargs: release
     )
-    (resources.root / name / "data.bin").write_bytes(b"damaged")
-    controller = ComponentUpdateController()
-    states = []
-    controller.changed.connect(lambda state, data: states.append(state))
-    controller.check()
-    pump(app, lambda: "available" in states)
-    assert controller.plan.target == target
-    assert [item.name for item in controller.plan.downloads] == [name]
-    controller.close()
+    dialog = ComponentUpdateDialog()
+    pump(app, lambda: not dialog.controller.busy)
+    assert dialog.controller.plan.installer_required
+    assert not dialog.action.isEnabled() and dialog.link.isEnabled()
+    dialog.close()
 
 
 def test_failed_handoff_releases_helpers_and_staged_payloads(app, updates, monkeypatch):

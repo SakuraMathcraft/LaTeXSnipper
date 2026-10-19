@@ -8,7 +8,6 @@ from typing import cast
 from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QMainWindow
-from qfluentwidgets import PrimaryPushButton
 
 from localization.manager import translate as tr
 from platform_services import PlatformCapabilityRegistry
@@ -39,7 +38,6 @@ from ui.main_window_layout import (
     adjust_main_window_size,
     build_main_window_layout,
 )
-from ui.menu_helpers import action_btn_style
 from ui.settings_context import SettingsContext
 
 
@@ -194,8 +192,6 @@ class MainWindow(QMainWindow):
         self.status.sync_model_status()
         self.theme.apply_mode(self.theme._theme_mode, refresh_preview=False)
         self.theme.apply_styles(force=True)
-        for button in self.findChildren(PrimaryPushButton):
-            button.setStyleSheet(action_btn_style())
         adjust_main_window_size(self)
         self.tray.connect_tray_activation()
         self.tray.update_tray_menu()

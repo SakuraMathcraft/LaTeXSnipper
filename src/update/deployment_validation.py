@@ -20,7 +20,7 @@ def validate_installed_worker(root: Path, manifest: DistributionManifest) -> Non
     resources = InstalledResources(root, manifest)
     command = worker_command(resources)
     request = {
-        "protocol": manifest.component("application").worker_protocol,
+        "protocol": manifest.application.worker_protocol,
         "id": "deployment",
         "action": "hello",
     }
@@ -49,7 +49,7 @@ def validate_installed_worker(root: Path, manifest: DistributionManifest) -> Non
     info = response["result"]
     runtime = read_json(resources.resource("inference", "runtime.json"))
     if (
-        info.get("model_format") != manifest.component("models").model_format
+        info.get("model_format") != manifest.application.model_format
         or info.get("worker_protocol") != request["protocol"]
         or any(
             info.get(key) != runtime.get(key)

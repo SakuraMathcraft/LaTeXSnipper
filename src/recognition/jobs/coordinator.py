@@ -452,6 +452,9 @@ class RecognitionJobCoordinator:
                 if not text:
                     raise RuntimeError("识别结果为空。")
             except Exception as exc:
+                with self._lock:
+                    if job.cancel_requested:
+                        break
                 elapsed_ms = round((self._clock() - started) * 1000)
                 if not isinstance(exc, RecognitionJobError):
                     try:
@@ -472,6 +475,8 @@ class RecognitionJobCoordinator:
                     item.error = {"code": code, "message": message}
                 continue
             with self._lock:
+                if job.cancel_requested:
+                    break
                 item = job.items[index]
                 item.state = "completed"
                 item.text = text

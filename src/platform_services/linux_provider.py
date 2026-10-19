@@ -1,6 +1,6 @@
 """Linux platform providers for LaTeXSnipper.
 
-Provides hotkey, screenshot, and system integration using Qt and pynput.
+Provides desktop-portal and X11 hotkeys, screenshots and system integration.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from platform_services.protocols import (
 
 
 class LinuxHotkeyProvider(QObject):
-    """Linux hotkey provider using pynput for global hotkeys."""
+    """Linux hotkeys selected for the active Wayland or X11 session."""
 
     def __init__(self, parent=None, global_enabled: bool = True):
         super().__init__(parent)
@@ -32,6 +32,18 @@ class LinuxHotkeyProvider(QObject):
     @property
     def activated(self):
         return self._hotkey.activated if self._hotkey else None
+
+    @property
+    def registration_finished(self):
+        return self._hotkey.registration_finished if self._hotkey else None
+
+    @property
+    def shortcut_description(self) -> str:
+        return self._hotkey.shortcut_description if self._hotkey else ""
+
+    def cancel_registration(self) -> None:
+        if self._hotkey:
+            self._hotkey.cancel_registration()
 
     def register(self, seq: str) -> None:
         if not self._hotkey:
@@ -59,7 +71,7 @@ class LinuxScreenshotProvider:
     """Linux screenshot provider reusing the Qt-based ScreenCaptureOverlay."""
 
     def request_permission(self) -> PermissionResult:
-        # Linux does not require explicit screenshot permission on X11/Wayland
+        # Capture backends report compositor authorization failures themselves.
         return PermissionResult(PermissionState.ALLOWED, "linux-default-allowed")
 
     def create_overlay(self, cfg: ScreenshotConfig) -> ScreenCaptureOverlay:
@@ -104,6 +116,8 @@ class LinuxSystemProvider:
         )
         if callable(handlers.build_capture_submenu):
             handlers.build_capture_submenu(tray_menu)
+        if callable(handlers.on_preferences):
+            tray_menu.addAction(tr("设置..."), handlers.on_preferences)
         tray_menu.addAction(tr("退出"), handlers.on_exit)
         tray.setContextMenu(tray_menu)
 

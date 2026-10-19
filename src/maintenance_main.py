@@ -1,4 +1,4 @@
-"""Frozen, Qt-free maintenance executable used by the desktop installer."""
+"""Qt-free executable for offline installation, business updates and failure recovery."""
 
 import sys
 from pathlib import Path

@@ -10,7 +10,6 @@ import pytest
 from PyQt6.QtCore import QCoreApplication, QEvent
 from PyQt6.QtWidgets import QApplication, QPushButton, QWidget
 
-from mathcraft_ocr.cache import ModelCacheState
 from ui import model_resources_dialog
 from ui.settings_resources_mixin import SettingsResourcesMixin
 
@@ -46,19 +45,18 @@ def test_model_resources_can_be_reopened_without_unhandled_exceptions(
     ready = threading.Event()
     if not close_while_checking:
         ready.set()
-    states = {
-        "formula": ModelCacheState("formula", tmp_path / "formula", True, True, ())
-    }
-
-    def inspect():
-        assert ready.wait(3)
-        return states
-
-    resources = SimpleNamespace(manifest_path=None, root=tmp_path, inspect=inspect)
-    monkeypatch.setattr(model_resources_dialog, "installed_resources", lambda: None)
-    monkeypatch.setattr(
-        model_resources_dialog, "desktop_model_resources", lambda _: resources
+    resources = SimpleNamespace(
+        manifest_path=None,
+        root=tmp_path,
+        manifest=SimpleNamespace(models={"formula": object()}),
     )
+
+    def resolve(_):
+        assert ready.wait(3)
+        return resources
+
+    monkeypatch.setattr(model_resources_dialog, "installed_resources", lambda: None)
+    monkeypatch.setattr(model_resources_dialog, "desktop_model_resources", resolve)
     errors = []
     monkeypatch.setattr(sys, "excepthook", lambda *error: errors.append(error))
     settings = SettingsHarness()
@@ -83,24 +81,14 @@ def test_model_resources_can_be_reopened_without_unhandled_exceptions(
         app.processEvents()
 
 
-def test_reopening_refreshes_downloaded_models_and_directory_action(
-    app, tmp_path, monkeypatch
-):
+def test_reopening_refreshes_model_directory_action(app, tmp_path, monkeypatch):
     cache = tmp_path / "models"
 
-    def inspect():
-        complete = cache.is_dir()
-        return {
-            "formula": ModelCacheState(
-                "formula",
-                cache / "formula",
-                complete,
-                complete,
-                () if complete else ("model.onnx",),
-            )
-        }
-
-    resources = SimpleNamespace(manifest_path=None, root=cache, inspect=inspect)
+    resources = SimpleNamespace(
+        manifest_path=None,
+        root=cache,
+        manifest=SimpleNamespace(models={"formula": object()}),
+    )
     monkeypatch.setattr(model_resources_dialog, "installed_resources", lambda: None)
     monkeypatch.setattr(
         model_resources_dialog, "desktop_model_resources", lambda _: resources

@@ -16,7 +16,6 @@ sys.path[:0] = [str(ROOT), str(ROOT / "src")]
 
 from mathcraft_ocr.protocol import validate_response  # noqa: E402
 from runtime.component_archive import extract_archive  # noqa: E402
-from runtime.component_inventory import verify_component  # noqa: E402
 from runtime.distribution_manifest import (  # noqa: E402
     DistributionManifest,
     ManifestError,
@@ -32,7 +31,6 @@ from runtime.installed_resources import (  # noqa: E402
     worker_environment,
 )
 from runtime.processes import hidden_subprocess_kwargs  # noqa: E402
-from update.component_plan import plan_component_update  # noqa: E402
 from update.deployment_transaction import atomic_json, verify_distribution  # noqa: E402
 from update.deployment_validation import validate_installed_worker  # noqa: E402
 from update.platform_deployment import deployment_transaction  # noqa: E402
@@ -58,7 +56,7 @@ def validate_recognition(
     resources = InstalledResources(root, manifest)
     requests = [
         {
-            "protocol": manifest.component("application").worker_protocol,
+            "protocol": manifest.application.worker_protocol,
             "id": f"{action}-中文−𝛼🙂",
             "action": action,
             "image": str(sample),
@@ -108,40 +106,6 @@ def validate_recognition(
                 )
         reports[request["action"]] = report
     return reports
-
-
-def prepare_repair(
-    directory: Path, root: Path, target: DistributionManifest, staged: Path
-) -> None:
-    installed = DistributionManifest.load(installation_manifest(root, target.platform))
-    damaged = [
-        component.name
-        for component in installed.components
-        if verify_component(root / component.name, component)
-    ]
-    plan = plan_component_update(
-        installed,
-        target,
-        damaged_components=damaged,
-        damaged_bundle=target.platform == "macos",
-    )
-    staged.mkdir()
-    atomic_json(staged / "distribution.json", target.to_dict())
-    for component in plan.downloads:
-        extract_archive(
-            archive_path(directory, component.artifact.url),
-            staged / component.name,
-            component=component,
-        )
-    if plan.seal_required:
-        seal = target.bundle_seal
-        if seal is None:
-            raise ManifestError("Missing macOS repair seal")
-        extract_archive(
-            archive_path(directory, seal.artifact.url),
-            staged / ".bundle-seal",
-            component=seal,
-        )
 
 
 def native_install(directory: Path, target: DistributionManifest, work: Path) -> Path:
@@ -202,7 +166,11 @@ def native_install(directory: Path, target: DistributionManifest, work: Path) ->
 
 
 def native_acceptance(
-    directory: Path, work: Path, targets: list[DistributionManifest]
+    directory: Path,
+    work: Path,
+    targets: list[DistributionManifest],
+    *,
+    gpu: bool = False,
 ) -> dict:
     reports = {}
     root = None
@@ -218,29 +186,65 @@ def native_acceptance(
                 )
             verify_distribution(root, target)
             validate_installed_worker(root, target)
-            retained = (root / "inference/runtime.json").read_bytes()
-            # Damage one model file and prove repair replaces only its owning
-            # component, rather than silently downloading a different version.
-            record = min(
-                (
-                    item
-                    for item in target.component("models").files
-                    if item.kind == "file"
-                ),
-                key=lambda item: item.size,
+            resources = InstalledResources(root, installed)
+            retained = resources.resource("inference", "runtime.json").read_bytes()
+            staged = work / f"business-{target.edition}"
+            staged.mkdir()
+            # Force a distinct business identity to exercise a real replacement.
+            from dataclasses import replace
+
+            from runtime.component_inventory import inventory_component
+
+            extract_archive(
+                archive_path(directory, target.application.artifact.url),
+                staged / "application",
+                component=target.application,
             )
-            (root / "models" / record.path).write_bytes(b"injected acceptance damage")
-            staged = work / f"repair-{target.edition}"
-            prepare_repair(directory, root, target, staged)
-            transaction = deployment_transaction(root)
-            transaction.apply(staged, validate=validate_installed_worker)
-            verify_distribution(root, target)
-            if (root / "inference/runtime.json").read_bytes() != retained:
-                raise ManifestError(
-                    "Repair unexpectedly changed the inference component"
-                )
-            report: dict = {"first_install": True, "same_version_model_repair": True}
+            (staged / "application/acceptance.txt").write_text(
+                "business update", encoding="utf-8"
+            )
+            updated = replace(
+                target,
+                application=replace(
+                    target.application,
+                    files=inventory_component(staged / "application"),
+                ),
+            )
+            atomic_json(staged / "distribution.json", updated.to_dict())
+            deployment_transaction(root).apply(
+                staged, validate=validate_installed_worker
+            )
+            verify_distribution(root, updated)
+            if resources.resource("inference", "runtime.json").read_bytes() != retained:
+                raise ManifestError("Business update changed the inference runtime")
+            report: dict = {"first_install": True, "business_update": True}
             if target.edition == "cpu":
+                executable = (
+                    "LaTeXSnipper.exe"
+                    if target.platform == "windows"
+                    else "LaTeXSnipper"
+                )
+                validation = work / "application-validation.json"
+                environment = {
+                    **os.environ,
+                    "QTWEBENGINE_CHROMIUM_FLAGS": "--disable-gpu --no-sandbox",
+                }
+                if target.platform == "linux":
+                    environment["QT_QPA_PLATFORM"] = "offscreen"
+                subprocess.run(
+                    [
+                        str(resources.directory("runtime") / executable),
+                        "--validate-application",
+                        str(validation),
+                    ],
+                    check=True,
+                    env=environment,
+                    timeout=180,
+                )
+                report["application"] = json.loads(
+                    validation.read_text(encoding="utf-8")
+                )
+            if target.edition == "cpu" or gpu:
                 report["recognition"] = validate_recognition(root, target, work)
             reports[target.edition] = report
     finally:
@@ -266,6 +270,7 @@ def native_acceptance(
                         "sudo",
                         "dpkg",
                         "--purge",
+                        "latexsnipper-runtime",
                         "latexsnipper-inference",
                         "latexsnipper-models",
                         "latexsnipper",
@@ -277,7 +282,7 @@ def native_acceptance(
                 shutil.rmtree(macos_bundle(root))
             remaining = [
                 name
-                for name in ("application", "inference", "models")
+                for name in ("application", "runtime", "inference", "models")
                 if (root / name).exists()
             ]
             if remaining or installation_manifest(root, system).exists():
@@ -297,18 +302,21 @@ def main() -> None:
         raise ManifestError("Native installer acceptance must run in GitHub Actions")
     directory = args.directory.resolve(strict=True)
     system, architecture = current_target()
-    if system == "linux" and not args.gpu and os.geteuid() != 0:
+    if system == "linux" and os.geteuid() != 0:
         subprocess.run(
             [
                 "sudo",
                 "env",
                 "GITHUB_ACTIONS=true",
                 sys.executable,
+                "-X",
+                "utf8",
                 str(Path(__file__).resolve()),
                 "--directory",
                 str(directory),
                 "--output",
                 str(args.output.resolve()),
+                *(["--gpu"] if args.gpu else []),
             ],
             check=True,
         )
@@ -326,19 +334,9 @@ def main() -> None:
         work = Path(temporary)
         if args.gpu:
             (target,) = (item for item in targets if item.edition == "gpu")
-            root = work / "components"
-            root.mkdir()
-            for component in target.components:
-                extract_archive(
-                    archive_path(directory, component.artifact.url),
-                    root / component.name,
-                    component=component,
-                )
-            verify_distribution(root, target)
-            validate_installed_worker(root, target)
             result = {
                 "gpu_hardware_validated": True,
-                "recognition": validate_recognition(root, target, work),
+                "result": native_acceptance(directory, work, [target], gpu=True),
             }
         else:
             result = native_acceptance(directory, work, targets)

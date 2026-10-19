@@ -26,12 +26,8 @@ from runtime.component_inventory import (  # noqa: E402
 from runtime.distribution_manifest import (  # noqa: E402
     Artifact,
     Component,
-    DistributionManifest,
     ManifestError,
-    ReleaseCatalog,
-    read_json,
 )
-from update.component_plan import plan_component_update  # noqa: E402
 
 
 def write_json(path: Path, value: object) -> None:
@@ -64,7 +60,7 @@ def build_component(args: argparse.Namespace) -> None:
     archive = output / filename
     try:
         with zipfile.ZipFile(
-            archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
+            archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6
         ) as package:
             for record in records:
                 entry = zipfile.ZipInfo(record.path, date_time=(1980, 1, 1, 0, 0, 0))
@@ -141,7 +137,16 @@ def main() -> None:
     component.add_argument("--source", type=Path, required=True)
     component.add_argument("--output", type=Path, required=True)
     component.add_argument(
-        "--name", choices=("application", "inference", "models"), required=True
+        "--name",
+        choices=(
+            "application",
+            "runtime",
+            "inference",
+            "models",
+            "base",
+            "maintenance",
+        ),
+        required=True,
     )
     component.add_argument(
         "--platform", choices=("windows", "linux", "macos", "any"), required=True
@@ -153,41 +158,6 @@ def main() -> None:
     component.add_argument("--worker-protocol", type=int, required=True)
     component.add_argument("--model-format", type=int, required=True)
     component.add_argument("--base-url", required=True)
-    manifest = commands.add_parser(
-        "manifest", help="Assemble a target distribution from component metadata"
-    )
-    manifest.add_argument("--version", required=True)
-    manifest.add_argument("--platform", required=True)
-    manifest.add_argument("--architecture", required=True)
-    manifest.add_argument("--edition", required=True)
-    manifest.add_argument("--release-tag", default="")
-    manifest.add_argument("--component", type=Path, action="append", required=True)
-    manifest.add_argument("--output", type=Path, required=True)
-    manifest.add_argument("--installer-url")
-    manifest.add_argument("--installer-sha256")
-    manifest.add_argument("--installer-size", type=int)
-    catalog = commands.add_parser(
-        "catalog", help="Validate and publish all explicitly declared release targets"
-    )
-    catalog.add_argument("--version", required=True)
-    catalog.add_argument("--distribution", type=Path, action="append", required=True)
-    catalog.add_argument("--output", type=Path, required=True)
-    plan = commands.add_parser("plan", help="Inspect an update or repair plan")
-    plan.add_argument("--installed", type=Path, required=True)
-    plan.add_argument("--target", type=Path, required=True)
-    plan.add_argument("--damaged", action="append", default=[])
-    fetch = commands.add_parser(
-        "fetch", help="Fetch a catalog through authoritative GitHub metadata"
-    )
-    fetch.add_argument("--cache", type=Path, required=True)
-    fetch.add_argument("--output", type=Path, required=True)
-    prepare = commands.add_parser(
-        "prepare", help="Prepare verified replacements without changing an installation"
-    )
-    prepare.add_argument("--installed-root", type=Path, required=True)
-    prepare.add_argument("--target", type=Path, required=True)
-    prepare.add_argument("--cache", type=Path, required=True)
-    prepare.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.command == "sources":
         source_lock = load_sources(args.catalog)
@@ -208,74 +178,6 @@ def main() -> None:
         )
     elif args.command == "component":
         build_component(args)
-    elif args.command == "manifest":
-        components = tuple(
-            Component.from_dict(read_json(path)) for path in args.component
-        )
-        installer = None
-        if any(
-            value is not None
-            for value in (
-                args.installer_url,
-                args.installer_sha256,
-                args.installer_size,
-            )
-        ):
-            installer = Artifact(
-                args.installer_url, args.installer_sha256, args.installer_size
-            )
-        distribution = DistributionManifest(
-            args.version,
-            args.platform,
-            args.architecture,
-            args.edition,
-            components,
-            installer,
-            args.release_tag,
-        )
-        write_json(args.output, distribution.to_dict())
-    elif args.command == "catalog":
-        release = ReleaseCatalog(
-            args.version,
-            tuple(DistributionManifest.load(path) for path in args.distribution),
-        )
-        write_json(args.output, release.to_dict())
-    elif args.command == "fetch":
-        from update.component_release import fetch_component_release
-
-        release = fetch_component_release(args.cache)
-        write_json(args.output, release.catalog.to_dict())
-    elif args.command == "prepare":
-        from update.component_staging import prepare_components
-
-        update = prepare_components(
-            args.installed_root,
-            DistributionManifest.load(args.target),
-            args.output,
-            args.cache,
-        )
-        print(
-            json.dumps(
-                {
-                    "downloads": [item.cache_key for item in update.downloads],
-                    "download_bytes": update.download_bytes,
-                }
-            )
-        )
-    else:
-        installed = DistributionManifest.load(args.installed)
-        target = DistributionManifest.load(args.target)
-        update = plan_component_update(
-            installed, target, damaged_components=args.damaged
-        )
-        print(
-            json.dumps(
-                {
-                    "downloads": [item.cache_key for item in update.downloads],
-                    "download_bytes": update.download_bytes,
-                }
-            )
-        )
 
 
 if __name__ == "__main__":

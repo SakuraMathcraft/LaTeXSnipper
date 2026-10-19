@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 import mathcraft_ocr.adapters.common as common_adapter_mod
 import mathcraft_ocr.adapters.formula_recognizer as formula_recognizer_mod
+import mathcraft_ocr.adapters.text_detector as text_detector_mod
 import mathcraft_ocr.adapters.text_recognizer as text_recognizer_mod
 import mathcraft_ocr.cache as cache_mod
 import mathcraft_ocr.devices as devices_mod
@@ -2476,3 +2477,17 @@ def test_worker_reports_unsupported_action() -> None:
     assert response["id"] == "bad"
     assert response["error"]["type"] == "ValueError"
     assert "unsupported worker action: missing" in response["error"]["traceback"]
+
+
+@pytest.mark.parametrize(
+    "height,width", [(4, 10), (16, 16), (1, 128), (128, 1), (1, 10000)]
+)
+def test_text_detector_skips_images_that_cannot_be_aligned(height, width, monkeypatch):
+    def unexpected_session(*args):
+        pytest.fail("An unrepresentable detector input must not reach ONNX")
+
+    monkeypatch.setattr(text_detector_mod, "create_session", unexpected_session)
+    boxes, scores = text_detector_mod.detect_text_boxes(
+        np.zeros((height, width, 3), dtype=np.uint8), Path("unused"), None
+    )
+    assert boxes.shape == (0, 4, 2) and scores == ()

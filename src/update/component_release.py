@@ -134,11 +134,9 @@ def fetch_component_release(
                     "Distribution tag does not match its published release"
                 )
             payloads = [
-                *(component.artifact for component in distribution.components),
+                distribution.application.artifact,
                 distribution.installer,
             ]
-            if distribution.bundle_seal is not None:
-                payloads.append(distribution.bundle_seal.artifact)
             for item in payloads:
                 if item is None or artifacts.get(item.url) != item:
                     raise ManifestError(

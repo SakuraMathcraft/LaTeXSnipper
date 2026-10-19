@@ -32,30 +32,6 @@ from ui.controllers.runtime_log import apply_runtime_log_window_preference
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
-class _MacApplicationQuitFilter(QObject):
-    def __init__(self, window):
-        super().__init__(window)
-        self._window = window
-
-    def eventFilter(self, obj, event):
-        if sys.platform == "darwin" and event.type() == QEvent.Type.Quit:
-            window = self._window
-            try:
-                window._force_exit = True
-                window.shutdown()
-            except Exception:
-                pass
-        elif (
-            sys.platform == "darwin" and event.type() == QEvent.Type.ApplicationActivate
-        ):
-            window = self._window
-            try:
-                QTimer.singleShot(0, window._reactivate_from_dock)
-            except Exception:
-                pass
-        return False
-
-
 class AppLifecycleController(QObject):
     def __init__(
         self,
@@ -77,7 +53,7 @@ class AppLifecycleController(QObject):
         self.shutdown_actions = shutdown_actions
         self._force_exit = False
         self._shutdown_done = False
-        self._mac_quit_filter = None
+        self._platform_hooks_installed = False
         self._dock_close_notice_shown = False
         self._tray_msg_shown = False
 
@@ -85,11 +61,20 @@ class AppLifecycleController(QObject):
         if sys.platform != "darwin":
             return
         app = QCoreApplication.instance()
-        if app is None or getattr(self, "_mac_quit_filter", None) is not None:
+        if app is None or self._platform_hooks_installed:
             return
-        self._mac_quit_filter = _MacApplicationQuitFilter(self.view)
-        app.installEventFilter(self._mac_quit_filter)
+        app.installEventFilter(self)
+        self._platform_hooks_installed = True
         self._install_macos_application_menu()
+
+    def eventFilter(self, obj, event):
+        if sys.platform == "darwin":
+            if event.type() == QEvent.Type.Quit:
+                self._force_exit = True
+                self.shutdown()
+            elif event.type() == QEvent.Type.ApplicationActivate:
+                QTimer.singleShot(0, self._reactivate_from_dock)
+        return super().eventFilter(obj, event)
 
     def _install_macos_application_menu(self):
         if sys.platform != "darwin":
@@ -149,11 +134,15 @@ class AppLifecycleController(QObject):
     def _reactivate_from_dock(self):
         if sys.platform != "darwin" or getattr(self, "_force_exit", False):
             return
+        if self.capture._capture_start_pending or self.capture.overlay is not None:
+            return
+        if QApplication.activeModalWidget() is not None:
+            return
         try:
             if not self.view.isVisible() or self.view.isMinimized():
                 self.windows.show_window()
-        except Exception:
-            pass
+        except RuntimeError:
+            logger.debug("恢复 macOS 主窗口失败", exc_info=True)
 
     def apply_runtime_log_window_preference(self, enabled: bool):
         """Apply the runtime-log window preference."""
@@ -251,8 +240,9 @@ class AppLifecycleController(QObject):
                 action()
             except Exception:
                 logger.exception("退出清理失败: %s", action.__qualname__)
-        if self._mac_quit_filter is not None:
-            QCoreApplication.instance().removeEventFilter(self._mac_quit_filter)
+        if self._platform_hooks_installed:
+            QCoreApplication.instance().removeEventFilter(self)
+            self._platform_hooks_installed = False
         logger.info("LaTeXSnipper 已退出")
         cleanup_runtime_log_session()
         _release_single_instance_lock()

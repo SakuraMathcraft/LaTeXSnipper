@@ -1,27 +1,31 @@
-"""Reconstruct a sealed app and atomically exchange whole bundles on macOS."""
+"""Replace business resources while retaining the signed nested fixed base."""
 
 from __future__ import annotations
 
 import ctypes
 import os
+import plistlib
 import shutil
 import subprocess
 from pathlib import Path
 
-from runtime.component_inventory import verify_component
 from runtime.distribution_manifest import DistributionManifest, ManifestError
 from runtime.installation_layout import deployment_directory, macos_bundle
 from runtime.processes import independent_process_environment
-from update.deployment_transaction import DeploymentTransaction, verify_distribution
+from update.deployment_transaction import (
+    DeploymentTransaction,
+    atomic_json,
+    verify_distribution,
+)
 
 DESKTOP = Path("Contents/Resources/desktop")
+BASE = Path("Contents/Frameworks/LaTeXSnipperBase.bundle")
 
 
 def verify_bundle(bundle: Path) -> None:
     arguments = [
         "codesign",
         "--verify",
-        "--deep",
         "--strict",
         "--verbose=2",
         str(bundle),
@@ -40,14 +44,6 @@ def verify_bundle(bundle: Path) -> None:
         )
 
 
-def bundle_is_damaged(root: Path) -> bool:
-    try:
-        verify_bundle(macos_bundle(root))
-        return False
-    except (OSError, subprocess.SubprocessError, ManifestError):
-        return True
-
-
 def exchange_bundles(first: Path, second: Path) -> None:
     # Darwin's RENAME_SWAP (bsd/sys/stdio.h) is an atomic exchange. Filesystems
     # that cannot perform it fail before either bundle name is changed.
@@ -57,34 +53,6 @@ def exchange_bundles(first: Path, second: Path) -> None:
     if library.renamex_np(os.fsencode(first), os.fsencode(second), 0x00000002):
         error = ctypes.get_errno()
         raise OSError(error, os.strerror(error))
-
-
-def overlay_bundle_seal(candidate: Path, seal: Path) -> None:
-    """Replace only the outer signed resources; components remain independently owned."""
-    if {item.name for item in seal.iterdir()} != {"Contents"} or not (
-        seal / "Contents/Info.plist"
-    ).is_file():
-        raise ManifestError(
-            "Bundle seal must contain one complete Contents resource tree"
-        )
-    for component in ("application", "inference", "models"):
-        if (seal / DESKTOP / component).exists():
-            raise ManifestError("Bundle seal cannot contain component payloads")
-    keep = {DESKTOP / name for name in ("application", "inference", "models")}
-    for entry in sorted(
-        candidate.rglob("*"), key=lambda path: len(path.parts), reverse=True
-    ):
-        relative = entry.relative_to(candidate)
-        if any(
-            relative == directory or relative.is_relative_to(directory)
-            for directory in keep
-        ):
-            continue
-        if entry.is_symlink() or entry.is_file():
-            entry.unlink()
-        elif entry.is_dir() and not any(entry.iterdir()):
-            entry.rmdir()
-    shutil.copytree(seal, candidate, dirs_exist_ok=True, symlinks=True)
 
 
 class MacOSDeploymentTransaction(DeploymentTransaction):
@@ -109,79 +77,85 @@ class MacOSDeploymentTransaction(DeploymentTransaction):
         if (
             not isinstance(identity, list)
             or len(identity) != 2
-            or any(type(value) is not int for value in identity)
+            or any(type(v) is not int for v in identity)
         ):
             raise ManifestError("Invalid original bundle identity")
         return state
 
-    def _validate_installed(self, target: DistributionManifest) -> None:
+    def _prepare(self, staged, before, target, replacements) -> dict:
+        def ignore(directory, names):
+            return [BASE.name] if Path(directory) == self.bundle / BASE.parent else []
+
+        # Only the small outer bundle is copied. The signed fixed base is moved
+        # after the UI exits, so neither its files nor weights are traversed.
+        shutil.copytree(self.bundle, self.candidate, symlinks=True, ignore=ignore)
+        candidate_root = self.candidate / DESKTOP
+        if "application" in replacements:
+            self._remove(candidate_root / "application")
+            shutil.copytree(
+                staged / "application", candidate_root / "application", symlinks=True
+            )
+            shutil.copy2(
+                candidate_root / "application/bootstrap/LaTeXSnipper",
+                candidate_root / "LaTeXSnipper",
+            )
+        atomic_json(
+            candidate_root / "distribution.json", target.installed_identity().to_dict()
+        )
+        plist_path = self.candidate / "Contents/Info.plist"
+        with plist_path.open("rb") as stream:
+            plist = plistlib.load(stream)
+        plist.update(
+            CFBundleVersion=target.version, CFBundleShortVersionString=target.version
+        )
+        with plist_path.open("wb") as stream:
+            plistlib.dump(plist, stream)
+        verify_distribution(candidate_root, target)
+        original = self.bundle.stat()
+        return {"original_bundle": [original.st_dev, original.st_ino]}
+
+    def _install(self, state, checkpoint):
+        source, destination = self.bundle / BASE, self.candidate / BASE
+        if source.is_symlink() or destination.exists():
+            raise ManifestError("Invalid fixed base ownership")
+        source.rename(destination)
+        if checkpoint:
+            checkpoint("base-retained")
+        result = subprocess.run(
+            ["codesign", "--force", "--sign", "-", str(self.candidate)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=120,
+            env=independent_process_environment(),
+        )
+        if result.returncode:
+            raise ManifestError(f"Local app signing failed: {result.stderr}")
+        verify_bundle(self.candidate)
+        exchange_bundles(self.bundle, self.candidate)
+        if checkpoint:
+            checkpoint("bundle-exchanged")
+
+    def _validate_installed(self, target):
         verify_distribution(self.root, target)
         verify_bundle(self.bundle)
 
-    def _rollback(self, state: dict) -> None:
+    def _publish(self, state):
+        if (
+            DistributionManifest.load(self.metadata)
+            != DistributionManifest.from_dict(state["target"]).installed_identity()
+        ):
+            raise ManifestError("Installed bundle identity changed before commit")
+
+    def _rollback(self, state):
         self._save(state, "rolling-back")
         original = state["original_bundle"]
         current = self.bundle.stat()
         if [current.st_dev, current.st_ino] != original:
             previous = self.candidate.stat()
             if [previous.st_dev, previous.st_ino] != original:
-                raise ManifestError(
-                    "Original app bundle is unavailable for interrupted deployment recovery"
-                )
+                raise ManifestError("Original app is unavailable for failure recovery")
             exchange_bundles(self.bundle, self.candidate)
+        if not (self.bundle / BASE).exists():
+            (self.candidate / BASE).rename(self.bundle / BASE)
         self._save(state, "rolled-back")
-
-    def _prepare(self, staged, before, target, replacements) -> dict:
-        required = sum(
-            record.size for component in target.components for record in component.files
-        )
-        if shutil.disk_usage(self.bundle.parent).free < required:
-            raise OSError("Insufficient space for a complete target app bundle")
-        result = subprocess.run(
-            ["ditto", str(self.bundle), str(self.candidate)],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            timeout=900,
-            env=independent_process_environment(),
-        )
-        if result.returncode:
-            raise ManifestError(f"App bundle preparation failed: {result.stderr}")
-        candidate_root = self.candidate / DESKTOP
-        for component in replacements:
-            self._remove(candidate_root / component.name)
-            shutil.copytree(
-                staged / component.name, candidate_root / component.name, symlinks=True
-            )
-        if (staged / ".bundle-seal").is_dir():
-            if target.bundle_seal is None or verify_component(
-                staged / ".bundle-seal", target.bundle_seal
-            ):
-                raise ManifestError(
-                    "Prepared bundle seal does not match the authoritative inventory"
-                )
-            overlay_bundle_seal(self.candidate, staged / ".bundle-seal")
-        if (
-            DistributionManifest.load(candidate_root / "distribution.json")
-            != target.installed_identity()
-        ):
-            raise ManifestError(
-                "Signed bundle identity does not match the authoritative target"
-            )
-        verify_distribution(candidate_root, target)
-        verify_bundle(self.candidate)
-        original = self.bundle.stat()
-        return {"original_bundle": [original.st_dev, original.st_ino]}
-
-    def _install(self, state, checkpoint):
-        exchange_bundles(self.bundle, self.candidate)
-        if checkpoint:
-            checkpoint("bundle-exchanged")
-
-    def _publish(self, state):
-        # The verified bundle seal already contains its installed identity.
-        if (
-            DistributionManifest.load(self.metadata)
-            != DistributionManifest.from_dict(state["target"]).installed_identity()
-        ):
-            raise ManifestError("Installed bundle identity changed before commit")

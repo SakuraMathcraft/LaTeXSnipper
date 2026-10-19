@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 from typing import cast
 
-from PyQt6.QtCore import QObject
+from PyQt6.QtCore import QObject, pyqtBoundSignal, pyqtSignal
 from PyQt6.QtGui import QAction, QIcon, QKeySequence
 from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
@@ -33,6 +33,8 @@ logger = logging.getLogger(f"latexsnipper.{__name__}")
 class MacOSHotkeyProvider(QObject):
     """macOS hotkey provider using a native global hotkey backend."""
 
+    _registration_finished = pyqtSignal(bool, str)
+
     def __init__(self, parent=None, global_enabled: bool = True):
         super().__init__(parent)
         self._global_enabled = bool(global_enabled)
@@ -42,11 +44,23 @@ class MacOSHotkeyProvider(QObject):
     def activated(self):
         return self._hotkey.activated if self._hotkey else None
 
+    @property
+    def registration_finished(self) -> pyqtBoundSignal:
+        return self._registration_finished
+
     def register(self, seq: str) -> None:
         if not self._hotkey:
             raise RuntimeError("global hotkey disabled")
         self._hotkey.setShortcut(QKeySequence(seq))
         self._hotkey.register()
+        self.registration_finished.emit(True, "")
+
+    @property
+    def shortcut_description(self) -> str:
+        return ""
+
+    def cancel_registration(self) -> None:
+        """Registration completes synchronously on this platform."""
 
     def is_registered(self) -> bool:
         if not self._hotkey:
@@ -239,15 +253,17 @@ class MacOSSystemProvider:
         if tray_menu is None:
             return
         tray_menu.clear()
-        tray_menu.addAction(f"Start Capture / Snip ({hotkey})", handlers.on_capture)
+        tray_menu.addAction(
+            tr("截图识别（{hotkey}）").format(hotkey=hotkey), handlers.on_capture
+        )
         if callable(handlers.build_capture_submenu):
             handlers.build_capture_submenu(tray_menu)
         tray_menu.addSeparator()
-        tray_menu.addAction("Show Main Window", handlers.on_open)
+        tray_menu.addAction(tr("打开主窗口"), handlers.on_open)
         if callable(handlers.on_preferences):
-            tray_menu.addAction("Preferences...", handlers.on_preferences)
+            tray_menu.addAction(tr("设置..."), handlers.on_preferences)
         tray_menu.addSeparator()
-        tray_menu.addAction("Quit", handlers.on_exit)
+        tray_menu.addAction(tr("退出"), handlers.on_exit)
 
     def show_notification(
         self,

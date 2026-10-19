@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Protocol
 if TYPE_CHECKING:
     from capture.overlay import ScreenCaptureOverlay
 
+from PyQt6.QtCore import pyqtBoundSignal
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
 
@@ -55,7 +56,15 @@ class IHotkeyProvider(Protocol):
     @property
     def activated(self): ...
 
+    @property
+    def registration_finished(self) -> pyqtBoundSignal | None: ...
+
+    @property
+    def shortcut_description(self) -> str: ...
+
     def register(self, seq: str) -> None: ...
+
+    def cancel_registration(self) -> None: ...
 
     def is_registered(self) -> bool: ...
 

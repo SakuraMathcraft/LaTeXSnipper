@@ -12,7 +12,6 @@ from pathlib import Path
 
 from runtime.component_inventory import verify_component
 from runtime.distribution_manifest import (
-    BundleSeal,
     Component,
     FileRecord,
     ManifestError,
@@ -55,7 +54,7 @@ def _create_link(root: Path, target: Path, link: str, *, hard: bool = False) -> 
 
 
 def extract_archive(
-    archive: Path, destination: Path, *, component: Component | BundleSeal | None = None
+    archive: Path, destination: Path, *, component: Component | None = None
 ) -> None:
     """Extract only ordinary files, directories and confined links into a fresh directory."""
     destination = destination.resolve()

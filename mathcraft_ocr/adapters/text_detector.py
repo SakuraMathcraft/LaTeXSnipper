@@ -30,15 +30,16 @@ def detect_text_boxes(
     model_dir: str | Path,
     provider_info,
 ) -> tuple[np.ndarray, tuple[float, ...]]:
-    root = Path(model_dir)
-    model_path = _find_detector_model(root)
-    session = create_session(model_path, provider_info)
     pre = DetPreProcess(
         limit_side_len=_limit_side_len(image_bgr),
         limit_type="max",
         mean=[0.5, 0.5, 0.5],
         std=[0.5, 0.5, 0.5],
     )
+    model_input = pre(image_bgr)
+    if model_input is None:
+        return np.empty((0, 4, 2), dtype=np.float32), ()
+    session = create_session(_find_detector_model(Path(model_dir)), provider_info)
     post = DBPostProcess(
         thresh=0.3,
         box_thresh=0.5,
@@ -46,7 +47,6 @@ def detect_text_boxes(
         unclip_ratio=1.6,
         use_dilation=True,
     )
-    model_input = pre(image_bgr)
     outputs = session.run(
         None,
         {session.get_inputs()[0].name: model_input},

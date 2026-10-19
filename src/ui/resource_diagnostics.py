@@ -1,4 +1,4 @@
-"""On-demand component integrity checks without blocking Qt or starting inference."""
+"""Report installation metadata and observed worker errors without integrity scans."""
 
 import json
 import logging
@@ -9,7 +9,6 @@ from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QDialog, QPlainTextEdit, QVBoxLayout
 
 from localization.manager import translate as tr
-from runtime.component_inventory import verify_component
 from runtime.installed_resources import installed_resources
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
@@ -27,7 +26,7 @@ class ResourceDiagnosticsDialog(QDialog):
         self.resize(720, 480)
         self.output = QPlainTextEdit(self)
         self.output.setReadOnly(True)
-        self.output.setPlainText(tr("正在校验安装资源，请稍候。"))
+        self.output.setPlainText(tr("正在读取运行信息，请稍候。"))
         layout = QVBoxLayout(self)
         layout.addWidget(self.output)
         self.checked.connect(self._show_report)
@@ -52,15 +51,9 @@ class ResourceDiagnosticsDialog(QDialog):
                         "version": resources.manifest.version,
                         "target": resources.manifest.target,
                         "root": str(resources.root),
-                        "components": {},
+                        "base_id": resources.manifest.base_id,
+                        "python": str(resources.python),
                     }
-                    for component in resources.manifest.components:
-                        report["components"][component.name] = {
-                            "content_sha256": component.content_sha256,
-                            "damaged": verify_component(
-                                resources.root / component.name, component
-                            ),
-                        }
             except Exception as exc:
                 logger.exception("安装资源诊断失败")
                 report = {"error": str(exc)}

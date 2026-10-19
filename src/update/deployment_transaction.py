@@ -17,17 +17,16 @@ from runtime.distribution_manifest import DistributionManifest, ManifestError, r
 from update.component_plan import plan_component_update
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
-COMPONENT_NAMES = ("application", "inference", "models")
+COMPONENT_NAMES = ("application", "runtime", "inference", "models")
 
 
-def atomic_json(path: Path, value: dict) -> None:
-    """Flush state before publishing it; readers see either complete JSON file."""
+def atomic_bytes(path: Path, data: bytes) -> None:
+    """Flush state before publishing it; readers see one complete snapshot."""
     temporary = path.with_name(path.name + ".tmp")
     if path.is_symlink() or temporary.is_symlink():
         raise ManifestError("Transaction state cannot be a symbolic link")
-    with temporary.open("w", encoding="utf-8", newline="\n") as stream:
-        json.dump(value, stream, ensure_ascii=False, sort_keys=True, indent=2)
-        stream.write("\n")
+    with temporary.open("wb") as stream:
+        stream.write(data)
         stream.flush()
         os.fsync(stream.fileno())
     os.replace(temporary, path)
@@ -39,26 +38,19 @@ def atomic_json(path: Path, value: dict) -> None:
             os.close(descriptor)
 
 
+def atomic_json(path: Path, value: dict) -> None:
+    atomic_bytes(
+        path,
+        (json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode(
+            "utf-8"
+        ),
+    )
+
+
 def verify_distribution(root: Path, manifest: DistributionManifest) -> None:
-    for component in manifest.components:
-        damaged = verify_component(root / component.name, component)
-        if damaged:
-            raise ManifestError(
-                f"Deployed {component.name} failed validation: {damaged[:5]}"
-            )
-
-
-def verify_distribution_sources(
-    root: Path, staged: Path, target: DistributionManifest, replacements: list[str]
-) -> None:
-    for component in target.components:
-        source = (
-            staged / component.name
-            if component.name in replacements
-            else root / component.name
-        )
-        if verify_component(source, component):
-            raise ManifestError(f"Prepared {component.name} is missing or corrupt")
+    damaged = verify_component(root / "application", manifest.application)
+    if damaged:
+        raise ManifestError(f"Deployed application failed validation: {damaged[:5]}")
 
 
 class DeploymentTransaction(ABC):
@@ -157,24 +149,19 @@ class DeploymentTransaction(ABC):
             raise ManifestError("Unknown deployment state")
         if type(state["complete"]) is not bool:
             raise ManifestError("Invalid complete-installation state")
-        before = (
-            DistributionManifest.from_dict(state["before"])
-            if state["before"] is not None
-            else None
-        )
         target = DistributionManifest.from_dict(state["target"])
-        if before is None and not state["complete"]:
-            raise ManifestError(
-                "Only a complete installer can initialize an installation"
-            )
-        if before is not None:
-            if state["complete"]:
-                if before.target[:2] != target.target[:2]:
-                    raise ManifestError(
-                        "Reinstallation cannot change the installation platform or architecture"
-                    )
-            else:
-                plan_component_update(before, target)
+        if state["complete"]:
+            if state["before"] is not None:
+                if not isinstance(state["before"], str):
+                    raise ManifestError("Invalid installer metadata snapshot")
+                try:
+                    bytes.fromhex(state["before"])
+                except ValueError as exc:
+                    raise ManifestError("Invalid installer metadata snapshot") from exc
+        else:
+            before = DistributionManifest.from_dict(state["before"])
+            if plan_component_update(before, target).installer_required:
+                raise ManifestError("Fixed base changed; use the complete installer")
         names = state["replacements"]
         if (
             not isinstance(names, list)
@@ -204,6 +191,8 @@ class DeploymentTransaction(ABC):
     def _restore_identity(self, state: dict) -> None:
         if state["before"] is None:
             self.metadata.unlink(missing_ok=True)
+        elif state["complete"]:
+            atomic_bytes(self.metadata, bytes.fromhex(state["before"]))
         else:
             atomic_json(self.metadata, state["before"])
         self._save(state, "rolled-back")
@@ -274,9 +263,16 @@ class DeploymentTransaction(ABC):
             self._recover()
             if self.directory.exists():
                 raise ManifestError("Previous deployment cleanup is still pending")
+            if self.metadata.is_symlink():
+                raise ManifestError("Installation metadata cannot be a symbolic link")
             before = (
                 DistributionManifest.load(self.metadata)
-                if self.metadata.is_file()
+                if self.metadata.is_file() and not complete
+                else None
+            )
+            original_metadata = (
+                self.metadata.read_bytes().hex()
+                if complete and self.metadata.is_file()
                 else None
             )
             target = DistributionManifest.load(staged / "distribution.json")
@@ -285,47 +281,26 @@ class DeploymentTransaction(ABC):
                     raise ManifestError(
                         "Install a complete macOS app from its signed carrier"
                     )
-                if before is not None and before.target[:2] != target.target[:2]:
-                    raise ManifestError(
-                        "Reinstallation cannot change platform or architecture"
-                    )
-                if before is None and any(
-                    (self.root / item.name).exists() for item in target.components
-                ):
-                    raise ManifestError(
-                        "Cannot initialize unmanaged component directories"
-                    )
-                replacements = target.components
-                seal_required = False
+                replacements = list(COMPONENT_NAMES)
             else:
                 if before is None:
                     raise ManifestError(
                         "Updating requires an existing installation identity"
                     )
-                damaged = [
-                    item.name
-                    for item in before.components
-                    if verify_component(self.root / item.name, item)
-                ]
-                damaged_bundle = False
-                if target.platform == "macos":
-                    from update.macos_transaction import bundle_is_damaged
-
-                    damaged_bundle = bundle_is_damaged(self.root)
-                plan = plan_component_update(
-                    before,
-                    target,
-                    damaged_components=damaged,
-                    damaged_bundle=damaged_bundle,
-                )
-                replacements, seal_required = plan.downloads, plan.seal_required
-            names = [item.name for item in replacements]
-            expected = {"distribution.json", *names}
-            if seal_required:
-                expected.add(".bundle-seal")
-            if {item.name for item in staged.iterdir()} != expected:
+                plan = plan_component_update(before, target)
+                if plan.installer_required:
+                    raise ManifestError(
+                        "Fixed base changed; use the complete installer"
+                    )
+                replacements = [item.name for item in plan.downloads]
+            names = list(replacements)
+            if {item.name for item in staged.iterdir()} != {
+                "distribution.json",
+                *names,
+            }:
                 raise ManifestError("Staging contains unexpected resources")
-            verify_distribution_sources(self.root, staged, target, names)
+            if "application" in names:
+                verify_distribution(staged, target)
             self.directory.mkdir()
             try:
                 extra = self._prepare(staged, before, target, replacements)
@@ -335,7 +310,11 @@ class DeploymentTransaction(ABC):
             state = {
                 "schema": 1,
                 "status": "prepared",
-                "before": before.to_dict() if before else None,
+                "before": original_metadata
+                if complete
+                else before.to_dict()
+                if before
+                else None,
                 "target": target.to_dict(),
                 "complete": complete,
                 "replacements": names,

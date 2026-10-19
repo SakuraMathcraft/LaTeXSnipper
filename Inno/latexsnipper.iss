@@ -62,6 +62,7 @@ chinesesimplified.UninstallCleanupAction=卸载
 Source: "{#MyBuildDir}\LaTeXSnipper.exe"; DestDir: "{app}"; Flags: onlyifdoesntexist uninsneveruninstall
 Source: "{#MyBuildDir}\application\updater.exe"; DestDir: "{tmp}"; DestName: "installer-updater.exe"; Flags: deleteafterinstall
 Source: "{#MyBuildDir}\application\*"; DestDir: "{tmp}\latexsnipper-payload\application"; Flags: recursesubdirs createallsubdirs deleteafterinstall
+Source: "{#MyBuildDir}\runtime\*"; DestDir: "{tmp}\latexsnipper-payload\runtime"; Flags: recursesubdirs createallsubdirs deleteafterinstall
 Source: "{#MyBuildDir}\inference\*"; DestDir: "{tmp}\latexsnipper-payload\inference"; Flags: recursesubdirs createallsubdirs deleteafterinstall
 Source: "{#MyBuildDir}\models\*"; DestDir: "{tmp}\latexsnipper-payload\models"; Flags: recursesubdirs createallsubdirs deleteafterinstall
 Source: "{#MyBuildDir}\distribution.json"; DestDir: "{tmp}\latexsnipper-payload"; Flags: deleteafterinstall
@@ -75,6 +76,7 @@ Filename: "{app}\LaTeXSnipper.exe"; Description: "{cm:LaunchProgram,LaTeXSnipper
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\application"
+Type: filesandordirs; Name: "{app}\runtime"
 Type: filesandordirs; Name: "{app}\inference"
 Type: filesandordirs; Name: "{app}\models"
 Type: filesandordirs; Name: "{app}\.deployment"
@@ -89,7 +91,7 @@ var
 
 procedure RegisterExtraCloseApplicationsResources;
 begin
-  RegisterExtraCloseApplicationsResource(ExpandConstant('{app}\application\LaTeXSnipper.exe'));
+  RegisterExtraCloseApplicationsResource(ExpandConstant('{app}\runtime\LaTeXSnipper.exe'));
   RegisterExtraCloseApplicationsResource(ExpandConstant('{app}\inference\python.exe'));
 end;
 
@@ -193,15 +195,19 @@ begin
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
-var ResultCode: Integer;
+var
+  ResultCode: Integer;
+  UserProfile: String;
 begin
   if CurUninstallStep <> usUninstall then Exit;
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM "LaTeXSnipper.exe" /T', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Sleep(1200);
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM "LaTeXSnipper.exe" /T /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   if DeleteAppDataOnUninstall then begin
-    DelTree(ExpandConstant('{userprofile}\.latexsnipper'), True, True, True);
-    DelTree(ExpandConstant('{tmp}\LaTeXSnipper'), True, True, True);
+    UserProfile := GetEnv('USERPROFILE');
+    if UserProfile <> '' then
+      DelTree(AddBackslash(UserProfile) + '.latexsnipper', True, True, True);
+    DelTree(GetTempDir + 'LaTeXSnipper', True, True, True);
   end;
   if DeleteMathCraftModelsOnUninstall then
     DelTree(ExpandConstant('{userappdata}\MathCraft\models'), True, True, True);

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import pathlib
 import sys
 
@@ -17,8 +16,14 @@ _APP_STATE_DIR_CACHE: pathlib.Path | None = None
 
 def resource_path(relative_path):
     """Return an absolute resource path for source and PyInstaller modes."""
-    if hasattr(sys, "_MEIPASS"):
-        return os.path.join(getattr(sys, "_MEIPASS", ""), relative_path)
+    if getattr(sys, "frozen", False) and pathlib.PurePosixPath(relative_path).parts[
+        :2
+    ] == ("assets", "MathJax"):
+        from runtime.installed_resources import installed_resources
+
+        resources = installed_resources()
+        assert resources is not None
+        return str(resources.directory("runtime") / relative_path)
     return str(get_app_root() / relative_path)
 
 
@@ -82,9 +87,11 @@ def app_config_path() -> pathlib.Path:
 
 
 def get_app_root() -> pathlib.Path:
-    """Return the PyInstaller internal root or the source directory."""
+    """Return the installed business resource root or the source directory."""
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        return pathlib.Path(getattr(sys, "_MEIPASS", ""))
+        from runtime.installed_resources import installation_root
+
+        return installation_root(pathlib.Path(sys.executable)) / "application"
     return pathlib.Path(__file__).resolve().parent.parent
 
 

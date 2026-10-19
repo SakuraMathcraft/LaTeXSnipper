@@ -191,7 +191,7 @@ def main() -> int:
     init_app_logging()
     try:
         if arguments.recover_root is not None:
-            from launcher_main import launch_installed
+            from update.deployment_launch import launch_installed
 
             launch_installed(arguments.recover_root.resolve(strict=True))
         elif arguments.install_from is not None:

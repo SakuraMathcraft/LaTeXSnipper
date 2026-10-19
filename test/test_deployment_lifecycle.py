@@ -20,7 +20,7 @@ from update.windows_transaction import WindowsDeploymentTransaction
 def test_interrupted_first_install_restores_uninstalled_state(tmp_path, boundary):
     root, staged = tmp_path / "installed", tmp_path / "staged"
     root.mkdir()
-    target = installation(staged)
+    installation(staged)
 
     def interrupt(state):
         if state == boundary:
@@ -32,7 +32,10 @@ def test_interrupted_first_install_restores_uninstalled_state(tmp_path, boundary
         )
     assert WindowsDeploymentTransaction(root).recover() == "rolled-back"
     assert not (root / "distribution.json").exists()
-    assert all(not (root / component.name).exists() for component in target.components)
+    assert all(
+        not (root / name).exists()
+        for name in ("application", "runtime", "inference", "models")
+    )
 
 
 def test_complete_installer_can_explicitly_replace_cpu_with_gpu(tmp_path):
@@ -42,10 +45,6 @@ def test_complete_installer_can_explicitly_replace_cpu_with_gpu(tmp_path):
     target = replace(
         original,
         edition="gpu",
-        components=tuple(
-            replace(item, variant="gpu") if item.name == "inference" else item
-            for item in original.components
-        ),
     )
     atomic_json(staged / "distribution.json", target.to_dict())
     assert WindowsDeploymentTransaction(root).apply(staged, complete=True) == target
@@ -69,7 +68,8 @@ def test_handoff_authenticates_before_replacement_and_waits_for_ui_exit(
     target = installation(
         staged,
         "4.0.0",
-        {name: b"new" for name in ("application", "inference", "models")},
+        {"application": b"new"},
+        full=False,
     )
     selected = (
         target if authentic else replace(target, version="5.0.0", release_tag="v5.0.0")

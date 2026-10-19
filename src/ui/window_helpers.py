@@ -25,7 +25,7 @@ def apply_app_window_icon(win) -> None:
 
 
 def select_existing_directory_with_icon(parent, title: str, initial_dir: str) -> str:
-    from ui.window_icons import schedule_native_dialog_icon
+    from ui.window_icons import schedule_native_dialog_icon_windows
 
     owner = parent
     if owner is None:
@@ -36,7 +36,9 @@ def select_existing_directory_with_icon(parent, title: str, initial_dir: str) ->
     dlg.setFileMode(QFileDialog.FileMode.Directory)
     dlg.setOption(QFileDialog.Option.ShowDirsOnly, True)
     apply_app_window_icon(dlg)
-    icon_timer = schedule_native_dialog_icon(title, resource_path("assets/icon.ico"))
+    icon_timer = schedule_native_dialog_icon_windows(
+        title, resource_path("assets/icon.ico")
+    )
     try:
         if dlg.exec() != QFileDialog.DialogCode.Accepted:
             return ""

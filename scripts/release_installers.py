@@ -3,7 +3,6 @@
 import os
 import shutil
 import subprocess
-import tarfile
 from pathlib import Path
 
 from runtime.distribution_manifest import DistributionManifest, ManifestError
@@ -47,14 +46,14 @@ def windows_installer(
 
 
 def linux_installer(layout: Path, output: Path, manifest: DistributionManifest) -> Path:
-    carrier = layout.parent / f"linux-installer-{manifest.edition}"
-    carrier.mkdir()
+    carrier = layout.parent / f"linux-installer-{manifest.edition}/LaTeXSnipper"
+    carrier.mkdir(parents=True)
     payload = carrier / "payload"
     payload.mkdir()
-    for component in manifest.components:
+    for name in ("application", "runtime", "inference", "models"):
         shutil.copytree(
-            layout / component.name,
-            payload / component.name,
+            layout / name,
+            payload / name,
             symlinks=True,
             copy_function=link_or_copy,
         )
@@ -77,15 +76,17 @@ printf 'Installed LaTeXSnipper. Start it from your application menu.\\n'
         output
         / f"LaTeXSnipper_{manifest.version}_linux_x86_64_{manifest.edition}.tar.xz"
     )
-    with tarfile.open(path, "w:xz", preset=3) as archive:
-        archive.add(carrier, arcname="LaTeXSnipper")
+    run(
+        ["tar", "-cJf", path, "-C", carrier.parent, carrier.name],
+        env={**os.environ, "XZ_OPT": "-T2 -3"},
+    )
     return path
 
 
 def macos_installer(bundle: Path, output: Path, manifest: DistributionManifest) -> Path:
     staging = bundle.parent / "dmg"
     staging.mkdir()
-    run(["ditto", bundle, staging / bundle.name])
+    bundle.rename(staging / bundle.name)
     (staging / "Applications").symlink_to("/Applications", target_is_directory=True)
     path = output / f"LaTeXSnipper_{manifest.version}_macos_arm64_cpu.dmg"
     run(

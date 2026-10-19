@@ -8,7 +8,6 @@ import stat
 from pathlib import Path
 
 from runtime.distribution_manifest import (
-    BundleSeal,
     Component,
     FileRecord,
     ManifestError,
@@ -66,7 +65,7 @@ def inventory_component(root: Path) -> tuple[FileRecord, ...]:
 
 
 def verify_component(
-    root: Path, component: Component | BundleSeal, *, exact: bool = True
+    root: Path, component: Component, *, exact: bool = True
 ) -> tuple[str, ...]:
     """Return damaged paths; never use a symlink to read outside its resource root."""
     root = Path(root)
