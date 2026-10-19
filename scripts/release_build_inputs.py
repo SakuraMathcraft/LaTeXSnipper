@@ -96,6 +96,7 @@ def build_inputs(root: Path, target: str) -> dict[str, str]:
     ] + list((root / "src/assets/MathJax").rglob("*"))
     if system == "windows":
         runtime.append(root / "scripts/normalize_windows_crt.ps1")
+        runtime.append(root / "src/assets/icon.ico")
     if system == "linux":
         runtime.append(root / "scripts/linux_hotkey_packaging.py")
     keys = {
@@ -152,6 +153,7 @@ def build_inputs(root: Path, target: str) -> dict[str, str]:
     )
     if system == "windows":
         maintenance.append(root / "src/assets/icon.ico")
+        maintenance.append(root / "VERSION")
     requirements = (
         (root / "requirements.txt").read_text(encoding="utf-8")
         if (root / "requirements.txt").exists()

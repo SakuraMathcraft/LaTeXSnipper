@@ -50,28 +50,27 @@ def github_api(endpoint: str, *, method="GET", data=None, file=None, paginate=Fa
 
 def prepare_release(tag: str, target: str) -> int:
     pages = github_api(f"{RELEASES}?per_page=100", paginate=True)
-    matches = [item for page in pages for item in page if item["tag_name"] == tag]
+    matches = [
+        item
+        for page in pages
+        for item in page
+        if item["tag_name"] == tag and not item["draft"]
+    ]
     if len(matches) > 1:
-        raise ManifestError(
-            f"Multiple releases have tag {tag}; resolve the duplicate before publishing"
-        )
+        raise ManifestError(f"Multiple published releases have tag {tag}")
     if matches:
-        release = github_api(
-            f"{RELEASES}/{matches[0]['id']}", method="PATCH", data={"draft": True}
-        )
-    else:
-        release = github_api(
-            RELEASES,
-            method="POST",
-            data={
-                "tag_name": tag,
-                "target_commitish": target,
-                "name": tag,
-                "draft": True,
-                "generate_release_notes": True,
-            },
-        )
-    return release["id"]
+        return matches[0]["id"]
+    return github_api(
+        RELEASES,
+        method="POST",
+        data={
+            "tag_name": tag,
+            "target_commitish": target,
+            "name": tag,
+            "draft": False,
+            "generate_release_notes": True,
+        },
+    )["id"]
 
 
 def upload_assets(release_id: int, paths: list[Path]) -> None:
@@ -164,8 +163,8 @@ def publish_release(directory: Path, version: str, tag: str, release_id: int) ->
         resources.append(distribution.installer)
         names.update(resource.url.rsplit("/", 1)[-1] for resource in resources)
     release = github_api(f"{RELEASES}/{release_id}")
-    if release["tag_name"] != tag:
-        raise ManifestError("Release ID does not match the requested tag")
+    if release["tag_name"] != tag or release["draft"]:
+        raise ManifestError("Release ID must match the requested published release")
     upload_assets(release_id, [catalog_path])
     assets = github_api(f"{RELEASES}/{release_id}")["assets"]
     missing = names - {
@@ -178,11 +177,6 @@ def publish_release(directory: Path, version: str, tag: str, release_id: int) ->
     for asset in assets:
         if asset["name"] not in names:
             github_api(f"{RELEASES}/assets/{asset['id']}", method="DELETE")
-    github_api(
-        f"{RELEASES}/{release_id}",
-        method="PATCH",
-        data={"draft": False, "make_latest": "true"},
-    )
 
 
 def upload_desktop_assets(directory: Path, release_id: int) -> None:

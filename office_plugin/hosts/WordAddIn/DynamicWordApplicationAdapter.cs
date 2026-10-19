@@ -24,7 +24,7 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
     private const string OleFormulaProgId = "LaTeXSnipper.Formula";
 
     private readonly dynamic _wordApplication;
-    private readonly OmmlToMathMlConverter _ommlToMathMlConverter;
+    private OmmlToMathMlConverter? _ommlToMathMlConverter;
     private int _undoRecordDepth;
     private readonly LaTeXSnipper.OfficePlugin.Rendering.OfficeStaDispatcher _officeThread = new();
 
@@ -136,8 +136,10 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
     public DynamicWordApplicationAdapter(object wordApplication, OmmlToMathMlConverter? ommlToMathMlConverter = null)
     {
         _wordApplication = wordApplication ?? throw new ArgumentNullException(nameof(wordApplication));
-        _ommlToMathMlConverter = ommlToMathMlConverter ?? new OmmlToMathMlConverter();
+        _ommlToMathMlConverter = ommlToMathMlConverter;
     }
+
+    public string InstallationDirectory => (string)_wordApplication.Path;
 
     public void Dispose() => _officeThread.Dispose();
 

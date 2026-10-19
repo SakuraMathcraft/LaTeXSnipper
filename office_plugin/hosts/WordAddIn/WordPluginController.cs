@@ -450,7 +450,8 @@ public sealed partial class WordPluginController : IDisposable
         {
             _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("OmmlInsertingStatus"));
         }
-        MathMlToOmmlConverter converter = _ommlConverter ??= new MathMlToOmmlConverter();
+        MathMlToOmmlConverter converter = _ommlConverter ??= new MathMlToOmmlConverter(
+            System.IO.Path.Combine(_wordAdapter.InstallationDirectory, "MML2OMML.XSL"));
         string mathMl = await _mathJaxRenderer.ConvertTypographyToMathMlAsync(renderedLatex, metadata.DisplayMode, metadata.Typography, cancellationToken);
         string omml = OmmlTypographyMapper.Apply(converter.Convert(mathMl), metadata.Typography);
         string ooxml = WordOmmlDocumentBuilder.BuildFlatOpcDocument(omml, metadata, IsDisplay(metadata), settings.NumberPlacement);

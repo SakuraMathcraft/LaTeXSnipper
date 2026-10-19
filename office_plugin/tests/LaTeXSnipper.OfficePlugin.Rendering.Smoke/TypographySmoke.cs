@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -94,7 +95,7 @@ internal static class TypographySmoke
         await renderer.RenderTypographyAsync(labeled, FormulaDisplayMode.Display, Style(), CancellationToken.None);
         await renderer.RenderTypographyAsync(labeled, FormulaDisplayMode.Display,
             Style(style: FormulaMathStyle.Bold), CancellationToken.None);
-        string omml = OmmlTypographyMapper.Apply(new LaTeXSnipper.OfficePlugin.WordAddIn.MathMlToOmmlConverter().Convert(mml), Style());
+        string omml = OmmlTypographyMapper.Apply(ConvertToOmml(mml), Style());
         XNamespace word = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
         XNamespace officeMath = "http://schemas.openxmlformats.org/officeDocument/2006/math";
         XElement native = XElement.Parse(omml);
@@ -135,6 +136,22 @@ internal static class TypographySmoke
             renderer.RenderTypographyAsync("x", FormulaDisplayMode.Display, Style("mathjax-stix2"), CancellationToken.None));
         Check(!simultaneous[0].Payload.SequenceEqual(simultaneous[1].Payload), "Concurrent style isolation");
         Console.WriteLine($"Typography passed: {results.Count} SVG/EMF samples, {results.Count * 2} PNG outputs, MathML, cache, sizes and font diagnostics.");
+    }
+
+    private static string ConvertToOmml(string mathMl)
+    {
+        dynamic word = Activator.CreateInstance(Type.GetTypeFromProgID("Word.Application", throwOnError: true)!)!;
+        try
+        {
+            var converter = new LaTeXSnipper.OfficePlugin.WordAddIn.MathMlToOmmlConverter(
+                Path.Combine((string)word.Path, "MML2OMML.XSL"));
+            return converter.Convert(mathMl);
+        }
+        finally
+        {
+            try { word.Quit(false); }
+            finally { Marshal.FinalReleaseComObject(word); }
+        }
     }
 
     private static FormulaTypography Style(string font = "mathjax-tex", string cjk = "SimSun",

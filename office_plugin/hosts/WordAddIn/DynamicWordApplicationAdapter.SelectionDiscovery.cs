@@ -52,7 +52,8 @@ public sealed partial class DynamicWordApplicationAdapter
         {
             AddNativeWordFormulasFromRange(entries, seen, selection);
         }
-        catch
+        catch (Exception error) when (error is System.Runtime.InteropServices.COMException
+            || error is Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
         {
         }
 
@@ -70,7 +71,8 @@ public sealed partial class DynamicWordApplicationAdapter
                 AddNativeWordFormula(entries, seen, equations.Item(index));
             }
         }
-        catch
+        catch (Exception error) when (error is System.Runtime.InteropServices.COMException
+            || error is Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
         {
         }
     }
@@ -100,7 +102,9 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         string omml = ExtractNativeOmml(range);
-        string mathMl = _ommlToMathMlConverter.Convert(omml);
+        OmmlToMathMlConverter converter = _ommlToMathMlConverter ??= new OmmlToMathMlConverter(
+            System.IO.Path.Combine(InstallationDirectory, "OMML2MML.XSL"));
+        string mathMl = converter.Convert(omml);
         entries.Add(new WordFormulaEntry(start, mathMl, InferNativeFormulaDisplayMode(range)));
     }
 

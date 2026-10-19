@@ -12,11 +12,10 @@ public sealed class OmmlToMathMlConverter
 {
     private readonly XslCompiledTransform _transform;
 
-    public OmmlToMathMlConverter(string? stylesheetPath = null)
+    public OmmlToMathMlConverter(string stylesheetPath)
     {
-        string path = stylesheetPath ?? ResolveOfficeStylesheet();
         _transform = new XslCompiledTransform();
-        using XmlReader stylesheet = XmlReader.Create(path, SecureReaderSettings());
+        using XmlReader stylesheet = XmlReader.Create(stylesheetPath, SecureReaderSettings());
         _transform.Load(stylesheet);
     }
 
@@ -55,33 +54,6 @@ public sealed class OmmlToMathMlConverter
         }
 
         return math.ToString(SaveOptions.DisableFormatting);
-    }
-
-    private static string ResolveOfficeStylesheet()
-    {
-        string[] roots =
-        {
-            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86)
-        };
-        string[] relativePaths =
-        {
-            @"Microsoft Office\root\Office16\OMML2MML.XSL",
-            @"Microsoft Office\Office16\OMML2MML.XSL"
-        };
-        foreach (string root in roots)
-        {
-            foreach (string relativePath in relativePaths)
-            {
-                string candidate = Path.Combine(root, relativePath);
-                if (File.Exists(candidate))
-                {
-                    return candidate;
-                }
-            }
-        }
-
-        throw new FileNotFoundException("Microsoft Office OMML2MML.XSL was not found.");
     }
 
     private static XmlReaderSettings SecureReaderSettings()

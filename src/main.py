@@ -7,8 +7,9 @@ from pathlib import Path
 _SRC_DIR = Path(__file__).resolve().parent
 _ROOT_DIR = _SRC_DIR.parent
 for _path in (_ROOT_DIR, _SRC_DIR):
-    if str(_path) not in sys.path:
-        sys.path.insert(0, str(_path))
+    if str(_path) in sys.path:
+        sys.path.remove(str(_path))
+    sys.path.insert(0, str(_path))
 
 if len(sys.argv) == 3 and sys.argv[1] == "--validate-application":
     import json
@@ -16,6 +17,9 @@ if len(sys.argv) == 3 and sys.argv[1] == "--validate-application":
 
     _validation_output = Path(sys.argv[2])
     try:
+        import application.app_runner  # noqa: F401
+        import application.bootstrap  # noqa: F401
+        import ui.main_window  # noqa: F401
         from runtime.application_validation import validate_application
 
         validate_application(_validation_output)

@@ -22,24 +22,25 @@ def test_release_preparation_requires_a_unique_target(monkeypatch, count):
         calls.append((endpoint, kwargs))
         if kwargs.get("paginate"):
             return [
-                [{"tag_name": "v3.2.0-LTS", "id": 40 + index} for index in range(count)]
+                [
+                    {"tag_name": "v3.2.0-LTS", "id": 40 + index, "draft": False}
+                    for index in range(count)
+                ],
+                [{"tag_name": "v3.2.0-LTS", "id": 99, "draft": True}],
             ]
+        assert kwargs["method"] == "POST"
+        assert kwargs["data"]["tag_name"] == "v3.2.0-LTS"
+        assert kwargs["data"]["target_commitish"] == "commit"
+        assert kwargs["data"]["draft"] is False
         return {"id": 40}
 
     monkeypatch.setattr(release, "github_api", api)
     if count == 2:
-        with pytest.raises(ValueError, match="Multiple releases"):
+        with pytest.raises(ValueError, match="Multiple published releases"):
             release.prepare_release("v3.2.0-LTS", "commit")
-        assert len(calls) == 1
     else:
         assert release.prepare_release("v3.2.0-LTS", "commit") == 40
-        endpoint, request = calls[-1]
-        if count:
-            assert endpoint.endswith("/40") and request["method"] == "PATCH"
-        else:
-            assert request["method"] == "POST"
-            assert request["data"]["tag_name"] == "v3.2.0-LTS"
-            assert request["data"]["target_commitish"] == "commit"
+    assert len(calls) == (2 if count == 0 else 1)
 
 
 @pytest.mark.parametrize("missing", [None, "macos.dmg", "office.exe", "manual.pdf"])
@@ -73,6 +74,7 @@ def test_release_completion_uses_id_and_requires_all_uploads(
             return {
                 "id": 40,
                 "tag_name": tag,
+                "draft": False,
                 "assets": assets,
                 "upload_url": upload_url + "{?name,label}",
             }
@@ -106,14 +108,8 @@ def test_release_completion_uses_id_and_requires_all_uploads(
         assert [method for method, _, _ in mutations] == ["POST"]
     else:
         release.publish_release(tmp_path, "3.2.0", tag, 40)
-        assert mutations[-2:] == [
-            ("DELETE", f"{release.RELEASES}/assets/99", None),
-            (
-                "PATCH",
-                f"{release.RELEASES}/40",
-                {"draft": False, "make_latest": "true"},
-            ),
-        ]
+        assert [method for method, _, _ in mutations] == ["POST", "DELETE"]
+        assert mutations[-1] == ("DELETE", f"{release.RELEASES}/assets/99", None)
 
 
 def test_isolated_build_python_uses_utf8_for_unicode_output(tmp_path, monkeypatch):
@@ -145,6 +141,7 @@ def inputs(tmp_path, monkeypatch):
     ("target", "path", "affected"),
     [
         ("windows-x86_64", "scripts/normalize_windows_crt.ps1", {"runtime"}),
+        ("windows-x86_64", "VERSION", {"maintenance"}),
         ("linux-x86_64", "scripts/linux_hotkey_packaging.py", {"runtime"}),
         ("linux-x86_64", "packaging/debian/DEBIAN/control", set()),
         ("linux-x86_64", "requirements.txt", {"runtime"}),
@@ -737,12 +734,12 @@ def test_assembly_reuses_verified_caches_and_merges_maintenance(
 
     def business(options):
         options.application.mkdir(parents=True)
-        (options.application / "main.py").write_bytes(b"business")
+        (options.application / "application.pyz").write_bytes(b"business")
 
     monkeypatch.setattr(build_application_resources, "assemble", business)
     build.assemble(args)
     payload = args.work / "application/payload"
-    assert (payload / "main.py").read_bytes() == b"business"
+    assert (payload / "application.pyz").read_bytes() == b"business"
     assert (payload / "updater").read_bytes() == b"updater"
     assert (payload / "bootstrap/launcher").read_bytes() == b"launcher"
     for name in set(names) - {"maintenance"}:
@@ -778,8 +775,13 @@ def test_fixed_cache_rebuilds_only_when_missing(monkeypatch, outcome):
 
 
 @pytest.mark.parametrize("system", ["win32", "linux", "darwin"])
-def test_fixed_host_executes_business_and_worker_source(tmp_path, system):
+def test_fixed_host_executes_business_bytecode_and_worker_source(
+    tmp_path, monkeypatch, system
+):
     import subprocess
+    from argparse import Namespace
+
+    import build_application_resources as assembler
 
     desktop = (
         tmp_path / "LaTeXSnipper.app/Contents/Resources/desktop"
@@ -787,26 +789,55 @@ def test_fixed_host_executes_business_and_worker_source(tmp_path, system):
         else tmp_path
     )
     application = desktop / "application"
-    application.mkdir(parents=True)
-    worker = application / "worker/mathcraft_ocr"
-    worker.mkdir(parents=True)
-    (application / "business.py").write_text(
-        "VALUE = 'business source'", encoding="utf-8"
+    project = tmp_path / "project"
+    source = project / "src"
+    business_package = source / "application"
+    business_package.mkdir(parents=True)
+    (source / "__init__.py").write_text("", encoding="utf-8")
+    (business_package / "__init__.py").write_text("", encoding="utf-8")
+    (business_package / "bootstrap.py").write_text("", encoding="utf-8")
+    ui_package = source / "ui"
+    ui_package.mkdir()
+    (ui_package / "__init__.py").write_text("", encoding="utf-8")
+    (ui_package / "main_window.py").write_text("", encoding="utf-8")
+    (business_package / "app_runner.py").write_text(
+        "VALUE = 'application entry'", encoding="utf-8"
     )
+    worker = project / "mathcraft_ocr"
+    worker.mkdir(parents=True)
+    (source / "business.py").write_text("VALUE = 'business source'", encoding="utf-8")
     (worker / "__init__.py").write_text("VALUE = 'worker source'", encoding="utf-8")
     output = tmp_path / "result.txt"
-    (application / "main.py").write_text(
-        "from pathlib import Path\nimport business, mathcraft_ocr\n"
-        f"Path({str(output)!r}).write_text(business.VALUE + '/' + mathcraft_ocr.VALUE, encoding='utf-8')",
-        encoding="utf-8",
-    )
+    shutil.copy2(ROOT / "src/main.py", source / "main.py")
+    (project / "LICENSE").write_text("license", encoding="utf-8")
+    monkeypatch.setattr(assembler, "ROOT", project)
+    monkeypatch.setattr(assembler, "assemble_linux_integration", lambda _: None)
+    target = {
+        "win32": "windows-x86_64",
+        "linux": "linux-x86_64",
+        "darwin": "macos-arm64",
+    }[system]
+    assembler.assemble(Namespace(application=application, target=target))
     executable = (
         tmp_path
         / "LaTeXSnipper.app/Contents/Frameworks/LaTeXSnipperBase.bundle/Contents/Resources/runtime/LaTeXSnipper"
         if system == "darwin"
         else desktop / "runtime/LaTeXSnipper"
     )
-    code = "import sys, runpy; sys.platform = sys.argv[1]; sys.executable = sys.argv[2]; runpy.run_path(sys.argv[3], run_name='__main__')"
+    code = """import sys, runpy, types
+from pathlib import Path
+system, executable, entry, output = sys.argv[1:]
+validation = types.ModuleType('runtime.application_validation')
+def validate(path):
+    import business, mathcraft_ocr
+    from application.app_runner import VALUE
+    path.write_text('/'.join((business.VALUE, mathcraft_ocr.VALUE, VALUE)), encoding='utf-8')
+validation.validate_application = validate
+sys.modules['runtime.application_validation'] = validation
+sys.platform, sys.executable = system, executable
+sys.argv = [entry, '--validate-application', output]
+runpy.run_path(entry, run_name='__main__')
+"""
     result = subprocess.run(
         [
             sys.executable,
@@ -819,6 +850,7 @@ def test_fixed_host_executes_business_and_worker_source(tmp_path, system):
             system,
             str(executable),
             str(ROOT / "packaging/runtime/gui_entry.py"),
+            str(output),
         ],
         capture_output=True,
         text=True,
@@ -826,4 +858,7 @@ def test_fixed_host_executes_business_and_worker_source(tmp_path, system):
         timeout=20,
     )
     assert result.returncode == 0, result.stderr
-    assert output.read_text(encoding="utf-8") == "business source/worker source"
+    assert (
+        output.read_text(encoding="utf-8")
+        == "business source/worker source/application entry"
+    )

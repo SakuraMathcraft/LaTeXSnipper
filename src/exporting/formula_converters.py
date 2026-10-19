@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import copy
-import os
+import sys
 from functools import lru_cache
 from pathlib import Path
 
@@ -46,20 +46,30 @@ def latex_to_omml(latex: str) -> str:
 
 
 def _find_mml2omml_xsl() -> Path | None:
-    candidates = [
-        os.path.expandvars(
-            r"%ProgramFiles%\Microsoft Office\root\Office16\MML2OMML.XSL"
-        ),
-        os.path.expandvars(
-            r"%ProgramFiles(x86)%\Microsoft Office\root\Office16\MML2OMML.XSL"
-        ),
-        os.path.expandvars(r"%ProgramFiles%\Microsoft Office\Office16\MML2OMML.XSL"),
-        os.path.expandvars(r"%ProgramFiles%\Microsoft Office\Office19\MML2OMML.XSL"),
-    ]
-    for candidate in candidates:
-        path = Path(candidate)
-        if path.is_file():
-            return path
+    if sys.platform != "win32":
+        return None
+
+    import winreg
+
+    key_path = r"Software\Microsoft\Windows\CurrentVersion\App Paths\WINWORD.EXE"
+    for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        for view in (winreg.KEY_WOW64_64KEY, winreg.KEY_WOW64_32KEY):
+            try:
+                with winreg.OpenKey(hive, key_path, 0, winreg.KEY_READ | view) as key:
+                    executable, value_type = winreg.QueryValueEx(key, "")
+                if value_type == winreg.REG_EXPAND_SZ:
+                    executable = winreg.ExpandEnvironmentStrings(executable)
+                elif value_type != winreg.REG_SZ:
+                    continue
+            except OSError:
+                continue
+
+            word_path = Path(executable.strip().strip('"'))
+            if not word_path.is_absolute() or not word_path.is_file():
+                continue
+            stylesheet = word_path.with_name("MML2OMML.XSL")
+            if stylesheet.is_file():
+                return stylesheet
     return None
 
 
