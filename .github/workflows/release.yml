@@ -247,7 +247,7 @@ jobs:
         with: {python-version: "${{ needs.prepare-release.outputs.python }}"}
       - uses: actions/download-artifact@v7
         with: {pattern: 'release-metadata-*', merge-multiple: true, path: release-metadata}
-      - name: Publish update catalog and complete release
+      - name: Upload update catalog and check release assets
         env:
           GH_TOKEN: ${{ github.token }}
         run: python -X utf8 scripts/release_artifacts.py publish --release-id "${{ needs.prepare-release.outputs.release_id }}" --tag "$RELEASE_TAG" --version "$(cat VERSION)" --directory release-metadata

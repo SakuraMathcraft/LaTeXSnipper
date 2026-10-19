@@ -6,16 +6,16 @@
 
 | 归属 | 内容 | 更新方式 |
 |---|---|---|
-| `application/` | 项目 Python 源码、worker 源码、翻译与图标、独立更新器和启动器、Linux 桌面集成 | 轻量业务 ZIP |
+| `application/` | 业务字节码归档、worker 源码、翻译与图标、独立更新器和启动器、Linux 桌面集成 | 轻量业务 ZIP |
 | `runtime/` | 冻结 Python、Qt/WebEngine、GUI 第三方依赖、Pandoc、内置 MathJax | 完整安装包 |
 | `inference/` | 独立 Python、锁定推理依赖、GPU 私有 CUDA/cuDNN 库 | 完整安装包 |
 | `models/` | 模型清单与权重 | 完整安装包 |
 
-冻结主进程只包含标准库、声明在 `packaging/runtime/gui-imports.json` 中的第三方模块及固定入口。入口从业务目录加载项目模块；项目源码不编入固定 PYZ。新增第三方依赖或改变冻结导入合同时须更新底座。源码运行仍使用启动应用的开发者 Python。
+冻结主进程只包含标准库、声明在 `packaging/runtime/gui-imports.json` 中的第三方模块及固定入口。入口使用 Python 标准 zipimport 从 `application/application.pyz` 加载业务字节码；该文件是标准 ZIP 字节码包，与宿主内嵌的 PyInstaller PYZ 分开，业务 Python 源码不散落到安装目录。新增第三方依赖或改变冻结导入合同时须更新底座。源码运行仍使用启动应用的开发者 Python。
 
 安装身份记录版本、平台、架构、CPU/GPU 类型、业务文件清单与 `base_id`。底座身份由已构建固定资源的内容身份组合产生，不依赖业务版本号。在线 `desktop-release.json` 只包含业务包、底座身份和完整安装包信息，不携带固定资源下载计划或权重文件清单。清单使用严格的 schema 2；升级至该架构须使用完整安装包，没有历史格式兼容或迁移层。
 
-源码运行使用 `python src/main.py`。安装版由 `src/launcher_main.py` 生成的独立启动器进入冻结 GUI 宿主，再加载 `application/main.py`；共用启动和中断恢复逻辑归属 `update.deployment_launch`。`src/maintenance_main.py` 生成独立更新器，处理离线安装、业务更新与失败恢复，不创建 Qt 应用；需要权限的部署与普通用户 GUI 分进程执行。
+源码运行使用 `python src/main.py`。安装版由 `src/launcher_main.py` 生成的独立启动器进入冻结 GUI 宿主，再执行业务字节码包中的 `main` 模块；共用启动和中断恢复逻辑归属 `update.deployment_launch`。`src/maintenance_main.py` 生成独立更新器，处理离线安装、业务更新与失败恢复，不创建 Qt 应用；需要权限的部署与普通用户 GUI 分进程执行。
 
 ## 平台安装约束
 
@@ -37,19 +37,19 @@ Windows 默认安装包未签名；SignPath 配置完整时尝试签名，未配
 
 ## 构建与发布
 
-安装器只在 GitHub Actions 构建。`.github/workflows/release.yml` 仅手动触发；推送 tag、创建或发布 Release 不会启动构建。执行以下工作：
+安装器只在 GitHub Actions 构建。`.github/workflows/release.yml` 仅手动触发；推送 tag、创建或发布 Release 不会启动构建。选择上传产物时，已有公开 Release 则保留其标题、说明、预发布及 Latest 状态；没有则直接创建公开 Release，tag 不存在时指向本次构建提交。执行以下工作：
 
-1. 准备任务校验版本；选择发布时查找或创建唯一的版本草稿，后续任务统一使用该 Release ID 上传、清理附件并公开，发现同 tag 重复记录则报错。探测共享模型缓存，仅缺失时安装模型装配工具、下载权重并保存缓存，避免各平台重复生产同一模型包。
+1. 准备任务校验版本；选择上传时复用已有公开 Release，缺失时直接创建公开 Release；后续任务统一使用其 ID 上传和清理附件，不创建版本草稿或切换发布状态。探测共享模型缓存，仅缺失时安装模型装配工具、下载权重并保存缓存，避免各平台重复生产同一模型包。
 2. 平台任务先计算输入指纹、并行探测持久缓存，再安装依赖。全部命中时只安装装配所需的 Requests 和 Pillow；仅 GUI 底座缺失时安装完整 GUI 依赖，仅 GUI 或维护程序缺失时安装 PyInstaller。pip 缓存按装配、维护程序冻结、GUI 冻结分组，避免普通装配下载整套 Qt wheel 缓存。Linux 系统构建依赖也只在原生底座缺失时安装。
 3. 使用仓库 `GITHUB_TOKEN` 从 `desktop-base-<target>-<resource>-<fingerprint>` 草稿构建缓存并行恢复资源 ZIP 和 `stamp.json`。校验输入身份、包摘要及解包清单后装配。该持久缓存不依赖 Actions 临时缓存；普通用户发布页不公开这些构建资源。缓存不存在时只生产缺失项，串行生产以复用公共下载、限制峰值内存；鉴权、下载或校验失败直接报错。
-4. 每次装配当前业务源码，复用未变更的独立更新器和启动器，生成一个平台业务 ZIP。Windows/Linux 的 CPU、GPU 安装包共享 GUI、模型和业务载荷；各自只使用对应推理环境。macOS 优先恢复整体已签名嵌套底座；整体缺失时复用其已有 GUI、CPU 推理与模型缓存，只重建缺失部分，再封印嵌套底座。日常装配不重新签署或封印权重。使用这些资源装配离线完整安装包，首次安装无需下载模型或推理依赖。
-5. 平台 runner 构建完成后直接上传完整安装包与业务包；Office 安装包和用户手册独立上传。最终任务汇总小型元数据，确认同一 Release 的附件清单齐全后公开草稿，不重新下载大型载荷。只有 Office 任务下载 Git LFS 安装器。Windows 打包工具、Typst 和按文档输入识别的手册 PDF 使用 Actions 缓存。用户发行页保留桌面安装包、Office 安装包、用户手册、业务 ZIP 与 `desktop-release.json`。Linux 离线安装包使用多线程 `.tar.xz` 压缩；macOS 将已装配应用移动到磁盘映像暂存目录，避免再次复制完整底座。单项发行资源必须小于 GitHub 的 2 GiB 限制。
+4. 每次编译并装配当前业务字节码，复用未变更的独立更新器和启动器，生成一个平台业务 ZIP。Windows/Linux 的 CPU、GPU 安装包共享 GUI、模型和业务载荷；各自只使用对应推理环境。macOS 优先恢复整体已签名嵌套底座；整体缺失时复用其已有 GUI、CPU 推理与模型缓存，只重建缺失部分，再封印嵌套底座。日常装配不重新签署或封印权重。使用这些资源装配离线完整安装包，首次安装无需下载模型或推理依赖。
+5. 平台 runner 构建完成后直接上传完整安装包与业务包；Office 安装包和用户手册独立上传。最终任务上传更新清单并确认同一 Release 的附件齐全，不切换发布状态，也不重新下载大型载荷。只有 Office 任务下载 Git LFS 安装器。Windows 打包工具、Typst 和按文档输入识别的手册 PDF 使用 Actions 缓存。用户发行页保留桌面安装包、Office 安装包、用户手册、业务 ZIP 与 `desktop-release.json`。Linux 离线安装包使用多线程 `.tar.xz` 压缩；macOS 将已装配应用移动到磁盘映像暂存目录，避免再次复制完整底座。单项发行资源必须小于 GitHub 的 2 GiB 限制。
 
-`scripts/release_build_inputs.py` 定义缓存输入归属：GUI 底座使用其依赖、冻结导入合同、共用的 `LaTeXSnipper.spec`、固定入口与资源；CPU/GPU 推理分别使用对应锁定来源，CUDA 变化只影响 GPU；模型身份只由锁定权重、清单、格式、许可和布局版本决定，通用构建脚本变化不会触发权重重建。模型装配布局变更时须更新布局版本。维护程序指纹跟踪两个入口的本地 Python 导入闭包及冻结工具，普通 UI 源码不影响它。macOS 签名输入归属于相应原生载荷及嵌套底座。清理缓存时保留仍需复现的底座；删除缓存后可重新构建，但不同的实际内容会产生不同 `base_id`。
+`scripts/release_build_inputs.py` 定义缓存输入归属：GUI 底座使用其依赖、冻结导入合同、共用的 `LaTeXSnipper.spec`、固定入口与资源；CPU/GPU 推理分别使用对应锁定来源，CUDA 变化只影响 GPU；模型身份只由锁定权重、清单、格式、许可和布局版本决定，通用构建脚本变化不会触发权重重建。模型装配布局变更时须更新布局版本。维护程序指纹跟踪两个入口的本地 Python 导入闭包及冻结工具；Windows 还跟踪图标和产品版本，以保留启动器、更新器的文件属性。普通 UI 源码不影响它。macOS 签名输入归属于相应原生载荷及嵌套底座。清理缓存时保留仍需复现的底座；删除缓存后可重新构建，但不同的实际内容会产生不同 `base_id`。
 
 构建缓存草稿由工作流维护，不应手动发布。工作流串行执行以避免重复创建相同固定缓存；平台内构建仍并行。固定资源的校验用于构建输入可信性，不新增发布后验收关卡。
 
-`scripts/qt_payload.py` 裁剪 GUI 载荷，保留 Qt WebEngine 核心资源及中英文语言资源；`scripts/payload_pruning.py` 裁剪推理载荷，保留依赖需要的标准库和 OpenCV 原生依赖，移除开发工具和不使用的数据。GPU 库按声明来源装配。
+`scripts/qt_payload.py` 裁剪 GUI 载荷，保留 Qt WebEngine 核心资源及中英文语言资源；`scripts/payload_pruning.py` 裁剪推理载荷，保留依赖需要的标准库和 OpenCV 原生依赖，移除开发工具、NumPy 编译辅助、ORT 离线模型工具和不使用的数据。GUI 排除 Tcl/Tk、Pythonwin、CPython 测试扩展、第三方测试模块及未使用的科学计算包，保留 COM、PDF、图片和 WebEngine 依赖。GPU 库按声明来源装配。
 
 ## 开发检查与原生验收
 

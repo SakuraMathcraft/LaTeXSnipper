@@ -1,10 +1,13 @@
-"""Assemble the owned business source, worker and desktop integration."""
+"""Assemble business bytecode, worker source and desktop integration."""
 
 from __future__ import annotations
 
 import argparse
+import py_compile
 import shutil
 import sys
+import tempfile
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -69,19 +72,37 @@ def assemble_linux_integration(directory: Path) -> None:
 def assemble(args: argparse.Namespace) -> None:
     application = args.application.resolve()
     application.mkdir(parents=True, exist_ok=True)
-    for source in (ROOT / "src").rglob("*"):
-        relative = source.relative_to(ROOT / "src")
-        if (
-            not source.is_file()
-            or "__pycache__" in relative.parts
-            or "MathJax" in relative.parts
-        ):
-            continue
-        if source.suffix in {".pyc", ".pyo"}:
-            continue
-        destination = application / relative
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, destination)
+    with tempfile.TemporaryDirectory(prefix="business-bytecode-") as temporary:
+        compiled = Path(temporary) / "module.pyc"
+        with zipfile.ZipFile(application / "application.pyz", "w") as archive:
+            for source in sorted((ROOT / "src").rglob("*")):
+                relative = source.relative_to(ROOT / "src")
+                if (
+                    not source.is_file()
+                    or "__pycache__" in relative.parts
+                    or "MathJax" in relative.parts
+                    or source.suffix in {".pyc", ".pyo"}
+                ):
+                    continue
+                if source.suffix == ".py":
+                    py_compile.compile(
+                        str(source),
+                        cfile=str(compiled),
+                        dfile=relative.as_posix(),
+                        doraise=True,
+                        invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH,
+                    )
+                    entry = zipfile.ZipInfo(relative.with_suffix(".pyc").as_posix())
+                    archive.writestr(
+                        entry,
+                        compiled.read_bytes(),
+                        compress_type=zipfile.ZIP_DEFLATED,
+                        compresslevel=6,
+                    )
+                else:
+                    destination = application / relative
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(source, destination)
     package = application / "worker/mathcraft_ocr"
     shutil.copytree(
         ROOT / "mathcraft_ocr",

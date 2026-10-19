@@ -59,6 +59,22 @@ QT_OPTIONAL_PLUGINS = (
 
 def prune_qt_payload(dist_root: Path) -> None:
     """Apply the same optional-module policy to DLL, ELF and framework layouts."""
+    for name in ("Pythonwin", "_tcl_data", "_tk_data", "tcl8"):
+        remove_owned(dist_root / name, dist_root)
+    for pattern in (
+        "_tkinter*.pyd",
+        "_tkinter*.so",
+        "tcl*.dll",
+        "tk*.dll",
+        "libtcl*.so*",
+        "libtk*.so*",
+        "_test*.pyd",
+        "*_test.pyd",
+        "_test*.so",
+        "*_test.so",
+    ):
+        for path in dist_root.glob(pattern):
+            remove_owned(path, dist_root)
     links = [
         (path, path.resolve())
         for path in dist_root.rglob("*")

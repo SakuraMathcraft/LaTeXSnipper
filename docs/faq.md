@@ -87,6 +87,16 @@ Automation API is disabled by default. After enabling it in Settings, local clie
 
 LaTeXSnipper Office integration is developed in the Windows-native `office_plugin` tree. The plugin provides persistent Ribbon loading, native KeyTip shortcuts, Word OLE and OMML formula insertion, PowerPoint OLE and PNG formula insertion, managed formula metadata, Word automatic numbering/references, and screenshot OCR as an authenticated Automation API client without requiring Microsoft 365 enterprise deployment.
 
+## Why does Word OMML conversion report a missing Office stylesheet?
+
+On Windows, desktop OMML export requires Microsoft Word registered in Windows
+App Paths and `MML2OMML.XSL` beside `WINWORD.EXE`. The Word plugin loads
+`MML2OMML.XSL` and `OMML2MML.XSL` from the running Word application's installation
+directory when conversion is requested; missing stylesheets do not prevent the
+plugin from starting. Custom installation directories are supported. If
+registration or the required stylesheet is missing or damaged, repair the Office
+installation and retry the operation.
+
 ## Does LaTeXSnipper require an internet connection?
 
 Core editing and local recognition workflows are designed to work locally after a complete desktop installation. Business updates and source-mode model downloads require network access.

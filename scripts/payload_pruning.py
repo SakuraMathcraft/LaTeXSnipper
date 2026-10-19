@@ -23,6 +23,11 @@ def prune_runtime_payload(root: Path) -> None:
             "ensurepip",
             "venv",
             "test",
+            "__phello__",
+            "__hello__.py",
+            "lib2to3",
+            "pydoc_data",
+            "distutils",
         ):
             remove_owned(standard / name, root)
         for path in (standard / "lib-dynload").glob("_tkinter*"):
@@ -54,6 +59,10 @@ def prune_runtime_payload(root: Path) -> None:
     for name in ("include", "libs", "tcl", "Tools", "Doc"):
         remove_owned(root / name, root)
     for site in sites:
+        for name in ("distutils", "f2py", "_pyinstaller"):
+            remove_owned(site / "numpy" / name, root)
+        for name in ("backend", "datasets", "quantization", "tools", "transformers"):
+            remove_owned(site / "onnxruntime" / name, root)
         # Image OCR uses neither Haar cascades nor OpenCV's GUI resources.
         for relative in ("cv2/qt", "cv2/samples"):
             remove_owned(site / relative, root)

@@ -8,6 +8,8 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public interface IWordApplicationAdapter
 {
+    string InstallationDirectory { get; }
+
     string GetCurrentDocumentId();
 
     bool TrySelectOleFormulaAtScreenPoint(int x, int y);
