@@ -3,12 +3,117 @@
 import shutil
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import build_desktop_release as build  # noqa: E402
+
+
+@pytest.mark.parametrize("count", [0, 1, 2])
+def test_release_preparation_requires_a_unique_target(monkeypatch, count):
+    import release_artifacts as release
+
+    calls = []
+
+    def api(endpoint, **kwargs):
+        calls.append((endpoint, kwargs))
+        if kwargs.get("paginate"):
+            return [
+                [{"tag_name": "v3.2.0-LTS", "id": 40 + index} for index in range(count)]
+            ]
+        return {"id": 40}
+
+    monkeypatch.setattr(release, "github_api", api)
+    if count == 2:
+        with pytest.raises(ValueError, match="Multiple releases"):
+            release.prepare_release("v3.2.0-LTS", "commit")
+        assert len(calls) == 1
+    else:
+        assert release.prepare_release("v3.2.0-LTS", "commit") == 40
+        endpoint, request = calls[-1]
+        if count:
+            assert endpoint.endswith("/40") and request["method"] == "PATCH"
+        else:
+            assert request["method"] == "POST"
+            assert request["data"]["tag_name"] == "v3.2.0-LTS"
+            assert request["data"]["target_commitish"] == "commit"
+
+
+@pytest.mark.parametrize("missing", [None, "macos.dmg", "office.exe", "manual.pdf"])
+def test_release_completion_uses_id_and_requires_all_uploads(
+    tmp_path, monkeypatch, missing
+):
+    import release_artifacts as release
+
+    tag = "v3.2.0-LTS"
+    names = {
+        "application.zip",
+        "macos.dmg",
+        "LaTeXSnipperOffice_3.2.0_amd64.exe",
+        "LaTeXSnipper_User_Manual.pdf",
+    }
+    omitted = {
+        "office.exe": "LaTeXSnipperOffice_3.2.0_amd64.exe",
+        "manual.pdf": "LaTeXSnipper_User_Manual.pdf",
+    }.get(missing, missing)
+    assets = [
+        {"name": name, "id": index, "state": "uploaded"}
+        for index, name in enumerate(sorted(names - {omitted}))
+    ]
+    assets.append({"name": "obsolete.zip", "id": 99, "state": "uploaded"})
+    mutations = []
+    upload_url = "https://uploads.github.com/repos/owner/repo/releases/40/assets"
+
+    def api(endpoint, *, method="GET", data=None, file=None):
+        if method == "GET":
+            assert endpoint == f"{release.RELEASES}/40"
+            return {
+                "id": 40,
+                "tag_name": tag,
+                "assets": assets,
+                "upload_url": upload_url + "{?name,label}",
+            }
+        mutations.append((method, endpoint, data))
+        if method == "POST":
+            assert endpoint == upload_url + "?name=desktop-release.json"
+            assert file.name == "desktop-release.json"
+            assets.append({"name": file.name, "id": 100, "state": "uploaded"})
+        return {}
+
+    def catalog(directory, version, output):
+        output.write_text("{}", encoding="utf-8")
+        return SimpleNamespace(
+            distributions=[
+                SimpleNamespace(
+                    application=SimpleNamespace(
+                        artifact=SimpleNamespace(
+                            url="https://example.com/application.zip"
+                        )
+                    ),
+                    installer=SimpleNamespace(url="https://example.com/macos.dmg"),
+                )
+            ]
+        )
+
+    monkeypatch.setattr(release, "github_api", api)
+    monkeypatch.setattr(release, "publish_catalog", catalog)
+    if missing:
+        with pytest.raises(ValueError, match="missing uploaded assets"):
+            release.publish_release(tmp_path, "3.2.0", tag, 40)
+        assert [method for method, _, _ in mutations] == ["POST"]
+    else:
+        release.publish_release(tmp_path, "3.2.0", tag, 40)
+        assert mutations[-2:] == [
+            ("DELETE", f"{release.RELEASES}/assets/99", None),
+            (
+                "PATCH",
+                f"{release.RELEASES}/40",
+                {"draft": False, "make_latest": "true"},
+            ),
+        ]
 
 
 def test_isolated_build_python_uses_utf8_for_unicode_output(tmp_path, monkeypatch):
