@@ -44,7 +44,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          python3 -c 'import json; print("python=" + json.load(open("packaging/runtime/sources.lock.json", encoding="utf-8"))["python_version"])' >> "$GITHUB_OUTPUT"
+          python3 -c 'import json; print("python=" + json.load(open("packaging/runtime/sources.lock.json", encoding="utf-8"))["python_version"].rsplit(".", 1)[0])' >> "$GITHUB_OUTPUT"
           version="$(tr -d '[:space:]' < VERSION)"
           case "$RELEASE_TAG" in
             "v$version"|"v$version-LTS") ;;
