@@ -228,7 +228,7 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>MathCraft OCR model resources are missing or damaged. For an installed app, rerun the complete installer.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="434" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="435" />
       <source>MathCraft OCR 正在预热</source>
       <translation>MathCraft OCR is warming up</translation>
     </message>
@@ -747,6 +747,11 @@ Retry with the {hotkey} shortcut.</translation>
       <location filename="../../../src/ui/favorites_window.py" line="104" />
       <source>关闭窗口</source>
       <translation>Close Window</translation>
+    </message>
+    <message>
+      <location filename="../../../src/update/update_dialog.py" line="189" />
+      <source>关闭窗口会暂停下载并保留进度，下次可继续。是否关闭？</source>
+      <translation>Closing this window pauses the download and keeps your progress so you can resume later. Close this window?</translation>
     </message>
     <message>
       <location filename="../../../src/ui/controllers/app_lifecycle.py" line="182" />
@@ -2120,7 +2125,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Checks:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="447" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="448" />
       <source>检测到 MathCraft 模型权重缺失或不完整，正在自动补全。</source>
       <translation>MathCraft model weights are missing or incomplete. Completing them automatically.</translation>
     </message>
@@ -2229,7 +2234,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Saving...</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="452" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="453" />
       <source>正在修复模型缓存</source>
       <translation>Repairing model cache</translation>
     </message>
@@ -2239,7 +2244,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Preparing installation. Authorize the system permission prompt if one appears.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/model_runtime.py" line="435" />
+      <location filename="../../../src/ui/controllers/model_runtime.py" line="436" />
       <source>正在初始化模型，请稍候。</source>
       <translation>Initializing models. Please wait.</translation>
     </message>
@@ -2528,6 +2533,11 @@ Retry with the {hotkey} shortcut.</translation>
       <location filename="../../../src/ui/favorites_window.py" line="367" />
       <source>确认</source>
       <translation>Confirm</translation>
+    </message>
+    <message>
+      <location filename="../../../src/update/update_dialog.py" line="188" />
+      <source>确认关闭</source>
+      <translation>Confirm close</translation>
     </message>
     <message>
       <location filename="../../../src/ui/controllers/predict_result.py" line="159" />
