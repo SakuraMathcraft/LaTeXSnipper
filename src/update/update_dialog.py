@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from PyQt6.QtCore import QCoreApplication, Qt, QTimer, QUrl
 from PyQt6.QtGui import QDesktopServices
-from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QVBoxLayout
+from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QMessageBox, QVBoxLayout
 from qfluentwidgets import (
     FluentIcon,
     IndeterminateProgressBar,
@@ -15,7 +15,7 @@ from qfluentwidgets import (
 
 from localization.manager import translate as tr
 from runtime.product_version import PRODUCT_VERSION
-from ui.window_helpers import show_normal_window
+from ui.window_helpers import exec_close_only_message_box, show_normal_window
 from update.component_controller import ComponentUpdateController
 from update.component_release import RELEASES_PAGE
 
@@ -182,9 +182,28 @@ class ComponentUpdateDialog(QDialog):
         if self._state == "handoff-ready":
             event.ignore()
             return
+        if self._state == "downloading":
+            answer = exec_close_only_message_box(
+                self,
+                tr("确认关闭"),
+                tr("关闭窗口会暂停下载并保留进度，下次可继续。是否关闭？"),
+                QMessageBox.Icon.Question,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                event.ignore()
+                return
         self.controller.close()
         _clear_dialog(self)
         super().closeEvent(event)
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() == Qt.Key.Key_Escape:
+            self.close()
+            event.accept()
+        else:
+            super().keyPressEvent(event)
 
 
 def _clear_dialog(owner) -> None:

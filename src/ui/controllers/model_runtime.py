@@ -398,8 +398,8 @@ class ModelRuntimeController(QObject):
         return "formula"
 
     def needs_models(self, model_name: str | None) -> bool:
+        """Check presence for UI hints; the OCR process verifies file contents."""
         try:
-            from mathcraft_ocr.cache import inspect_model_cache
             from mathcraft_ocr.profiles import PROFILE_MODEL_IDS
 
             profile = self._mathcraft_profile_for_model(model_name)
@@ -412,7 +412,8 @@ class ModelRuntimeController(QObject):
                 spec = manifest.models.get(model_id)
                 if spec is None:
                     return True
-                if not inspect_model_cache(resources.root, spec).complete:
+                directory = resources.root / model_id
+                if any(not (directory / file.path).is_file() for file in spec.files):
                     return True
             return False
         except Exception:
