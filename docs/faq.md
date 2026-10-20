@@ -34,14 +34,19 @@ The shortcut UI uses the platform's primary modifier: `Ctrl` on Windows/Linux an
 ## Which installer should I use?
 
 - Windows x86_64: choose the CPU or NVIDIA GPU `.exe` installer.
-- Debian/Ubuntu-compatible Linux x86_64: choose the CPU or NVIDIA GPU offline `.tar.xz`, extract it, and run `install.sh`.
+- Debian/Ubuntu-compatible Linux x86_64 with glibc 2.35 or newer: choose the CPU or NVIDIA GPU offline `.tar.xz`, extract it, and run `sh install.sh`.
 - macOS 14.0 or later on Apple Silicon: use the CPU `.dmg`, copy the app to Applications, then launch that copy.
 
 Windows installers are unsigned unless optional SignPath signing succeeds.
 macOS builds use ad-hoc signatures without Developer ID or notarization. GPU builds
 carry private CUDA/cuDNN user-mode libraries and require supported NVIDIA
 hardware and drivers. The desktop app does not require system Python or CUDA
-Toolkit. Linux still requires its declared system GUI libraries.
+Toolkit. The 3.2.0 GPU editions require NVIDIA driver 570.65 or newer on Windows,
+or 570.26 or newer on Linux. These minimums are declared in
+`packaging/runtime/sources.lock.json`; the GPU must also support the bundled CUDA runtime.
+Linux still requires its declared system GUI libraries. Its installer uses apt to
+resolve missing system dependencies, which requires configured package sources
+and network access unless the dependencies are already installed or cached.
 
 ## Why does macOS still say Screen Recording is unavailable after I enabled it?
 
@@ -105,7 +110,7 @@ Core editing and local recognition workflows are designed to work locally after 
 
 The installation separates business files in `application/` from the fixed Python, Qt/WebEngine, Pandoc, MathJax, inference dependencies and model weights. Business updates reuse the fixed base. A release requiring a different base directs you to its complete installer. Installation resources are separate from user data; see the [storage map](user_data_storage.md).
 
-Source development uses the Python that starts the application and Pandoc from PATH. Packaged applications use their bundled runtimes. Linux tracks files through dpkg; macOS keeps the fixed base in an independently signed nested bundle. See the [desktop distribution contract](desktop_distribution.md) for platform ownership.
+Source development uses the Python that starts the application and Pandoc from PATH. Packaged applications use their bundled runtimes. Linux tracks files through dpkg; macOS keeps the fixed base in an independently signed nested bundle.
 
 ## Where are logs stored?
 
@@ -172,7 +177,7 @@ LaTeXSnipper supports the built-in MathCraft OCR path and external providers suc
 
 The Base URL is the service root or the provider's `/v1` API prefix, not a concrete endpoint. The app appends protocol routes itself: Ollama uses `/api/tags` and `/api/chat`, OpenAI-compatible services use `/models` and `/chat/completions` under the resolved `/v1` prefix, and MinerU Local uses the configured health and parse paths.
 
-The prompt template determines both the request instructions and result type for normal image, screenshot, and handwriting recognition. A custom prompt replaces the built-in template for those paths and for OpenAI-compatible or Ollama PDF recognition. Built-in MathCraft and OpenAI-compatible or Ollama PDF recognition select output format and render DPI at the PDF entry point. MinerU Local parses the original PDF and does not use prompts or render DPI.
+The prompt template determines both the request instructions and result type for normal image and screenshot recognition. Handwriting uses a dedicated mixed-content template unless a custom prompt is supplied. A custom prompt replaces the built-in template for those paths and for OpenAI-compatible or Ollama PDF recognition. Built-in MathCraft and OpenAI-compatible or Ollama PDF recognition select output format and render DPI at the PDF entry point. MinerU Local parses the original PDF and does not use prompts or render DPI.
 
 ## Why does Ollama fail when I use `/v1`?
 
@@ -193,4 +198,4 @@ Issues without logs are usually not actionable.
 
 ## Which Python environment should contributors use?
 
-Use a supported Python environment of your choice (venv, Conda, uv, or another manager). Activate it for development and checks, and select the same interpreter in your IDE. No repository-specific environment path is required. Desktop installers are built by `.github/workflows/release.yml`, which builds the business payload and assembles offline installers from persistent fixed-resource artifacts. See the [desktop distribution architecture](desktop_distribution.md) for component ownership and build checks.
+Use a supported Python environment of your choice (venv, Conda, uv, or another manager). Activate it for development and checks, and select the same interpreter in your IDE. No repository-specific environment path is required. Desktop installers are built by `.github/workflows/release.yml`, which builds the business payload and assembles offline installers from persistent fixed-resource artifacts.

@@ -215,7 +215,7 @@ Windows/Linux 提供 CPU 与 NVIDIA GPU 两种发行，macOS Apple Silicon 使�
 // ═══════════════════════════════════════════
 #heading(level: 1)[主窗口功能入口与识别流程] <sec-workflows>
 
-首次进入主窗口会显示六步快速入门，介绍截图、导出、快捷键、模型准备与支持入口。完成或确认退出引导后不再自动显示；直接关闭应用不修改偏好。随时可点击“快速入门”重新查看。模型在后台准备，引导无需等待模型就绪。
+首次运行可通过快速入门了解截图、导出、快捷键与本地模型使用，也可随时重新打开“快速入门”查看。模型在后台准备。
 
 == 主窗口按钮分别做什么
 
@@ -526,10 +526,10 @@ CPU 发行固定使用 CPU；GPU 发行固定请求 CUDA，并在推理后核对
 == 选择发行
 
 - Windows x86_64：CPU 或 NVIDIA GPU 安装器。
-- Debian/Ubuntu 兼容的 Linux x86_64：CPU 或 NVIDIA GPU 离线安装归档，解包后运行 `install.sh`。
-- macOS Apple Silicon：CPU DMG，把应用复制到 Applications 后运行。
+- Debian/Ubuntu 兼容的 Linux x86_64（glibc 2.35 及以上）：CPU 或 NVIDIA GPU 离线安装归档，解包后运行 `sh install.sh`。
+- macOS 14.0 及以上的 Apple Silicon：CPU DMG，把应用复制到 Applications 后运行。
 
-发行携带 Python、推理依赖、模型、Pandoc 和内置预览资源。Linux 包管理器仍负责 Qt 所需的系统图形库；GPU 仍需要支持的显卡和系统驱动。普通 PDF 文件导出需要用户提供 LaTeX PDF 引擎。
+发行携带 Python、推理依赖、模型、Pandoc 和内置预览资源，无需自行安装 Python 或 CUDA Toolkit。Linux 包管理器仍负责 Qt 所需的系统图形库；缺少依赖时，安装器通过 apt 补齐，需要可用的软件源和网络，或已缓存的依赖包。GPU 仍需要支持的显卡和系统驱动；3.2.0 的最低 NVIDIA 驱动版本为 Windows 570.65、Linux 570.26。普通 PDF 文件导出需要用户提供 LaTeX PDF 引擎。
 
 == 安装资源与用户数据
 
@@ -641,6 +641,8 @@ macOS 删除安装的应用。卸载只移除产品拥有的安装资源；用�
 公式预览固定使用内置 MathJax。修改 LaTeX 后实时查看结果；复制菜单提供 LaTeX、Markdown、MathML、HTML、SVG、图片和 Office 公式等输出。按用途选择格式，纯源码编辑保留原文。
 
 桌面发行的固定底座提供 Pandoc，支持 DOCX、ODT、PPTX、EPUB、独立 HTML、Typst、纯文本和 PDF 文件导出。PDF 导出还需要外部 XeLaTeX、LuaLaTeX 或 pdfLaTeX。源码开发使用 PATH 中的 Pandoc；随包 Pandoc 缺失时重新运行完整安装包。
+
+桌面端 Word OMML 导出仅支持 Windows，需要正常注册的 Microsoft Word 及其安装目录中的 `MML2OMML.XSL`。自定义 Office 安装位置通过 Windows App Paths 定位；若注册或样式表缺失，请修复 Office 安装。该条件不影响其他导出格式。
 
 == 手写识别
 
@@ -772,7 +774,7 @@ python scripts/update_translations.py --check
 python scripts/check_ui_translations.py
 ```
 
-客户端安装器由 GitHub Actions 构建，复用输入未变化的固定底座和维护程序；原生安装与识别验收按需单独运行。发行维护与验收约束见仓库中的 `docs/desktop_distribution.md`。
+客户端安装器由 GitHub Actions 构建，复用输入未变化的固定底座和维护程序；原生安装与识别验收按需单独运行。
 
 #pagebreak()
 
@@ -805,7 +807,7 @@ LaTeXSnipper Office 加载项是一个 Windows 原生 VSTO 插件，安装后会
 
   - *Windows 版本：* Windows 10 22H2 或更高版本 / Windows 11
   - *Office 版本：* Microsoft 365 应用（当前通道或月度企业通道）、Office 2024 / 2021 / 2019 零售版或批量许可版、Office LTSC 2024 / 2021
-  - *运行时：* .NET Framework 4.8；Microsoft Edge WebView2 Runtime（Windows 11 已内置；M365 会自动安装）
+  - *运行时：* .NET Framework 4.8、Visual Studio Tools for Office Runtime 10.0、Microsoft Edge WebView2 Runtime；缺少 VSTO Runtime 时，安装器会提示先安装
   - *Office 体系：* 仅支持 32 位和 64 位桌面版 Office；不支持网页版、移动版和 macOS 版 Office
   - *LaTeXSnipper 桌面端：* 使用截图 OCR 时需在本机运行并开启"自动化接口"
 ]
@@ -827,20 +829,7 @@ LaTeXSnipper Office 加载项是一个 Windows 原生 VSTO 插件，安装后会
 
 == 安装流程
 
-安装程序会自动完成以下步骤：
-
-#block(
-  inset: 12pt,
-  width: 100%,
-)[
-  #set par(spacing: 0.25em)
-
-  + 将 Word 和 PowerPoint 加载项文件复制到安装目录
-  + 将代码签名证书安装到受信任的发布者存储
-  + 写入 HKLM 注册表键值（同时覆盖 32 位和 64 位 Office 路径）
-  + 调用 VSTO 安装程序静默注册加载项
-  + 清理 Office 禁用项和崩溃记录
-]
+关闭 Word 和 PowerPoint 后运行安装器。安装器会部署加载项、配置信任与 Office 注册，并注册匹配 Office 位数的 OLE 公式处理程序；无需另行运行 VSTO 注册工具。安装完成后重新打开 Office。
 
 == 自定义安装路径
 
@@ -858,7 +847,7 @@ LaTeXSnipper Office 加载项是一个 Windows 原生 VSTO 插件，安装后会
 
   + 删除所有安装文件
   + 移除 HKLM 注册表键值
-  + 调用 VSTO 安装程序反注册加载项
+  + 移除插件的 VSTO 信任记录和 OLE 公式处理程序注册
   + 清理 Office 禁用项和崩溃记录
 ]
 
@@ -1322,6 +1311,10 @@ Word 侧边栏包含行间公式、自动编号、自定义编号输入框等 Wo
 + 在桌面端设置中确认"自动化接口"已开启
 + 检查防火墙是否拦截了 `127.0.0.1:28765` 端口
 + Office 会读取当前用户状态目录中的 `automation-api.json`，无需设置端口或 token 环境变量
+
+== Word 公式转换提示缺少 Office 样式表
+
+Word 插件从当前运行的 Word 安装目录读取 `MML2OMML.XSL` 和 `OMML2MML.XSL`，分别用于转为 Word 公式和从原生 Word 公式转换。仅在对应转换操作时加载，缺失不会阻止插件启动。若报错，请修复 Office 安装后重试；无需把 Office 安装到固定路径。
 
 == 公式编辑器加载失败
 
