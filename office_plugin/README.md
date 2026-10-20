@@ -10,9 +10,11 @@ OLE formulas use local MathJax layout and EMF vector presentations. Complete LaT
 - Office 2024 / 2021 / 2019 (Retail or Volume License)
 - Office LTSC 2024 / 2021
 - 32-bit and 64-bit Windows desktop Office
-- Requires .NET Framework 4.8 and WebView2 Runtime
+- Requires .NET Framework 4.8, Visual Studio Tools for Office Runtime 10.0, and WebView2 Runtime
 
 Office 2016 is not officially supported (requires manual .NET 4.8 and WebView2 installation).
+
+Word OMML conversion uses the stylesheets supplied with the running Word installation. They are loaded only when conversion is requested; missing stylesheets do not prevent the add-in from starting. See [Office stylesheet troubleshooting](../docs/faq.md#why-does-word-omml-conversion-report-a-missing-office-stylesheet).
 
 ## Features
 

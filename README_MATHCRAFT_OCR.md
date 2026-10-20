@@ -18,7 +18,7 @@ The package is developed for LaTeXSnipper but is usable as a standalone Python l
 
 ## Installation
 
-These commands install the standalone library into your selected Python environment. LaTeXSnipper desktop installers already include their inference Python, dependencies and models; see the [desktop distribution architecture](https://github.com/SakuraMathcraft/LaTeXSnipper/blob/main/docs/desktop_distribution.md).
+These commands install the standalone library into your selected Python environment. LaTeXSnipper desktop installers already include their inference Python, dependencies and models.
 
 CPU backend:
 
