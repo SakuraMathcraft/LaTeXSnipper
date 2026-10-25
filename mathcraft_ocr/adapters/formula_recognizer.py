@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 from PIL import Image
 
+from ..image import prepare_formula_canvas
 from .common import create_session
 from .formula_inference import FormulaDecoder, encode_formula
 from .formula_model import last_token_decoder
@@ -125,10 +126,7 @@ def recognize_formula_images(
         root / "decoder_model.onnx", provider_info, model_transform=last_token_decoder
     )
 
-    pil_images = [
-        image if isinstance(image, Image.Image) else Image.fromarray(image)
-        for image in images
-    ]
+    pil_images = [prepare_formula_canvas(image) for image in images]
     features = processor(images=pil_images, return_tensors="np")
     pixel_values = np.asarray(features["pixel_values"], dtype=np.float32)
 
