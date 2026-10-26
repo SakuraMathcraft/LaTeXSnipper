@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import TypeAlias
 
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image
 
 ImageInput: TypeAlias = str | Path | Image.Image | np.ndarray
 
@@ -24,17 +24,10 @@ def normalize_formula_polarity(rgb: np.ndarray) -> np.ndarray:
     return rgb
 
 
-def prepare_formula_canvas(image: Image.Image | np.ndarray) -> Image.Image:
-    """Bound wide-strip distortion before the model's fixed-size resize."""
+def prepare_formula_image(image: Image.Image | np.ndarray) -> Image.Image:
+    """Normalize formula polarity while preserving the model's input geometry."""
     rgb = normalize_formula_polarity(load_image_rgb(image))
-    canvas = Image.fromarray(rgb)
-    if canvas.width > canvas.height * 4:
-        target_height = (canvas.width + 3) // 4
-        extra = target_height - canvas.height
-        canvas = ImageOps.expand(
-            canvas, border=(0, extra // 2, 0, extra - extra // 2), fill="white"
-        )
-    return canvas
+    return Image.fromarray(rgb)
 
 
 def load_image_rgb(image: ImageInput) -> np.ndarray:

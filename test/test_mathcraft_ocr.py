@@ -103,7 +103,7 @@ def _touch_model(root: Path, manifest, model_id: str) -> None:
 def _sample_or_synthetic_image(
     sample_name: str, synthetic_factory: Callable[[], np.ndarray]
 ) -> np.ndarray:
-    sample_path = ROOT / "test_samples" / sample_name
+    sample_path = ROOT / "test_samples" / "白底黑字" / sample_name
     if sample_path.exists():
         return load_image_rgb(sample_path)
     return synthetic_factory()

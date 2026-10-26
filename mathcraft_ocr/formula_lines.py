@@ -124,16 +124,18 @@ def _split_formula_rows(rgb: np.ndarray) -> tuple[FormulaLineCrop, ...]:
 
 
 def _as_rgb_array(image_rgb: np.ndarray) -> np.ndarray:
+    """Normalize polarity before cropping changes foreground density."""
     array = np.asarray(image_rgb)
     if array.ndim == 2:
-        return np.stack([array, array, array], axis=-1).astype(np.uint8, copy=False)
-    if array.ndim == 3 and array.shape[2] >= 3:
-        return array[:, :, :3].astype(np.uint8, copy=False)
-    raise ValueError(f"unsupported formula image shape: {array.shape}")
+        array = np.stack([array, array, array], axis=-1)
+    elif array.ndim == 3 and array.shape[2] >= 3:
+        array = array[:, :, :3]
+    else:
+        raise ValueError(f"unsupported formula image shape: {array.shape}")
+    return normalize_formula_polarity(array.astype(np.uint8, copy=False))
 
 
 def _ink_mask(rgb: np.ndarray) -> np.ndarray:
-    rgb = normalize_formula_polarity(rgb)
     gray = (
         0.299 * rgb[:, :, 0].astype(np.float32)
         + 0.587 * rgb[:, :, 1].astype(np.float32)
@@ -405,7 +407,7 @@ def _split_wide_line_segments(line: FormulaLineCrop) -> tuple[FormulaLineCrop, .
         return (line,)
 
     # A cut must cross actual whitespace, including at superscript height.
-    column_has_ink = mask.any(axis=0)
+    column_has_ink = np.asarray(mask.any(axis=0))
     ink_bands = _row_bands(column_has_ink)
     if len(ink_bands) < 2:
         return (line,)
