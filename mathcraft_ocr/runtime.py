@@ -42,7 +42,7 @@ from .formula_lines import (
     split_formula_line_groups,
 )
 from .hardware import choose_rec_batch_num, detect_hardware_info
-from .image import load_image_rgb, rgb_to_bgr
+from .image import load_image_rgb, normalize_formula_polarity, rgb_to_bgr
 from .latex_quality import (
     SEVERE_LATEX_QUALITY_FLAGS,
     has_severe_latex_quality_issue,
@@ -379,7 +379,7 @@ class MathCraftRuntime:
             raise ModelCacheError(
                 f"mixed runtime is not ready: missing={plan.missing_models}, unsupported={plan.unsupported_models}"
             )
-        rgb = load_image_rgb(image)
+        rgb = normalize_formula_polarity(load_image_rgb(image))
         bgr = rgb_to_bgr(rgb)
         formula_boxes = detect_formula_boxes(
             rgb,
@@ -568,6 +568,7 @@ class MathCraftRuntime:
         model_dir: Path,
         max_new_tokens: int,
     ) -> tuple[str, float]:
+        rgb = normalize_formula_polarity(rgb)
         line_groups = split_formula_line_groups(rgb)
         if line_groups:
             flat_crops = [

@@ -172,6 +172,9 @@ Packaged desktop workers use only the installed model component and disable auto
 | `text` | text detector + text recognizer | OCR text and text blocks |
 | `mixed` | formula detector + formula recognizer + text detector + text recognizer | Markdown-ready structured blocks |
 
+`formula` and `mixed` normalize mostly uniform dark backgrounds before recognition.
+Wide-formula segmentation uses blank columns to avoid cutting through symbols.
+
 Each profile verifies its model files before initialization and reuses the
 initialized sessions and verified paths for subsequent recognition requests.
 `check_models()` and `mathcraft models check` always verify current file contents.
@@ -226,7 +229,7 @@ Run tests from the repository root:
 
 ```powershell
 # Run from the repository root
-python -m pytest test/test_mathcraft_ocr.py test/test_mathcraft_document_engine.py test/test_formula_inference.py -q
+python -m pytest -q
 ```
 
 Build package artifacts:
