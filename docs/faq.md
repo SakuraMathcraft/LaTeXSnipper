@@ -198,22 +198,4 @@ Issues without logs are usually not actionable.
 
 ## Which Python environment should contributors use?
 
-Use a supported Python environment of your choice (venv, Conda, uv, or another manager). Activate it for development and checks, and select the same interpreter in your IDE. No repository-specific environment path is required. Desktop installers are built by `.github/workflows/release.yml`, which builds the business payload and assembles offline installers from persistent fixed-resource artifacts.
-
-The release workflow's optional `validate_desktop` acceptance checks a published release.
-With `publish_assets` disabled, it validates the existing release without rebuilding
-or uploading assets.
-It installs the published CPU package on Windows, macOS, Linux X11 and KDE Wayland.
-The installed native shortcut provider is checked for registration, replacement,
-cleanup and activation before the real update buttons are clicked in an isolated
-predecessor. Windows and X11 receive injected system input; Wayland activation is
-requested through KGlobalAccel and received through the real GlobalShortcuts portal.
-The Wayland runner uses KWin's virtual display and the real KDE portal, accepting
-shortcut authorization dialogs through accessibility actions. macOS checks registration
-without injecting input, which requires separate system authorization.
-Update acceptance verifies application exit, business replacement and automatic restart. It also checks
-installed identity, retained user data and the fixed inference runtime. The target
-package and its independently authenticated release catalog remain unmodified.
-Reports include exit and total update times; failure logs are retained as workflow
-artifacts for seven days. This acceptance runs after publication and does not gate
-release visibility. CUDA recognition acceptance remains a separate option.
+Use a supported Python environment of your choice (venv, Conda, uv, or another manager). Activate it for development and checks, and select the same interpreter in your IDE.
