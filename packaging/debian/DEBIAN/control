@@ -54,6 +54,4 @@ Depends: libc6 (>= 2.35),
  dpkg,
  pkexec | policykit-1
 Suggests: texlive-latex-base,
- gnome-screenshot | maim | grim,
- imagemagick,
- scrot
+ xdg-desktop-portal

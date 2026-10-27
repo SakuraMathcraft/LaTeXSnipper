@@ -146,7 +146,7 @@
       <translation>LaTeXSnipper - Capture shortcut: {hotkey} | {display}</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="110" />
+      <location filename="../../../src/capture/overlay.py" line="98" />
       <source>LaTeXSnipper 截图识别</source>
       <translation>LaTeXSnipper Capture</translation>
     </message>
@@ -378,7 +378,7 @@ Check App diagnostics. For an installed app, rerun the complete installer. When 
       <translation>Whether PyQt6 WebEngine is working</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="619" />
+      <location filename="../../../src/capture/overlay.py" line="567" />
       <source>Shift 切换格式</source>
       <translation>Shift to switch format</translation>
     </message>
@@ -386,6 +386,11 @@ Check App diagnostics. For an installed app, rerun the complete installer. When 
       <location filename="../../../src/platform_services/hotkeys/qhotkey_linux.py" line="207" />
       <source>Wayland 全局快捷键不可用：{error}</source>
       <translation>Wayland global shortcut unavailable: {error}</translation>
+    </message>
+    <message>
+      <location filename="../../../src/capture/overlay.py" line="144" />
+      <source>Wayland 截图未完成，请确认桌面提供 Screenshot Portal 并允许屏幕截图。</source>
+      <translation>Wayland capture did not complete. Ensure the desktop provides the Screenshot portal and allows screen capture.</translation>
     </message>
     <message>
       <location filename="../../../src/handwriting/handwriting_window.py" line="599" />
@@ -656,7 +661,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Global shortcut unavailable: {error}</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="356" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="355" />
       <source>全选</source>
       <translation>Select All</translation>
     </message>
@@ -713,7 +718,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Formula preview:</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="304" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="303" />
       <location filename="../../../src/ui/controllers/app_lifecycle.py" line="116" />
       <source>关于 LaTeXSnipper</source>
       <translation>About LaTeXSnipper</translation>
@@ -738,7 +743,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Close tour</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="345" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="344" />
       <location filename="../../../src/ui/favorites_window.py" line="104" />
       <source>关闭窗口</source>
       <translation>Close Window</translation>
@@ -965,7 +970,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Enter a LaTeX formula here for a live preview below...</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="352" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="351" />
       <location filename="../../../src/ui/controllers/history.py" line="77" />
       <location filename="../../../src/ui/favorites_window.py" line="183" />
       <location filename="../../../src/ui/history_panel.py" line="139" />
@@ -1207,19 +1212,19 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Display {index}: {name} ({width}x{height} @ {x},{y})</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="817" />
+      <location filename="../../../src/capture/overlay.py" line="765" />
       <source>屏幕 {number}</source>
       <translation>Screen {number}</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="814" />
+      <location filename="../../../src/capture/overlay.py" line="762" />
       <source>屏幕 {number}（{name}）</source>
       <translation>Screen {number} ({name})</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="987" />
-      <source>屏幕录制权限已通过预检，但 Qt 和 screencapture 截图接口没有返回图像。这不是 OCR 识别失败；请检查截图区域、显示器连接和应用日志后重试。</source>
-      <translation>Screen-recording permission passed the preflight check, but neither Qt nor screencapture returned an image. This is not an OCR failure; check the capture area, display connection, and application log, then try again.</translation>
+      <location filename="../../../src/capture/overlay.py" line="892" />
+      <source>屏幕录制权限已通过预检，但 Qt 截图没有返回图像。请检查截图区域、显示器连接和应用日志后重试。</source>
+      <translation>Screen-recording permission passed the preflight check, but Qt returned no image. Check the capture area, display connection, and application log, then try again.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/controllers/predict_result.py" line="538" />
@@ -1309,7 +1314,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Recommended settings were applied. Verify the model name against your local service.</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="594" />
+      <location filename="../../../src/capture/overlay.py" line="542" />
       <location filename="../../../src/handwriting/handwriting_window.py" line="676" />
       <location filename="../../../src/ui/automation_access_dialog.py" line="360" />
       <location filename="../../../src/ui/controllers/editor_actions.py" line="52" />
@@ -1474,7 +1479,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Take the tour</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="336" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="335" />
       <source>开始截图识别</source>
       <translation>Start Capture</translation>
     </message>
@@ -1530,7 +1535,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Current hotkey: {hotkey}</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="824" />
+      <location filename="../../../src/capture/overlay.py" line="772" />
       <source>当前截图模式固定为{target}，但你框选的是{actual}。请在托盘菜单选择“识别屏幕 &gt; {actual}”，或切换为“自动”后再截图。</source>
       <translation>Capture is fixed to {target}, but the selection is on {actual}. Choose “Recognition Screen &gt; {actual}” from the tray menu, or switch to Auto and capture again.</translation>
     </message>
@@ -1672,8 +1677,8 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Capture &amp; Recognize</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/linux_provider.py" line="115" />
-      <location filename="../../../src/platform_services/macos_provider.py" line="257" />
+      <location filename="../../../src/platform_services/linux_provider.py" line="114" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="256" />
       <location filename="../../../src/platform_services/windows_provider.py" line="113" />
       <source>截图识别（{hotkey}）</source>
       <translation>Capture &amp; Recognize ({hotkey})</translation>
@@ -1706,8 +1711,8 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Handwriting result written to the main editor</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/linux_provider.py" line="113" />
-      <location filename="../../../src/platform_services/macos_provider.py" line="262" />
+      <location filename="../../../src/platform_services/linux_provider.py" line="112" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="261" />
       <location filename="../../../src/platform_services/windows_provider.py" line="111" />
       <source>打开主窗口</source>
       <translation>Open Main Window</translation>
@@ -1729,7 +1734,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Selected display</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="596" />
+      <location filename="../../../src/capture/overlay.py" line="544" />
       <source>按 C 复制色值</source>
       <translation>Press C to copy color</translation>
     </message>
@@ -1876,7 +1881,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Favorites is already empty</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="335" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="334" />
       <source>文件</source>
       <translation>File</translation>
     </message>
@@ -1922,7 +1927,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Unable to update the Automation API configuration.</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="992" />
+      <location filename="../../../src/capture/overlay.py" line="897" />
       <source>无法确认当前进程的屏幕录制权限，且截图接口没有返回图像。请检查应用日志，并在系统设置中确认授权的是当前运行副本后重试。</source>
       <translation>The current process permission could not be confirmed and the capture APIs returned no image. Check the application log and confirm in system settings that the currently running copy is authorized, then try again.</translation>
     </message>
@@ -1962,7 +1967,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The log view has been cleared</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="341" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="340" />
       <source>显示主窗口</source>
       <translation>Show Main Window</translation>
     </message>
@@ -2049,6 +2054,11 @@ Retry with the {hotkey} shortcut.</translation>
       <location filename="../../../src/ui/formula_export_menu.py" line="200" />
       <source>未知的 Pandoc 格式: {format}</source>
       <translation>Unknown Pandoc format: {format}</translation>
+    </message>
+    <message>
+      <location filename="../../../src/capture/overlay.py" line="882" />
+      <source>未能获取截图，请检查桌面截图权限和应用日志。</source>
+      <translation>Could not capture the screen. Check desktop capture permissions and the application log.</translation>
     </message>
     <message>
       <location filename="../../../src/recognition/error_messages.py" line="21" />
@@ -2575,7 +2585,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Simplified Chinese</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="372" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="371" />
       <source>粘贴</source>
       <translation>Paste</translation>
     </message>
@@ -2615,7 +2625,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Continue tour</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="350" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="349" />
       <location filename="../../../src/ui/controllers/history.py" line="76" />
       <location filename="../../../src/ui/edit_formula_dialog.py" line="25" />
       <location filename="../../../src/ui/favorites_window.py" line="196" />
@@ -2721,9 +2731,9 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Settings</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/linux_provider.py" line="120" />
-      <location filename="../../../src/platform_services/macos_provider.py" line="309" />
-      <location filename="../../../src/platform_services/macos_provider.py" line="264" />
+      <location filename="../../../src/platform_services/linux_provider.py" line="119" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="308" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="263" />
       <location filename="../../../src/platform_services/windows_provider.py" line="118" />
       <source>设置...</source>
       <translation>Settings...</translation>
@@ -3103,14 +3113,14 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Connection settings</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/linux_provider.py" line="121" />
-      <location filename="../../../src/platform_services/macos_provider.py" line="266" />
+      <location filename="../../../src/platform_services/linux_provider.py" line="120" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="265" />
       <location filename="../../../src/platform_services/windows_provider.py" line="119" />
       <source>退出</source>
       <translation>Exit</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="329" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="328" />
       <source>退出 LaTeXSnipper</source>
       <translation>Quit LaTeXSnipper</translation>
     </message>
@@ -3258,12 +3268,12 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Error details:</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="317" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="316" />
       <source>隐藏 LaTeXSnipper</source>
       <translation>Hide LaTeXSnipper</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="322" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="321" />
       <source>隐藏其他窗口</source>
       <translation>Hide Others</translation>
     </message>

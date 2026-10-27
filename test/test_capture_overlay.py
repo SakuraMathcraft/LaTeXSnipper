@@ -5,6 +5,7 @@ import sys
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -22,6 +23,7 @@ from capture.geometry import (  # noqa: E402
     choose_screen_index,
     crop_screen_snapshot,
     map_global_rect_to_screen_capture,
+    split_desktop_snapshot,
 )
 from capture.overlay import (  # noqa: E402
     ScreenCaptureOverlay,
@@ -103,6 +105,49 @@ class CaptureOverlayMappingTests(unittest.TestCase):
 
         self.assertFalse(pixmap.isNull())
         self.assertEqual((pixmap.width(), pixmap.height()), (4, 4))
+
+    def test_portal_desktop_snapshot_preserves_monitor_offsets_and_scale(self):
+        image = QImage(200, 50, QImage.Format.Format_RGB32)
+        image.fill(QColor("black"))
+        image.setPixelColor(125, 20, QColor("white"))
+        geometries = [QRect(-50, -25, 50, 25), QRect(0, -25, 50, 25)]
+        snapshots = split_desktop_snapshot(image, geometries)
+        self.assertEqual([item.geometry for item in snapshots], geometries)
+        self.assertEqual(
+            [(item.scale_x, item.scale_y) for item in snapshots],
+            [(2.0, 2.0), (2.0, 2.0)],
+        )
+        self.assertEqual(snapshots[0].image.pixelColor(25, 20), QColor("black"))
+        self.assertEqual(snapshots[1].image.pixelColor(25, 20), QColor("white"))
+        crop = crop_screen_snapshot(snapshots[1], (10, 5, 10, 10)).toImage()
+        self.assertEqual((crop.width(), crop.height()), (20, 20))
+        self.assertEqual(crop.pixelColor(5, 10), QColor("white"))
+
+    def test_wayland_overlay_keeps_authorized_black_desktop_image(self):
+        image = QImage(100, 50, QImage.Format.Format_RGB32)
+        image.fill(QColor("black"))
+        screen = SimpleNamespace(geometry=lambda: QRect(0, 0, 100, 50))
+        with (
+            patch("capture.overlay.is_wayland", return_value=True),
+            patch(
+                "capture.overlay.wayland_screenshot_via_portal", return_value=image
+            ) as portal,
+            patch("capture.overlay.QGuiApplication.screens", return_value=[screen]),
+        ):
+            snapshots = ScreenCaptureOverlay._capture_screen_snapshots(
+                SimpleNamespace()
+            )
+        self.assertEqual(portal.call_count, 1)
+        self.assertEqual(len(snapshots), 1)
+        self.assertEqual(snapshots[0].image.pixelColor(30, 20), QColor("black"))
+
+    def test_wayland_overlay_reports_unavailable_portal_capture(self):
+        with (
+            patch("capture.overlay.is_wayland", return_value=True),
+            patch("capture.overlay.wayland_screenshot_via_portal", return_value=None),
+            self.assertRaisesRegex(RuntimeError, "Screenshot Portal"),
+        ):
+            ScreenCaptureOverlay._capture_screen_snapshots(SimpleNamespace())
 
     def test_selection_accepts_overlay_top_left_origin(self):
         overlay = SimpleNamespace(

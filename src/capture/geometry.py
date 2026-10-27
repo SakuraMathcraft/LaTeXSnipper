@@ -17,6 +17,37 @@ class ScreenSnapshot:
     scale_y: float
 
 
+def split_desktop_snapshot(
+    image: QImage, geometries: list[QRect]
+) -> list[ScreenSnapshot]:
+    """Split a portal desktop image into screen-local snapshots."""
+    bounds = QRect()
+    for geometry in geometries:
+        bounds = bounds.united(geometry)
+    if image.isNull() or bounds.isEmpty():
+        return []
+    scale_x = image.width() / bounds.width()
+    scale_y = image.height() / bounds.height()
+    snapshots = []
+    for geometry in geometries:
+        if geometry.isEmpty():
+            continue
+        left = math.floor((geometry.x() - bounds.x()) * scale_x)
+        top = math.floor((geometry.y() - bounds.y()) * scale_y)
+        right = math.ceil((geometry.x() - bounds.x() + geometry.width()) * scale_x)
+        bottom = math.ceil((geometry.y() - bounds.y() + geometry.height()) * scale_y)
+        cropped = image.copy(left, top, right - left, bottom - top)
+        snapshots.append(
+            ScreenSnapshot(
+                geometry=QRect(geometry),
+                image=cropped,
+                scale_x=cropped.width() / geometry.width(),
+                scale_y=cropped.height() / geometry.height(),
+            )
+        )
+    return snapshots
+
+
 @dataclass(frozen=True)
 class MagnifierSample:
     preview: QImage

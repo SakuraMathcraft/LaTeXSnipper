@@ -1,4 +1,4 @@
-"""Validate dark capture detection and the screenshot portal request lifecycle."""
+"""Validate the Wayland screenshot portal request lifecycle."""
 
 import sys
 from types import ModuleType, SimpleNamespace
@@ -7,29 +7,19 @@ import pytest
 from PyQt6.QtCore import QUrl
 from PyQt6.QtGui import QColor, QImage
 
-from capture.screenshot_tools import (
-    is_image_effectively_black,
-    wayland_screenshot_via_portal,
-)
-
-
-@pytest.mark.parametrize("point", [None, (0, 0), (20, 30), (99, 99)])
-def test_black_capture_detection_preserves_sparse_bright_content(point):
-    image = QImage(100, 100, QImage.Format.Format_RGB32)
-    image.fill(QColor("black"))
-    if point is not None:
-        image.setPixelColor(*point, QColor("white"))
-    assert is_image_effectively_black(image) == (point is None)
+from capture.backends import wayland_screenshot_via_portal
 
 
 @pytest.mark.parametrize(
-    "outcome", ["approved", "approved-early", "cancelled", "timeout"]
+    "outcome", ["approved", "approved-early", "invalid-image", "cancelled", "timeout"]
 )
 def test_portal_subscribes_before_request_and_cleans_up(tmp_path, monkeypatch, outcome):
     image_path = tmp_path / "截图 with spaces.png"
     image = QImage(3, 2, QImage.Format.Format_RGB32)
     image.fill(QColor("white"))
     assert image.save(str(image_path))
+    if outcome == "invalid-image":
+        image_path.write_bytes(b"invalid image")
     events = []
     state = {}
 
@@ -123,6 +113,8 @@ def test_portal_subscribes_before_request_and_cleans_up(tmp_path, monkeypatch, o
         assert not image_path.exists()
     else:
         assert result is None
+    if outcome == "invalid-image":
+        assert not image_path.exists()
     if outcome == "timeout":
         assert "close" in events
     else:
