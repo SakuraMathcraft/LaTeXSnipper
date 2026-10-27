@@ -89,7 +89,8 @@ outside this cleanup scope.
 | Data | Path | Cleanup |
 |---|---|---|
 | External PDF image assets | `<app-temp>/pdf-assets/latest` | Cleaned by the PDF worker after processing |
-| Screenshot CLI capture files | System temp files with `latexsnipper_cap_` / `latexsnipper_bg_` prefixes | Deleted immediately after use |
+| macOS native capture files | System temp files with the `latexsnipper_cap_` prefix | Deleted immediately after use |
+| Wayland portal capture files | Temporary image URI returned by the desktop | Deleted after the image is loaded |
 | MathCraft worker input image | System temp PNG | Deleted after each request |
 | Automation API jobs | Memory only | Images released after execution; completed results expire by TTL/retention cap and all state is released on exit |
 

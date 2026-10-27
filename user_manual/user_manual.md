@@ -487,7 +487,7 @@ Windows 有托盘时关闭主窗口会隐藏，使用托盘退出。Linux 无托
 
 X11 使用 pynput 监听全局热键。Wayland 使用桌面提供的 GlobalShortcuts Portal，需要完成系统授权；实际组合键由桌面确认，应用显示授权后的快捷键。取消修改会保留原有授权。若桌面未提供该接口，请检查 `xdg-desktop-portal` 及对应桌面后端，也可使用截图按钮或切换 X11 会话，无需以 root 运行。
 
-Wayland 的截图仍受合成器策略限制；应用先尝试 Qt 截图，可使用可用的 `grim`、`maim`、`gnome-screenshot` 等后备工具。这些系统工具由用户或发行版安装。
+Wayland 使用桌面的 Screenshot Portal 获取屏幕图像，再由应用进行区域框选；桌面需提供该接口并允许截图。截图失败时请检查桌面授权和 Portal 服务。X11 使用 Qt 截图。
 
 Linux 安装依赖必要的系统 Qt 图形库，但不使用系统 Python、CUDA Toolkit 或 cuDNN。
 

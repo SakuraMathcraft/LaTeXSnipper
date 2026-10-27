@@ -228,7 +228,6 @@ class MacOSScreenshotProvider:
         overlay = ScreenCaptureOverlay(
             capture_display_mode=cfg.capture_display_mode,
             preferred_screen_index=cfg.preferred_screen_index,
-            screenshot_tool=cfg.screenshot_tool,
         )
         overlay.macos_permission_preflight_state = self._last_permission_state.value
         return overlay
