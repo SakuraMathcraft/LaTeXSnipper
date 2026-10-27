@@ -2,6 +2,7 @@
 
 import shutil
 import sys
+from hashlib import sha256
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -10,6 +11,66 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import build_desktop_release as build  # noqa: E402
+
+
+@pytest.mark.parametrize("complete", [True, False])
+def test_cache_pruning_requires_all_platform_plans_and_preserves_owned_inputs(
+    tmp_path, monkeypatch, complete
+):
+    import release_artifacts as release
+    from desktop_base_cache import cache_tag
+
+    current = []
+    obsolete = []
+    targets = ["windows-x86_64", "linux-x86_64", "macos-arm64"]
+    for target in targets:
+        names = {"runtime", "inference-cpu", "models", "maintenance"}
+        names.add("base" if target.startswith("macos-") else "inference-gpu")
+        keys = {
+            name: sha256(
+                (name if name == "models" else target + name).encode("utf-8")
+            ).hexdigest()
+            for name in names
+        }
+        if complete or target != targets[-1]:
+            build.write_json(
+                tmp_path / f"cache-plan-{target}.json",
+                {"schema": 1, "target": target, "keys": keys},
+            )
+        current.extend(
+            cache_tag(name, "any-any" if name == "models" else target, key)
+            for name, key in keys.items()
+        )
+        obsolete.append(cache_tag("maintenance", target, "0" * 64))
+    drafts = [
+        {"id": index, "tag_name": tag, "draft": True}
+        for index, tag in enumerate(sorted(set(current)))
+    ]
+    retired = [
+        {"id": 100 + index, "tag_name": tag, "draft": True}
+        for index, tag in enumerate(obsolete)
+    ]
+    releases = [
+        {"id": 200, "tag_name": "unrelated-draft", "draft": True},
+        {"id": 201, "tag_name": "v3.2.0", "draft": False},
+        {"id": 202, "tag_name": obsolete[0], "draft": False},
+    ]
+    deleted = []
+
+    def api(endpoint, **kwargs):
+        assert complete, "Incomplete plans must fail before accessing releases"
+        if kwargs.get("paginate"):
+            return [drafts, retired, releases]
+        assert kwargs["method"] == "DELETE"
+        deleted.append(int(endpoint.rsplit("/", 1)[-1]))
+
+    monkeypatch.setattr(release, "github_api", api)
+    if complete:
+        release.prune_build_cache(tmp_path)
+        assert deleted == [item["id"] for item in retired]
+    else:
+        with pytest.raises(release.ManifestError, match="all three platform plans"):
+            release.prune_build_cache(tmp_path)
 
 
 @pytest.mark.parametrize("count", [0, 1, 2])

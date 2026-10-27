@@ -134,49 +134,22 @@ def ensure_single_instance() -> bool:
     lock_dir = app_state_dir()
     lock_dir.mkdir(parents=True, exist_ok=True)
     lock_file = lock_dir / "instance.lock"
-    restart_flag = os.environ.get("LATEXSNIPPER_RESTART") == "1"
-    attempts = 150 if restart_flag else 1
-    delay = 0.2
-
-    if os.name == "nt":
-        try:
-            import msvcrt
-
-            for _ in range(attempts):
-                fh = open(lock_file, "a+", encoding="utf-8")
-                try:
-                    fh.seek(0)
-                except Exception:
-                    pass
-                try:
-                    msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
-                except OSError:
-                    fh.close()
-                    if restart_flag:
-                        time.sleep(delay)
-                        continue
-                    return False
-                _single_instance_lock = fh
-                return True
-            return False
-        except Exception:
-            return True
-
     try:
-        import fcntl
+        fh = open(lock_file, "a+", encoding="utf-8")
+        try:
+            if os.name == "nt":
+                import msvcrt
 
-        for _ in range(attempts):
-            fh = open(lock_file, "a+", encoding="utf-8")
-            try:
+                fh.seek(0)
+                msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+
                 fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except OSError:
-                fh.close()
-                if restart_flag:
-                    time.sleep(delay)
-                    continue
-                return False
-            _single_instance_lock = fh
-            return True
-        return False
+        except OSError:
+            fh.close()
+            return False
+        _single_instance_lock = fh
+        return True
     except Exception:
         return True
