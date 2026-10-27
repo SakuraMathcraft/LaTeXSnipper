@@ -1,6 +1,5 @@
-"""Validate the native screenshot interfaces and portal request lifecycle."""
+"""Validate the Wayland screenshot portal request lifecycle."""
 
-import subprocess
 import sys
 from types import ModuleType, SimpleNamespace
 
@@ -8,37 +7,7 @@ import pytest
 from PyQt6.QtCore import QUrl
 from PyQt6.QtGui import QColor, QImage
 
-from capture.backends import capture_macos_region, wayland_screenshot_via_portal
-
-
-@pytest.mark.parametrize("success", [True, False])
-def test_macos_native_capture_reads_region_and_releases_temporary_file(
-    monkeypatch, success
-):
-    from pathlib import Path
-
-    from capture import backends
-
-    paths = []
-
-    def run(command, **kwargs):
-        assert command[:-1] == ["screencapture", "-x", "-R", "-40,10,3,2", "-t", "png"]
-        path = Path(command[-1])
-        paths.append(path)
-        if not success:
-            raise subprocess.CalledProcessError(1, command, stderr="not permitted")
-        image = QImage(3, 2, QImage.Format.Format_RGB32)
-        image.fill(QColor("black"))
-        assert image.save(str(path))
-
-    monkeypatch.setattr(backends.subprocess, "run", run)
-    image = capture_macos_region(-40, 10, 3, 2)
-    assert len(paths) == 1 and not paths[0].exists()
-    if success:
-        assert (image.width(), image.height()) == (3, 2)
-        assert image.pixelColor(1, 1) == QColor("black")
-    else:
-        assert image is None
+from capture.backends import wayland_screenshot_via_portal
 
 
 @pytest.mark.parametrize(

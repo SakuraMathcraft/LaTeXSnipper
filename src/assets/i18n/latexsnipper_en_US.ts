@@ -146,7 +146,7 @@
       <translation>LaTeXSnipper - Capture shortcut: {hotkey} | {display}</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="102" />
+      <location filename="../../../src/capture/overlay.py" line="98" />
       <source>LaTeXSnipper 截图识别</source>
       <translation>LaTeXSnipper Capture</translation>
     </message>
@@ -378,7 +378,7 @@ Check App diagnostics. For an installed app, rerun the complete installer. When 
       <translation>Whether PyQt6 WebEngine is working</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="599" />
+      <location filename="../../../src/capture/overlay.py" line="567" />
       <source>Shift 切换格式</source>
       <translation>Shift to switch format</translation>
     </message>
@@ -388,7 +388,7 @@ Check App diagnostics. For an installed app, rerun the complete installer. When 
       <translation>Wayland global shortcut unavailable: {error}</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="148" />
+      <location filename="../../../src/capture/overlay.py" line="144" />
       <source>Wayland 截图未完成，请确认桌面提供 Screenshot Portal 并允许屏幕截图。</source>
       <translation>Wayland capture did not complete. Ensure the desktop provides the Screenshot portal and allows screen capture.</translation>
     </message>
@@ -1212,19 +1212,19 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Display {index}: {name} ({width}x{height} @ {x},{y})</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="797" />
+      <location filename="../../../src/capture/overlay.py" line="765" />
       <source>屏幕 {number}</source>
       <translation>Screen {number}</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="794" />
+      <location filename="../../../src/capture/overlay.py" line="762" />
       <source>屏幕 {number}（{name}）</source>
       <translation>Screen {number} ({name})</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="935" />
-      <source>屏幕录制权限已通过预检，但 Qt 和 screencapture 截图接口没有返回图像。这不是 OCR 识别失败；请检查截图区域、显示器连接和应用日志后重试。</source>
-      <translation>Screen-recording permission passed the preflight check, but neither Qt nor screencapture returned an image. This is not an OCR failure; check the capture area, display connection, and application log, then try again.</translation>
+      <location filename="../../../src/capture/overlay.py" line="892" />
+      <source>屏幕录制权限已通过预检，但 Qt 截图没有返回图像。请检查截图区域、显示器连接和应用日志后重试。</source>
+      <translation>Screen-recording permission passed the preflight check, but Qt returned no image. Check the capture area, display connection, and application log, then try again.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/controllers/predict_result.py" line="538" />
@@ -1314,7 +1314,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Recommended settings were applied. Verify the model name against your local service.</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="574" />
+      <location filename="../../../src/capture/overlay.py" line="542" />
       <location filename="../../../src/handwriting/handwriting_window.py" line="676" />
       <location filename="../../../src/ui/automation_access_dialog.py" line="360" />
       <location filename="../../../src/ui/controllers/editor_actions.py" line="52" />
@@ -1535,7 +1535,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Current hotkey: {hotkey}</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="804" />
+      <location filename="../../../src/capture/overlay.py" line="772" />
       <source>当前截图模式固定为{target}，但你框选的是{actual}。请在托盘菜单选择“识别屏幕 &gt; {actual}”，或切换为“自动”后再截图。</source>
       <translation>Capture is fixed to {target}, but the selection is on {actual}. Choose “Recognition Screen &gt; {actual}” from the tray menu, or switch to Auto and capture again.</translation>
     </message>
@@ -1734,7 +1734,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Selected display</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="576" />
+      <location filename="../../../src/capture/overlay.py" line="544" />
       <source>按 C 复制色值</source>
       <translation>Press C to copy color</translation>
     </message>
@@ -1927,7 +1927,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Unable to update the Automation API configuration.</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="940" />
+      <location filename="../../../src/capture/overlay.py" line="897" />
       <source>无法确认当前进程的屏幕录制权限，且截图接口没有返回图像。请检查应用日志，并在系统设置中确认授权的是当前运行副本后重试。</source>
       <translation>The current process permission could not be confirmed and the capture APIs returned no image. Check the application log and confirm in system settings that the currently running copy is authorized, then try again.</translation>
     </message>
@@ -2056,7 +2056,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Unknown Pandoc format: {format}</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="925" />
+      <location filename="../../../src/capture/overlay.py" line="882" />
       <source>未能获取截图，请检查桌面截图权限和应用日志。</source>
       <translation>Could not capture the screen. Check desktop capture permissions and the application log.</translation>
     </message>

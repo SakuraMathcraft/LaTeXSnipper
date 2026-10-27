@@ -22,11 +22,7 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import QWidget
 
-from capture.backends import (
-    capture_macos_region,
-    is_wayland,
-    wayland_screenshot_via_portal,
-)
+from capture.backends import is_wayland, wayland_screenshot_via_portal
 from capture.geometry import (
     MagnifierSample,
     ScreenSnapshot,
@@ -176,34 +172,6 @@ class ScreenCaptureOverlay(QWidget):
                 continue
 
         if not snapshots:
-            if sys.platform == "darwin":
-                for screen in QGuiApplication.screens():
-                    try:
-                        geo = QRect(screen.geometry())
-                        if geo.width() <= 0 or geo.height() <= 0:
-                            continue
-                        image = capture_macos_region(
-                            geo.x(),
-                            geo.y(),
-                            geo.width(),
-                            geo.height(),
-                        )
-                        if image is None or image.isNull():
-                            continue
-                        snapshots.append(
-                            ScreenSnapshot(
-                                geometry=geo,
-                                image=image.copy(),
-                                scale_x=float(image.width()) / max(1, int(geo.width())),
-                                scale_y=float(image.height())
-                                / max(1, int(geo.height())),
-                            )
-                        )
-                        logger.debug("macOS 原生背景截图成功")
-                    except Exception as e:
-                        logger.warning("macOS 原生背景截图失败: %s", e)
-                if snapshots:
-                    return snapshots
             logger.warning("未能捕获任何屏幕快照，overlay 背景将为纯色遮罩")
 
         return snapshots
@@ -910,17 +878,6 @@ class ScreenCaptureOverlay(QWidget):
                     except Exception:
                         pass
 
-        if pixmap.isNull() and sys.platform == "darwin":
-            image = capture_macos_region(
-                global_x,
-                global_y,
-                width,
-                height,
-            )
-            if image is not None and not image.isNull():
-                pixmap = QPixmap.fromImage(image)
-                logger.debug("macOS 原生区域截图成功")
-
         if pixmap.isNull():
             self.last_capture_failure_message = tr(
                 "未能获取截图，请检查桌面截图权限和应用日志。"
@@ -933,8 +890,8 @@ class ScreenCaptureOverlay(QWidget):
             )
             if permission_state == "allowed":
                 self.last_capture_failure_message = tr(
-                    "屏幕录制权限已通过预检，但 Qt 和 screencapture 截图接口没有返回图像。"
-                    "这不是 OCR 识别失败；请检查截图区域、显示器连接和应用日志后重试。"
+                    "屏幕录制权限已通过预检，但 Qt 截图没有返回图像。"
+                    "请检查截图区域、显示器连接和应用日志后重试。"
                 )
             else:
                 self.last_capture_failure_message = tr(

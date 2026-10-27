@@ -79,7 +79,7 @@ class MacOSHotkeyProvider(QObject):
 
 
 class MacOSScreenshotProvider:
-    """macOS screenshot provider using native screencapture CLI + Qt overlay."""
+    """Qt screenshots with macOS screen-recording permission checks."""
 
     def __init__(self):
         self._screen_capture_prompted = False
@@ -169,7 +169,7 @@ class MacOSScreenshotProvider:
             return None
 
     def request_permission(self) -> PermissionResult:
-        # Preflight before Qt/screencapture touches the screen. The actual TCC
+        # Preflight before Qt captures the screen. The actual TCC
         # target is the active app bundle in packaged mode and the launch process
         # in source mode, not merely the product name shown to the user.
         if self._screen_capture_restart_required:

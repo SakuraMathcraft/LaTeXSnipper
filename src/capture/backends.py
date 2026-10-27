@@ -4,13 +4,9 @@ from __future__ import annotations
 
 import logging
 import os
-import subprocess
-import tempfile
 import uuid
-from pathlib import Path
 
 from runtime.app_paths import APP_DESKTOP_ID
-from runtime.processes import hidden_subprocess_kwargs, independent_process_environment
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
@@ -20,40 +16,6 @@ def is_wayland() -> bool:
         os.environ.get("WAYLAND_DISPLAY")
         or os.environ.get("XDG_SESSION_TYPE") == "wayland"
     )
-
-
-def capture_macos_region(x: int, y: int, width: int, height: int):
-    """Capture a region through the native macOS screen-recording interface."""
-    from PyQt6.QtGui import QImage
-
-    descriptor, path = tempfile.mkstemp(suffix=".png", prefix="latexsnipper_cap_")
-    os.close(descriptor)
-    try:
-        subprocess.run(
-            [
-                "screencapture",
-                "-x",
-                "-R",
-                f"{x},{y},{width},{height}",
-                "-t",
-                "png",
-                path,
-            ],
-            check=True,
-            timeout=15,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            encoding="utf-8",
-            env=independent_process_environment(),
-            **hidden_subprocess_kwargs(),
-        )
-        image = QImage(path)
-        return image if not image.isNull() else None
-    except (OSError, subprocess.SubprocessError) as exc:
-        logger.warning("macOS 原生截图失败: %s", exc)
-        return None
-    finally:
-        Path(path).unlink(missing_ok=True)
 
 
 def wayland_screenshot_via_portal():

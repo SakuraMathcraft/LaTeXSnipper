@@ -23,7 +23,7 @@ The main differences are platform integration details:
 | Global screenshot hotkey | Native Win32 global hotkey. | `pynput` on X11; GlobalShortcuts portal on Wayland when supported by the desktop. | Native Carbon global hotkey. |
 | User-configurable hotkeys | `Ctrl+letter` and `Ctrl+Shift+letter`. | `Ctrl+letter` and `Ctrl+Shift+letter`. | `Command+letter` / `Command+Shift+letter` for non-reserved keys; `Option+Command` variants are also supported. |
 | Default hotkey | `Ctrl+F`. | `Ctrl+F`. | `Command+F`. |
-| Screenshot capture | Qt overlay. | Qt capture on X11; Screenshot portal on Wayland, followed by the app's region selection. | Qt overlay with native `screencapture` fallback; macOS may ask for Screen Recording permission. |
+| Screenshot capture | Qt overlay. | Qt capture on X11; Screenshot portal on Wayland, followed by the app's region selection. | Qt capture and overlay; macOS may ask for Screen Recording permission. |
 | Window close / background behavior | Closing the main window hides it to the system tray; use the tray menu to exit. | Closing the main window hides it to the system tray when a tray is available; without a tray, the app asks before exiting. | Closing the main window hides it while the app keeps running; reopen it from the Dock or menu bar, and use Quit or Command+Q to exit. |
 | Permission model | No explicit screenshot permission is required for the normal capture path. | Wayland global shortcuts require desktop authorization through the GlobalShortcuts portal; screenshot capture follows compositor policy. | Screen Recording permission is required for screenshots. The native Carbon hotkey path normally does not require Accessibility permission. |
 | Inference runtime | Installed independent Python; CPU or NVIDIA GPU edition. | Installed independent Python; CPU or NVIDIA GPU edition. | Installed independent Python; Apple Silicon CPU edition. |
@@ -81,8 +81,7 @@ tccutil reset ScreenCapture com.mathcraft.latexsnipper
 
 If the permission preflight succeeds but capture still returns an empty image,
 the failure is reported separately from OCR. Check the selected region,
-multi-display layout, and `~/Library/Logs/LaTeXSnipper/` for Qt or
-`screencapture` diagnostics.
+multi-display layout, and `~/Library/Logs/LaTeXSnipper/` for Qt diagnostics.
 
 ## How do automation clients connect?
 
