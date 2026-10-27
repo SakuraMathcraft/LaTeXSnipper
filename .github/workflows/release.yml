@@ -16,7 +16,7 @@ on:
         type: boolean
         default: false
       validate_update:
-        description: "Accept installed CPU GUI update and automatic restart on all three platforms (requires publishing)"
+        description: "Accept installed CPU updates on all three platforms; without publishing, validate the existing release only"
         type: boolean
         default: false
 
@@ -54,16 +54,13 @@ jobs:
             *) echo 'Release tag must match VERSION' >&2; exit 1 ;;
           esac
           publish='${{ inputs.publish_assets }}'
-          if [ '${{ inputs.validate_update }}' = true ] && [ "$publish" != true ]; then
-            echo 'Installed update acceptance requires published release assets' >&2
-            exit 1
-          fi
           echo "publish=$publish" >> "$GITHUB_OUTPUT"
           if [ "$publish" = true ]; then
             python3 -X utf8 scripts/release_artifacts.py prepare --tag "$RELEASE_TAG" --target '${{ github.sha }}'
           fi
 
       - name: Probe shared model cache
+        if: inputs.publish_assets || !inputs.validate_update
         id: models
         env:
           GH_TOKEN: ${{ github.token }}
@@ -78,6 +75,7 @@ jobs:
           build/model-tools/bin/python -X utf8 scripts/build_desktop_release.py models
 
   desktop:
+    if: inputs.publish_assets || !inputs.validate_update
     needs: prepare-release
     strategy:
       fail-fast: false
@@ -267,7 +265,9 @@ jobs:
         run: python -X utf8 scripts/release_artifacts.py prune-cache --directory release-metadata
 
   installed-update:
-    if: inputs.validate_update
+    if: >-
+      always() && inputs.validate_update && needs.prepare-release.result == 'success' &&
+      (needs.prepare-release.outputs.publish == 'false' || needs.publish-release-assets.result == 'success')
     needs: [prepare-release, publish-release-assets]
     strategy:
       fail-fast: false
@@ -302,6 +302,7 @@ jobs:
           retention-days: 7
 
   build-office-plugin-installer:
+    if: inputs.publish_assets || !inputs.validate_update
     needs: prepare-release
     name: Validate Office Plugin Installer
     runs-on: ubuntu-24.04
@@ -356,6 +357,7 @@ jobs:
           retention-days: 30
 
   build-user-manual:
+    if: inputs.publish_assets || !inputs.validate_update
     needs: prepare-release
     name: Build User Manual
     runs-on: windows-2025

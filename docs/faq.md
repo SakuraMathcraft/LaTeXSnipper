@@ -200,7 +200,9 @@ Issues without logs are usually not actionable.
 
 Use a supported Python environment of your choice (venv, Conda, uv, or another manager). Activate it for development and checks, and select the same interpreter in your IDE. No repository-specific environment path is required. Desktop installers are built by `.github/workflows/release.yml`, which builds the business payload and assembles offline installers from persistent fixed-resource artifacts.
 
-The release workflow's optional `validate_update` acceptance requires `publish_assets`.
+The release workflow's optional `validate_update` acceptance checks a published release.
+With `publish_assets` disabled, it validates the existing release without rebuilding
+or uploading assets.
 It installs the published CPU package on Windows, Linux and macOS, creates an isolated
 predecessor with the candidate's GUI code, then clicks the real update buttons to
 verify application exit, business replacement and automatic restart. It also checks
