@@ -15,6 +15,18 @@ from runtime.component_inventory import file_sha256
 from runtime.distribution_manifest import Artifact, ManifestError, safe_relative_path
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
+DOWNLOAD_CACHE_LOCK = threading.RLock()
+
+
+def discard_download(path: Path) -> None:
+    """Release consumed payloads without removing unrelated cache contents."""
+    with DOWNLOAD_CACHE_LOCK:
+        try:
+            path.unlink(missing_ok=True)
+            path.with_name("payload.part").unlink(missing_ok=True)
+            path.parent.rmdir()
+        except OSError:
+            logger.warning("更新包缓存暂未释放: %s", path.parent, exc_info=True)
 
 
 class DownloadCancelled(Exception):
@@ -59,9 +71,11 @@ def download_component(
     if "/" in key:
         raise ManifestError("Component cache identity must be a single path segment")
     directory = cache / key
-    directory.mkdir(parents=True, exist_ok=True)
-    if directory.is_symlink() or not directory.resolve().is_relative_to(cache):
-        raise ManifestError("Component cache redirects outside its root")
+    with DOWNLOAD_CACHE_LOCK:
+        directory.mkdir(parents=True, exist_ok=True)
+        if directory.is_symlink() or not directory.resolve().is_relative_to(cache):
+            raise ManifestError("Component cache redirects outside its root")
+        directory.touch()
     target, partial = directory / "payload", directory / "payload.part"
     if target.is_symlink() or partial.is_symlink():
         raise ManifestError("Component cache payload must not be a symbolic link")

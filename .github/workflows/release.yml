@@ -198,7 +198,9 @@ jobs:
         if: needs.prepare-release.outputs.publish == 'true'
         with:
           name: release-metadata-${{ matrix.system }}
-          path: dist/desktop/distribution-*.json
+          path: |
+            dist/desktop/distribution-*.json
+            dist/desktop/cache-plan-*.json
           if-no-files-found: error
       - uses: actions/upload-artifact@v7
         if: needs.prepare-release.outputs.publish != 'true' || inputs.validate_gpu
@@ -251,6 +253,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python -X utf8 scripts/release_artifacts.py publish --release-id "${{ needs.prepare-release.outputs.release_id }}" --tag "$RELEASE_TAG" --version "$(cat VERSION)" --directory release-metadata
+      - name: Remove obsolete build-cache drafts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python -X utf8 scripts/release_artifacts.py prune-cache --directory release-metadata
 
   build-office-plugin-installer:
     needs: prepare-release

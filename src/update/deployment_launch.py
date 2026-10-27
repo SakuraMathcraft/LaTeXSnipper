@@ -240,9 +240,9 @@ def launch_deployment(resources: InstalledResources, staged: Path) -> Path:
         )
         atomic_json(directory / "watcher.json", {"pid": watcher.pid})
         process = _start_updater(executable, request, elevated=elevated)
-        if process is not None:
 
-            def monitor():
+        def monitor():
+            if process is not None:
                 code = process.wait()
                 status = directory / "deployment-result.json"
                 if code and directory.exists():
@@ -262,10 +262,10 @@ def launch_deployment(resources: InstalledResources, staged: Path) -> Path:
                             )
                     except (OSError, ValueError):
                         logger.exception("记录独立更新进程退出失败")
+            watcher.wait()
+            retire_deployment(request)
 
-            threading.Thread(
-                target=monitor, name="deployment-monitor", daemon=True
-            ).start()
+        threading.Thread(target=monitor, name="deployment-monitor", daemon=True).start()
     except Exception as exc:
         (directory / "cancel").touch()
         atomic_json(

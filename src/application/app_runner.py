@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import multiprocessing
 import sys
+import threading
 from typing import cast
 
 from PyQt6.QtCore import QTimer
@@ -75,6 +76,12 @@ def _report_deployment_outcome(win) -> None:
         QTimer.singleShot(1000, cleanup)
     except (OSError, ValueError, RuntimeError):
         logger.exception("读取独立部署结果失败")
+    finally:
+        from update.cache_cleanup import cleanup_update_cache
+
+        threading.Thread(
+            target=cleanup_update_cache, name="update-cache-cleanup", daemon=True
+        ).start()
 
 
 def run_application(main_window_cls) -> int:
