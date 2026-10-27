@@ -15,10 +15,6 @@ on:
         description: "Run CUDA hardware checks on configured self-hosted runners"
         type: boolean
         default: false
-      validate_desktop:
-        description: "Accept CPU installer hotkeys and updates on Windows, macOS, Linux X11 and Wayland; can validate an existing release"
-        type: boolean
-        default: false
 
 permissions:
   actions: read
@@ -60,7 +56,6 @@ jobs:
           fi
 
       - name: Probe shared model cache
-        if: inputs.publish_assets || !inputs.validate_desktop
         id: models
         env:
           GH_TOKEN: ${{ github.token }}
@@ -75,7 +70,6 @@ jobs:
           build/model-tools/bin/python -X utf8 scripts/build_desktop_release.py models
 
   desktop:
-    if: inputs.publish_assets || !inputs.validate_desktop
     needs: prepare-release
     strategy:
       fail-fast: false
@@ -268,8 +262,7 @@ jobs:
     permissions:
       contents: read
     if: >-
-      !cancelled() && inputs.validate_desktop && needs.prepare-release.result == 'success' &&
-      (needs.prepare-release.outputs.publish == 'false' || needs.publish-release-assets.result == 'success')
+      !cancelled() && needs.publish-release-assets.result == 'success'
     needs: [prepare-release, publish-release-assets]
     strategy:
       fail-fast: false
@@ -332,7 +325,6 @@ jobs:
           (Path(os.environ['RUNNER_TEMP']) / 'latexsnipper-release.netrc').unlink(missing_ok=True)
 
   build-office-plugin-installer:
-    if: inputs.publish_assets || !inputs.validate_desktop
     needs: prepare-release
     name: Validate Office Plugin Installer
     runs-on: ubuntu-24.04
@@ -387,7 +379,6 @@ jobs:
           retention-days: 30
 
   build-user-manual:
-    if: inputs.publish_assets || !inputs.validate_desktop
     needs: prepare-release
     name: Build User Manual
     runs-on: windows-2025
