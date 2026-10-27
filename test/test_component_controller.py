@@ -1,9 +1,12 @@
 """Exercise live Qt update state, cancellation and independent-process handoff."""
 
 import os
+import subprocess
+import sys
 import threading
 import time
 from dataclasses import replace
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -172,6 +175,48 @@ def test_update_dialog_can_be_closed_and_immediately_reopened(app, updates):
     second.close()
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
     app.processEvents()
+
+
+def test_install_handoff_exits_the_qt_event_loop_without_cancelling(tmp_path):
+    code = """
+import sys
+sys.path[:0] = sys.argv[1:]
+from types import SimpleNamespace
+from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import QApplication
+from update.component_controller import ComponentUpdateController
+from update.update_dialog import ComponentUpdateDialog
+
+app = QApplication([])
+app.setQuitOnLastWindowClosed(False)
+ComponentUpdateController.check = lambda self: None
+dialog = ComponentUpdateDialog()
+dialog._state = 'handoff-ready'
+dialog._lifecycle = SimpleNamespace(prepare_restart=lambda: None)
+dialog.show()
+QTimer.singleShot(0, dialog._exit_for_install)
+QTimer.singleShot(2000, lambda: app.exit(42))
+assert app.exec() == 0, 'The update window blocked application exit'
+assert not dialog.controller._closed, 'Exit cancelled the independent deployment'
+"""
+    subprocess.run(
+        [
+            sys.executable,
+            "-X",
+            "utf8",
+            "-c",
+            code,
+            str(Path(__file__).resolve().parents[1] / "src"),
+            str(Path(__file__).resolve().parents[1]),
+        ],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "QT_QPA_PLATFORM": "offscreen",
+        },
+        check=True,
+        timeout=20,
+    )
 
 
 def test_source_update_view_does_not_request_environment_installation(

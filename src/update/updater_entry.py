@@ -171,7 +171,10 @@ def watch_request(request_path: Path) -> None:
                     env = independent_process_environment()
                     env["LATEXSNIPPER_DEPLOYMENT_RESULT"] = str(status)
                     subprocess.Popen(
-                        [str(launcher)], env=env, **hidden_subprocess_kwargs()
+                        [str(launcher)],
+                        cwd=request_path.parent,
+                        env=env,
+                        **hidden_subprocess_kwargs(),
                     )
                 return
         time.sleep(0.2)

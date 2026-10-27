@@ -33,6 +33,7 @@ class ComponentUpdateDialog(QDialog):
         self._release_url = RELEASES_PAGE
         self._has_release_notes = False
         self._state = "checking"
+        self._exiting_for_install = False
         layout = QVBoxLayout(self)
         layout.addWidget(
             QLabel(tr("当前版本: {version}").format(version=PRODUCT_VERSION), self)
@@ -175,12 +176,14 @@ class ComponentUpdateDialog(QDialog):
             self.controller.close()
             self.cancel.setEnabled(True)
             return
+        self._exiting_for_install = True
+        self.hide()
         self._lifecycle.prepare_restart()
         QCoreApplication.quit()
 
     def closeEvent(self, event) -> None:
         if self._state == "handoff-ready":
-            event.ignore()
+            event.accept() if self._exiting_for_install else event.ignore()
             return
         if self._state == "downloading":
             answer = exec_close_only_message_box(

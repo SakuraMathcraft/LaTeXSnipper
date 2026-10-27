@@ -15,6 +15,10 @@ on:
         description: "Run CUDA hardware checks on configured self-hosted runners"
         type: boolean
         default: false
+      validate_update:
+        description: "Accept installed CPU GUI update and automatic restart on all three platforms (requires publishing)"
+        type: boolean
+        default: false
 
 permissions:
   actions: read
@@ -50,6 +54,10 @@ jobs:
             *) echo 'Release tag must match VERSION' >&2; exit 1 ;;
           esac
           publish='${{ inputs.publish_assets }}'
+          if [ '${{ inputs.validate_update }}' = true ] && [ "$publish" != true ]; then
+            echo 'Installed update acceptance requires published release assets' >&2
+            exit 1
+          fi
           echo "publish=$publish" >> "$GITHUB_OUTPUT"
           if [ "$publish" = true ]; then
             python3 -X utf8 scripts/release_artifacts.py prepare --tag "$RELEASE_TAG" --target '${{ github.sha }}'
@@ -257,6 +265,41 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python -X utf8 scripts/release_artifacts.py prune-cache --directory release-metadata
+
+  installed-update:
+    if: inputs.validate_update
+    needs: [prepare-release, publish-release-assets]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {system: windows, runner: windows-2025}
+          - {system: linux, runner: ubuntu-22.04}
+          - {system: macos, runner: macos-15}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with: {python-version: "${{ needs.prepare-release.outputs.python }}"}
+      - run: python -m pip install -c requirements.txt requests Pillow psutil
+      - uses: ./.github/actions/desktop-system-libraries
+        if: runner.os == 'Linux'
+      - name: Accept installed update and automatic restart
+        if: runner.os != 'Linux'
+        run: python -X utf8 scripts/validate_desktop_release.py --release-tag "${{ env.RELEASE_TAG }}" --update --output build/update-acceptance.json
+      - name: Accept installed update and automatic restart under X11
+        if: runner.os == 'Linux'
+        run: dbus-run-session -- xvfb-run -a python -X utf8 scripts/validate_desktop_release.py --release-tag "$RELEASE_TAG" --update --output build/update-acceptance.json
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: installed-update-${{ matrix.system }}
+          path: |
+            build/update-acceptance.json
+            build/update-diagnostics/**
+          if-no-files-found: warn
+          retention-days: 7
 
   build-office-plugin-installer:
     needs: prepare-release
