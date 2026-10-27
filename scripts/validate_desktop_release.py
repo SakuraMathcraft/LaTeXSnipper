@@ -333,7 +333,12 @@ def main() -> None:
                 "GITHUB_ACTIONS=true",
                 *(
                     f"{key}={os.environ[key]}"
-                    for key in ("DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS")
+                    for key in (
+                        "DISPLAY",
+                        "XAUTHORITY",
+                        "DBUS_SESSION_BUS_ADDRESS",
+                        "NETRC",
+                    )
                     if key in os.environ
                 ),
                 sys.executable,

@@ -265,6 +265,8 @@ jobs:
         run: python -X utf8 scripts/release_artifacts.py prune-cache --directory release-metadata
 
   installed-desktop:
+    permissions:
+      contents: read
     if: >-
       always() && inputs.validate_desktop && needs.prepare-release.result == 'success' &&
       (needs.prepare-release.outputs.publish == 'false' || needs.publish-release-assets.result == 'success')
@@ -284,16 +286,28 @@ jobs:
       - uses: actions/setup-python@v6
         with: {python-version: "${{ needs.prepare-release.outputs.python }}"}
       - run: python -m pip install -c requirements.txt requests Pillow psutil
+      - name: Authenticate release metadata requests
+        shell: python
+        env:
+          RELEASE_TOKEN: ${{ github.token }}
+        run: |
+          import os
+          from pathlib import Path
+          path = Path(os.environ['RUNNER_TEMP']) / 'latexsnipper-release.netrc'
+          path.write_text('machine api.github.com\nlogin x-access-token\npassword ' + os.environ['RELEASE_TOKEN'] + '\n', encoding='utf-8', newline='\n')
+          path.chmod(0o600)
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as output:
+              output.write(f'NETRC={path}\n')
       - uses: ./.github/actions/desktop-system-libraries
         if: matrix.session == 'x11'
       - name: Install Wayland desktop and portal
         if: matrix.session == 'wayland'
         run: |
           sudo apt-get update
-          sudo apt-get install -y kwin-wayland xwayland xdg-desktop-portal xdg-desktop-portal-kde qt6-wayland python3-pyatspi at-spi2-core
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y kwin-wayland xwayland xdg-desktop-portal xdg-desktop-portal-kde qt6-wayland python3-pyatspi at-spi2-core
       - name: Accept installed hotkeys and update under Wayland
         if: matrix.session == 'wayland'
-        run: sudo env GITHUB_ACTIONS=true PATH="$PATH" python -X utf8 scripts/wayland_acceptance.py -- python -X utf8 scripts/validate_desktop_release.py --release-tag "$RELEASE_TAG" --update --output build/update-acceptance.json
+        run: sudo env GITHUB_ACTIONS=true PATH="$PATH" NETRC="$NETRC" python -X utf8 scripts/wayland_acceptance.py -- python -X utf8 scripts/validate_desktop_release.py --release-tag "$RELEASE_TAG" --update --output build/update-acceptance.json
       - name: Accept installed hotkeys and update
         if: runner.os != 'Linux'
         run: python -X utf8 scripts/validate_desktop_release.py --release-tag "${{ env.RELEASE_TAG }}" --update --output build/update-acceptance.json
@@ -309,6 +323,13 @@ jobs:
             build/update-diagnostics/**
           if-no-files-found: warn
           retention-days: 7
+      - name: Remove acceptance credentials
+        if: always()
+        shell: python
+        run: |
+          import os
+          from pathlib import Path
+          (Path(os.environ['RUNNER_TEMP']) / 'latexsnipper-release.netrc').unlink(missing_ok=True)
 
   build-office-plugin-installer:
     if: inputs.publish_assets || !inputs.validate_desktop
