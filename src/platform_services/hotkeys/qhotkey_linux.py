@@ -14,6 +14,7 @@ from PyQt6.QtCore import QObject, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QKeySequence
 
 from localization.manager import translate as tr
+from runtime.app_paths import APP_DESKTOP_ID
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
@@ -365,6 +366,15 @@ class _PortalHotkey:
     def _run(self) -> None:
         try:
             with self._open_connection(auth_timeout=3) as connection:
+                self._call(
+                    connection,
+                    self._dbus.DBusAddress(
+                        _PORTAL_PATH, _PORTAL_BUS, "org.freedesktop.host.portal.Registry"
+                    ),
+                    "Register",
+                    "sa{sv}",
+                    (APP_DESKTOP_ID, {}),
+                )
                 remote = self._dbus.MatchRule(
                     type="signal", sender=_PORTAL_BUS, path_namespace=_PORTAL_PATH
                 )

@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from localization.manager import install_application_translators
 from localization.manager import translate as tr
-from runtime.app_paths import get_app_root, resource_path
+from runtime.app_paths import APP_DESKTOP_ID, get_app_root, resource_path
 from runtime.native_runtime import configure_native_runtime_environment
 from runtime.runtime_logging import start_runtime_log_session
 from runtime.single_instance import (
@@ -88,6 +88,8 @@ def bootstrap_application() -> BootstrapContext:
 
     configure_native_runtime_environment()
     app = _ensure_qt_application()
+    if sys.platform == "linux":
+        app.setDesktopFileName(APP_DESKTOP_ID)
     install_application_translators(app)
     _ensure_single_instance(app)
     ensure_startup_splash(tr("加载界面组件..."))

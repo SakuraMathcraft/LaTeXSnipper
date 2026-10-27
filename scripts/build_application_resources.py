@@ -18,6 +18,8 @@ def assemble_linux_integration(directory: Path) -> None:
     """Ship package metadata and desktop integration inside the application identity."""
     from PIL import Image
 
+    from runtime.app_paths import APP_DESKTOP_ID
+
     shutil.copytree(ROOT / "packaging/debian", directory)
     entry = directory / "usr/lib/latexsnipper/LaTeXSnipper"
     entry.parent.mkdir(parents=True, exist_ok=True)
@@ -43,7 +45,7 @@ def assemble_linux_integration(directory: Path) -> None:
         '#!/bin/sh\nexec /usr/lib/latexsnipper/LaTeXSnipper "$@"\n', encoding="utf-8"
     )
     launcher.chmod(0o755)
-    desktop = directory / "usr/share/applications/latexsnipper.desktop"
+    desktop = directory / f"usr/share/applications/{APP_DESKTOP_ID}.desktop"
     desktop.parent.mkdir(parents=True, exist_ok=True)
     desktop.write_text(
         "[Desktop Entry]\nType=Application\nName=LaTeXSnipper\nExec=latexsnipper\nIcon=latexsnipper\nCategories=Education;Science;\nTerminal=false\n",
