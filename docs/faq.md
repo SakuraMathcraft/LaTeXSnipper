@@ -138,22 +138,11 @@ GPU failures report hardware, driver or private-runtime problems. Changing the
 installed CPU/GPU edition requires the matching installer; the app does not
 silently select or install another backend.
 
-## What if Linux fails with EGL, GLOzone, or GPU display errors?
-
-This is usually a Qt WebEngine graphics-backend problem, not a MathCraft GPU inference problem. LaTeXSnipper automatically enables a software-rendering fallback for high-risk Linux sessions such as Wayland, virtual machines, WSL, or systems without `/dev/dri/renderD*`.
-
-Manual overrides:
-
-```bash
-LATEXSNIPPER_FORCE_LINUX_GRAPHICS_FALLBACKS=1 latexsnipper
-LATEXSNIPPER_DISABLE_LINUX_GRAPHICS_FALLBACKS=1 latexsnipper
-```
-
 ## Why does Wayland ask me to authorize a global shortcut?
 
 On Wayland, LaTeXSnipper registers its screenshot shortcut through the desktop's GlobalShortcuts portal. Complete the system authorization dialog; the desktop may assign a different combination, which LaTeXSnipper shows as the active shortcut. Cancelling a shortcut change keeps the previous authorized shortcut.
 
-The desktop must provide `org.freedesktop.portal.GlobalShortcuts`. If registration fails, check that `xdg-desktop-portal` and the portal backend for your desktop are installed and running. Unsupported desktop environments can still use the screenshot button, or an X11 session for global shortcuts. Root privileges are not required.
+The desktop must provide `org.freedesktop.portal.GlobalShortcuts` and `org.freedesktop.host.portal.Registry`. The application registers its portal connection as `latexsnipper`, matching the installed `latexsnipper.desktop` entry. Source launches also require that desktop entry to be visible to the desktop. If registration fails, check that `xdg-desktop-portal` and the portal backend for your desktop are installed and running. Unsupported desktop environments can still use the screenshot button, or an X11 session for global shortcuts. Root privileges are not required.
 
 ## Why does screenshot capture behave differently on Wayland?
 
@@ -198,4 +187,4 @@ Issues without logs are usually not actionable.
 
 ## Which Python environment should contributors use?
 
-Use a supported Python environment of your choice (venv, Conda, uv, or another manager). Activate it for development and checks, and select the same interpreter in your IDE. No repository-specific environment path is required. Desktop installers are built by `.github/workflows/release.yml`, which builds the business payload and assembles offline installers from persistent fixed-resource artifacts.
+Use a supported Python environment of your choice (venv, Conda, uv, or another manager). Activate it for development and checks, and select the same interpreter in your IDE.

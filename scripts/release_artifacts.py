@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from argparse import Namespace
@@ -179,6 +180,41 @@ def publish_release(directory: Path, version: str, tag: str, release_id: int) ->
             github_api(f"{RELEASES}/assets/{asset['id']}", method="DELETE")
 
 
+def prune_build_cache(directory: Path) -> None:
+    """Retain the exact inputs recorded by all three successful platform builds."""
+    from desktop_base_cache import cache_tag
+
+    targets = {"windows-x86_64", "linux-x86_64", "macos-arm64"}
+    seen: set[str] = set()
+    keep: set[str] = set()
+    for path in sorted(directory.glob("cache-plan-*.json")):
+        plan = read_json(path)
+        target = plan["target"]
+        if plan["schema"] != 1 or target not in targets or target in seen:
+            raise ManifestError("Invalid platform build-cache plan")
+        seen.add(target)
+        required = {"runtime", "inference-cpu", "models", "maintenance"}
+        required |= {"base"} if target.startswith("macos-") else {"inference-gpu"}
+        if set(plan["keys"]) != required:
+            raise ManifestError("Incomplete platform build-cache inputs")
+        for name, key in plan["keys"].items():
+            if not isinstance(key, str) or not re.fullmatch(r"[0-9a-f]{64}", key):
+                raise ManifestError("Invalid build-cache input identity")
+            keep.add(cache_tag(name, "any-any" if name == "models" else target, key))
+    if seen != targets:
+        raise ManifestError("Build-cache cleanup requires all three platform plans")
+    pattern = re.compile(
+        r"desktop-base-(?:windows-x86_64|linux-x86_64|macos-arm64|any-any)-"
+        r"(?:runtime|maintenance|models|inference-cpu|inference-gpu|base)-[0-9a-f]{64}"
+    )
+    for page in github_api(f"{RELEASES}?per_page=100", paginate=True):
+        for release in page:
+            tag = release["tag_name"]
+            if release["draft"] and pattern.fullmatch(tag) and tag not in keep:
+                github_api(f"{RELEASES}/{release['id']}", method="DELETE")
+                print(f"Removed obsolete build-cache draft: {tag}")
+
+
 def upload_desktop_assets(directory: Path, release_id: int) -> None:
     from urllib.parse import unquote, urlsplit
 
@@ -231,6 +267,8 @@ if __name__ == "__main__":
     publish.add_argument("--version", required=True)
     publish.add_argument("--tag", required=True)
     publish.add_argument("--release-id", type=int, required=True)
+    prune = commands.add_parser("prune-cache")
+    prune.add_argument("--directory", type=Path, required=True)
     arguments = parser.parse_args()
     if arguments.command == "prepare":
         release_id = prepare_release(arguments.tag, arguments.target)
@@ -240,6 +278,8 @@ if __name__ == "__main__":
                 output.write(f"release_id={release_id}\n")
     elif arguments.command == "upload":
         upload_assets(arguments.release_id, arguments.files)
+    elif arguments.command == "prune-cache":
+        prune_build_cache(arguments.directory)
     else:
         publish_release(
             arguments.directory, arguments.version, arguments.tag, arguments.release_id

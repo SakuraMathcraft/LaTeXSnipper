@@ -9,7 +9,12 @@ from pathlib import Path
 import requests
 
 from runtime.distribution_manifest import Artifact, ManifestError, ReleaseCatalog
-from update.component_download import DownloadControl, download_component
+from update.component_download import (
+    DOWNLOAD_CACHE_LOCK,
+    DownloadControl,
+    discard_download,
+    download_component,
+)
 
 REPOSITORY = "SakuraMathcraft/LaTeXSnipper"
 RELEASE_API = f"https://api.github.com/repos/{REPOSITORY}/releases/latest"
@@ -118,9 +123,14 @@ def fetch_component_release(
             raise ManifestError(
                 "Release does not contain a valid desktop component catalog"
             )
-        catalog = ReleaseCatalog.load(
-            download_component(source, cache, control=control, session=session)
-        )
+        with DOWNLOAD_CACHE_LOCK:
+            archive = download_component(
+                source, cache, control=control, session=session
+            )
+            try:
+                catalog = ReleaseCatalog.load(archive)
+            finally:
+                discard_download(archive)
         if payload["tag_name"] not in {
             f"v{catalog.version}",
             f"v{catalog.version}-LTS",

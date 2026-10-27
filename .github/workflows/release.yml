@@ -11,10 +11,6 @@ on:
         description: "Publish installers and application update resources"
         type: boolean
         default: false
-      validate_gpu:
-        description: "Run CUDA hardware checks on configured self-hosted runners"
-        type: boolean
-        default: false
 
 permissions:
   actions: read
@@ -198,48 +194,21 @@ jobs:
         if: needs.prepare-release.outputs.publish == 'true'
         with:
           name: release-metadata-${{ matrix.system }}
-          path: dist/desktop/distribution-*.json
+          path: |
+            dist/desktop/distribution-*.json
+            dist/desktop/cache-plan-*.json
           if-no-files-found: error
       - uses: actions/upload-artifact@v7
-        if: needs.prepare-release.outputs.publish != 'true' || inputs.validate_gpu
+        if: needs.prepare-release.outputs.publish != 'true'
         with:
           name: desktop-${{ matrix.system }}
           path: dist/desktop/**
           if-no-files-found: error
           compression-level: 0
 
-  gpu:
-    if: inputs.validate_gpu
-    needs: [desktop, prepare-release]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {system: windows, runner: '["self-hosted", "Windows", "X64", "cuda"]'}
-          - {system: linux, runner: '["self-hosted", "Linux", "X64", "cuda"]'}
-    runs-on: ${{ fromJSON(matrix.runner) }}
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with: {python-version: "${{ needs.prepare-release.outputs.python }}"}
-      - run: python -m pip install -c requirements.txt requests Pillow
-      - uses: actions/download-artifact@v7
-        with: {name: 'desktop-${{ matrix.system }}', path: build/gpu-release}
-      - name: Real CUDA recognition and loaded-library audit
-        run: python scripts/validate_desktop_release.py --directory build/gpu-release --gpu --output build/gpu-acceptance.json
-      - uses: actions/upload-artifact@v7
-        with:
-          name: gpu-validation-${{ matrix.system }}
-          path: build/gpu-acceptance.json
-          if-no-files-found: error
-
   publish-release-assets:
-    needs: [prepare-release, desktop, gpu, build-office-plugin-installer, build-user-manual]
-    if: >-
-      always() && needs.prepare-release.outputs.publish == 'true' &&
-      needs.desktop.result == 'success' &&
-      (needs.gpu.result == 'success' || needs.gpu.result == 'skipped') &&
-      needs.build-office-plugin-installer.result == 'success' && needs.build-user-manual.result == 'success'
+    needs: [prepare-release, desktop, build-office-plugin-installer, build-user-manual]
+    if: needs.prepare-release.outputs.publish == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
@@ -251,6 +220,76 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python -X utf8 scripts/release_artifacts.py publish --release-id "${{ needs.prepare-release.outputs.release_id }}" --tag "$RELEASE_TAG" --version "$(cat VERSION)" --directory release-metadata
+      - name: Remove obsolete build-cache drafts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python -X utf8 scripts/release_artifacts.py prune-cache --directory release-metadata
+
+  installed-desktop:
+    permissions:
+      contents: read
+    if: >-
+      !cancelled() && needs.publish-release-assets.result == 'success'
+    needs: [prepare-release, publish-release-assets]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {system: windows, session: native, runner: windows-2025}
+          - {system: linux, session: x11, runner: ubuntu-22.04}
+          - {system: linux, session: wayland, runner: ubuntu-26.04}
+          - {system: macos, session: native, runner: macos-15}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with: {python-version: "${{ needs.prepare-release.outputs.python }}"}
+      - run: python -m pip install -c requirements.txt requests Pillow psutil
+      - name: Authenticate release metadata requests
+        shell: python
+        env:
+          RELEASE_TOKEN: ${{ github.token }}
+        run: |
+          import os
+          from pathlib import Path
+          path = Path(os.environ['RUNNER_TEMP']) / 'latexsnipper-release.netrc'
+          path.write_text('machine api.github.com\nlogin x-access-token\npassword ' + os.environ['RELEASE_TOKEN'] + '\n', encoding='utf-8', newline='\n')
+          path.chmod(0o600)
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as output:
+              output.write(f'NETRC={path}\n')
+      - uses: ./.github/actions/desktop-system-libraries
+        if: matrix.session == 'x11'
+      - name: Install Wayland desktop and portal
+        if: matrix.session == 'wayland'
+        run: |
+          sudo apt-get update
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y kwin-wayland xwayland xdg-desktop-portal xdg-desktop-portal-kde qt6-wayland python3-pyatspi at-spi2-core qml6-module-org-kde-kcmutils qml6-module-org-kde-kquickcontrols qml6-module-qt5compat-graphicaleffects
+      - name: Accept installed hotkeys and update under Wayland
+        if: matrix.session == 'wayland'
+        run: sudo env GITHUB_ACTIONS=true PATH="$PATH" NETRC="$NETRC" python -X utf8 scripts/wayland_acceptance.py -- python -X utf8 scripts/validate_desktop_release.py --release-tag "$RELEASE_TAG" --update --output build/update-acceptance.json
+      - name: Accept installed hotkeys and update
+        if: runner.os != 'Linux'
+        run: python -X utf8 scripts/validate_desktop_release.py --release-tag "${{ env.RELEASE_TAG }}" --update --output build/update-acceptance.json
+      - name: Accept installed hotkeys and update under X11
+        if: matrix.session == 'x11'
+        run: dbus-run-session -- xvfb-run -a python -X utf8 scripts/validate_desktop_release.py --release-tag "$RELEASE_TAG" --update --output build/update-acceptance.json
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: installed-desktop-${{ matrix.system }}-${{ matrix.session }}
+          path: |
+            build/update-acceptance.json
+            build/update-diagnostics/**
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Remove acceptance credentials
+        if: always()
+        shell: python
+        run: |
+          import os
+          from pathlib import Path
+          (Path(os.environ['RUNNER_TEMP']) / 'latexsnipper-release.netrc').unlink(missing_ok=True)
 
   build-office-plugin-installer:
     needs: prepare-release

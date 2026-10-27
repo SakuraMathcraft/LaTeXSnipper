@@ -199,7 +199,8 @@ def test_session_capture_requires_instance_lock(monkeypatch):
     monkeypatch.setattr(
         bootstrap, "start_runtime_log_session", lambda: events.append("session")
     )
-    monkeypatch.setattr(bootstrap, "_show_already_running_message", lambda app: None)
+    monkeypatch.setattr(bootstrap, "activate_running_instance", lambda: None)
+    monkeypatch.setattr(bootstrap, "start_instance_activation", lambda app: None)
     monkeypatch.setattr(bootstrap, "ensure_single_instance", lambda: False)
     with pytest.raises(SystemExit):
         bootstrap._ensure_single_instance(None)

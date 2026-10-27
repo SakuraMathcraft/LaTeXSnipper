@@ -74,6 +74,7 @@ def launch_installed(root: Path) -> None:
         _start_updater(copy, request, elevated=elevated)
         subprocess.Popen(
             [str(copy), "--watch", str(request)],
+            cwd=directory,
             env=independent_process_environment(),
             **hidden_subprocess_kwargs(),
         )
@@ -83,7 +84,7 @@ def launch_installed(root: Path) -> None:
     target = resources.resource("runtime", executable)
     subprocess.Popen(
         [str(target), *sys.argv[1:]],
-        cwd=root / "application",
+        cwd=deployment_write_root(root, system),
         env=independent_process_environment(),
         **hidden_subprocess_kwargs(),
     )
@@ -151,6 +152,7 @@ def _start_updater(
     elif elevated and sys.platform == "linux":
         return subprocess.Popen(
             ["pkexec", str(executable), *arguments],
+            cwd=executable.parent,
             env=independent_process_environment(),
             **hidden_subprocess_kwargs(),
         )
@@ -166,12 +168,14 @@ def _start_updater(
                 "-e",
                 f'do shell script "{escaped}" with administrator privileges',
             ],
+            cwd=executable.parent,
             env=independent_process_environment(),
             **hidden_subprocess_kwargs(),
         )
     else:
         return subprocess.Popen(
             [str(executable), *arguments],
+            cwd=executable.parent,
             env=independent_process_environment(),
             **hidden_subprocess_kwargs(),
         )
@@ -235,14 +239,15 @@ def launch_deployment(resources: InstalledResources, staged: Path) -> Path:
     try:
         watcher = subprocess.Popen(
             [str(executable), "--watch", str(request)],
+            cwd=directory,
             env=independent_process_environment(),
             **hidden_subprocess_kwargs(),
         )
         atomic_json(directory / "watcher.json", {"pid": watcher.pid})
         process = _start_updater(executable, request, elevated=elevated)
-        if process is not None:
 
-            def monitor():
+        def monitor():
+            if process is not None:
                 code = process.wait()
                 status = directory / "deployment-result.json"
                 if code and directory.exists():
@@ -262,10 +267,10 @@ def launch_deployment(resources: InstalledResources, staged: Path) -> Path:
                             )
                     except (OSError, ValueError):
                         logger.exception("记录独立更新进程退出失败")
+            watcher.wait()
+            retire_deployment(request)
 
-            threading.Thread(
-                target=monitor, name="deployment-monitor", daemon=True
-            ).start()
+        threading.Thread(target=monitor, name="deployment-monitor", daemon=True).start()
     except Exception as exc:
         (directory / "cancel").touch()
         atomic_json(

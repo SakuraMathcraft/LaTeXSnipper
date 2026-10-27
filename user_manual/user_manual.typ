@@ -667,14 +667,7 @@ X11 使用 pynput 监听全局热键。Wayland 使用桌面提供的 GlobalShort
 
 Wayland 的截图仍受合成器策略限制；应用先尝试 Qt 截图，可使用可用的 `grim`、`maim`、`gnome-screenshot` 等后备工具。这些系统工具由用户或发行版安装。
 
-出现 EGL、GLOzone 或 WebEngine 画面异常时，先检查桌面会话和系统图形库。应用对 Wayland、虚拟机、WSL 等高风险会话启用软件图形后备；可用以下变量手动控制：
-
-```bash
-LATEXSNIPPER_FORCE_LINUX_GRAPHICS_FALLBACKS=1 latexsnipper
-LATEXSNIPPER_DISABLE_LINUX_GRAPHICS_FALLBACKS=1 latexsnipper
-```
-
-这是预览图形后端设置，不改变 MathCraft 推理发行类型。Linux 安装依赖必要的系统 Qt 图形库，但不使用系统 Python、CUDA Toolkit 或 cuDNN。
+Linux 安装依赖必要的系统 Qt 图形库，但不使用系统 Python、CUDA Toolkit 或 cuDNN。
 
 == macOS 屏幕录制权限
 
@@ -2021,4 +2014,4 @@ Linux/macOS：
 MATHCRAFT_HOME=./models python -m mathcraft_ocr doctor --provider cpu
 ```
 
-网络代理 `HTTP_PROXY`、`HTTPS_PROXY` 可作用于应用下载和外部服务。Linux 预览图形变量 `LATEXSNIPPER_FORCE_LINUX_GRAPHICS_FALLBACKS` 与 `LATEXSNIPPER_DISABLE_LINUX_GRAPHICS_FALLBACKS` 只影响 Qt 图形后端，具体用法见平台章节。排障时优先使用应用诊断中的实际版本、提供者与日志。
+网络代理 `HTTP_PROXY`、`HTTPS_PROXY` 可作用于应用下载和外部服务。排障时优先使用应用诊断中的实际版本、提供者与日志。

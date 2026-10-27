@@ -8,6 +8,7 @@ import sys
 CONFIG_FILENAME = "LaTeXSnipper_config.json"
 APP_STATE_DIRNAME = ".latexsnipper"
 APP_NAME = "LaTeXSnipper"
+APP_DESKTOP_ID = "latexsnipper"
 APP_SUPPORT_NAME = APP_NAME
 
 _APP_LOG_DIR_CACHE: pathlib.Path | None = None

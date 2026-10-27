@@ -13,7 +13,12 @@ from runtime.component_archive import extract_archive
 from runtime.distribution_manifest import DistributionManifest, ManifestError
 from runtime.installation_layout import installation_manifest
 from runtime.installed_resources import current_target
-from update.component_download import DownloadControl, download_component
+from update.component_download import (
+    DOWNLOAD_CACHE_LOCK,
+    DownloadControl,
+    discard_download,
+    download_component,
+)
 from update.component_plan import ComponentUpdatePlan, plan_component_update
 
 
@@ -67,17 +72,23 @@ def prepare_components(
                 if progress:
                     progress(name, done, total)
 
-            archive = download_component(
-                component.artifact,
-                cache,
-                control=control,
-                progress=report,
-                cache_key=component.cache_key,
-            )
-            control.checkpoint()
-            if status:
-                status("verifying", component.name)
-            extract_archive(archive, staging / component.name, component=component)
+            with DOWNLOAD_CACHE_LOCK:
+                archive = download_component(
+                    component.artifact,
+                    cache,
+                    control=control,
+                    progress=report,
+                    cache_key=component.cache_key,
+                )
+                try:
+                    control.checkpoint()
+                    if status:
+                        status("verifying", component.name)
+                    extract_archive(
+                        archive, staging / component.name, component=component
+                    )
+                finally:
+                    discard_download(archive)
         control.checkpoint()
         manifest = staging / "distribution.json"
         with manifest.open("w", encoding="utf-8", newline="\n") as stream:

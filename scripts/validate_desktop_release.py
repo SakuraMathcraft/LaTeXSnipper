@@ -1,4 +1,4 @@
-"""Validate actual native installers and hardware-backed recognition in release CI."""
+"""Validate native installers and installed update handoffs in release CI."""
 
 from __future__ import annotations
 
@@ -83,27 +83,18 @@ def validate_recognition(
             "Recognition validation received an incomplete worker protocol"
         )
     reports = {}
-    provider = (
-        "CUDAExecutionProvider" if manifest.edition == "gpu" else "CPUExecutionProvider"
-    )
     for request, line in zip(requests, lines, strict=False):
         response = validate_response(json.loads(line), request["id"])
         if not response["ok"]:
             raise ManifestError(f"Release recognition failed: {response.get('error')}")
         report = response["result"]
-        if not report.get("text", "").strip() or report.get("provider") != provider:
+        if (
+            not report.get("text", "").strip()
+            or report.get("provider") != "CPUExecutionProvider"
+        ):
             raise ManifestError(
                 "Recognition did not produce text on the required execution provider"
             )
-        if manifest.edition == "gpu":
-            native = report.get("native_modules", {})
-            if not native or any(
-                not Path(path).resolve().is_relative_to(root / "inference/native")
-                for path in native.values()
-            ):
-                raise ManifestError(
-                    "CUDA recognition did not use the complete private native runtime"
-                )
         reports[request["action"]] = report
     return reports
 
@@ -170,7 +161,8 @@ def native_acceptance(
     work: Path,
     targets: list[DistributionManifest],
     *,
-    gpu: bool = False,
+    update: bool = False,
+    diagnostics: Path | None = None,
 ) -> dict:
     reports = {}
     root = None
@@ -186,6 +178,14 @@ def native_acceptance(
                 )
             verify_distribution(root, target)
             validate_installed_worker(root, target)
+            if update:
+                from installed_update_acceptance import validate_running_update
+
+                assert diagnostics is not None
+                reports[target.edition] = validate_running_update(
+                    root, target, work, diagnostics
+                )
+                continue
             resources = InstalledResources(root, installed)
             retained = resources.resource("inference", "runtime.json").read_bytes()
             staged = work / f"business-{target.edition}"
@@ -244,7 +244,7 @@ def native_acceptance(
                 report["application"] = json.loads(
                     validation.read_text(encoding="utf-8")
                 )
-            if target.edition == "cpu" or gpu:
+            if target.edition == "cpu":
                 report["recognition"] = validate_recognition(root, target, work)
             reports[target.edition] = report
     finally:
@@ -286,21 +286,32 @@ def native_acceptance(
                 if (root / name).exists()
             ]
             if remaining or installation_manifest(root, system).exists():
+                residue = [
+                    str(path.relative_to(root))
+                    for name in remaining
+                    for path in (root / name).rglob("*")
+                    if path.is_file() or path.is_symlink()
+                ]
+                if diagnostics is not None:
+                    atomic_json(
+                        diagnostics / "uninstall-residue.json", {"paths": residue}
+                    )
                 raise ManifestError(
-                    f"Uninstall left owned installation resources: {remaining}"
+                    f"Uninstall left owned installation resources: {remaining}; files: {residue}"
                 )
     return reports
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--directory", type=Path, required=True)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--directory", type=Path)
+    source.add_argument("--release-tag")
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--gpu", action="store_true")
+    parser.add_argument("--update", action="store_true")
     args = parser.parse_args()
     if os.environ.get("GITHUB_ACTIONS") != "true":
         raise ManifestError("Native installer acceptance must run in GitHub Actions")
-    directory = args.directory.resolve(strict=True)
     system, architecture = current_target()
     if system == "linux" and os.geteuid() != 0:
         subprocess.run(
@@ -308,36 +319,71 @@ def main() -> None:
                 "sudo",
                 "env",
                 "GITHUB_ACTIONS=true",
+                *(
+                    f"{key}={os.environ[key]}"
+                    for key in (
+                        "DISPLAY",
+                        "XAUTHORITY",
+                        "DBUS_SESSION_BUS_ADDRESS",
+                        "NETRC",
+                    )
+                    if key in os.environ
+                ),
                 sys.executable,
                 "-X",
                 "utf8",
                 str(Path(__file__).resolve()),
-                "--directory",
-                str(directory),
+                *(
+                    ["--directory", str(args.directory.resolve(strict=True))]
+                    if args.directory
+                    else ["--release-tag", args.release_tag]
+                ),
                 "--output",
                 str(args.output.resolve()),
-                *(["--gpu"] if args.gpu else []),
+                *(["--update"] if args.update else []),
             ],
             check=True,
         )
         return
-    targets = [
-        DistributionManifest.load(path)
-        for path in sorted(
-            directory.glob(f"distribution-{system}-{architecture}-*.json")
-        )
-    ]
-    if not targets:
-        raise ManifestError("No matching native release targets")
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="release-acceptance-") as temporary:
-        work = Path(temporary)
-        if args.gpu:
-            (target,) = (item for item in targets if item.edition == "gpu")
-            result = {
-                "gpu_hardware_validated": True,
-                "result": native_acceptance(directory, work, [target], gpu=True),
-            }
+        work = Path(temporary).resolve()
+        if args.release_tag:
+            if not args.update:
+                raise ManifestError("Published release acceptance requires --update")
+            from update.component_download import download_component
+            from update.component_release import fetch_component_release
+
+            release = fetch_component_release(work / "downloads", tag=args.release_tag)
+            target = release.catalog.select(system, architecture, "cpu")
+            if target.installer is None:
+                raise ManifestError("Release has no CPU installer")
+            directory = work / "carriers"
+            directory.mkdir()
+            shutil.move(
+                download_component(target.installer, work / "downloads"),
+                archive_path(directory, target.installer.url),
+            )
+            targets = [target]
+        else:
+            directory = args.directory.resolve(strict=True)
+            targets = [
+                DistributionManifest.load(path)
+                for path in sorted(
+                    directory.glob(f"distribution-{system}-{architecture}-*.json")
+                )
+            ]
+            if not targets:
+                raise ManifestError("No matching native release targets")
+        if args.update:
+            (target,) = (item for item in targets if item.edition == "cpu")
+            result = native_acceptance(
+                directory,
+                work,
+                [target],
+                update=True,
+                diagnostics=args.output.parent / "update-diagnostics",
+            )
         else:
             result = native_acceptance(directory, work, targets)
     atomic_json(

@@ -233,7 +233,14 @@ def test_portal_wire_messages_authorization_activation_and_cleanup(
             decoded = parser.get_next_message()
             assert decoded.body == message.body
             member = message.header.fields[dbus.HeaderFields.member]
-            if member == "AddMatch":
+            if member == "Register":
+                assert (
+                    message.header.fields[dbus.HeaderFields.interface]
+                    == "org.freedesktop.host.portal.Registry"
+                )
+                assert message.body == (linux_hotkeys.APP_DESKTOP_ID, {})
+                reply = dbus.new_method_return(message)
+            elif member == "AddMatch":
                 reply = dbus.new_method_return(message)
             else:
                 options = message.body[-1]

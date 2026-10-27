@@ -7,6 +7,9 @@ case "$1" in
         if [ "${LATEXSNIPPER_DEPLOYMENT_ACTIVE:-}" != 1 ]; then
             rm -rf /usr/lib/latexsnipper/.deployment
             rm -f /usr/lib/latexsnipper/.deployment.lock
+            if [ -d /usr/lib/latexsnipper ]; then
+                find /usr/lib/latexsnipper -depth -type d -empty -delete
+            fi
         fi
         if command -v update-desktop-database >/dev/null 2>&1; then
             update-desktop-database -q /usr/share/applications || true

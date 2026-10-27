@@ -68,7 +68,10 @@ class ComponentUpdateController(QObject):
                     self._closed or result[0] in {"failed", "cancelled"}
                 ):
                     self._retire_request()
-                if self._closed and self._request is None:
+                if self._request is None and (
+                    self._closed
+                    or (state != "handoff" and result[0] in {"failed", "cancelled"})
+                ):
                     self._cleanup()
                 self.busy = False
             self._emit(result[0], result[1])

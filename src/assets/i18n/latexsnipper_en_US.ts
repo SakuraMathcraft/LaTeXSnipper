@@ -146,11 +146,6 @@
       <translation>LaTeXSnipper - Capture shortcut: {hotkey} | {display}</translation>
     </message>
     <message>
-      <location filename="../../../src/application/bootstrap.py" line="59" />
-      <source>LaTeXSnipper 已在运行。</source>
-      <translation>LaTeXSnipper is already running.</translation>
-    </message>
-    <message>
       <location filename="../../../src/capture/overlay.py" line="110" />
       <source>LaTeXSnipper 截图识别</source>
       <translation>LaTeXSnipper Capture</translation>
@@ -388,7 +383,7 @@ Check App diagnostics. For an installed app, rerun the complete installer. When 
       <translation>Shift to switch format</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/hotkeys/qhotkey_linux.py" line="206" />
+      <location filename="../../../src/platform_services/hotkeys/qhotkey_linux.py" line="207" />
       <source>Wayland 全局快捷键不可用：{error}</source>
       <translation>Wayland global shortcut unavailable: {error}</translation>
     </message>
@@ -426,7 +421,7 @@ Make sure PyQtWebEngine is installed.</translation>
       <translation>WebEngine is unavailable; preview is disabled.</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/hotkeys/qhotkey_linux.py" line="219" />
+      <location filename="../../../src/platform_services/hotkeys/qhotkey_linux.py" line="220" />
       <source>X11 快捷键监听已停止，请重新设置快捷键。</source>
       <translation>The X11 shortcut listener stopped. Please set the shortcut again.</translation>
     </message>
@@ -486,13 +481,13 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Next</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="88" />
+      <location filename="../../../src/update/update_dialog.py" line="89" />
       <source>下载已暂停。</source>
       <translation>Download paused.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="55" />
-      <location filename="../../../src/update/update_dialog.py" line="109" />
+      <location filename="../../../src/update/update_dialog.py" line="56" />
+      <location filename="../../../src/update/update_dialog.py" line="110" />
       <source>下载更新</source>
       <translation>Download update</translation>
     </message>
@@ -507,7 +502,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>This image encoding is unsupported.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="89" />
+      <location filename="../../../src/update/update_dialog.py" line="90" />
       <source>业务包已校验完成。安装时应用将退出并自动重新打开。</source>
       <translation>The application package is verified. The app will close during installation and reopen automatically.</translation>
     </message>
@@ -732,7 +727,7 @@ Retry with the {hotkey} shortcut.</translation>
       <location filename="../../../src/ui/pdf_result_window.py" line="74" />
       <location filename="../../../src/ui/runtime_log_dialog.py" line="53" />
       <location filename="../../../src/ui/settings_external_help.py" line="104" />
-      <location filename="../../../src/update/update_dialog.py" line="63" />
+      <location filename="../../../src/update/update_dialog.py" line="64" />
       <source>关闭</source>
       <translation>Close</translation>
     </message>
@@ -749,7 +744,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Close Window</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="189" />
+      <location filename="../../../src/update/update_dialog.py" line="192" />
       <source>关闭窗口会暂停下载并保留进度，下次可继续。是否关闭？</source>
       <translation>Closing this window pauses the download and keeps your progress so you can resume later. Close this window?</translation>
     </message>
@@ -823,9 +818,9 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Load Failed</translation>
     </message>
     <message>
-      <location filename="../../../src/application/app_runner.py" line="35" />
-      <location filename="../../../src/application/app_runner.py" line="88" />
-      <location filename="../../../src/application/bootstrap.py" line="93" />
+      <location filename="../../../src/application/app_runner.py" line="37" />
+      <location filename="../../../src/application/app_runner.py" line="96" />
+      <location filename="../../../src/application/bootstrap.py" line="75" />
       <source>加载界面组件...</source>
       <translation>Loading interface components...</translation>
     </message>
@@ -860,9 +855,9 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Report an issue</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="59" />
-      <location filename="../../../src/update/update_dialog.py" line="152" />
-      <location filename="../../../src/update/update_dialog.py" line="51" />
+      <location filename="../../../src/update/update_dialog.py" line="60" />
+      <location filename="../../../src/update/update_dialog.py" line="153" />
+      <location filename="../../../src/update/update_dialog.py" line="52" />
       <source>发布页面</source>
       <translation>Release page</translation>
     </message>
@@ -1299,7 +1294,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Capture canceled</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/hotkeys/qhotkey_linux.py" line="204" />
+      <location filename="../../../src/platform_services/hotkeys/qhotkey_linux.py" line="205" />
       <source>已取消系统快捷键授权。</source>
       <translation>System shortcut authorization was cancelled.</translation>
     </message>
@@ -1431,7 +1426,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Redone</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="132" />
+      <location filename="../../../src/update/update_dialog.py" line="133" />
       <source>应用</source>
       <translation>Application</translation>
     </message>
@@ -1442,7 +1437,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>App updates</translation>
     </message>
     <message>
-      <location filename="../../../src/application/app_runner.py" line="59" />
+      <location filename="../../../src/application/app_runner.py" line="61" />
       <source>应用更新已完成。</source>
       <translation>App update completed.</translation>
     </message>
@@ -1453,8 +1448,8 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>App diagnostics</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="174" />
-      <location filename="../../../src/update/update_dialog.py" line="159" />
+      <location filename="../../../src/update/update_dialog.py" line="175" />
+      <location filename="../../../src/update/update_dialog.py" line="160" />
       <source>应用退出服务不可用，安装未开始。</source>
       <translation>App shutdown is unavailable. Installation has not started.</translation>
     </message>
@@ -1520,7 +1515,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>A recognition task is already running. Please wait.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="124" />
+      <location filename="../../../src/update/update_dialog.py" line="125" />
       <source>当前应用已是最新版本。</source>
       <translation>The application is up to date.</translation>
     </message>
@@ -1571,7 +1566,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>There is no history to clear</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="38" />
+      <location filename="../../../src/update/update_dialog.py" line="39" />
       <source>当前版本: {version}</source>
       <translation>Current version: {version}</translation>
     </message>
@@ -1671,7 +1666,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Capture permission was denied</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/hotkeys/qhotkey_linux.py" line="174" />
+      <location filename="../../../src/platform_services/hotkeys/qhotkey_linux.py" line="175" />
       <location filename="../../../src/ui/main_window_layout.py" line="25" />
       <source>截图识别</source>
       <translation>Capture &amp; Recognize</translation>
@@ -1972,13 +1967,13 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Show Main Window</translation>
     </message>
     <message>
-      <location filename="../../../src/application/app_runner.py" line="37" />
+      <location filename="../../../src/application/app_runner.py" line="39" />
       <source>显示主窗口...</source>
       <translation>Showing main window...</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="57" />
-      <location filename="../../../src/update/update_dialog.py" line="103" />
+      <location filename="../../../src/update/update_dialog.py" line="58" />
+      <location filename="../../../src/update/update_dialog.py" line="104" />
       <source>暂停</source>
       <translation>Pause</translation>
     </message>
@@ -1988,17 +1983,17 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Updating; waiting for the current recognition task to finish...</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="93" />
+      <location filename="../../../src/update/update_dialog.py" line="94" />
       <source>更新失败：{error}</source>
       <translation>Update failed: {error}</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="92" />
+      <location filename="../../../src/update/update_dialog.py" line="93" />
       <source>更新已取消，当前安装未改变。</source>
       <translation>Update cancelled. The current installation is unchanged.</translation>
     </message>
     <message>
-      <location filename="../../../src/application/app_runner.py" line="62" />
+      <location filename="../../../src/application/app_runner.py" line="64" />
       <source>更新未完成，已恢复更新前的安装状态。{error}</source>
       <translation>Update did not complete. The previous installation state was restored. {error}</translation>
     </message>
@@ -2218,7 +2213,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Welcome. Make working with formulas simpler.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="86" />
+      <location filename="../../../src/update/update_dialog.py" line="87" />
       <source>正在下载应用业务包。</source>
       <translation>Downloading the application package.</translation>
     </message>
@@ -2233,7 +2228,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Repairing model cache</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="90" />
+      <location filename="../../../src/update/update_dialog.py" line="91" />
       <source>正在准备独立安装进程；如有系统权限提示，请完成授权。</source>
       <translation>Preparing installation. Authorize the system permission prompt if one appears.</translation>
     </message>
@@ -2263,12 +2258,12 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Exporting {format}...</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="87" />
+      <location filename="../../../src/update/update_dialog.py" line="88" />
       <source>正在校验并暂存业务包，当前安装仍可使用。</source>
       <translation>Verifying and staging the application package. The current installation remains usable.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="85" />
+      <location filename="../../../src/update/update_dialog.py" line="86" />
       <source>正在检查应用更新，请稍候。</source>
       <translation>Checking for application updates. Please wait.</translation>
     </message>
@@ -2278,7 +2273,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Registering the global shortcut. Complete any system authorization prompt.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="51" />
+      <location filename="../../../src/update/update_dialog.py" line="52" />
       <source>正在获取发布说明。</source>
       <translation>Loading release notes.</translation>
     </message>
@@ -2315,17 +2310,17 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Reading runtime information. Please wait.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="91" />
+      <location filename="../../../src/update/update_dialog.py" line="92" />
       <source>正在退出应用并安装已校验的业务包。</source>
       <translation>Closing the app and installing the verified application package.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="150" />
+      <location filename="../../../src/update/update_dialog.py" line="151" />
       <source>此版本未提供发布说明。</source>
       <translation>No release notes were provided for this version.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="116" />
+      <location filename="../../../src/update/update_dialog.py" line="117" />
       <source>此版本需要新的固定底座，请从发布页面下载并运行对应的完整安装包。</source>
       <translation>This version requires a new fixed runtime base. Download and run the matching complete installer from the release page.</translation>
     </message>
@@ -2461,7 +2456,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The source desktop app uses the default MathCraft cache and verifies weights against the model manifest before loading.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="82" />
+      <location filename="../../../src/update/update_dialog.py" line="83" />
       <source>源码运行使用开发者环境，请通过源码更新；安装包可在发布页面获取。</source>
       <translation>Source mode uses your development environment. Update the source or obtain an installer from the release page.</translation>
     </message>
@@ -2496,7 +2491,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Bind address</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="128" />
+      <location filename="../../../src/update/update_dialog.py" line="129" />
       <source>目标版本 {version}；需要更新：{components}；下载约 {size:.1f} MB。</source>
       <translation>Version {version}; components: {components}; download: about {size:.1f} MB.</translation>
     </message>
@@ -2529,7 +2524,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Confirm</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="188" />
+      <location filename="../../../src/update/update_dialog.py" line="191" />
       <source>确认关闭</source>
       <translation>Confirm close</translation>
     </message>
@@ -2610,7 +2605,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The result was inserted into the main window. The handwriting content was preserved.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="103" />
+      <location filename="../../../src/update/update_dialog.py" line="104" />
       <source>继续</source>
       <translation>Resume</translation>
     </message>
@@ -3120,7 +3115,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Quit LaTeXSnipper</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="105" />
+      <location filename="../../../src/update/update_dialog.py" line="106" />
       <source>退出并安装</source>
       <translation>Exit and install</translation>
     </message>
@@ -3225,7 +3220,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Restart LaTeXSnipper to apply the language change.</translation>
     </message>
     <message>
-      <location filename="../../../src/update/update_dialog.py" line="107" />
+      <location filename="../../../src/update/update_dialog.py" line="108" />
       <source>重新检查</source>
       <translation>Check Again</translation>
     </message>

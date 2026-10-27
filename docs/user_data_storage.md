@@ -33,9 +33,9 @@ opening or closing the window does not activate or stop logging.
 
 | Data | Path under app cache | Owner |
 |---|---|---|
-| Business package downloads | `components/<content-identity>/payload` and `payload.part` | Business package downloader; length and SHA256 checked before reuse, interrupted downloads retained for resume |
-| Update staging | `component-update-*` | Update controller; private verified business-package staging, removed on cancellation/close or after deployment feedback |
-| Deployment handoff | `deployment-*`, `recovery-*` | Independent helper and unelevated watcher; request/result files removed after feedback or failed-handoff cleanup |
+| Business package downloads | `components/<content-identity>/payload` and `payload.part` | Length and SHA256 checked; complete downloads removed after consumption, interrupted downloads retained for up to seven days since their last use |
+| Update staging | `component-update-*` | Private verified business-package staging; removed on failure, cancellation, close or completed deployment; abandoned directories older than one day are reclaimed after startup |
+| Deployment handoff | `deployment-*`, `recovery-*` | Independent helper and unelevated watcher; finished tasks are removed after both helpers exit, with a startup sweep for leftovers |
 
 ## Installation Resources
 
@@ -73,10 +73,16 @@ library also supports its explicit cache argument and `MATHCRAFT_HOME`;
 source desktop workers explicitly use the platform default cache regardless
 of that override. Packaged desktop workers do not use this cache.
 
-Business payload caches use platform/architecture/variant/identity
-and validate size and SHA256 before reuse. Interrupted transfers retain `.part`
-files. Update staging is separate from the installed components and is removed
-after its task finishes; payload caches remain available for verified reuse.
+Business payload downloads use platform/architecture/variant/identity and
+validate size and SHA256 before use. Catalog files are released after parsing,
+and complete business archives after extraction. Interrupted transfers retain
+`.part` files for resume; requesting them renews their seven-day retention.
+Startup cleanup runs in the background and removes unused complete downloads,
+expired partial downloads and finished deployment tasks. Live helpers and tasks
+with an unfinished installation transaction are preserved. Unreferenced staging
+and handoff directories older than one day are reclaimed; cleanup failures are
+retried on a later startup. Installed components and user-selected outputs are
+outside this cleanup scope.
 
 ## Temporary Files And Caches
 

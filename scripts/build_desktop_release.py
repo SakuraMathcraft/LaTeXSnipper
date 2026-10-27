@@ -469,6 +469,7 @@ def package(args) -> None:
     editions = ("cpu", "gpu") if system != "macos" else ("cpu",)
     with ThreadPoolExecutor(max_workers=len(editions)) as packagers:
         list(packagers.map(package_edition, editions))
+    shutil.copy2(args.plan, output / f"cache-plan-{system}.json")
 
 
 def main() -> None:
