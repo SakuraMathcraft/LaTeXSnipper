@@ -304,7 +304,7 @@ jobs:
         if: matrix.session == 'wayland'
         run: |
           sudo apt-get update
-          sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y kwin-wayland xwayland xdg-desktop-portal xdg-desktop-portal-kde qt6-wayland python3-pyatspi at-spi2-core qml6-module-org-kde-kcmutils qml6-module-org-kde-kquickcontrols
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y kwin-wayland xwayland xdg-desktop-portal xdg-desktop-portal-kde qt6-wayland python3-pyatspi at-spi2-core qml6-module-org-kde-kcmutils qml6-module-org-kde-kquickcontrols qml6-module-qt5compat-graphicaleffects
       - name: Accept installed hotkeys and update under Wayland
         if: matrix.session == 'wayland'
         run: sudo env GITHUB_ACTIONS=true PATH="$PATH" NETRC="$NETRC" python -X utf8 scripts/wayland_acceptance.py -- python -X utf8 scripts/validate_desktop_release.py --release-tag "$RELEASE_TAG" --update --output build/update-acceptance.json
