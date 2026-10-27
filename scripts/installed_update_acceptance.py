@@ -88,7 +88,11 @@ def validate_running_update(
     state.mkdir(parents=True)
     atomic_json(
         state / CONFIG_FILENAME,
-        {"onboarding_auto_show": False, "theme_mode": "dark"},
+        {
+            "onboarding_auto_show": False,
+            "mathcraft_warmup_notice_done": True,
+            "theme_mode": "dark",
+        },
     )
     history = {
         "history": ["x^2+1"],
@@ -188,6 +192,10 @@ def validate_running_update(
     finally:
         diagnostics.mkdir(parents=True, exist_ok=True)
         atomic_json(diagnostics / "driver.json", report)
+        atomic_json(
+            diagnostics / "user-data-after.json",
+            {str(path): read_json(path) for path in state.glob("*.json")},
+        )
         if report.get("request"):
             task = Path(report["request"]).parent
             for name in ("request.json", "deployment-result.json"):

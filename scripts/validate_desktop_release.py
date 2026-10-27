@@ -296,8 +296,18 @@ def native_acceptance(
                 if (root / name).exists()
             ]
             if remaining or installation_manifest(root, system).exists():
+                residue = [
+                    str(path.relative_to(root))
+                    for name in remaining
+                    for path in (root / name).rglob("*")
+                    if path.is_file() or path.is_symlink()
+                ]
+                if diagnostics is not None:
+                    atomic_json(
+                        diagnostics / "uninstall-residue.json", {"paths": residue}
+                    )
                 raise ManifestError(
-                    f"Uninstall left owned installation resources: {remaining}"
+                    f"Uninstall left owned installation resources: {remaining}; files: {residue}"
                 )
     return reports
 
@@ -345,7 +355,7 @@ def main() -> None:
         return
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="release-acceptance-") as temporary:
-        work = Path(temporary)
+        work = Path(temporary).resolve()
         if args.release_tag:
             if not args.update:
                 raise ManifestError("Published release acceptance requires --update")
