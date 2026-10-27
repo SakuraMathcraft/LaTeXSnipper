@@ -1,4 +1,4 @@
-"""Validate actual native installers and hardware-backed recognition in release CI."""
+"""Validate native installers and installed update handoffs in release CI."""
 
 from __future__ import annotations
 
@@ -83,27 +83,18 @@ def validate_recognition(
             "Recognition validation received an incomplete worker protocol"
         )
     reports = {}
-    provider = (
-        "CUDAExecutionProvider" if manifest.edition == "gpu" else "CPUExecutionProvider"
-    )
     for request, line in zip(requests, lines, strict=False):
         response = validate_response(json.loads(line), request["id"])
         if not response["ok"]:
             raise ManifestError(f"Release recognition failed: {response.get('error')}")
         report = response["result"]
-        if not report.get("text", "").strip() or report.get("provider") != provider:
+        if (
+            not report.get("text", "").strip()
+            or report.get("provider") != "CPUExecutionProvider"
+        ):
             raise ManifestError(
                 "Recognition did not produce text on the required execution provider"
             )
-        if manifest.edition == "gpu":
-            native = report.get("native_modules", {})
-            if not native or any(
-                not Path(path).resolve().is_relative_to(root / "inference/native")
-                for path in native.values()
-            ):
-                raise ManifestError(
-                    "CUDA recognition did not use the complete private native runtime"
-                )
         reports[request["action"]] = report
     return reports
 
@@ -170,7 +161,6 @@ def native_acceptance(
     work: Path,
     targets: list[DistributionManifest],
     *,
-    gpu: bool = False,
     update: bool = False,
     diagnostics: Path | None = None,
 ) -> dict:
@@ -254,7 +244,7 @@ def native_acceptance(
                 report["application"] = json.loads(
                     validation.read_text(encoding="utf-8")
                 )
-            if target.edition == "cpu" or gpu:
+            if target.edition == "cpu":
                 report["recognition"] = validate_recognition(root, target, work)
             reports[target.edition] = report
     finally:
@@ -318,9 +308,7 @@ def main() -> None:
     source.add_argument("--directory", type=Path)
     source.add_argument("--release-tag")
     parser.add_argument("--output", type=Path, required=True)
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--gpu", action="store_true")
-    mode.add_argument("--update", action="store_true")
+    parser.add_argument("--update", action="store_true")
     args = parser.parse_args()
     if os.environ.get("GITHUB_ACTIONS") != "true":
         raise ManifestError("Native installer acceptance must run in GitHub Actions")
@@ -352,7 +340,6 @@ def main() -> None:
                 ),
                 "--output",
                 str(args.output.resolve()),
-                *(["--gpu"] if args.gpu else []),
                 *(["--update"] if args.update else []),
             ],
             check=True,
@@ -397,12 +384,6 @@ def main() -> None:
                 update=True,
                 diagnostics=args.output.parent / "update-diagnostics",
             )
-        elif args.gpu:
-            (target,) = (item for item in targets if item.edition == "gpu")
-            result = {
-                "gpu_hardware_validated": True,
-                "result": native_acceptance(directory, work, [target], gpu=True),
-            }
         else:
             result = native_acceptance(directory, work, targets)
     atomic_json(

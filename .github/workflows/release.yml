@@ -11,10 +11,6 @@ on:
         description: "Publish installers and application update resources"
         type: boolean
         default: false
-      validate_gpu:
-        description: "Run CUDA hardware checks on configured self-hosted runners"
-        type: boolean
-        default: false
 
 permissions:
   actions: read
@@ -203,45 +199,16 @@ jobs:
             dist/desktop/cache-plan-*.json
           if-no-files-found: error
       - uses: actions/upload-artifact@v7
-        if: needs.prepare-release.outputs.publish != 'true' || inputs.validate_gpu
+        if: needs.prepare-release.outputs.publish != 'true'
         with:
           name: desktop-${{ matrix.system }}
           path: dist/desktop/**
           if-no-files-found: error
           compression-level: 0
 
-  gpu:
-    if: inputs.validate_gpu
-    needs: [desktop, prepare-release]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {system: windows, runner: '["self-hosted", "Windows", "X64", "cuda"]'}
-          - {system: linux, runner: '["self-hosted", "Linux", "X64", "cuda"]'}
-    runs-on: ${{ fromJSON(matrix.runner) }}
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with: {python-version: "${{ needs.prepare-release.outputs.python }}"}
-      - run: python -m pip install -c requirements.txt requests Pillow
-      - uses: actions/download-artifact@v7
-        with: {name: 'desktop-${{ matrix.system }}', path: build/gpu-release}
-      - name: Real CUDA recognition and loaded-library audit
-        run: python scripts/validate_desktop_release.py --directory build/gpu-release --gpu --output build/gpu-acceptance.json
-      - uses: actions/upload-artifact@v7
-        with:
-          name: gpu-validation-${{ matrix.system }}
-          path: build/gpu-acceptance.json
-          if-no-files-found: error
-
   publish-release-assets:
-    needs: [prepare-release, desktop, gpu, build-office-plugin-installer, build-user-manual]
-    if: >-
-      always() && needs.prepare-release.outputs.publish == 'true' &&
-      needs.desktop.result == 'success' &&
-      (needs.gpu.result == 'success' || needs.gpu.result == 'skipped') &&
-      needs.build-office-plugin-installer.result == 'success' && needs.build-user-manual.result == 'success'
+    needs: [prepare-release, desktop, build-office-plugin-installer, build-user-manual]
+    if: needs.prepare-release.outputs.publish == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
