@@ -22,6 +22,7 @@ def start(report: str, tag: str) -> None:
     result: dict[str, Any] = {"pid": os.getpid(), "states": {}}
 
     def drive() -> None:
+        from installed_hotkey_acceptance import validate_hotkeys
         from ui.main_window import MainWindow
         from update import update_dialog
 
@@ -30,6 +31,8 @@ def start(report: str, tag: str) -> None:
             for widget in QApplication.topLevelWidgets()
             if isinstance(widget, MainWindow)
         )
+        result["hotkeys"] = validate_hotkeys(window)
+        atomic_json(Path(report), result)
         window.settings_button.click()
         window.windows.settings_window.btn_update.click()
         dialog: Any = update_dialog._dialog

@@ -54,6 +54,10 @@ def prepare_fixture(root: Path, target: DistributionManifest, work: Path) -> Non
             "acceptance_driver.pyc",
             Path(__file__).with_name("installed_update_driver.py"),
         ),
+        (
+            "installed_hotkey_acceptance.pyc",
+            Path(__file__).with_name("installed_hotkey_acceptance.py"),
+        ),
     ):
         compiled = work / name
         py_compile.compile(str(source), cfile=str(compiled), dfile=name, doraise=True)
@@ -182,6 +186,7 @@ def validate_running_update(
                     "total_seconds": round(time.monotonic() - started, 2),
                     "states": report["states"],
                     "committed": True,
+                    "hotkeys": report["hotkeys"],
                     "user_data_preserved": True,
                     "base_preserved": True,
                 }
