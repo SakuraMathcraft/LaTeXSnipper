@@ -290,7 +290,7 @@ jobs:
         if: matrix.session == 'wayland'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends kwin-wayland xwayland xdg-desktop-portal xdg-desktop-portal-kde qt6-wayland python3-pyatspi at-spi2-core
+          sudo apt-get install -y kwin-wayland xwayland xdg-desktop-portal xdg-desktop-portal-kde qt6-wayland python3-pyatspi at-spi2-core
       - name: Accept installed hotkeys and update under Wayland
         if: matrix.session == 'wayland'
         run: sudo env GITHUB_ACTIONS=true PATH="$PATH" python -X utf8 scripts/wayland_acceptance.py -- python -X utf8 scripts/validate_desktop_release.py --release-tag "$RELEASE_TAG" --update --output build/update-acceptance.json
