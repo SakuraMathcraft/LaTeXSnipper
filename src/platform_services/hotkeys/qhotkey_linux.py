@@ -369,7 +369,9 @@ class _PortalHotkey:
                 self._call(
                     connection,
                     self._dbus.DBusAddress(
-                        _PORTAL_PATH, _PORTAL_BUS, "org.freedesktop.host.portal.Registry"
+                        _PORTAL_PATH,
+                        _PORTAL_BUS,
+                        "org.freedesktop.host.portal.Registry",
                     ),
                     "Register",
                     "sa{sv}",
