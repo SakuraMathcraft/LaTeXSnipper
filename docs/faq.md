@@ -153,7 +153,7 @@ LATEXSNIPPER_DISABLE_LINUX_GRAPHICS_FALLBACKS=1 latexsnipper
 
 On Wayland, LaTeXSnipper registers its screenshot shortcut through the desktop's GlobalShortcuts portal. Complete the system authorization dialog; the desktop may assign a different combination, which LaTeXSnipper shows as the active shortcut. Cancelling a shortcut change keeps the previous authorized shortcut.
 
-The desktop must provide `org.freedesktop.portal.GlobalShortcuts`. If registration fails, check that `xdg-desktop-portal` and the portal backend for your desktop are installed and running. Unsupported desktop environments can still use the screenshot button, or an X11 session for global shortcuts. Root privileges are not required.
+The desktop must provide `org.freedesktop.portal.GlobalShortcuts` and `org.freedesktop.host.portal.Registry`. The application registers its portal connection as `latexsnipper`, matching the installed `latexsnipper.desktop` entry. Source launches also require that desktop entry to be visible to the desktop. If registration fails, check that `xdg-desktop-portal` and the portal backend for your desktop are installed and running. Unsupported desktop environments can still use the screenshot button, or an X11 session for global shortcuts. Root privileges are not required.
 
 ## Why does screenshot capture behave differently on Wayland?
 
