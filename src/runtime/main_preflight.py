@@ -7,7 +7,6 @@ import faulthandler
 import os
 
 from runtime.app_paths import app_log_dir
-from runtime.linux_graphics_runtime import apply_linux_graphics_fallbacks
 from runtime.log_lifecycle import (
     CRASH_LOG_BACKUP_COUNT,
     CRASH_LOG_MAX_BYTES,
@@ -25,8 +24,6 @@ def pre_bootstrap_runtime() -> None:
     os.environ["PYTHONIOENCODING"] = "utf-8"
     os.environ["PYTHONUTF8"] = "1"
     configure_native_runtime_environment()
-
-    apply_linux_graphics_fallbacks()
 
     log_dir = app_log_dir()
     log_dir.mkdir(parents=True, exist_ok=True)

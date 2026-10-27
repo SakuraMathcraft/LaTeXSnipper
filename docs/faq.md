@@ -138,17 +138,6 @@ GPU failures report hardware, driver or private-runtime problems. Changing the
 installed CPU/GPU edition requires the matching installer; the app does not
 silently select or install another backend.
 
-## What if Linux fails with EGL, GLOzone, or GPU display errors?
-
-This is usually a Qt WebEngine graphics-backend problem, not a MathCraft GPU inference problem. LaTeXSnipper automatically enables a software-rendering fallback for high-risk Linux sessions such as Wayland, virtual machines, WSL, or systems without `/dev/dri/renderD*`.
-
-Manual overrides:
-
-```bash
-LATEXSNIPPER_FORCE_LINUX_GRAPHICS_FALLBACKS=1 latexsnipper
-LATEXSNIPPER_DISABLE_LINUX_GRAPHICS_FALLBACKS=1 latexsnipper
-```
-
 ## Why does Wayland ask me to authorize a global shortcut?
 
 On Wayland, LaTeXSnipper registers its screenshot shortcut through the desktop's GlobalShortcuts portal. Complete the system authorization dialog; the desktop may assign a different combination, which LaTeXSnipper shows as the active shortcut. Cancelling a shortcut change keeps the previous authorized shortcut.

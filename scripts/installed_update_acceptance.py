@@ -110,6 +110,10 @@ def validate_running_update(
         "USERPROFILE": str(home),
         "QTWEBENGINE_CHROMIUM_FLAGS": "--disable-gpu --no-sandbox",
     }
+    if target.platform == "linux":
+        environment.update(
+            {"QT_QUICK_BACKEND": "software", "LIBGL_ALWAYS_SOFTWARE": "1"}
+        )
     executable = "LaTeXSnipper.exe" if target.platform == "windows" else "LaTeXSnipper"
     retained = InstalledResources(root, target).resource("inference", "runtime.json")
     runtime_hash = file_sha256(retained)
