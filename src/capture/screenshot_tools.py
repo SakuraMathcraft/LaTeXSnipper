@@ -8,6 +8,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import uuid
+from typing import cast
+
+from recognition.image_preprocess import qimage_to_rgb_pil
+from runtime.app_paths import APP_DESKTOP_ID
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
@@ -89,26 +94,8 @@ def is_image_effectively_black(image) -> bool:
     """
     if image.isNull() or image.width() <= 0 or image.height() <= 0:
         return True
-    width, height = image.width(), image.height()
-    sample_points = [
-        (2, 2),
-        (width - 3, 2),
-        (2, height - 3),
-        (width - 3, height - 3),
-        (width // 2, height // 2),
-    ]
-    dark_threshold = 8
-    for sx, sy in sample_points:
-        x = max(0, min(sx, width - 1))
-        y = max(0, min(sy, height - 1))
-        color = image.pixelColor(x, y)
-        if (
-            color.red() > dark_threshold
-            or color.green() > dark_threshold
-            or color.blue() > dark_threshold
-        ):
-            return False
-    return True
+    extrema = cast(tuple[tuple[int, int], ...], qimage_to_rgb_pil(image).getextrema())
+    return all(maximum <= 8 for _, maximum in extrema)
 
 
 def list_available_tools() -> list[str]:
@@ -365,6 +352,7 @@ def capture_region_with_tools(
 
 def wayland_screenshot_via_portal():
     """Capture through org.freedesktop.portal.Screenshot on Wayland."""
+    from PyQt6.QtCore import QUrl
     from PyQt6.QtGui import QImage
 
     try:
@@ -382,34 +370,76 @@ def wayland_screenshot_via_portal():
 
     loop = GLib.MainLoop()
     result: dict = {}
+    subscription = None
+    timeout_id = None
+    request = None
+    bus = None
 
     def _on_response(response: int, results: dict) -> None:
         result["response"] = response
         result["results"] = results
         loop.quit()
 
+    def _on_timeout() -> bool:
+        nonlocal timeout_id
+        timeout_id = None
+        logger.warning("Wayland 截图授权超时（10 秒）")
+        loop.quit()
+        return False
+
     try:
         DBusGMainLoop(set_as_default=True)
-        bus = dbus.SessionBus()
+        bus = dbus.SessionBus(private=True)
         portal = bus.get_object(
             "org.freedesktop.portal.Desktop",
             "/org/freedesktop/portal/desktop",
+        )
+        dbus.Interface(portal, "org.freedesktop.host.portal.Registry").Register(
+            APP_DESKTOP_ID, {}, timeout=5
+        )
+        token = "latexsnipper_" + uuid.uuid4().hex
+        sender = bus.get_unique_name()[1:].replace(".", "_")
+        path = f"/org/freedesktop/portal/desktop/request/{sender}/{token}"
+        subscription = bus.add_signal_receiver(
+            _on_response,
+            signal_name="Response",
+            dbus_interface="org.freedesktop.portal.Request",
+            bus_name="org.freedesktop.portal.Desktop",
+            path=path,
         )
         screenshot = dbus.Interface(
             portal,
             "org.freedesktop.portal.Screenshot",
         )
-        screenshot.connect_to_signal("Response", _on_response)
-
-        screenshot.Screenshot(
+        handle = screenshot.Screenshot(
             "",
-            {"interactive": False, "modal": False},
+            {"interactive": False, "modal": False, "handle_token": token},
+            timeout=5,
         )
-
-        GLib.timeout_add(10000, loop.quit)
-        loop.run()
-    except Exception:
+        request = dbus.Interface(
+            bus.get_object("org.freedesktop.portal.Desktop", handle),
+            "org.freedesktop.portal.Request",
+        )
+        if handle != path:
+            raise RuntimeError("Unexpected screenshot request identity")
+        timeout_id = GLib.timeout_add(10000, _on_timeout)
+        if "response" not in result:
+            loop.run()
+    except Exception as exc:
+        logger.warning("Wayland 截图 Portal 失败: %s", exc)
         return None
+    finally:
+        if subscription is not None:
+            subscription.remove()
+        if timeout_id is not None:
+            GLib.source_remove(timeout_id)
+        if request is not None and "response" not in result:
+            try:
+                request.Close(timeout=5)
+            except Exception as exc:
+                logger.warning("关闭截图 Portal 请求失败: %s", exc)
+        if bus is not None:
+            bus.close()
 
     if result.get("response") != 0:
         return None
@@ -418,7 +448,9 @@ def wayland_screenshot_via_portal():
     if not uri:
         return None
 
-    path = uri.replace("file://", "")
+    path = QUrl(str(uri)).toLocalFile()
+    if not path:
+        return None
     image = QImage(path)
     if image.isNull():
         return None

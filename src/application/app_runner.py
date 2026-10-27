@@ -10,6 +10,7 @@ from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication
 
 from localization.manager import translate as tr
+from runtime.single_instance import set_instance_activation_handler
 from runtime.std_streams import ensure_std_streams
 from ui.controllers.runtime_log import apply_runtime_log_window_preference
 from ui.controllers.theme import apply_theme_mode, read_theme_mode_from_config
@@ -94,5 +95,6 @@ def run_application(main_window_cls) -> int:
     app.setQuitOnLastWindowClosed(False)
     splash = take_startup_splash(app, tr("加载界面组件..."))
     _apply_startup_theme()
-    _create_window(main_window_cls, splash)
+    win = _create_window(main_window_cls, splash)
+    set_instance_activation_handler(win.windows.show_window)
     return app.exec()

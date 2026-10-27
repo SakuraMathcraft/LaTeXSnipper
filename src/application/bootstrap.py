@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import atexit
-import logging
 import os
 import sys
 from dataclasses import dataclass
@@ -9,22 +8,21 @@ from pathlib import Path
 from typing import cast
 
 from PyQt6.QtCore import QCoreApplication, Qt
-from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtWidgets import QApplication
 
 from localization.manager import install_application_translators
 from localization.manager import translate as tr
-from runtime.app_paths import APP_DESKTOP_ID, get_app_root, resource_path
+from runtime.app_paths import APP_DESKTOP_ID, get_app_root
 from runtime.native_runtime import configure_native_runtime_environment
 from runtime.runtime_logging import start_runtime_log_session
 from runtime.single_instance import (
+    activate_running_instance,
     ensure_single_instance,
     release_single_instance_lock,
+    start_instance_activation,
 )
 from runtime.webengine_runtime import configure_default_webengine_profile
 from ui.startup_splash import ensure_startup_splash
-
-logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 @dataclass(frozen=True)
@@ -46,31 +44,13 @@ def _ensure_qt_application() -> QApplication:
     )
 
 
-def _show_already_running_message(app: QApplication) -> None:
-    try:
-        icon_path = resource_path("assets/icon.ico")
-        if icon_path and os.path.exists(icon_path):
-            icon = QIcon(icon_path)
-            app.setWindowIcon(icon)
-        else:
-            icon = None
-        msg = QMessageBox()
-        msg.setWindowTitle("LaTeXSnipper")
-        msg.setText(tr("LaTeXSnipper 已在运行。"))
-        msg.setIcon(QMessageBox.Icon.Information)
-        if icon is not None:
-            msg.setWindowIcon(icon)
-        msg.exec()
-    except Exception:
-        logger.info("检测到已有实例，本次启动已取消")
-
-
 def _ensure_single_instance(app: QApplication) -> None:
     if ensure_single_instance():
         atexit.register(release_single_instance_lock)
+        start_instance_activation(app)
         start_runtime_log_session()
         return
-    _show_already_running_message(app)
+    activate_running_instance()
     raise SystemExit(0)
 
 
