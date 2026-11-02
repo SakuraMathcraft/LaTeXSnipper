@@ -126,7 +126,6 @@ public sealed partial class DynamicWordApplicationAdapter
 
         if (!display)
         {
-            NormalizePlainTextBaselineAroundRange(control.Range);
             MoveSelectionAfterInlineControl(control, equationId);
             return;
         }
@@ -196,22 +195,12 @@ public sealed partial class DynamicWordApplicationAdapter
 
         if (TryMoveSelectionOutsideFormula(insertionPoint) || TryMoveSelectionOutsideFormula(insertionPoint + 1))
         {
-            if (!display)
-            {
-                NormalizePlainTextBaselineAroundRange(shape.Range);
-            }
-
             return;
         }
 
         dynamic target = CreateDocumentRange(insertionPoint, insertionPoint);
         target.Select();
         MoveSelectionRight();
-        if (!display)
-        {
-            NormalizePlainTextBaselineAroundRange(shape.Range);
-        }
-
         EnsureSelectionOutsideFormula(equationId);
     }
 

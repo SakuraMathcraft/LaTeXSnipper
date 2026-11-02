@@ -70,7 +70,7 @@ static std::wstring Payload()
         + base64 + L"\"}";
 }
 
-static void Run(HMODULE module)
+static void Run(HMODULE module, const wchar_t* style)
 {
     using GetFactory = HRESULT(STDAPICALLTYPE*)(REFCLSID, REFIID, void**);
     auto getFactory = reinterpret_cast<GetFactory>(GetProcAddress(module, "DllGetClassObject"));
@@ -80,6 +80,7 @@ static void Run(HMODULE module)
     CComPtr<IPersistStorage> object;
     Check(factory->CreateInstance(nullptr, IID_IPersistStorage, reinterpret_cast<void**>(&object)));
     std::wstring payload = Payload();
+    payload.replace(payload.find(L"BoldItalic"), wcslen(L"BoldItalic"), style);
     auto input = Storage();
     WritePayload(input, payload);
     Check(object->Load(input));
@@ -146,7 +147,17 @@ int wmain(int argc, wchar_t** argv)
     if (FAILED(initialized)) return 2;
     HMODULE module = LoadLibraryW(argv[1]);
     int result = 1;
-    try { Require(module != nullptr, "Cannot load handler DLL"); Run(module); result = 0; }
+    try {
+        Require(module != nullptr, "Cannot load handler DLL");
+        for (const auto* style : {L"Automatic", L"Upright", L"Bold", L"Italic", L"BoldItalic",
+            L"SansSerif", L"SansSerifBold", L"SansSerifItalic", L"SansSerifBoldItalic", L"Monospace",
+            L"Calligraphic", L"BoldCalligraphic", L"Script", L"BoldScript", L"Fraktur", L"BoldFraktur", L"Blackboard"})
+        {
+            std::wcout << L"STYLE|" << style << L'\n';
+            Run(module, style);
+        }
+        result = 0;
+    }
     catch (const std::exception& error) { std::cerr << error.what() << '\n'; }
     if (module) FreeLibrary(module);
     OleUninitialize();

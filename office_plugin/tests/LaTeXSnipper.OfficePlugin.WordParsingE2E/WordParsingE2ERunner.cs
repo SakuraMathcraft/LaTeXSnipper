@@ -59,10 +59,13 @@ internal sealed class WordParsingE2ERunner
             word.DisplayAlerts = 0;
             document = word.Documents.Add();
             Console.WriteLine("STAGE|Document created");
+            await WordSurroundingFormatting.VerifyAsync((object)word, CreateSettings(_options.Backend), _options.OutputPath);
+            document.Activate();
             if (_options.Backend == FormulaInsertionBackend.Ole)
             {
                 if (_options.IncludeMathType) await MathTypeRoundTrip.VerifyAsync((object)word, _options.OutputPath, _options.MathTypeNativeEdit);
                 if (_options.MathTypeOnly) return;
+                await WordOleStyles.VerifyAsync((object)word, _options.OutputPath);
                 document.Activate();
                 await WordOleCopyRoundTrip.VerifyAsync((object)word, (object)document, _options.OutputPath);
                 if (_options.CopyOnly) return;

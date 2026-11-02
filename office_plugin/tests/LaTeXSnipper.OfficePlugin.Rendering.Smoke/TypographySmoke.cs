@@ -37,8 +37,20 @@ internal static class TypographySmoke
                 results.Add(await renderer.RenderTypographyAsync(source, FormulaDisplayMode.Display,
                     Style(font), CancellationToken.None));
             foreach (FormulaMathStyle style in Enum.GetValues(typeof(FormulaMathStyle)))
+            {
                 results.Add(await renderer.RenderTypographyAsync(@"A+x+12+\delta+\Gamma", FormulaDisplayMode.Display,
                     Style(font, style: style), CancellationToken.None));
+                foreach (string source in new[] { @"\lim_{n\to\infty}a_n=L", @"e^{i\pi}+1=0",
+                    @"\sin x+\log x+\operatorname{rank}(A)+\sum_{i=1}^{n}a_i",
+                    @"ABCDEFGHIJKLMNOPQRSTUVWXYZ+abcdefghijklmnopqrstuvwxyz+0123456789",
+                    @"\alpha\beta\gamma\delta\epsilon\varepsilon\zeta\eta\theta\vartheta\iota\kappa\lambda\mu\nu\xi\pi\varpi\rho\varrho\sigma\varsigma\tau\upsilon\phi\varphi\chi\psi\omega+\Gamma\Delta\Theta\Lambda\Xi\Pi\Sigma\Upsilon\Phi\Psi\Omega",
+                    @"\left\langle\frac{\sqrt{x}}{\int_0^1 t\,dt}\right\rangle\neq\prod_{k=1}^{n}a_k\in\mathbb{R}",
+                    @"\text{中文，ABC 123。}+\mathrm{lim}+\mathbf{x}+\boldsymbol{\mathcal{abcXYZ}}+\mathscr{abcXYZ}" })
+                    results.Add(await renderer.RenderTypographyAsync(source, FormulaDisplayMode.Inline,
+                        Style(font, style: style), CancellationToken.None));
+                results.Add(await renderer.RenderTypographyAsync(@"\lim_{n\to\infty}a_n=123.45+\text{汉字}", FormulaDisplayMode.Display,
+                    new FormulaTypography(font, null, "Microsoft YaHei", style, 12, "#000000"), CancellationToken.None));
+            }
         }
         var serializer = new JavaScriptSerializer();
         results.Add(await renderer.RenderTypographyAsync("<?xml version=\"1.0\"?><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mfrac><mi mathvariant=\"normal\">δ</mi><mi>x</mi></mfrac></math>",
