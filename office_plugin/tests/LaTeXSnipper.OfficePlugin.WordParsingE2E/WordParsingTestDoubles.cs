@@ -9,7 +9,7 @@ namespace LaTeXSnipper.OfficePlugin.WordParsingE2E;
 
 internal sealed class TestFormulaOptionsProvider : IWordFormulaOptionsProvider
 {
-    public string CurrentLatex => string.Empty;
+    public string CurrentLatex { get; set; } = string.Empty;
 
     public WordFormulaOptions GetFormulaOptions()
     {

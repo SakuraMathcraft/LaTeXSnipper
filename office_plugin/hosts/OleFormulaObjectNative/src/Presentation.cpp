@@ -216,7 +216,7 @@ static bool HasSupportedTypography(const std::wstring& payloadJson)
     const std::wstring style = ExtractJsonString(payloadJson, L"defaultMathStyle");
     const std::wstring styles[] = {L"Automatic", L"Upright", L"Bold", L"Italic", L"BoldItalic",
         L"SansSerif", L"SansSerifBold", L"SansSerifItalic", L"SansSerifBoldItalic", L"Monospace",
-        L"Calligraphic", L"Script", L"Fraktur", L"BoldFraktur", L"Blackboard"};
+        L"Calligraphic", L"BoldCalligraphic", L"Script", L"BoldScript", L"Fraktur", L"BoldFraktur", L"Blackboard"};
     bool supportedStyle = false;
     for (const auto& candidate : styles) supportedStyle = supportedStyle || style == candidate;
     const std::wstring color = ExtractJsonString(payloadJson, L"color");

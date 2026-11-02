@@ -87,19 +87,6 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
         public bool IsAutomaticFormula { get; }
     }
 
-    private sealed class ManagedRangeSpan
-    {
-        public ManagedRangeSpan(int start, int end)
-        {
-            Start = start;
-            End = end;
-        }
-
-        public int Start { get; }
-
-        public int End { get; }
-    }
-
     private sealed class UndoRecordScope : IDisposable
     {
         private readonly DynamicWordApplicationAdapter _owner;
@@ -157,7 +144,6 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
         TryCom(() => _wordApplication.ActiveWindow.SetFocus());
         TryCom(() => SetForegroundWindow(new IntPtr(Convert.ToInt32(_wordApplication.ActiveWindow.Hwnd))));
         TryCom(() => SetForegroundWindow(new IntPtr(Convert.ToInt32(_wordApplication.Hwnd))));
-        ResetSelectionFormulaTextFormatting();
         return Task.CompletedTask;
     }
 

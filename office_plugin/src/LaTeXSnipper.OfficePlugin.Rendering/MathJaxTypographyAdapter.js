@@ -72,7 +72,8 @@
         segments = [{text, family: typography.NumberFontFamily, style}];
       else active.warnings.add('数字的局部数学样式 ' + variant + ' 使用数学字体字形。');
     }
-    if (!segments.length && ['mi', 'mn'].includes(node.kind) && !hasMathGlyphs(text, variant)) {
+    // Named operators (lim, sin, operatorname) need the same glyph coverage as identifiers.
+    if (!segments.length && ['mi', 'mn', 'mo'].includes(node.kind) && !hasMathGlyphs(text, variant)) {
       const family = variant.includes('sans-serif') ? 'Arial' : variant === 'monospace' ? 'Consolas'
         : ['normal', 'bold', 'italic', 'bold-italic', '-tex-mathit'].includes(variant) ? 'Times New Roman' : null;
       if (family) {
@@ -113,7 +114,7 @@
   doc.renderActions.add(...action);
 
   // All metrics and SVG paths come from the same precomputed runs. No post-layout font replacement.
-  for (const kind of ['mi', 'mn', 'mtext']) {
+  for (const kind of ['mi', 'mn', 'mo', 'mtext']) {
     const Base = jax.factory.getNodeClass(kind);
     jax.factory.setNodeClass(kind, class extends Base {
       get officeRuns() {

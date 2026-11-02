@@ -99,6 +99,8 @@ dotnet test office_plugin/LaTeXSnipper.OfficePlugin.slnx -c Release
 
 The deterministic tests validate typography, current-schema writes, copied metadata identity, corrupt metadata rejection, and document identity without starting Office. Shared editor tests are documented in [tools/office-editor](../tools/office-editor/README.md).
 
+Word integration tests also verify that inserting, parsing, formatting, and converting formulas preserve neighboring MathType objects and existing superscript, subscript, and baseline formatting in body paragraphs and table cells, including save/reopen. Formula formatting must be confined to the target formula, its generated numbering/reference fields, or an empty typing selection; it must not reset surrounding paragraph content.
+
 ### Real Office integration
 
 Build the installer or the managed solution and native handler first, then close Word and PowerPoint. Run from 64-bit PowerShell:
