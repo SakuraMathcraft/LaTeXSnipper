@@ -14,6 +14,7 @@ public sealed partial class DynamicWordApplicationAdapter
     {
         dynamic control = contentControl;
         if (metadata.NumberingMode != currentMetadata.NumberingMode ||
+            metadata.NumberText != currentMetadata.NumberText ||
             metadata.DisplayMode != currentMetadata.DisplayMode)
         {
             ReplaceParagraphWithFormula(control, ooxml, metadata);
@@ -28,10 +29,11 @@ public sealed partial class DynamicWordApplicationAdapter
     private void ReplaceParagraphWithFormula(object contentControl, string ooxml, FormulaMetadata metadata)
     {
         dynamic control = contentControl;
-        dynamic insertionRange = ClearParagraphContent(GetContainingParagraphRange(control));
+        using var bookmarks = new EquationBookmarkScope(CurrentDocument, control.Range, metadata.Identity.EquationId);
+        dynamic insertionRange = RemoveFormulaForReplacement(control.Range, metadata.Identity.EquationId, metadata.DisplayMode == FormulaDisplayMode.Display);
         insertionRange.InsertXML(ooxml);
-        RemoveEmptyParagraphBeforeFollowingContent(metadata.Identity.EquationId);
-        NormalizeNumberedFormulaLayout(metadata.Identity.EquationId);
+        if (metadata.NumberingMode != NumberingMode.None)
+            NormalizeNumberedFormulaLayout(metadata.Identity.EquationId);
         if (metadata.NumberingMode == NumberingMode.Automatic)
         {
             object insertedControl = FindFormulaControlById(metadata.Identity.EquationId);
@@ -119,7 +121,6 @@ public sealed partial class DynamicWordApplicationAdapter
         string equationId = metadata.Identity.EquationId;
         if (metadata.NumberingMode != NumberingMode.None)
         {
-            NormalizeNumberedFormulaLayout(equationId);
             MoveSelectionAfterDisplayParagraph(control, equationId);
             return;
         }

@@ -72,6 +72,7 @@ internal sealed class E2EOptions
     public string OutputPath { get; }
 
     public bool CopyOnly { get; private set; }
+    public bool NumberedLayoutOnly { get; private set; }
     public bool IncludeMathType { get; private set; }
     public bool MathTypeOnly { get; private set; }
     public bool MathTypeNativeEdit { get; private set; }
@@ -81,6 +82,7 @@ internal sealed class E2EOptions
         FormulaInsertionBackend? backend = null;
         string outputPath = string.Empty;
         bool copyOnly = false;
+        bool numberedLayoutOnly = false;
         bool includeMathType = false;
         bool mathTypeOnly = false, mathTypeNativeEdit = false;
         for (int index = 0; index < args.Length; index++)
@@ -95,6 +97,7 @@ internal sealed class E2EOptions
                 outputPath = Path.GetFullPath(ReadValue(args, ref index, argument));
             }
             else if (argument == "--copy") { copyOnly = true; }
+            else if (argument == "--numbered-layout") { numberedLayoutOnly = true; }
             else if (argument == "--mathtype") { includeMathType = true; }
             else if (argument == "--mathtype-only") { includeMathType = true; mathTypeOnly = true; }
             else if (argument == "--mathtype-native-edit") { includeMathType = true; mathTypeNativeEdit = true; }
@@ -114,7 +117,7 @@ internal sealed class E2EOptions
             throw new ArgumentException("--output is required.");
         }
 
-        return new E2EOptions(backend.Value, outputPath) { CopyOnly = copyOnly, IncludeMathType = includeMathType, MathTypeOnly = mathTypeOnly, MathTypeNativeEdit = mathTypeNativeEdit };
+        return new E2EOptions(backend.Value, outputPath) { NumberedLayoutOnly = numberedLayoutOnly, CopyOnly = copyOnly, IncludeMathType = includeMathType, MathTypeOnly = mathTypeOnly, MathTypeNativeEdit = mathTypeNativeEdit };
     }
 
     private static FormulaInsertionBackend ParseBackend(string value)
