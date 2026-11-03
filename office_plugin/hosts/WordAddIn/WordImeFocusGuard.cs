@@ -12,13 +12,16 @@ internal sealed class WordImeFocusGuard : IDisposable
 
     public WordImeFocusGuard(IntPtr wordWindow)
     {
-        if (wordWindow == IntPtr.Zero)
+        // External automation owns its own STA, not Word's window thread.
+        if (!OwnsWindow(wordWindow))
             return;
 
         try
         {
             EnumChildWindows(wordWindow, (window, _) =>
             {
+                if (!OwnsWindow(window))
+                    return true;
                 var className = new StringBuilder(32);
                 GetClassName(window, className, className.Capacity);
                 if (className.ToString() == "_WwG")
@@ -45,6 +48,12 @@ internal sealed class WordImeFocusGuard : IDisposable
         _panes.Clear();
     }
 
+    private static bool OwnsWindow(IntPtr window)
+    {
+        uint thread = GetWindowThreadProcessId(window, out uint process);
+        return thread == GetCurrentThreadId() && process == GetCurrentProcessId();
+    }
+
     private sealed class PaneWindow : NativeWindow
     {
         protected override void WndProc(ref Message message)
@@ -61,6 +70,15 @@ internal sealed class WordImeFocusGuard : IDisposable
     }
 
     private delegate bool EnumWindowCallback(IntPtr window, IntPtr parameter);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
+
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentProcessId();
 
     [DllImport("user32.dll")]
     private static extern bool EnumChildWindows(IntPtr parent, EnumWindowCallback callback, IntPtr parameter);
