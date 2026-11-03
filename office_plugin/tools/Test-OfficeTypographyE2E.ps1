@@ -10,6 +10,7 @@ param(
     [string]$WordBackend = 'Both',
 
     [switch]$WordCopyOnly,
+    [switch]$WordNumberedLayoutOnly,
     [switch]$IncludeMathType,
     [switch]$WordMathTypeOnly,
     [switch]$WordMathTypeNativeEdit,
@@ -103,6 +104,7 @@ try {
         foreach ($backend in $backends) {
             $wordArgs = @('--backend', $backend, '--output', (Join-Path $OutputDirectory "word-$backend.docx"))
             if ($WordCopyOnly) { $wordArgs += '--copy' }
+            if ($WordNumberedLayoutOnly) { $wordArgs += '--numbered-layout' }
             if ($IncludeMathType) { $wordArgs += '--mathtype' }
             if ($WordMathTypeOnly) { $wordArgs += '--mathtype-only' }
             if ($WordMathTypeNativeEdit) { $wordArgs += '--mathtype-native-edit' }

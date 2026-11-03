@@ -73,35 +73,4 @@ public sealed partial class DynamicWordApplicationAdapter
         return TryMoveSelectionOutsideFormula(nextParagraphStart);
     }
 
-    private void RemoveEmptyParagraphBeforeFollowingContent(string equationId)
-    {
-        dynamic control = FindFormulaControlById(equationId);
-        dynamic formulaParagraph = GetContainingParagraphRange(control);
-        int nextParagraphStart = GetRangeEnd(formulaParagraph);
-        int documentEnd = GetRangeEnd(CurrentDocument.Content);
-        if (nextParagraphStart >= documentEnd)
-        {
-            return;
-        }
-
-        dynamic nextParagraph = CreateDocumentRange(nextParagraphStart, nextParagraphStart).Paragraphs.Item(1).Range;
-        if (ParagraphHasContent(nextParagraph))
-        {
-            return;
-        }
-
-        int followingParagraphStart = GetRangeEnd(nextParagraph);
-        if (followingParagraphStart >= documentEnd)
-        {
-            return;
-        }
-
-        dynamic followingParagraph = CreateDocumentRange(followingParagraphStart, followingParagraphStart).Paragraphs.Item(1).Range;
-        if (!ParagraphHasContent(followingParagraph))
-        {
-            return;
-        }
-
-        nextParagraph.Delete();
-    }
 }

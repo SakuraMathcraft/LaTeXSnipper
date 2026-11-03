@@ -60,6 +60,9 @@ internal sealed class WordParsingE2ERunner
             word.DisplayAlerts = 0;
             document = word.Documents.Add();
             Console.WriteLine("STAGE|Document created");
+            await WordNumberedLayout.VerifyAsync((object)word, CreateSettings(_options.Backend), _options.OutputPath);
+            if (_options.NumberedLayoutOnly) return;
+            document.Activate();
             await WordSurroundingFormatting.VerifyAsync((object)word, CreateSettings(_options.Backend), _options.OutputPath);
             document.Activate();
             if (_options.Backend == FormulaInsertionBackend.Ole)

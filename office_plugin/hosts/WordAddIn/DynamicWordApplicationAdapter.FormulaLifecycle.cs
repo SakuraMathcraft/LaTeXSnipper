@@ -219,6 +219,7 @@ public sealed partial class DynamicWordApplicationAdapter
             if (existingOle == null)
             {
                 dynamic control = FindFormulaControlById(equationId);
+                using var bookmarks = new EquationBookmarkScope(CurrentDocument, control.Range, equationId);
                 dynamic insertionRange = RemoveOmmlConversionSource(control, metadata);
                 dynamic converted = metadata.NumberingMode == NumberingMode.None
                     ? InsertPlainOleInlineShape(insertionRange, metadata, presentation, display)
@@ -229,6 +230,7 @@ public sealed partial class DynamicWordApplicationAdapter
             }
 
             dynamic inlineShape = existingOle;
+            using var surroundingBookmarks = new EquationBookmarkScope(CurrentDocument, inlineShape.Range, equationId);
             (float originalWidth, float originalHeight) = GetInlineShapeSize((object)inlineShape);
             (double naturalWidth, double naturalHeight) = GetOleNaturalSize((object)inlineShape);
             FormulaMetadata currentMetadata = LoadFormulaMetadata(
@@ -236,10 +238,10 @@ public sealed partial class DynamicWordApplicationAdapter
                 equationId,
                 RenderEngineKind.MathJaxSvg);
             if (metadata.NumberingMode != currentMetadata.NumberingMode ||
-                metadata.NumberingMode != NumberingMode.None)
+                metadata.DisplayMode != currentMetadata.DisplayMode ||
+                metadata.NumberText != currentMetadata.NumberText)
             {
-                dynamic paragraphRange = GetContainingParagraphRange(inlineShape);
-                dynamic range = ClearParagraphContent(paragraphRange);
+                dynamic range = RemoveFormulaForReplacement(inlineShape.Range, equationId, display);
                 dynamic inserted = metadata.NumberingMode == NumberingMode.None
                     ? InsertPlainOleInlineShape(range, metadata, presentation, display)
                     : InsertNumberedOleInlineShape(range, metadata, presentation);
@@ -304,8 +306,7 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic sourceRange = nativeEquation.Range;
         if (display)
         {
-            dynamic paragraphRange = sourceRange.Paragraphs.Item(1).Range;
-            return ClearParagraphContent(paragraphRange);
+            return RemoveFormulaForReplacement(sourceRange, null, true);
         }
 
         int insertionPoint = GetRangeStart(sourceRange);
@@ -351,16 +352,8 @@ public sealed partial class DynamicWordApplicationAdapter
         ApplyNumberedFormulaParagraphLayout(cursor);
         dynamic? numberRange = null;
         int leftNumberPosition = GetRangeStart(cursor);
-        if (placement == WordNumberPlacement.Left)
-        {
-            InsertTextAtRange(cursor, "\t");
-            cursor = CreateDocumentRange(GetRangeEnd(cursor), GetRangeEnd(cursor));
-        }
-        else
-        {
-            InsertTextAtRange(cursor, "\t");
-            cursor = CreateDocumentRange(GetRangeEnd(cursor), GetRangeEnd(cursor));
-        }
+        InsertTextAtRange(cursor, "\t");
+        cursor = CreateDocumentRange(GetRangeEnd(cursor), GetRangeEnd(cursor));
 
         dynamic inlineShape = AddOleInlineShapeAtRange(cursor, metadata, presentation);
         cursor = CreateDocumentRange(GetRangeEnd(inlineShape.Range), GetRangeEnd(inlineShape.Range));
@@ -464,19 +457,10 @@ public sealed partial class DynamicWordApplicationAdapter
         }
     }
 
-    private dynamic ClearParagraphContent(dynamic paragraphRange)
-    {
-        int start = GetRangeStart(paragraphRange);
-        int end = Math.Max(start, GetRangeEnd(paragraphRange) - 1);
-        dynamic content = CreateDocumentRange(start, end);
-        content.Delete();
-        return CreateDocumentRange(start, start);
-    }
-
     private void ApplyNumberedFormulaParagraphLayout(dynamic range)
     {
         dynamic paragraphRange = range.Paragraphs.Item(1).Range;
-        double contentWidth = GetPageContentWidthPoints();
+        double contentWidth = GetEquationContentWidthPoints(paragraphRange);
         TryCom(() => paragraphRange.ParagraphFormat.Alignment = WdAlignParagraphLeft);
         TryCom(() => paragraphRange.ParagraphFormat.LeftIndent = 0);
         TryCom(() => paragraphRange.ParagraphFormat.RightIndent = 0);
@@ -779,20 +763,6 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         return equationControl;
-    }
-
-    private double GetPageContentWidthPoints()
-    {
-        try
-        {
-            dynamic setup = CurrentDocument.PageSetup;
-            double width = Convert.ToDouble(setup.PageWidth) - Convert.ToDouble(setup.LeftMargin) - Convert.ToDouble(setup.RightMargin);
-            return width > 0 ? width : 468;
-        }
-        catch
-        {
-            return 468;
-        }
     }
 
     private static void ApplyOleInlineShapeLayout(dynamic inlineShape, OlePresentationResult presentation, bool display)

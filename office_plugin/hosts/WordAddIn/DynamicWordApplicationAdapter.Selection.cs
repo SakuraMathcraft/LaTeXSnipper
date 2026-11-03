@@ -253,6 +253,8 @@ public sealed partial class DynamicWordApplicationAdapter
             if (ole != null)
             {
                 dynamic inlineShape = ole;
+                using var surroundingBookmarks = new EquationBookmarkScope(CurrentDocument, inlineShape.Range, equationId);
+                FormulaMetadata existingMetadata = LoadFormulaMetadata(inlineShape, equationId, RenderEngineKind.MathJaxSvg);
                 int insertionPoint = GetRangeStart(inlineShape.Range);
                 double oleFontSizePoints = metadata.Typography.FontSizePoints;
                 var (width, height) = GetOleNaturalSize((object)inlineShape);
@@ -261,7 +263,7 @@ public sealed partial class DynamicWordApplicationAdapter
                         Convert.ToDouble(inlineShape.Height) / height));
                 dynamic insertionRange;
                 string replacementOoxml;
-                if (metadata.NumberingMode == NumberingMode.None)
+                if (metadata.NumberingMode == NumberingMode.None && existingMetadata.NumberingMode == NumberingMode.None)
                 {
                     bool restoreInlineParagraph =
                         metadata.DisplayMode == FormulaDisplayMode.Inline &&
@@ -277,8 +279,8 @@ public sealed partial class DynamicWordApplicationAdapter
                 }
                 else
                 {
-                    insertionRange = ClearParagraphContent(GetContainingParagraphRange(inlineShape));
-                    replacementOoxml = ooxml;
+                    insertionRange = RemoveFormulaForReplacement(inlineShape.Range, equationId, display);
+                    replacementOoxml = display ? ooxml : equationOoxml;
                     insertionRange.InsertXML(replacementOoxml);
                 }
 
@@ -367,9 +369,10 @@ public sealed partial class DynamicWordApplicationAdapter
 
     private dynamic RemoveOmmlConversionSource(dynamic control, FormulaMetadata metadata)
     {
-        if (metadata.NumberingMode != NumberingMode.None)
+        FormulaMetadata existingMetadata = LoadFormulaMetadata(control, metadata.Identity.EquationId, RenderEngineKind.Omml);
+        if (metadata.NumberingMode != NumberingMode.None || existingMetadata.NumberingMode != NumberingMode.None)
         {
-            return ClearParagraphContent(GetContainingParagraphRange(control));
+            return RemoveFormulaForReplacement(control.Range, metadata.Identity.EquationId, metadata.DisplayMode == FormulaDisplayMode.Display);
         }
 
         int insertionPoint = GetRangeStart(control.Range);

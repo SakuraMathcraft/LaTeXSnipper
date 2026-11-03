@@ -7,55 +7,19 @@ public sealed partial class DynamicWordApplicationAdapter
 {
     private void DeleteFormula(SelectedWordFormula selected)
     {
-        if (selected.IsOleInlineShape)
-        {
-            DeleteOleInlineShape(selected);
-            return;
-        }
-
-        dynamic control = selected.ContentControl;
-        string equationId = selected.Metadata.Identity.EquationId;
+        dynamic formula = selected.ContentControl;
         if (selected.Metadata.NumberingMode != NumberingMode.None)
         {
-            DeleteNumberedFormulaById(equationId);
-            return;
+            RemoveFormulaForReplacement(formula.Range, selected.Metadata.Identity.EquationId, display: false);
         }
-
-        control.Delete(true);
-    }
-
-    private void DeleteOleInlineShape(SelectedWordFormula selected)
-    {
-        dynamic inlineShape = selected.ContentControl;
-        if (selected.Metadata.NumberingMode != NumberingMode.None)
+        else if (selected.IsOleInlineShape)
         {
-            DeleteNumberedFormulaParagraph(inlineShape.Range);
-            return;
+            formula.Delete();
         }
-
-        inlineShape.Delete();
-    }
-
-    private void DeleteNumberedFormulaById(string equationId)
-    {
-        object? equationControl = TryGetEquationControlById(equationId);
-        object? oleInlineShape = TryFindOleInlineShapeById(equationId);
-        if (equationControl != null)
+        else
         {
-            DeleteNumberedFormulaParagraph(((dynamic)equationControl).Range);
-            return;
+            formula.Delete(true);
         }
-
-        if (oleInlineShape != null)
-        {
-            DeleteNumberedFormulaParagraph(((dynamic)oleInlineShape).Range);
-        }
-    }
-
-    private static void DeleteNumberedFormulaParagraph(dynamic range)
-    {
-        dynamic paragraphRange = range.Paragraphs.Item(1).Range;
-        paragraphRange.Delete();
     }
 
     private static int GetFormulaStart(SelectedWordFormula formula)

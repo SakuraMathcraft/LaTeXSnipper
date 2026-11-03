@@ -4,6 +4,8 @@
 
 测试分别覆盖 OMML 和 OLE 后端，并验证：
 
+- 编号公式使用当前节、当前栏或单元格的可用宽度；正文、等宽与不等宽双栏、不同节和表格中的更新、编号方式切换、转换及删除所选保留两侧文字、格式和书签，保存重开后继续验证；
+
 - 焦点交接期间仅拦截当前进程、当前线程拥有的 Word 窗口的 IMR_DOCUMENTFEED，其他消息及交接后的请求正常传递；跨线程窗口保持原消息处理，独立进程自动化不接管 Word 窗口；
 - 37 个初始候选中，33 个成功转换，4 个非法 `\tag` 原文保留；
 - 首批 5 个处理后模拟超时，第二次解析可继续完成；
@@ -29,6 +31,8 @@
 ```
 
 先构建 Release 版本；统一脚本默认使用 Release，可通过 `-Configuration Debug` 改变。通过后，临时输出目录会生成 OMML/OLE 两份 DOCX、Word 导出的同名 PDF 和日志；可通过 `-OutputDirectory` 指定位置。只测原生公式时使用 `-WordBackend Omml`，不涉及 OLE 注册。
+
+仅运行编号布局和内容保留专项检查，使用 `-HostScope Word -WordNumberedLayoutOnly`。
 
 仅运行 Word MathType 核心转换验收：
 

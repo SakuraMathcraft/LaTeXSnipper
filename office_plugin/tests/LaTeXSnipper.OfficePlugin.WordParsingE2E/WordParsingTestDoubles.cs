@@ -10,10 +10,11 @@ namespace LaTeXSnipper.OfficePlugin.WordParsingE2E;
 internal sealed class TestFormulaOptionsProvider : IWordFormulaOptionsProvider
 {
     public string CurrentLatex { get; set; } = string.Empty;
+    public WordFormulaOptions Options { get; set; } = new WordFormulaOptions(false, NumberingMode.None, string.Empty);
 
     public WordFormulaOptions GetFormulaOptions()
     {
-        return new WordFormulaOptions(display: false, NumberingMode.None, string.Empty);
+        return Options;
     }
 
     public void ApplyFormulaMetadata(FormulaMetadata metadata, bool updateMode)
