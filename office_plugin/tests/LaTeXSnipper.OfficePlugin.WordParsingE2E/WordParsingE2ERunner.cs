@@ -34,6 +34,7 @@ internal sealed class WordParsingE2ERunner
     public async Task RunAsync()
     {
         EnsureWordIsNotRunning();
+        WordImeFocusMessages.Verify();
         Directory.CreateDirectory(Path.GetDirectoryName(_options.OutputPath)
             ?? throw new InvalidOperationException("The output directory is invalid."));
         string pdfPath = Path.ChangeExtension(_options.OutputPath, ".pdf");

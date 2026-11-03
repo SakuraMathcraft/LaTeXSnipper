@@ -138,13 +138,18 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
 
     public Task ActivateForEditingAsync(CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        TryCom(() => _wordApplication.Activate());
-        TryCom(() => _wordApplication.ActiveWindow.Activate());
-        TryCom(() => _wordApplication.ActiveWindow.SetFocus());
-        TryCom(() => SetForegroundWindow(new IntPtr(Convert.ToInt32(_wordApplication.ActiveWindow.Hwnd))));
-        TryCom(() => SetForegroundWindow(new IntPtr(Convert.ToInt32(_wordApplication.Hwnd))));
-        return Task.CompletedTask;
+        // Rendering can resume on a worker thread; Word focus must return to its Office STA.
+        return _officeThread.InvokeAsync(() =>
+        {
+            using var imeFocusGuard = new WordImeFocusGuard(
+                new IntPtr(Convert.ToInt32(_wordApplication.ActiveWindow.Hwnd)));
+            TryCom(() => _wordApplication.Activate());
+            TryCom(() => _wordApplication.ActiveWindow.Activate());
+            TryCom(() => _wordApplication.ActiveWindow.SetFocus());
+            TryCom(() => SetForegroundWindow(new IntPtr(Convert.ToInt32(_wordApplication.ActiveWindow.Hwnd))));
+            TryCom(() => SetForegroundWindow(new IntPtr(Convert.ToInt32(_wordApplication.Hwnd))));
+            return true;
+        }, cancellationToken);
     }
 
     public IDisposable BeginUndoRecord()
