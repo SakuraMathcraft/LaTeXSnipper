@@ -136,6 +136,19 @@ internal static class WordNumberedLayout
                 document = word.Documents.Open(path);
                 document.Activate();
                 VerifySurrounding(document);
+                entry = (await adapter.LoadFormulaEntriesAsync(true, CancellationToken.None)).Single();
+                dynamic formulaParagraph = document.Range(entry.Start, entry.Start + 1).Paragraphs.Item(1).Range;
+                int neighborStart = Convert.ToInt32(formulaParagraph.Start);
+                document.Range(neighborStart, neighborStart).Text = "DELETE_KEEP";
+                document.Bookmarks.Add("DeleteNeighbor", document.Range(neighborStart, neighborStart + 11));
+                document.Bookmarks.Item("DeleteNeighbor").Range.Font.Subscript = -1;
+                entry = (await adapter.LoadFormulaEntriesAsync(true, CancellationToken.None)).Single();
+                word.Selection.SetRange(entry.Start, entry.Start + 1);
+                await adapter.DeleteSelectedFormulaAsync(CancellationToken.None);
+                E2EAssert.Equal("DELETE_KEEP", Convert.ToString(document.Bookmarks.Item("DeleteNeighbor").Range.Text), "Deleting equation preserves its paragraph neighbor");
+                E2EAssert.Equal(-1, Convert.ToInt32(document.Bookmarks.Item("DeleteNeighbor").Range.Font.Subscript), "Deleting equation preserves neighbor formatting");
+                E2EAssert.Equal(0, (await adapter.LoadFormulaEntriesAsync(true, CancellationToken.None)).Count, "Deleted equation count");
+                VerifySurrounding(document);
                 Console.WriteLine($"PASS|Numbered width and surrounding text, modes, conversions, reopen|{settings.InsertionBackend}|{layout}|automatic={automatic}");
             }
             finally { document.Close(0); }
