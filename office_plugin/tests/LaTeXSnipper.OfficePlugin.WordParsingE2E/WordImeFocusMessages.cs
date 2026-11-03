@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
@@ -50,6 +51,7 @@ internal static class WordImeFocusMessages
             catch (OperationCanceledException) { }
             if (application.Activations != 3)
                 throw new InvalidOperationException("Cancelled activation touched Word.");
+            VerifyForeignThread(parent.Handle, pane);
             Console.WriteLine("PASS|IMR_DOCUMENTFEED is rejected during focus; other requests pass; normal handling resumes afterward");
         }
         finally
@@ -58,6 +60,36 @@ internal static class WordImeFocusMessages
             UnregisterClass("_WwG", windowClass.Instance);
             GC.KeepAlive(procedure);
         }
+    }
+
+    private static void VerifyForeignThread(IntPtr parent, IntPtr pane)
+    {
+        Exception? failure = null;
+        var worker = new Thread(() =>
+        {
+            try
+            {
+                var application = new ImeMessageWordApplication(parent, pane, expectedDocumentFeed: 123);
+                using var adapter = new DynamicWordApplicationAdapter(application);
+                adapter.ActivateForEditingAsync(CancellationToken.None).GetAwaiter().GetResult();
+                if (application.Activations != 3)
+                    throw new InvalidOperationException("Foreign-thread focus restoration did not complete.");
+            }
+            catch (Exception error) { failure = error; }
+        }) { IsBackground = true };
+        worker.SetApartmentState(ApartmentState.STA);
+        worker.Start();
+        var elapsed = Stopwatch.StartNew();
+        while (!worker.Join(10))
+        {
+            Application.DoEvents();
+            if (elapsed.Elapsed > TimeSpan.FromSeconds(10))
+                throw new TimeoutException("Foreign-thread focus restoration timed out.");
+        }
+        if (failure != null)
+            throw new InvalidOperationException("Foreign-thread window messages must remain unchanged.", failure);
+        Expect(pane, 0x0288, 7, IntPtr.Zero, 123);
+        Console.WriteLine("PASS|Focus restoration does not subclass another thread's window");
     }
 
     internal static void Expect(IntPtr pane, int message, int request, IntPtr buffer, long expected)
@@ -99,15 +131,21 @@ internal static class WordImeFocusMessages
 public sealed class ImeMessageWordApplication
 {
     private readonly IntPtr _pane;
-    public ImeMessageWordApplication(IntPtr parent, IntPtr pane) { Hwnd = parent.ToInt32(); _pane = pane; }
+    private readonly long _expectedDocumentFeed;
+    public ImeMessageWordApplication(IntPtr parent, IntPtr pane, long expectedDocumentFeed = 0)
+    {
+        Hwnd = parent.ToInt32();
+        _pane = pane;
+        _expectedDocumentFeed = expectedDocumentFeed;
+    }
     public ImeMessageWordApplication ActiveWindow => this;
     public int Hwnd { get; }
     public int Activations { get; private set; }
     public void SetFocus() => Activate();
     public void Activate()
     {
-        WordImeFocusMessages.Expect(_pane, 0x0288, 7, IntPtr.Zero, 0);
-        WordImeFocusMessages.Expect(_pane, 0x0288, 7, new IntPtr(-1), 0);
+        WordImeFocusMessages.Expect(_pane, 0x0288, 7, IntPtr.Zero, _expectedDocumentFeed);
+        WordImeFocusMessages.Expect(_pane, 0x0288, 7, new IntPtr(-1), _expectedDocumentFeed);
         WordImeFocusMessages.Expect(_pane, 0x0288, 6, IntPtr.Zero, 123);
         WordImeFocusMessages.Expect(_pane, 0x8051, 7, IntPtr.Zero, 123);
         Activations++;
