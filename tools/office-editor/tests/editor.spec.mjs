@@ -92,6 +92,7 @@ test('editor starts in the visual field and returns there after host focus', asy
 test('removing an align container releases visual editing without retaining its old rows', async ({page}) => {
   const errors = await open(page, '\\begin{align}x&=1\\\\y&=2\\end{align}');
   await expect.poll(() => visual(page).evaluate(field => field.readOnly)).toBe(false);
+  await source(page).click();
   await source(page).fill('');
   await expect.poll(() => visual(page).evaluate(field => field.getValue('latex'))).toBe('');
   await expect.poll(() => visual(page).evaluate(field => field.readOnly)).toBe(false);
@@ -129,7 +130,7 @@ test('source history includes visual edits; unfocused notifications cannot repla
   await page.locator('#mathfieldHost math-field').click();
   await page.locator('#mathfieldHost math-field').press('Control+y');
   expect(await submitted(page)).toBe('x+12');
-  await source(page).focus();
+  await source(page).click();
   await source(page).press('Control+a');
   await page.keyboard.insertText('newest');
   await expect(source(page)).toHaveText('newest');
@@ -140,6 +141,7 @@ test('source history includes visual edits; unfocused notifications cannot repla
 
 test('IME composition keeps source editable, blocks submission and updates after commit', async ({page}) => {
   await open(page);
+  await source(page).click();
   await source(page).dispatchEvent('compositionstart');
   await source(page).fill('\\text{中文}');
   await page.locator('#acceptButton').click();

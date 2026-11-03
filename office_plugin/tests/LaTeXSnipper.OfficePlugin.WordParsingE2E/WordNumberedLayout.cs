@@ -84,7 +84,11 @@ internal static class WordNumberedLayout
                 {
                     foreach (bool toOle in new[] { false, true })
                     {
-                        entry = (await adapter.LoadFormulaEntriesAsync(true, CancellationToken.None)).Single();
+                        var targets = await adapter.LoadFormulaEntriesAsync(true, CancellationToken.None);
+                        E2EAssert.Equal(1, targets.Count,
+                            $"Numbered conversion targets in {document.Name}, active document {word.ActiveDocument.Name}: " +
+                            string.Join(", ", targets.Select(target => $"{target.Start}:{target.Metadata?.Identity.EquationId}")));
+                        entry = targets.Single();
                         word.Selection.SetRange(entry.Start, entry.Start + 1);
                         if (toOle) await controller.ConvertSelectedToOleAsync(CancellationToken.None);
                         else await controller.ConvertSelectedToOmmlAsync(CancellationToken.None);
