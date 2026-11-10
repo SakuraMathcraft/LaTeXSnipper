@@ -666,17 +666,17 @@ def test_macos_bundle_build_uses_local_signatures(tmp_path, monkeypatch):
     fixed.mkdir(parents=True)
     for name in ("runtime", "inference", "models"):
         (layout / name).rename(fixed / name)
+    (fixed / "runtime/LaTeXSnipper").write_bytes(b"gui host")
+    (fixed / "runtime/_internal/PyQt6").mkdir(parents=True)
+    (fixed / "runtime/_internal/libpython3.11.dylib").write_bytes(b"python")
     signed = []
 
     def native_tool(arguments, **kwargs):
-        if arguments[0] == "clang":
-            assert f"-mmacosx-version-min={minimum}" in arguments
-        if arguments[0] in {"clang", "iconutil"}:
+        assert arguments[0] != "clang", "the app must not wrap its GUI host"
+        if arguments[0] == "iconutil":
             Path(arguments[arguments.index("-o") + 1]).write_bytes(b"native fixture")
         elif arguments[0] == "codesign":
-            signed.append(
-                (arguments[arguments.index("--sign") + 1], Path(arguments[-1]))
-            )
+            signed.append(arguments)
 
     sources = load_sources(ROOT / "packaging/runtime/sources.lock.json")
     dependencies = load_dependencies(
@@ -688,7 +688,23 @@ def test_macos_bundle_build_uses_local_signatures(tmp_path, monkeypatch):
     bundle = build.create_macos_bundle(layout, manifest)
     with (bundle / "Contents/Info.plist").open("rb") as stream:
         assert plistlib.load(stream)["LSMinimumSystemVersion"] == minimum
-    assert signed[-2:] == [("-", bundle / "Contents/MacOS/LaTeXSnipper"), ("-", bundle)]
+    # LaunchServices must start the GUI host itself, not a launcher that execs it.
+    assert (bundle / "Contents/MacOS/LaTeXSnipper").read_bytes() == b"gui host"
+    frameworks = bundle / "Contents/Frameworks"
+    runtime = "LaTeXSnipperBase.bundle/Contents/Resources/runtime/_internal"
+    for name in ("PyQt6", "libpython3.11.dylib"):
+        assert (frameworks / name).readlink() == Path(runtime, name)
+        assert (frameworks / name).exists()
+    entitlements = ROOT / "packaging/macos/entitlements.plist"
+    assert signed[-1] == [
+        "codesign",
+        "--force",
+        "--entitlements",
+        entitlements,
+        "--sign",
+        "-",
+        bundle,
+    ]
     assert not verify_component(
         bundle / "Contents/Resources/desktop/application", manifest.application
     )
