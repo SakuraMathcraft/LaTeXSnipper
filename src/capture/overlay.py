@@ -50,6 +50,9 @@ _MAGNIFIER_RADIUS = 9
 _COPY_NOTICE_SECONDS = 1.2
 
 
+_NS_WINDOW_STYLE_MASK_NONACTIVATING_PANEL = 1 << 7
+
+
 def _capture_window_flags() -> Qt.WindowType:
     """Keep the capture surface out of task switchers as a transient tool."""
     return (
@@ -57,6 +60,78 @@ def _capture_window_flags() -> Qt.WindowType:
         | Qt.WindowType.FramelessWindowHint
         | Qt.WindowType.WindowStaysOnTopHint
     )
+
+
+def macos_make_nonactivating_panel(widget: QWidget) -> bool:
+    """Mark the native macOS panel so showing it never activates the application.
+
+    A Qt.Tool window is an NSPanel on macOS. Adding the non-activating style
+    mask lets the panel become key and receive mouse and keyboard input while
+    the owning application stays in the background, which is what a global
+    screenshot hotkey needs: the capture surface must appear without pulling
+    the main window forward.
+
+    An NSPanel also hides whenever its application is inactive. A
+    non-activating panel keeps the application inactive, so the panel must
+    stop hiding on deactivation or it is never drawn on screen.
+    """
+    if sys.platform != "darwin":
+        return False
+    # winId is an NSView only on the cocoa platform plugin; messaging the
+    # handle another plugin returns (offscreen, minimal) crashes the process.
+    if QGuiApplication.platformName() != "cocoa":
+        return False
+    try:
+        import ctypes
+        import ctypes.util
+
+        objc = ctypes.CDLL(ctypes.util.find_library("objc"))
+        if objc is None:
+            return False
+
+        objc.sel_registerName.restype = ctypes.c_void_p
+        objc.sel_registerName.argtypes = [ctypes.c_char_p]
+        objc.object_getClassName.restype = ctypes.c_char_p
+        objc.object_getClassName.argtypes = [ctypes.c_void_p]
+
+        def selector(name: bytes) -> int:
+            return int(objc.sel_registerName(name) or 0)
+
+        # objc_msgSend has no fixed signature; give each call shape its own
+        # prototype instead of mutating the shared function pointer.
+        address = ctypes.cast(objc.objc_msgSend, ctypes.c_void_p).value
+        send = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)(
+            address
+        )
+        send_mask = ctypes.CFUNCTYPE(
+            None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_ulong
+        )(address)
+        send_bool = ctypes.CFUNCTYPE(
+            None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_bool
+        )(address)
+
+        view = int(widget.winId())
+        if not view:
+            return False
+        window = int(send(view, selector(b"window")) or 0)
+        if not window:
+            return False
+        class_name = (objc.object_getClassName(window) or b"").decode(
+            "ascii", "replace"
+        )
+        send_bool(window, selector(b"setHidesOnDeactivate:"), False)
+        mask = int(send(window, selector(b"styleMask")) or 0)
+        target = mask | _NS_WINDOW_STYLE_MASK_NONACTIVATING_PANEL
+        if target == mask:
+            return True
+        send_mask(window, selector(b"setStyleMask:"), target)
+        logger.debug(
+            "macOS 截图面板设为非激活样式: class=%s mask=%s", class_name, target
+        )
+        return True
+    except Exception:
+        logger.debug("macOS 非激活面板设置失败", exc_info=True)
+        return False
 
 
 class ScreenCaptureOverlay(QWidget):
@@ -727,13 +802,36 @@ class ScreenCaptureOverlay(QWidget):
             return
         super().keyPressEvent(event)
 
+    def _show_without_activation(self) -> bool:
+        """Report whether the overlay must appear without activating the application."""
+        if sys.platform != "darwin":
+            return False
+        state = QGuiApplication.applicationState()
+        return state != Qt.ApplicationState.ApplicationActive
+
+    def prepare_background_presentation(self) -> bool:
+        """Apply the non-activating style before the panel is ordered front.
+
+        Setting the style mask inside showEvent is too late: macOS already
+        activated the application while ordering the panel onto the screen.
+        """
+        if not self._show_without_activation():
+            return False
+        return macos_make_nonactivating_panel(self)
+
     def showEvent(self, event):
         super().showEvent(event)
         try:
             self._update_cursor_position_from_global(QCursor.pos())
             self._hide_system_cursor()
-            self.activateWindow()
-            self.raise_()
+            if self._show_without_activation():
+                # raise_ maps to makeKeyAndOrderFront on macOS, which activates
+                # the application even for a non-activating panel. The window
+                # stays on top through WindowStaysOnTopHint instead.
+                macos_make_nonactivating_panel(self)
+            else:
+                self.activateWindow()
+                self.raise_()
             self.setFocus(Qt.FocusReason.ActiveWindowFocusReason)
             self.grabKeyboard()
             self.update()
