@@ -41,7 +41,7 @@ Windows installers are unsigned unless optional SignPath signing succeeds.
 macOS builds use ad-hoc signatures without Developer ID or notarization. GPU builds
 carry private CUDA/cuDNN user-mode libraries and require supported NVIDIA
 hardware and drivers. The desktop app does not require system Python or CUDA
-Toolkit. The 3.2.0 GPU editions require NVIDIA driver 570.65 or newer on Windows,
+Toolkit. The 3.3.0 GPU editions require NVIDIA driver 570.65 or newer on Windows,
 or 570.26 or newer on Linux. These minimums are declared in
 `packaging/runtime/sources.lock.json`; the GPU must also support the bundled CUDA runtime.
 Linux still requires its declared system GUI libraries. Its installer uses apt to

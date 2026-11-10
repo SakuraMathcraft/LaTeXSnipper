@@ -1,5 +1,5 @@
 <!-- LaTeXSnipper 用户手册 -->
-<!-- 版本: v3.2.0 -->
+<!-- 版本: v3.3.0 -->
 
 <div align="center">
 
@@ -7,7 +7,7 @@
 
 ## 用户手册
 
-*适用于 v3.2.0-LTS*
+*适用于 v3.3.0*
 
 ---
 
@@ -374,7 +374,7 @@ CPU 发行固定使用 CPU；GPU 发行固定请求 CUDA，并在推理后核对
 - Debian/Ubuntu 兼容的 Linux x86_64（glibc 2.35 及以上）：CPU 或 NVIDIA GPU 离线安装归档，解包后运行 `sh install.sh`。
 - macOS 14.0 及以上的 Apple Silicon：CPU DMG，把应用复制到 Applications 后运行。
 
-发行携带 Python、推理依赖、模型和内置预览资源，无需自行安装 Python 或 CUDA Toolkit。Linux 包管理器负责 Qt 所需的系统图形库，缺少依赖时通过 apt 补齐。GPU 需要支持的显卡和系统驱动，3.2.0 的最低 NVIDIA 驱动版本为 Windows 570.65、Linux 570.26。扩展导出所需工具见[预览与导出](#预览与导出)。
+发行携带 Python、推理依赖、模型和内置预览资源，无需自行安装 Python 或 CUDA Toolkit。Linux 包管理器负责 Qt 所需的系统图形库，缺少依赖时通过 apt 补齐。GPU 需要支持的显卡和系统驱动，3.3.0 的最低 NVIDIA 驱动版本为 Windows 570.65、Linux 570.26。扩展导出所需工具见[预览与导出](#预览与导出)。
 
 ### 安装资源与用户数据
 
@@ -638,13 +638,13 @@ LaTeXSnipper Office 加载项是一个 Windows 原生 VSTO 插件，安装后会
 
 ```text
 :: 静默安装（显示进度条）
-LaTeXSnipperOffice_3.2.0_amd64.exe /silent
+LaTeXSnipperOffice_3.3.0_amd64.exe /silent
 
 :: 完全静默（无界面）
-LaTeXSnipperOffice_3.2.0_amd64.exe /verysilent
+LaTeXSnipperOffice_3.3.0_amd64.exe /verysilent
 
 :: 自定义安装目录
-LaTeXSnipperOffice_3.2.0_amd64.exe /dir="<安装目录>"
+LaTeXSnipperOffice_3.3.0_amd64.exe /dir="<安装目录>"
 ```
 
 ---
@@ -1495,7 +1495,7 @@ python -m mathcraft_ocr ocr page.png --profile mixed --provider auto --output re
 
 ### 模型集与识别配置
 
-独立的 `mathcraft-ocr` PyPI 包版本为 `0.3.2`；它使用自己的版本线，不与 LaTeXSnipper v3.2.0 客户端或 Office 插件版本绑定。模型权重使用 MathCraft Models `v1.0.0` 发布集，包含 **4 个 ONNX 模型**：
+独立的 `mathcraft-ocr` PyPI 包版本为 `0.3.2`，采用独立的版本号。模型权重使用 MathCraft Models `v1.0.0` 发布集，包含 **4 个 ONNX 模型**：
 
 - `mathcraft-formula-det` — 数学公式区域检测（Formula Detection）
 - `mathcraft-formula-rec` — 公式到 LaTeX 识别（Formula Recognition）
