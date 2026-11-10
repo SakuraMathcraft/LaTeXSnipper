@@ -172,7 +172,6 @@ def main() -> None:
                         for target, items in dependency_lock["targets"].items()
                     },
                     "models": sorted(resource_lock["models"]),
-                    "pandoc": resource_lock["pandoc_version"],
                 }
             )
         )

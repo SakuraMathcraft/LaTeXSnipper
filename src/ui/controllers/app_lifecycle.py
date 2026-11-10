@@ -72,7 +72,10 @@ class AppLifecycleController(QObject):
             if event.type() == QEvent.Type.Quit:
                 self._force_exit = True
                 self.shutdown()
-            elif event.type() == QEvent.Type.ApplicationActivate:
+            elif (
+                event.type() == QEvent.Type.ApplicationActivate
+                and not self.capture.is_capturing()
+            ):
                 QTimer.singleShot(0, self._reactivate_from_dock)
         return super().eventFilter(obj, event)
 
@@ -131,22 +134,6 @@ class AppLifecycleController(QObject):
                 pass
         self.view.close()
 
-    def _capture_suppresses_activation(self) -> bool:
-        """Report whether a running capture must keep the main window in the background."""
-        capture = getattr(self, "capture", None)
-        if capture is None:
-            return False
-        probe = getattr(capture, "suppresses_activation", None)
-        if callable(probe):
-            try:
-                return bool(probe())
-            except Exception:
-                logger.debug("读取截图后台状态失败", exc_info=True)
-        return bool(
-            getattr(capture, "_capture_start_pending", False)
-            or getattr(capture, "overlay", None) is not None
-        )
-
     def _has_other_visible_window(self) -> bool:
         """Report whether a window other than the main window is on screen.
 
@@ -176,7 +163,7 @@ class AppLifecycleController(QObject):
     def _reactivate_from_dock(self):
         if sys.platform != "darwin" or getattr(self, "_force_exit", False):
             return
-        if self._capture_suppresses_activation():
+        if self.capture.is_capturing():
             return
         if QApplication.activeModalWidget() is not None:
             return

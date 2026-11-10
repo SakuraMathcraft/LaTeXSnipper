@@ -41,7 +41,7 @@ def windows_resource_fixture(monkeypatch, tmp_path):
 
 def installed(tmp_path, monkeypatch, edition="cpu"):
     payloads = {
-        "runtime": {"pandoc/pandoc.exe": b"pandoc"},
+        "runtime": {"LaTeXSnipper.exe": b"gui"},
         "application": {
             "worker/mathcraft_ocr/worker.py": b"worker",
             "worker/mathcraft_ocr/protocol.py": b"protocol",

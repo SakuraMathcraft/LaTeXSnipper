@@ -41,9 +41,9 @@ English · [简体中文](README.zh-CN.md)
 2. **Select recognition.** Start the installed app and choose the built-in model and recognition type in Settings.
 3. **Recognize and edit.** Use Capture Recognize, Image, PDF, or Handwriting, then review, copy, or export the result.
 
-Windows/Linux installers provide CPU and NVIDIA GPU editions; macOS 14.0 or later on Apple Silicon uses CPU. Python, inference dependencies, models and Pandoc are bundled, so local recognition needs no first-run dependency or model downloads. GPU builds carry private CUDA/cuDNN libraries and require a supported NVIDIA GPU and driver. Linux requires glibc 2.35 or newer, and apt may need network access to install missing system GUI libraries. See [installer requirements](docs/faq.md#which-installer-should-i-use). Source development provides its Python packages and PATH Pandoc through standard developer tools.
+Windows/Linux installers provide CPU and NVIDIA GPU editions. macOS 14.0 or later on Apple Silicon uses CPU. Installers include Python, inference dependencies and models, so local recognition needs no first-run dependency or model downloads. GPU builds carry private CUDA/cuDNN libraries and require a supported NVIDIA GPU and driver. Linux requires glibc 2.35 or newer, and apt may need network access to install missing system GUI libraries. See [installer requirements](docs/faq.md#which-installer-should-i-use).
 
-Routine app updates download only application code and resources, retaining Python, Qt, Pandoc, inference dependencies and models. If an update requires a new base, or installed resources are missing or damaged, run the matching complete installer. Settings, history and other user data are preserved. See the [update and installation guide (Chinese)](user_manual/user_manual.md#应用更新与完整安装).
+Routine app updates download only application code and resources, retaining Python, Qt, inference dependencies and models. If an update requires a new base, or installed resources are missing or damaged, run the matching complete installer. Settings, history and other user data are preserved. See the [update and installation guide (Chinese)](user_manual/user_manual.md#应用更新与完整安装).
 
 > [!TIP]
 > For permissions, resources, and troubleshooting, see the [FAQ](docs/faq.md), [user data locations](docs/user_data_storage.md), and [full user manual (Chinese)](user_manual/user_manual.md).
@@ -101,7 +101,7 @@ Use MathCraft or your configured external model from scripts, batch jobs, editor
 Built-in exports cover **LaTeX, Markdown math, MathML, HTML, Word OMML, and SVG code**.
 
 > [!NOTE]
-> Document exports use installation-owned **Pandoc** in self-contained builds and PATH Pandoc in source development. PDF export also requires an external LaTeX PDF engine.
+> Optional document exports use **Pandoc** from the application's `PATH` on Windows, macOS and Linux. PDF export also requires an external LaTeX PDF engine. See [Pandoc setup](docs/faq.md#how-is-pandoc-provided).
 
 See the [user manual](user_manual/user_manual.md) for the full format list and requirements.
 

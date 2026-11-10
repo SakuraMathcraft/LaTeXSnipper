@@ -85,9 +85,10 @@ def macos_make_nonactivating_panel(widget: QWidget) -> bool:
         import ctypes
         import ctypes.util
 
-        objc = ctypes.CDLL(ctypes.util.find_library("objc"))
-        if objc is None:
+        library = ctypes.util.find_library("objc")
+        if not library:
             return False
+        objc = ctypes.CDLL(library)
 
         objc.sel_registerName.restype = ctypes.c_void_p
         objc.sel_registerName.argtypes = [ctypes.c_char_p]
@@ -100,6 +101,8 @@ def macos_make_nonactivating_panel(widget: QWidget) -> bool:
         # objc_msgSend has no fixed signature; give each call shape its own
         # prototype instead of mutating the shared function pointer.
         address = ctypes.cast(objc.objc_msgSend, ctypes.c_void_p).value
+        if not address:
+            return False
         send = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)(
             address
         )
@@ -824,12 +827,7 @@ class ScreenCaptureOverlay(QWidget):
         try:
             self._update_cursor_position_from_global(QCursor.pos())
             self._hide_system_cursor()
-            if self._show_without_activation():
-                # raise_ maps to makeKeyAndOrderFront on macOS, which activates
-                # the application even for a non-activating panel. The window
-                # stays on top through WindowStaysOnTopHint instead.
-                macos_make_nonactivating_panel(self)
-            else:
+            if not self._show_without_activation():
                 self.activateWindow()
                 self.raise_()
             self.setFocus(Qt.FocusReason.ActiveWindowFocusReason)

@@ -77,7 +77,6 @@ def model_input(root: Path) -> str:
 
 
 def build_inputs(root: Path, target: str) -> dict[str, str]:
-    resources = load_resources(root / "packaging/runtime/resources.lock.json")
     sources = load_sources(root / "packaging/runtime/sources.lock.json")
     dependencies = read_json(root / "packaging/runtime/dependencies.lock.json")
     system = target.split("-")[0]
@@ -107,9 +106,6 @@ def build_inputs(root: Path, target: str) -> dict[str, str]:
             {
                 "target": target,
                 "python": sources["python_version"],
-                "pandoc": resources["pandoc"][target],
-                "pandoc_version": resources["pandoc_version"],
-                "license": resources["licenses"]["pandoc"],
             },
         ),
     }

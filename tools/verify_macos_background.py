@@ -184,9 +184,7 @@ def main() -> int:
         )
 
         capture.start_capture(preserve_pinned_result=True)
-        probe = getattr(capture, "suppresses_activation", None)
-        if callable(probe):
-            record("后台状态抑制前台弹出", bool(probe()))
+        record("已开始截图流程", capture.is_capturing())
         QTimer.singleShot(700, after_capture_started)
 
     def after_capture_started() -> None:
@@ -198,8 +196,7 @@ def main() -> int:
         active = app.applicationState() == Qt.ApplicationState.ApplicationActive
         record("截图期间应用未抢占前台", not active, state_name())
         if overlay is not None:
-            overlay.close()
-        window.capture.overlay = None
+            overlay.cancel_capture()
         QTimer.singleShot(300, deliver_result)
 
     def deliver_result() -> None:

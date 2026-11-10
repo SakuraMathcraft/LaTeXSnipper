@@ -45,7 +45,7 @@ Installation metadata (`distribution.json`) records the platform, architecture, 
 
 macOS keeps business files and metadata in `LaTeXSnipper.app/Contents/Resources/desktop`. Its fixed resource directories live in `Contents/Frameworks/LaTeXSnipperBase.bundle/Contents/Resources` within the app. The independent nested signature allows business updates to retain that base without traversing its files.
 
-The business directory owns project code, worker source and translations. The fixed runtime owns Pandoc and MathJax. Business updates replace only business files; changing or restoring the fixed base requires the complete installer. Installation resources are separate from writable user configuration.
+The business directory owns project code, worker source and translations. The fixed runtime owns MathJax. Business updates replace only business files. Changing or restoring the fixed base requires the complete installer. Installation resources are separate from writable user configuration.
 
 Windows/Linux transactions keep a temporary `.deployment/` journal and backup
 under the resource root. The signed macOS app keeps transaction state beside
