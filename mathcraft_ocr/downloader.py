@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import ssl
 import stat
 import tempfile
 import time
@@ -16,6 +17,33 @@ from .manifest import ModelSpec, model_relative_path
 
 def _is_placeholder_source(source: str) -> bool:
     return source.startswith("placeholder://") or source.endswith(".invalid")
+
+
+def _fallback_ssl_context() -> ssl.SSLContext | None:
+    """Return a CA-bundle context when the interpreter has no trust store.
+
+    python.org framework builds on macOS ship without a CA bundle until
+    "Install Certificates.command" is run, so a plain urlopen fails with
+    CERTIFICATE_VERIFY_FAILED. certifi ships with this application through
+    requests, so use its bundle instead of failing the download.
+    """
+    try:
+        paths = ssl.get_default_verify_paths()
+        has_store = bool(paths.cafile and Path(paths.cafile).is_file()) or bool(
+            paths.capath and Path(paths.capath).is_dir()
+        )
+        if has_store:
+            return None
+        import certifi
+    except Exception:
+        return None
+    try:
+        bundle = Path(certifi.where())
+        if not bundle.is_file():
+            return None
+        return ssl.create_default_context(cafile=str(bundle))
+    except Exception:
+        return None
 
 
 def _verify_model_dir(target: Path, spec: ModelSpec) -> None:
@@ -84,7 +112,10 @@ def _download_archive_file(
 
     request = urllib.request.Request(source, headers=headers)
     # The manifest parser restricts model download sources to HTTPS.
-    with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec B310
+    context = _fallback_ssl_context()
+    with urllib.request.urlopen(  # nosec B310
+        request, timeout=timeout, context=context
+    ) as response:
         status = int(getattr(response, "status", 200) or 200)
         content_length = _content_length(response.headers)
         content_range_total = _content_range_total(response.headers)
