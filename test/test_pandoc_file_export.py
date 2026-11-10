@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from PyQt6.QtWidgets import QFileDialog
 
 from exporting import pandoc_exporter
 from ui import formula_export_menu
@@ -28,6 +29,33 @@ def test_every_pandoc_format_uses_file_export(monkeypatch, fmt):
     )
     assert result == (False, "cancelled")
     assert calls[0][0][:2] == (fmt.key, "中文 $x$")
+
+
+def test_missing_pandoc_skips_save_dialog(monkeypatch, tmp_path):
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("Missing Pandoc opened the save dialog")
+
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", unexpected)
+    assert formula_export_menu._handle_pandoc_file_export(
+        "pandoc_plain", "x", "Plain text"
+    ) == (False, "")
+
+
+def test_worker_finishes_silently_if_pandoc_disappears(monkeypatch, tmp_path):
+    monkeypatch.setenv("PATH", str(tmp_path))
+    worker = formula_export_menu._PandocFileExportWorker(
+        "pandoc_plain", "x", str(tmp_path / "formula.txt"), "Plain text"
+    )
+    results, errors = [], []
+    worker.finished.connect(lambda *args: results.append(args))
+    worker.failed.connect(errors.append)
+
+    worker.run()
+
+    assert results == [("", "info")]
+    assert not errors
 
 
 @pytest.mark.parametrize(

@@ -13,17 +13,8 @@ from exporting.formula_format_helpers import (
     mathml_with_prefix,
     normalize_latex_for_export,
 )
+from exporting.pandoc_exporter import PANDOC_FORMATS, is_available
 from localization.manager import mark_for_translation
-
-
-# Lazy import for Pandoc availability check
-def _pandoc_available() -> bool:
-    try:
-        from exporting.pandoc_exporter import is_available
-
-        return is_available()
-    except Exception:
-        return False
 
 
 @dataclass(frozen=True)
@@ -55,9 +46,8 @@ EXPORT_FORMAT_SPECS: tuple[ExportFormatSpec, ...] = (
 # Pandoc formats are added dynamically when Pandoc is available
 def _get_pandoc_format_specs() -> tuple[ExportFormatSpec, ...]:
     """Return Pandoc format specs if Pandoc is available."""
-    if not _pandoc_available():
+    if not is_available():
         return ()
-    from exporting.pandoc_exporter import PANDOC_FORMATS
 
     specs = [ExportFormatSpec("", separator_before=True)]
     specs.append(

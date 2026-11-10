@@ -57,6 +57,13 @@ QT_OPTIONAL_PLUGINS = (
 )
 
 
+def _prune_webengine_resources(owner: Path, resources: Path, locales: Path) -> None:
+    remove_owned(resources / "qtwebengine_devtools_resources.pak", owner)
+    for path in locales.glob("*.pak"):
+        if path.name not in {"en-US.pak", "zh-CN.pak"}:
+            remove_owned(path, owner)
+
+
 def prune_qt_payload(dist_root: Path) -> None:
     """Apply the same optional-module policy to DLL, ELF and framework layouts."""
     for name in ("Pythonwin", "_tcl_data", "_tk_data", "tcl8"):
@@ -84,12 +91,22 @@ def prune_qt_payload(dist_root: Path) -> None:
         if not qt_root.is_dir():
             continue
         resources = qt_root / "resources"
-        remove_owned(resources / "qtwebengine_devtools_resources.pak", dist_root)
+        translations = qt_root / "translations"
+        _prune_webengine_resources(
+            dist_root, resources, translations / "qtwebengine_locales"
+        )
+        for version in qt_root.glob("lib/QtWebEngineCore.framework/Versions/*"):
+            if version.is_dir() and not version.is_symlink():
+                framework_resources = version / "Resources"
+                _prune_webengine_resources(
+                    dist_root,
+                    framework_resources,
+                    framework_resources / "qtwebengine_locales",
+                )
         for pattern in ("*.debug.pak", "*.debug.bin"):
             for path in resources.glob(pattern):
                 remove_owned(path, dist_root)
         remove_owned(qt_root / "qml", dist_root)
-        translations = qt_root / "translations"
         if translations.is_dir():
             for path in translations.iterdir():
                 if path.name == "qtwebengine_locales":
@@ -102,9 +119,6 @@ def prune_qt_payload(dist_root: Path) -> None:
                     )
                 ):
                     continue
-                remove_owned(path, dist_root)
-        for path in (translations / "qtwebengine_locales").glob("*.pak"):
-            if path.name not in {"en-US.pak", "zh-CN.pak"}:
                 remove_owned(path, dist_root)
         # Shared libraries live in lib/ on Linux and macOS, independently of bin/.
         for directory in (qt_root / "bin", qt_root / "lib"):

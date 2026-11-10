@@ -1,11 +1,10 @@
-"""Assemble official, locked models and fixed Pandoc resources for Actions."""
+"""Assemble the official, locked models for desktop releases."""
 
 from __future__ import annotations
 
 import argparse
 import json
 import shutil
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -19,7 +18,6 @@ from mathcraft_ocr.manifest import load_manifest  # noqa: E402
 from runtime.component_archive import extract_archive  # noqa: E402
 from runtime.component_inventory import file_sha256, inventory_component  # noqa: E402
 from runtime.distribution_manifest import Artifact, ManifestError  # noqa: E402
-from runtime.processes import hidden_subprocess_kwargs  # noqa: E402
 
 
 def assemble_models(lock: dict, output: Path, cache: Path) -> None:
@@ -73,51 +71,10 @@ def assemble_models(lock: dict, output: Path, cache: Path) -> None:
             path.chmod(0o644)
 
 
-def assemble_pandoc(lock: dict, target: str, output: Path, cache: Path) -> None:
-    archive = download_artifact(Artifact.from_dict(lock["pandoc"][target]), cache)
-    with tempfile.TemporaryDirectory(
-        prefix="pandoc-source-", dir=output.parent
-    ) as temporary:
-        extracted = Path(temporary) / "extracted"
-        extract_archive(archive, extracted)
-        name = "pandoc.exe" if target.startswith("windows") else "pandoc"
-        candidates = [
-            path
-            for path in extracted.rglob(name)
-            if path.is_file() and not path.is_symlink()
-        ]
-        if len(candidates) != 1:
-            raise ManifestError("Official Pandoc archive needs exactly one executable")
-        output.mkdir()
-        shutil.copy2(candidates[0], output / name)
-        (output / name).chmod(0o755)
-    license_source = download_artifact(
-        Artifact.from_dict(lock["licenses"]["pandoc"]), cache
-    )
-    shutil.copy2(license_source, output / "COPYING.md")
-    (output / "COPYING.md").chmod(0o644)
-    host = {"win32": "windows", "linux": "linux", "darwin": "macos"}.get(sys.platform)
-    if target.split("-")[0] != host:
-        raise ManifestError("Pandoc must be verified on its target platform")
-    result = subprocess.run(
-        [str(output / name), "--version"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        timeout=30,
-        **hidden_subprocess_kwargs(),
-    )
-    if (
-        result.returncode
-        or result.stdout.splitlines()[0] != f"pandoc {lock['pandoc_version']}"
-    ):
-        raise ManifestError("Assembled Pandoc version does not match its lock")
-
-
-def assemble(args: argparse.Namespace) -> None:
-    lock = load_resources(args.lock)
-    output = args.output.resolve()
-    cache = args.cache.resolve()
+def assemble(output: Path, cache: Path, lock_path: Path) -> None:
+    lock = load_resources(lock_path)
+    output = output.resolve()
+    cache = cache.resolve()
     if (
         output.exists()
         or output == cache
@@ -132,21 +89,13 @@ def assemble(args: argparse.Namespace) -> None:
         prefix="desktop-resources-", dir=output.parent
     ) as temporary:
         staged = Path(temporary) / "payload"
-        if args.resource == "models":
-            assemble_models(lock, staged, cache)
-        else:
-            if args.target is None:
-                raise ManifestError(
-                    "Pandoc assembly requires an explicit platform target"
-                )
-            assemble_pandoc(lock, args.target, staged, cache)
+        assemble_models(lock, staged, cache)
         files = inventory_component(staged)
         staged.rename(output)
     print(
         json.dumps(
             {
-                "resource": args.resource,
-                "target": args.target,
+                "resource": "models",
                 "file_count": len(files),
                 "uncompressed_bytes": sum(item.size for item in files),
             }
@@ -156,16 +105,13 @@ def assemble(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("resource", choices=("models", "pandoc"))
-    parser.add_argument(
-        "--target", choices=("windows-x86_64", "linux-x86_64", "macos-arm64")
-    )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cache", type=Path, required=True)
     parser.add_argument(
         "--lock", type=Path, default=ROOT / "packaging/runtime/resources.lock.json"
     )
-    assemble(parser.parse_args())
+    args = parser.parse_args()
+    assemble(args.output, args.cache, args.lock)
 
 
 if __name__ == "__main__":

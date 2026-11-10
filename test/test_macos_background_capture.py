@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import sys
-import time
 from types import SimpleNamespace
 
 import pytest
-from PyQt6.QtGui import QCloseEvent
+from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtGui import QCloseEvent, QKeyEvent
 from PyQt6.QtWidgets import QApplication, QWidget
 
 from capture import overlay as overlay_module
+from localization.manager import translate as tr
 from platform_services import macos_provider
 from ui.controllers import app_lifecycle
 from ui.controllers.capture import CaptureController
@@ -49,37 +50,90 @@ def build_lifecycle(view, capture, shown):
     )
 
 
-def test_capture_suppresses_activation_while_pending(app):
+def test_capture_is_active_while_pending_or_overlay_is_open(app):
     view = QWidget()
     controller = build_capture_controller(view)
     try:
-        assert controller.suppresses_activation() is False
-
-        controller.suppress_activation(seconds=0.0)
-        assert controller.suppresses_activation() is False
+        assert controller.is_capturing() is False
 
         controller._capture_start_pending = True
-        assert controller.suppresses_activation() is True
+        assert controller.is_capturing() is True
 
         controller._capture_start_pending = False
         controller.overlay = QWidget()
-        assert controller.suppresses_activation() is True
+        assert controller.is_capturing() is True
     finally:
         view.deleteLater()
 
 
-def test_capture_suppression_covers_trailing_activation_window(app):
+@pytest.mark.parametrize("cancelled", [False, True], ids=["rejected", "cancelled"])
+def test_dock_activation_after_capture_ends(app, monkeypatch, cancelled):
+    monkeypatch.setattr(app_lifecycle, "sys", SimpleNamespace(platform="darwin"))
+    monkeypatch.setattr(app_lifecycle, "cleanup_runtime_log_session", lambda: None)
+    monkeypatch.setattr(app_lifecycle, "_release_single_instance_lock", lambda: None)
     view = QWidget()
-    controller = build_capture_controller(view)
+    capture = build_capture_controller(view)
+    shown = []
+    lifecycle = build_lifecycle(view, capture, shown)
     try:
-        controller.suppress_activation(seconds=0.5)
-        controller.overlay = None
-        controller._capture_start_pending = False
-        assert controller.suppresses_activation() is True
-        controller._activation_suppressed_until = time.monotonic() - 1
-        assert controller.suppresses_activation() is False
+        if cancelled:
+            capture.overlay = QWidget()
+            capture.on_capture_done(None)
+        else:
+            capture.can_capture = lambda: False
+            capture.start_capture()
+
+        lifecycle.eventFilter(app, QEvent(QEvent.Type.ApplicationActivate))
+        app.processEvents()
+        assert shown == ["show"]
     finally:
+        lifecycle.shutdown()
         view.deleteLater()
+
+
+@pytest.mark.parametrize("tray_available", [True, False])
+def test_escape_does_not_reopen_hidden_main_window(app, tray_available):
+    view = QWidget()
+    overlay = QWidget()
+    capture = build_capture_controller(view)
+    capture.overlay = overlay
+    overlay.installEventFilter(capture)
+    notifications = []
+    tray = object() if tray_available else None
+    capture.tray_icon = lambda: tray
+    capture.system_provider = SimpleNamespace(
+        activate_window=lambda window: window.show(),
+        show_notification=lambda tray, title, text, **kwargs: notifications.append(
+            (tray, title, text, kwargs)
+        ),
+    )
+    try:
+        overlay.show()
+        QApplication.sendEvent(
+            overlay,
+            QKeyEvent(
+                QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier
+            ),
+        )
+        app.processEvents()
+
+        assert not capture.is_capturing()
+        assert not overlay.isVisible()
+        assert not view.isVisible()
+        if tray_available:
+            assert notifications == [
+                (
+                    tray,
+                    tr("已取消截图"),
+                    tr("未创建识别任务。"),
+                    {"critical": False, "timeout_ms": 2400},
+                )
+            ]
+        else:
+            assert notifications == []
+    finally:
+        overlay.close()
+        view.close()
 
 
 @pytest.mark.parametrize("capture_active", [False, True])
@@ -89,11 +143,7 @@ def test_dock_activation_respects_capture_state(app, monkeypatch, capture_active
     monkeypatch.setattr(app_lifecycle, "_release_single_instance_lock", lambda: None)
     shown = []
     view = QWidget()
-    capture = SimpleNamespace(
-        suppresses_activation=lambda: capture_active,
-        _capture_start_pending=capture_active,
-        overlay=None,
-    )
+    capture = SimpleNamespace(is_capturing=lambda: capture_active)
     controller = build_lifecycle(view, capture, shown)
     try:
         controller._reactivate_from_dock()
@@ -199,7 +249,7 @@ def test_macos_close_keeps_app_running_in_menu_bar(app, monkeypatch):
     )
     controller = app_lifecycle.AppLifecycleController(
         view,
-        SimpleNamespace(_capture_start_pending=False, overlay=None),
+        SimpleNamespace(is_capturing=lambda: False),
         None,
         system_provider,
         tray,
@@ -281,7 +331,6 @@ def test_dock_activation_ignores_activation_from_own_windows(
     monkeypatch.setattr(app_lifecycle, "sys", SimpleNamespace(platform="darwin"))
     monkeypatch.setattr(app_lifecycle, "cleanup_runtime_log_session", lambda: None)
     monkeypatch.setattr(app_lifecycle, "_release_single_instance_lock", lambda: None)
-    from PyQt6.QtCore import Qt
     from PyQt6.QtWidgets import QDialog
 
     shown = []
@@ -294,7 +343,7 @@ def test_dock_activation_ignores_activation_from_own_windows(
     elif other_kind == "popup":
         other = QWidget(None, Qt.WindowType.Popup)
         other.show()
-    capture = SimpleNamespace(suppresses_activation=lambda: False)
+    capture = SimpleNamespace(is_capturing=lambda: False)
     controller = build_lifecycle(view, capture, shown)
     try:
         app.processEvents()

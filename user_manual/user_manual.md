@@ -1,5 +1,5 @@
 <!-- LaTeXSnipper 用户手册 -->
-<!-- 版本: v3.2.0 -->
+<!-- 版本: v3.3.0 -->
 
 <div align="center">
 
@@ -7,7 +7,7 @@
 
 ## 用户手册
 
-*适用于 v3.2.0-LTS*
+*适用于 v3.3.0*
 
 ---
 
@@ -79,7 +79,7 @@
 
 ### 安装后直接开始识别
 
-桌面发行包含应用、独立推理 Python、锁定依赖、全部模型及 Pandoc。安装后打开主窗口，在设置中选择内置模型和识别类型，再使用截图、图片、PDF 或手写入口。公式预览固定使用内置 MathJax，可离线运行。
+桌面发行包含应用、独立推理 Python、锁定依赖和全部模型。安装后打开主窗口，在设置中选择内置模型和识别类型，再使用截图、图片、PDF 或手写入口。公式预览固定使用内置 MathJax，可离线运行。
 
 Windows/Linux 提供 CPU 与 NVIDIA GPU 两种发行，macOS Apple Silicon 使用 CPU。GPU 发行携带私有 CUDA/cuDNN 用户态库，系统只需支持的 NVIDIA 显卡与驱动。更换 CPU/GPU 发行使用对应安装器，日常应用更新保持当前发行类型。
 
@@ -109,7 +109,9 @@ Windows/Linux 提供 CPU 与 NVIDIA GPU 两种发行，macOS Apple Silicon 使�
 - **复制 / 导出：** 复制当前编辑器内容，或通过统一导出菜单导出为 LaTeX、Markdown、MathML、HTML、OMML、SVG 以及 Pandoc 扩展格式（Word、ODT、PowerPoint、EPUB、PDF、HTML 独立页、Typst、纯文本）。
 - **收藏夹 / 历史记录：** 历史项和收藏项都支持复制、编辑、导出、重命名和删除。
 
-桌面端当前共有 **20 种导出格式**：
+框选时按 `Esc` 可取消截图。主窗口隐藏且有托盘或菜单栏图标时，取消提示走系统通知。macOS 上可在主窗口隐藏时直接用全局快捷键打开截图浮层。
+
+桌面端提供 **12 种内置导出格式**。检测到 Pandoc 时，菜单另显示 **8 种扩展格式**。
 
 - **内置格式（无需 Pandoc）：** LaTeX 行内、LaTeX display、LaTeX equation、Markdown 行内、Markdown 块级、MathML、MathML `.mml`、MathML `<m>`、MathML 属性形式、HTML、Word OMML、SVG Code
 - **Pandoc 扩展格式：** Word `.docx`、ODT `.odt`、PowerPoint `.pptx`、EPUB `.epub`、PDF `.pdf`、HTML 独立页 `.html`、Typst `.typ`、纯文本 `.txt`
@@ -372,7 +374,7 @@ CPU 发行固定使用 CPU；GPU 发行固定请求 CUDA，并在推理后核对
 - Debian/Ubuntu 兼容的 Linux x86_64（glibc 2.35 及以上）：CPU 或 NVIDIA GPU 离线安装归档，解包后运行 `sh install.sh`。
 - macOS 14.0 及以上的 Apple Silicon：CPU DMG，把应用复制到 Applications 后运行。
 
-发行携带 Python、推理依赖、模型、Pandoc 和内置预览资源，无需自行安装 Python 或 CUDA Toolkit。Linux 包管理器仍负责 Qt 所需的系统图形库；缺少依赖时，安装器通过 apt 补齐，需要可用的软件源和网络，或已缓存的依赖包。GPU 仍需要支持的显卡和系统驱动；3.2.0 的最低 NVIDIA 驱动版本为 Windows 570.65、Linux 570.26。普通 PDF 文件导出需要用户提供 LaTeX PDF 引擎。
+发行携带 Python、推理依赖、模型和内置预览资源，无需自行安装 Python 或 CUDA Toolkit。Linux 包管理器负责 Qt 所需的系统图形库，缺少依赖时通过 apt 补齐。GPU 需要支持的显卡和系统驱动，3.3.0 的最低 NVIDIA 驱动版本为 Windows 570.65、Linux 570.26。扩展导出所需工具见[预览与导出](#预览与导出)。
 
 ### 安装资源与用户数据
 
@@ -404,7 +406,7 @@ macOS 删除安装的应用。卸载只移除产品拥有的安装资源；用�
 
 ### 应用更新与完整安装
 
-“应用更新”检查匹配当前平台、架构及 CPU/GPU 类型的发行。日常更新只下载和校验业务包，替换业务文件并删除废弃业务文件，保留 Python、Qt、Pandoc、推理依赖、模型与用户数据，不全量扫描固定资源。目标版本需要新的底座时，会提示下载完整安装包；首次切换到该架构也需要完整安装。
+“应用更新”检查匹配当前平台、架构及 CPU/GPU 类型的发行。日常更新只下载和校验业务包，替换业务文件并删除废弃业务文件，保留 Python、Qt、推理依赖、模型与用户数据，不全量扫描固定资源。目标版本需要新的底座时，会提示下载完整安装包。首次切换到该架构也需要完整安装。
 
 下载支持暂停、继续与取消；中断文件按内容身份保存，复用前验证长度和 SHA256。准备完成后确认安装，应用停止识别与 worker 并退出，独立部署进程完成替换和验证。需要权限时由操作系统显示授权窗口。
 
@@ -465,7 +467,7 @@ macOS 删除安装的应用。卸载只移除产品拥有的安装资源；用�
 
 公式预览固定使用内置 MathJax。修改 LaTeX 后实时查看结果；复制菜单提供 LaTeX、Markdown、MathML、HTML、SVG、图片和 Office 公式等输出。按用途选择格式，纯源码编辑保留原文。
 
-桌面发行的固定底座提供 Pandoc，支持 DOCX、ODT、PPTX、EPUB、独立 HTML、Typst、纯文本和 PDF 文件导出。PDF 导出还需要外部 XeLaTeX、LuaLaTeX 或 pdfLaTeX。源码开发使用 PATH 中的 Pandoc；随包 Pandoc 缺失时重新运行完整安装包。
+DOCX、ODT、PPTX、EPUB、独立 HTML、Typst、纯文本和 PDF 文件导出需要另行[安装 Pandoc](https://pandoc.org/installing.html)。Windows、macOS 和 Linux 均从应用进程的 `PATH` 查找 Pandoc，打开导出菜单时按探测结果显示扩展格式。修改系统环境变量后请重启应用。macOS 从 Finder 启动时，`PATH` 可能与终端不同。若终端中 `pandoc --version` 成功但菜单未显示扩展格式，可在同一环境中直接运行应用可执行文件。PDF 导出还需要外部 XeLaTeX、LuaLaTeX 或 pdfLaTeX。
 
 桌面端 Word OMML 导出仅支持 Windows，需要正常注册的 Microsoft Word 及其安装目录中的 `MML2OMML.XSL`。自定义 Office 安装位置通过 Windows App Paths 定位；若注册或样式表缺失，请修复 Office 安装。该条件不影响其他导出格式。
 
@@ -561,7 +563,7 @@ python -m pip install -e '.[cpu]'
 python src/main.py
 ```
 
-源码 worker 使用启动应用的 Python，固定 CPU，并显式使用库的平台默认缓存。开发依赖由标准开发工具管理。源码 Pandoc 从 PATH 获取；PDF 文件导出的 LaTeX 引擎同样由开发者提供。
+源码 worker 使用启动应用的 Python，固定 CPU，并显式使用库的平台默认缓存。开发依赖由标准开发工具管理。扩展导出所需工具见[预览与导出](#预览与导出)。
 
 ### 检查与发行构建
 
@@ -636,13 +638,13 @@ LaTeXSnipper Office 加载项是一个 Windows 原生 VSTO 插件，安装后会
 
 ```text
 :: 静默安装（显示进度条）
-LaTeXSnipperOffice_3.2.0_amd64.exe /silent
+LaTeXSnipperOffice_3.3.0_amd64.exe /silent
 
 :: 完全静默（无界面）
-LaTeXSnipperOffice_3.2.0_amd64.exe /verysilent
+LaTeXSnipperOffice_3.3.0_amd64.exe /verysilent
 
 :: 自定义安装目录
-LaTeXSnipperOffice_3.2.0_amd64.exe /dir="<安装目录>"
+LaTeXSnipperOffice_3.3.0_amd64.exe /dir="<安装目录>"
 ```
 
 ---
@@ -1493,7 +1495,7 @@ python -m mathcraft_ocr ocr page.png --profile mixed --provider auto --output re
 
 ### 模型集与识别配置
 
-独立的 `mathcraft-ocr` PyPI 包版本为 `0.3.2`；它使用自己的版本线，不与 LaTeXSnipper v3.2.0 客户端或 Office 插件版本绑定。模型权重使用 MathCraft Models `v1.0.0` 发布集，包含 **4 个 ONNX 模型**：
+独立的 `mathcraft-ocr` PyPI 包版本为 `0.3.2`，采用独立的版本号。模型权重使用 MathCraft Models `v1.0.0` 发布集，包含 **4 个 ONNX 模型**：
 
 - `mathcraft-formula-det` — 数学公式区域检测（Formula Detection）
 - `mathcraft-formula-rec` — 公式到 LaTeX 识别（Formula Recognition）

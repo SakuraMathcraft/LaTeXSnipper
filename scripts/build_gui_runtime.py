@@ -6,14 +6,12 @@ import shutil
 import sys
 from pathlib import Path
 
-from build_desktop_resources import assemble_pandoc
-from distribution_inputs import load_resources
 from release_installers import run
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def build_gui_runtime(payload: Path, target: str, cache: Path) -> None:
+def build_gui_runtime(payload: Path, target: str) -> None:
     system = target.split("-")[0]
     build = payload.parent
     run(
@@ -32,8 +30,6 @@ def build_gui_runtime(payload: Path, target: str, cache: Path) -> None:
         ]
     )
     (build / "frozen/LaTeXSnipper").rename(payload)
-    lock = load_resources(ROOT / "packaging/runtime/resources.lock.json")
-    assemble_pandoc(lock, target, payload / "pandoc", cache)
     shutil.copytree(ROOT / "src/assets/MathJax", payload / "assets/MathJax")
     if system == "windows":
         run(

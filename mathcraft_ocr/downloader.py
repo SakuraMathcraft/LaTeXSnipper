@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import logging
 import shutil
 import ssl
 import stat
+import sys
 import tempfile
 import time
 import urllib.request
@@ -14,35 +16,26 @@ from .cache import model_dir, model_file_valid
 from .errors import DownloadUnavailableError, ModelCacheError
 from .manifest import ModelSpec, model_relative_path
 
+logger = logging.getLogger(f"latexsnipper.{__name__}")
+
 
 def _is_placeholder_source(source: str) -> bool:
     return source.startswith("placeholder://") or source.endswith(".invalid")
 
 
 def _fallback_ssl_context() -> ssl.SSLContext | None:
-    """Return a CA-bundle context when the interpreter has no trust store.
-
-    python.org framework builds on macOS ship without a CA bundle until
-    "Install Certificates.command" is run, so a plain urlopen fails with
-    CERTIFICATE_VERIFY_FAILED. certifi ships with this application through
-    requests, so use its bundle instead of failing the download.
-    """
-    try:
-        paths = ssl.get_default_verify_paths()
-        has_store = bool(paths.cafile and Path(paths.cafile).is_file()) or bool(
-            paths.capath and Path(paths.capath).is_dir()
-        )
-        if has_store:
-            return None
-        import certifi
-    except Exception:
+    """Provide a CA bundle for macOS Python before its certificates are installed."""
+    if sys.platform != "darwin":
+        return None
+    paths = ssl.get_default_verify_paths()
+    if paths.cafile or paths.capath:
         return None
     try:
-        bundle = Path(certifi.where())
-        if not bundle.is_file():
-            return None
-        return ssl.create_default_context(cafile=str(bundle))
-    except Exception:
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except (ImportError, OSError) as exc:
+        logger.warning("Could not load the fallback CA bundle: %s", exc)
         return None
 
 

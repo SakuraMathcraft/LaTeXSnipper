@@ -32,7 +32,7 @@ def test_macos_close_dock_activation_and_quit(app, monkeypatch, capture_active):
     view = QWidget()
     controller = app_lifecycle.AppLifecycleController(
         view,
-        SimpleNamespace(_capture_start_pending=capture_active, overlay=None),
+        SimpleNamespace(is_capturing=lambda: capture_active),
         None,
         SimpleNamespace(),
         SimpleNamespace(tray_icon=None),

@@ -1,15 +1,14 @@
-"""Locate installation-owned Pandoc or the developer's PATH executable."""
+"""Locate Pandoc in the application's executable search path."""
 
+import os
 import shutil
 from pathlib import Path
 
-from runtime.installed_resources import installed_resources
-
 
 def resolve_pandoc() -> Path | None:
-    resources = installed_resources()
-    if resources is not None:
-        name = "pandoc.exe" if resources.manifest.platform == "windows" else "pandoc"
-        return resources.resource("runtime", f"pandoc/{name}")
-    found = shutil.which("pandoc")
-    return Path(found) if found else None
+    name = "pandoc.exe" if os.name == "nt" else "pandoc"
+    for entry in os.get_exec_path():
+        directory = Path(entry)
+        if directory.is_absolute() and shutil.which(str(directory / name)):
+            return directory / name
+    return None

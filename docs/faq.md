@@ -33,15 +33,15 @@ The shortcut UI uses the platform's primary modifier: `Ctrl` on Windows/Linux an
 
 ## Which installer should I use?
 
-- Windows x86_64: choose the CPU or NVIDIA GPU `.exe` installer.
-- Debian/Ubuntu-compatible Linux x86_64 with glibc 2.35 or newer: choose the CPU or NVIDIA GPU offline `.tar.xz`, extract it, and run `sh install.sh`.
-- macOS 14.0 or later on Apple Silicon: use the CPU `.dmg`, copy the app to Applications, then launch that copy.
+- Windows x86_64 uses `LaTeXSnipper_<version>_windows_x86_64_cpu.exe` or `LaTeXSnipper_<version>_windows_x86_64_gpu.exe` for NVIDIA GPU inference.
+- Debian/Ubuntu-compatible Linux x86_64 with glibc 2.35 or newer uses `LaTeXSnipper_<version>_linux_x86_64_<edition>.tar.xz`, where `<edition>` is `cpu` or `gpu`. Extract it and run `sh install.sh`.
+- macOS 14.0 or later on Apple Silicon uses `LaTeXSnipper_<version>_macos_arm64_cpu.dmg`. Copy the app to Applications, then launch that copy.
 
 Windows installers are unsigned unless optional SignPath signing succeeds.
 macOS builds use ad-hoc signatures without Developer ID or notarization. GPU builds
 carry private CUDA/cuDNN user-mode libraries and require supported NVIDIA
 hardware and drivers. The desktop app does not require system Python or CUDA
-Toolkit. The 3.2.0 GPU editions require NVIDIA driver 570.65 or newer on Windows,
+Toolkit. The 3.3.0 GPU editions require NVIDIA driver 570.65 or newer on Windows,
 or 570.26 or newer on Linux. These minimums are declared in
 `packaging/runtime/sources.lock.json`; the GPU must also support the bundled CUDA runtime.
 Linux still requires its declared system GUI libraries. Its installer uses apt to
@@ -107,9 +107,9 @@ Core editing and local recognition workflows are designed to work locally after 
 
 ## Where are installation resources stored?
 
-The installation separates business files in `application/` from the fixed Python, Qt/WebEngine, Pandoc, MathJax, inference dependencies and model weights. Business updates reuse the fixed base. A release requiring a different base directs you to its complete installer. Installation resources are separate from user data; see the [storage map](user_data_storage.md).
+The installation separates business files in `application/` from the fixed Python, Qt/WebEngine, MathJax, inference dependencies and model weights. Business updates reuse the fixed base. A release requiring a different base directs you to its complete installer. See the [storage map](user_data_storage.md).
 
-Source development uses the Python that starts the application and Pandoc from PATH. Packaged applications use their bundled runtimes. Linux tracks files through dpkg; macOS keeps the fixed base in an independently signed nested bundle.
+Source development uses the Python that starts the application. Packaged applications use their bundled Python runtimes. Linux tracks files through dpkg. macOS keeps the fixed base in an independently signed nested bundle.
 
 ## Where are logs stored?
 
@@ -151,7 +151,7 @@ Wayland uses the desktop's Screenshot portal to capture the screen before LaTeXS
 
 Pandoc is only needed for the optional desktop export formats: Word `.docx`, ODT `.odt`, PowerPoint `.pptx`, EPUB `.epub`, PDF `.pdf`, standalone HTML `.html`, Typst `.typ`, and plain text `.txt`. PDF export also requires a LaTeX PDF engine such as XeLaTeX, LuaLaTeX, or pdfLaTeX. Core recognition, editing, preview, handwriting, and built-in LaTeX/Markdown/MathML/HTML/SVG exports work without Pandoc.
 
-The fixed desktop runtime owns the Pandoc binary. Source development uses PATH Pandoc. The app does not install or uninstall it separately, persist its path, or modify PATH. If packaged Pandoc is missing, rerun the complete installer.
+Install [Pandoc](https://pandoc.org/installing.html) separately and make its executable available on the application's `PATH`. On Windows, macOS and Linux, the export menu discovers Pandoc when it opens and displays the extended formats when the executable is available. Restart the app after updating your system environment. An app started from the macOS Finder can inherit a different `PATH` from your terminal. If `pandoc --version` succeeds in the terminal but the formats are absent, launch the application executable directly from that environment.
 
 ## How does PDF recognition work?
 

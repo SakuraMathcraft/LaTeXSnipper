@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 import shutil
 import subprocess
 import xml.etree.ElementTree as ET
@@ -17,7 +19,6 @@ from exporting.formula_export import (
     is_export_format_available,
 )
 from exporting.formula_format_helpers import normalize_latex_for_export
-from exporting.pandoc_exporter import check_pandoc_available
 
 SAMPLE_LATEX = (
     r"\frac{d}{dt}\frac{\partial L}{\partial \dot q_i}"
@@ -51,17 +52,26 @@ def local_mathjax_result() -> dict[str, str]:
     return run_mathjax([{"latex": SAMPLE_LATEX}])["results"][0]
 
 
-def test_export_registry_contains_exactly_formats() -> None:
-    if not check_pandoc_available(force=True):
-        pytest.skip("Pandoc backend is not installed")
+def test_export_registry_refreshes_from_path(tmp_path, monkeypatch, caplog) -> None:
+    monkeypatch.setenv("PATH", str(tmp_path))
+    with caplog.at_level(
+        logging.DEBUG, logger="latexsnipper.exporting.pandoc_exporter"
+    ):
+        assert not is_export_format_available("pandoc_docx")
+    assert "Pandoc was not found on PATH" in caplog.text
 
+    binary = tmp_path / ("pandoc.exe" if os.name == "nt" else "pandoc")
+    binary.touch(mode=0o755)
     keys = [
         spec.key
         for spec in get_all_export_format_specs()
         if spec.key and not spec.key.startswith("_")
     ]
-    assert len(keys) == 20
-    assert len(keys) == len(set(keys))
+    assert len(keys) == len(set(keys)) == 20
+    assert "pandoc_docx" in keys
+    binary.unlink()
+    assert not is_export_format_available("pandoc_docx")
+    assert is_export_format_available("latex")
 
 
 def test_export_format_lookup_supports_quick_export_preference() -> None:

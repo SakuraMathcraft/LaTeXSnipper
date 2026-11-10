@@ -205,15 +205,7 @@ def build_maintenance(payload: Path) -> None:
 def build_models(payload: Path, cache: Path) -> None:
     from build_desktop_resources import assemble as assemble_resources
 
-    assemble_resources(
-        Namespace(
-            resource="models",
-            target=None,
-            output=payload,
-            cache=cache,
-            lock=ROOT / "packaging/runtime/resources.lock.json",
-        )
-    )
+    assemble_resources(payload, cache, ROOT / "packaging/runtime/resources.lock.json")
 
 
 def assemble(args) -> None:
@@ -229,7 +221,7 @@ def assemble(args) -> None:
     def build_runtime(payload):
         from build_gui_runtime import build_gui_runtime
 
-        build_gui_runtime(payload, target, args.cache)
+        build_gui_runtime(payload, target)
 
     def build_inference(payload, edition):
         from build_inference_component import assemble as assemble_inference

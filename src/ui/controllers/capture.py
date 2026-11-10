@@ -16,8 +16,6 @@ if TYPE_CHECKING:
     from ui.controllers.tasks import RecognitionTaskController
     from ui.main_window import MainWindow
 import logging
-import sys
-import time
 
 from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
 from qfluentwidgets import InfoBar, InfoBarPosition
@@ -61,25 +59,13 @@ class CaptureController(QObject):
         self.capture_window_manager = CaptureWindowManager(view)
         self.overlay = None
         self._capture_start_pending = False
-        self._capture_waiting_for_window_update = False
         self._last_capture_screen_index = None
-        self._activation_suppressed_until = 0.0
         self.can_capture = can_capture
 
-    def suppress_activation(self, seconds: float = 1.0) -> None:
-        """Keep macOS from reacting to the activation the capture surface causes."""
-        self._activation_suppressed_until = max(
-            self._activation_suppressed_until, time.monotonic() + seconds
-        )
-
-    def suppresses_activation(self) -> bool:
-        """Report whether the main window must stay behind the capture surface."""
-        if self._capture_start_pending or self.overlay is not None:
-            return True
-        return time.monotonic() < self._activation_suppressed_until
+    def is_capturing(self) -> bool:
+        return self._capture_start_pending or self.overlay is not None
 
     def start_capture(self, preserve_pinned_result: bool = False):
-        self.suppress_activation()
         if self.tasks.is_busy():
             self._show_capture_notice(
                 tr("正在识别"),
@@ -90,7 +76,7 @@ class CaptureController(QObject):
             return
         if not self.can_capture():
             return
-        if self._capture_start_pending or self.overlay is not None:
+        if self.is_capturing():
             try:
                 if self.overlay is not None:
                     self.system_provider.activate_window(self.overlay)
@@ -131,34 +117,35 @@ class CaptureController(QObject):
             preserve_pinned_result=bool(preserve_pinned_result)
         )
         self._capture_start_pending = True
-        self._capture_waiting_for_window_update = windows_changed
         if windows_changed:
             self.capture_window_manager.flush_desktop()
-            QTimer.singleShot(220, lambda cfg=cfg: self._begin_capture_overlay(cfg))
+            QTimer.singleShot(
+                220, lambda: self._begin_capture_overlay(cfg, flush_desktop=True)
+            )
         else:
             self._begin_capture_overlay(cfg)
 
-    def _begin_capture_overlay(self, cfg: ScreenshotConfig):
+    def _begin_capture_overlay(
+        self, cfg: ScreenshotConfig, *, flush_desktop: bool = False
+    ):
         if not self._capture_start_pending:
             return
-        waiting_for_window_update = self._capture_waiting_for_window_update
-        self._capture_start_pending = False
-        self._capture_waiting_for_window_update = False
-        if self.overlay is not None:
-            return
         try:
-            if waiting_for_window_update:
+            if flush_desktop:
                 self.capture_window_manager.flush_desktop()
+            if not self._capture_start_pending or self.overlay is not None:
+                return
             self.overlay = self.screenshot_provider.create_overlay(cfg)
             self.overlay.installEventFilter(self)
             self.overlay.selection_done.connect(self.on_capture_done)
             self.system_provider.activate_window(self.overlay)
-            self.suppress_activation()
         except Exception as e:
             self.overlay = None
             self._show_capture_notice(
                 tr("截图启动失败"), str(e), level="error", duration=6200
             )
+        finally:
+            self._capture_start_pending = False
 
     def eventFilter(self, obj, event):
         if self.file_input.eventFilter(obj, event):
@@ -177,9 +164,7 @@ class CaptureController(QObject):
                 except Exception:
                     pass
                 self._capture_start_pending = False
-                self._capture_waiting_for_window_update = False
                 self.overlay = None
-                self.suppress_activation()
                 QTimer.singleShot(
                     0,
                     lambda: self._show_capture_notice(
@@ -194,7 +179,6 @@ class CaptureController(QObject):
 
     def on_capture_done(self, pixmap):
         self._capture_start_pending = False
-        self._capture_waiting_for_window_update = False
         capture_failure_message = ""
         if self.overlay:
             capture_failure_message = str(
@@ -206,7 +190,6 @@ class CaptureController(QObject):
             )
             self.overlay.close()
             self.overlay = None
-            self.suppress_activation()
         if pixmap is None:
             if capture_failure_message:
                 QTimer.singleShot(
@@ -241,7 +224,7 @@ class CaptureController(QObject):
         text = str(message or "").strip()
         if not text:
             return
-        if sys.platform == "darwin" and not self.view.isVisible():
+        if not self.view.isVisible():
             tray = self.tray_icon()
             if tray is not None:
                 try:
@@ -252,9 +235,9 @@ class CaptureController(QObject):
                         critical=level == "error",
                         timeout_ms=duration,
                     )
-                    return
                 except Exception:
-                    logger.debug("菜单栏提示发送失败", exc_info=True)
+                    logger.debug("系统通知发送失败", exc_info=True)
+            return
         try:
             self.system_provider.activate_window(self.view)
         except Exception:
@@ -282,7 +265,6 @@ class CaptureController(QObject):
 
     def shutdown(self):
         self._capture_start_pending = False
-        self._capture_waiting_for_window_update = False
         if self.overlay is not None:
             self.overlay.close()
             self.overlay = None

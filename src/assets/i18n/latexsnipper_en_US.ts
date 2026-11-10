@@ -81,7 +81,7 @@
       <translation>HTML build failed</translation>
     </message>
     <message>
-      <location filename="../../../src/exporting/pandoc_exporter.py" line="58" />
+      <location filename="../../../src/exporting/pandoc_exporter.py" line="57" />
       <source>HTML 独立页(.html)</source>
       <translation>Standalone HTML page (.html)</translation>
     </message>
@@ -101,22 +101,22 @@
       <translation>HTTPS certificate</translation>
     </message>
     <message>
-      <location filename="../../../src/exporting/formula_export.py" line="39" />
+      <location filename="../../../src/exporting/formula_export.py" line="30" />
       <source>LaTeX (equation 编号)</source>
       <translation>LaTeX (numbered equation)</translation>
     </message>
     <message>
-      <location filename="../../../src/exporting/formula_export.py" line="74" />
+      <location filename="../../../src/exporting/formula_export.py" line="64" />
       <source>LaTeX (equation)</source>
       <translation>LaTeX (equation)</translation>
     </message>
     <message>
-      <location filename="../../../src/exporting/formula_export.py" line="37" />
+      <location filename="../../../src/exporting/formula_export.py" line="28" />
       <source>LaTeX (行内 $...$)</source>
       <translation>LaTeX (inline $...$)</translation>
     </message>
     <message>
-      <location filename="../../../src/exporting/formula_export.py" line="72" />
+      <location filename="../../../src/exporting/formula_export.py" line="62" />
       <source>LaTeX (行内)</source>
       <translation>LaTeX (inline)</translation>
     </message>
@@ -146,7 +146,7 @@
       <translation>LaTeXSnipper - Capture shortcut: {hotkey} | {display}</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="173" />
+      <location filename="../../../src/capture/overlay.py" line="176" />
       <source>LaTeXSnipper 截图识别</source>
       <translation>LaTeXSnipper Capture</translation>
     </message>
@@ -178,22 +178,22 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>LaTeXSnipper Runtime Log</translation>
     </message>
     <message>
-      <location filename="../../../src/exporting/formula_export.py" line="42" />
+      <location filename="../../../src/exporting/formula_export.py" line="33" />
       <source>Markdown (块级 $$...$$)</source>
       <translation>Markdown (block $$...$$)</translation>
     </message>
     <message>
-      <location filename="../../../src/exporting/formula_export.py" line="41" />
+      <location filename="../../../src/exporting/formula_export.py" line="32" />
       <source>Markdown (行内 $...$)</source>
       <translation>Markdown (inline $...$)</translation>
     </message>
     <message>
-      <location filename="../../../src/exporting/formula_export.py" line="76" />
+      <location filename="../../../src/exporting/formula_export.py" line="66" />
       <source>Markdown 块级</source>
       <translation>Markdown block</translation>
     </message>
     <message>
-      <location filename="../../../src/exporting/formula_export.py" line="75" />
+      <location filename="../../../src/exporting/formula_export.py" line="65" />
       <source>Markdown 行内</source>
       <translation>Markdown inline</translation>
     </message>
@@ -378,7 +378,7 @@ Check App diagnostics. For an installed app, rerun the complete installer. When 
       <translation>Whether PyQt6 WebEngine is working</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="642" />
+      <location filename="../../../src/capture/overlay.py" line="645" />
       <source>Shift 切换格式</source>
       <translation>Shift to switch format</translation>
     </message>
@@ -388,7 +388,7 @@ Check App diagnostics. For an installed app, rerun the complete installer. When 
       <translation>Wayland global shortcut unavailable: {error}</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="219" />
+      <location filename="../../../src/capture/overlay.py" line="222" />
       <source>Wayland 截图未完成，请确认桌面提供 Screenshot Portal 并允许屏幕截图。</source>
       <translation>Wayland capture did not complete. Ensure the desktop provides the Screenshot portal and allows screen capture.</translation>
     </message>
@@ -458,7 +458,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>{images};;All files (*.*)</translation>
     </message>
     <message>
-      <location filename="../../../src/exporting/formula_export.py" line="64" />
+      <location filename="../../../src/exporting/formula_export.py" line="54" />
       <source>── Pandoc 导出 ──</source>
       <translation>── Pandoc Export ──</translation>
     </message>
@@ -517,7 +517,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Star on GitHub</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/app_lifecycle.py" line="248" />
+      <location filename="../../../src/ui/controllers/app_lifecycle.py" line="235" />
       <source>主窗口已关闭，可通过 Dock 或菜单栏重新打开</source>
       <translation>The main window is closed. Reopen it from the Dock or menu bar.</translation>
     </message>
@@ -661,7 +661,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Global shortcut unavailable: {error}</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="368" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="361" />
       <source>全选</source>
       <translation>Select All</translation>
     </message>
@@ -718,8 +718,8 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Formula preview:</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="316" />
-      <location filename="../../../src/ui/controllers/app_lifecycle.py" line="116" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="309" />
+      <location filename="../../../src/ui/controllers/app_lifecycle.py" line="119" />
       <source>关于 LaTeXSnipper</source>
       <translation>About LaTeXSnipper</translation>
     </message>
@@ -743,7 +743,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Close tour</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="357" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="350" />
       <location filename="../../../src/ui/favorites_window.py" line="104" />
       <source>关闭窗口</source>
       <translation>Close Window</translation>
@@ -754,7 +754,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Closing this window pauses the download and keeps your progress so you can resume later. Close this window?</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/app_lifecycle.py" line="226" />
+      <location filename="../../../src/ui/controllers/app_lifecycle.py" line="213" />
       <source>关闭窗口将完全退出 LaTeXSnipper，是否确认？</source>
       <translation>Closing this window will quit LaTeXSnipper completely. Continue?</translation>
     </message>
@@ -766,7 +766,7 @@ Retry with the {hotkey} shortcut.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/controllers/editor_actions.py" line="89" />
-      <location filename="../../../src/ui/formula_export_menu.py" line="240" />
+      <location filename="../../../src/ui/formula_export_menu.py" line="249" />
       <source>内容为空</source>
       <translation>Content is empty</translation>
     </message>
@@ -914,7 +914,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Failed to load image: {error}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/capture.py" line="231" />
+      <location filename="../../../src/ui/controllers/capture.py" line="214" />
       <source>图片处理失败</source>
       <translation>Image processing failed</translation>
     </message>
@@ -970,7 +970,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Enter a LaTeX formula here for a live preview below...</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="364" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="357" />
       <location filename="../../../src/ui/controllers/history.py" line="77" />
       <location filename="../../../src/ui/favorites_window.py" line="183" />
       <location filename="../../../src/ui/history_panel.py" line="139" />
@@ -997,8 +997,8 @@ Retry with the {hotkey} shortcut.</translation>
     <message>
       <location filename="../../../src/ui/controllers/editor_actions.py" line="60" />
       <location filename="../../../src/ui/controllers/history.py" line="204" />
-      <location filename="../../../src/ui/formula_export_menu.py" line="169" />
-      <location filename="../../../src/ui/formula_export_menu.py" line="183" />
+      <location filename="../../../src/ui/formula_export_menu.py" line="176" />
+      <location filename="../../../src/ui/formula_export_menu.py" line="190" />
       <source>复制失败</source>
       <translation>Copy Failed</translation>
     </message>
@@ -1167,7 +1167,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Export {format}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/formula_export_menu.py" line="204" />
+      <location filename="../../../src/ui/formula_export_menu.py" line="213" />
       <source>导出为 {format}</source>
       <translation>Export as {format}</translation>
     </message>
@@ -1180,7 +1180,7 @@ Retry with the {hotkey} shortcut.</translation>
     <message>
       <location filename="../../../src/ui/controllers/editor_actions.py" line="109" />
       <location filename="../../../src/ui/favorites_window.py" line="319" />
-      <location filename="../../../src/ui/formula_export_menu.py" line="80" />
+      <location filename="../../../src/ui/formula_export_menu.py" line="87" />
       <source>导出失败: {error}</source>
       <translation>Export failed: {error}</translation>
     </message>
@@ -1212,17 +1212,17 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Display {index}: {name} ({width}x{height} @ {x},{y})</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="863" />
+      <location filename="../../../src/capture/overlay.py" line="861" />
       <source>屏幕 {number}</source>
       <translation>Screen {number}</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="860" />
+      <location filename="../../../src/capture/overlay.py" line="858" />
       <source>屏幕 {number}（{name}）</source>
       <translation>Screen {number} ({name})</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="990" />
+      <location filename="../../../src/capture/overlay.py" line="988" />
       <source>屏幕录制权限已通过预检，但 Qt 截图没有返回图像。请检查截图区域、显示器连接和应用日志后重试。</source>
       <translation>Screen-recording permission passed the preflight check, but Qt returned no image. Check the capture area, display connection, and application log, then try again.</translation>
     </message>
@@ -1289,12 +1289,12 @@ Retry with the {hotkey} shortcut.</translation>
     </message>
     <message>
       <location filename="../../../src/ui/controllers/editor_actions.py" line="117" />
-      <location filename="../../../src/ui/formula_export_menu.py" line="209" />
+      <location filename="../../../src/ui/formula_export_menu.py" line="218" />
       <source>已取消导出</source>
       <translation>Export canceled</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/capture.py" line="186" />
+      <location filename="../../../src/ui/controllers/capture.py" line="171" />
       <source>已取消截图</source>
       <translation>Capture canceled</translation>
     </message>
@@ -1314,7 +1314,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Recommended settings were applied. Verify the model name against your local service.</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="617" />
+      <location filename="../../../src/capture/overlay.py" line="620" />
       <location filename="../../../src/handwriting/handwriting_window.py" line="676" />
       <location filename="../../../src/ui/automation_access_dialog.py" line="360" />
       <location filename="../../../src/ui/controllers/editor_actions.py" line="52" />
@@ -1331,8 +1331,8 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>LaTeX copied</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/formula_export_menu.py" line="175" />
-      <location filename="../../../src/ui/formula_export_menu.py" line="181" />
+      <location filename="../../../src/ui/formula_export_menu.py" line="182" />
+      <location filename="../../../src/ui/formula_export_menu.py" line="188" />
       <source>已复制 {format} 格式</source>
       <translation>Copied in {format} format</translation>
     </message>
@@ -1352,7 +1352,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Already exists</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/formula_export_menu.py" line="61" />
+      <location filename="../../../src/ui/formula_export_menu.py" line="65" />
       <source>已导出 {format} 到 {path}</source>
       <translation>Exported {format} to {path}</translation>
     </message>
@@ -1389,8 +1389,8 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Updated to {hotkey}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/app_lifecycle.py" line="259" />
-      <location filename="../../../src/ui/controllers/app_lifecycle.py" line="218" />
+      <location filename="../../../src/ui/controllers/app_lifecycle.py" line="246" />
+      <location filename="../../../src/ui/controllers/app_lifecycle.py" line="205" />
       <source>已最小化到系统托盘</source>
       <translation>Minimized to the system tray</translation>
     </message>
@@ -1479,7 +1479,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Take the tour</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="348" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="341" />
       <source>开始截图识别</source>
       <translation>Start Capture</translation>
     </message>
@@ -1514,8 +1514,8 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>A connection test is already running in the background.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/capture.py" line="86" />
-      <location filename="../../../src/ui/controllers/capture.py" line="222" />
+      <location filename="../../../src/ui/controllers/capture.py" line="72" />
+      <location filename="../../../src/ui/controllers/capture.py" line="205" />
       <source>当前已有识别任务，请稍候。</source>
       <translation>A recognition task is already running. Please wait.</translation>
     </message>
@@ -1535,7 +1535,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Current hotkey: {hotkey}</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="870" />
+      <location filename="../../../src/capture/overlay.py" line="868" />
       <source>当前截图模式固定为{target}，但你框选的是{actual}。请在托盘菜单选择“识别屏幕 &gt; {actual}”，或切换为“自动”后再截图。</source>
       <translation>Capture is fixed to {target}, but the selection is on {actual}. Choose “Recognition Screen &gt; {actual}” from the tray menu, or switch to Auto and capture again.</translation>
     </message>
@@ -1646,27 +1646,27 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>I understand that remote devices can submit images to this computer and confirm that the connection is secure</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/app_lifecycle.py" line="117" />
+      <location filename="../../../src/ui/controllers/app_lifecycle.py" line="120" />
       <source>截图、识别、手写、编辑与导出数学内容。</source>
       <translation>Capture, recognize, handwrite, edit, and export mathematical content.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/capture.py" line="160" />
+      <location filename="../../../src/ui/controllers/capture.py" line="145" />
       <source>截图启动失败</source>
       <translation>Failed to start capture</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/capture.py" line="281" />
+      <location filename="../../../src/ui/controllers/capture.py" line="264" />
       <source>截图失败</source>
       <translation>Capture failed</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/capture.py" line="112" />
+      <location filename="../../../src/ui/controllers/capture.py" line="98" />
       <source>截图权限不足</source>
       <translation>Insufficient capture permission</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/capture.py" line="106" />
+      <location filename="../../../src/ui/controllers/capture.py" line="92" />
       <source>截图权限被拒绝</source>
       <translation>Capture permission was denied</translation>
     </message>
@@ -1734,7 +1734,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Selected display</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="619" />
+      <location filename="../../../src/capture/overlay.py" line="622" />
       <source>按 C 复制色值</source>
       <translation>Press C to copy color</translation>
     </message>
@@ -1881,7 +1881,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Favorites is already empty</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="347" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="340" />
       <source>文件</source>
       <translation>File</translation>
     </message>
@@ -1927,7 +1927,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Unable to update the Automation API configuration.</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="995" />
+      <location filename="../../../src/capture/overlay.py" line="993" />
       <source>无法确认当前进程的屏幕录制权限，且截图接口没有返回图像。请检查应用日志，并在系统设置中确认授权的是当前运行副本后重试。</source>
       <translation>The current process permission could not be confirmed and the capture APIs returned no image. Check the application log and confirm in system settings that the currently running copy is authorized, then try again.</translation>
     </message>
@@ -1967,7 +1967,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The log view has been cleared</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="353" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="346" />
       <source>显示主窗口</source>
       <translation>Show Main Window</translation>
     </message>
@@ -2020,7 +2020,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The server returned {status_code}. Try again later or check the service log.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/capture.py" line="187" />
+      <location filename="../../../src/ui/controllers/capture.py" line="172" />
       <source>未创建识别任务。</source>
       <translation>No recognition task was created.</translation>
     </message>
@@ -2051,12 +2051,12 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>No recognizable content detected</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/formula_export_menu.py" line="200" />
+      <location filename="../../../src/ui/formula_export_menu.py" line="207" />
       <source>未知的 Pandoc 格式: {format}</source>
       <translation>Unknown Pandoc format: {format}</translation>
     </message>
     <message>
-      <location filename="../../../src/capture/overlay.py" line="980" />
+      <location filename="../../../src/capture/overlay.py" line="978" />
       <source>未能获取截图，请检查桌面截图权限和应用日志。</source>
       <translation>Could not capture the screen. Check desktop capture permissions and the application log.</translation>
     </message>
@@ -2088,7 +2088,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Local models prepare in the background and may need a download on first use. Open the logs for details.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/capture.py" line="121" />
+      <location filename="../../../src/ui/controllers/capture.py" line="107" />
       <location filename="../../../src/ui/notifications.py" line="11" />
       <source>权限不足</source>
       <translation>Insufficient Permissions</translation>
@@ -2143,7 +2143,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The model name is empty. Enter the model name used by the local service.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/capture.py" line="102" />
+      <location filename="../../../src/ui/controllers/capture.py" line="88" />
       <location filename="../../../src/ui/controllers/pdf.py" line="117" />
       <location filename="../../../src/ui/controllers/recognition.py" line="68" />
       <location filename="../../../src/ui/controllers/recognition.py" line="144" />
@@ -2263,7 +2263,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Exporting </translation>
     </message>
     <message>
-      <location filename="../../../src/ui/formula_export_menu.py" line="227" />
+      <location filename="../../../src/ui/formula_export_menu.py" line="236" />
       <source>正在导出 {format}...</source>
       <translation>Exporting {format}...</translation>
     </message>
@@ -2294,8 +2294,8 @@ Retry with the {hotkey} shortcut.</translation>
     </message>
     <message>
       <location filename="../../../src/handwriting/handwriting_window.py" line="689" />
-      <location filename="../../../src/ui/controllers/capture.py" line="85" />
-      <location filename="../../../src/ui/controllers/capture.py" line="221" />
+      <location filename="../../../src/ui/controllers/capture.py" line="71" />
+      <location filename="../../../src/ui/controllers/capture.py" line="204" />
       <source>正在识别</source>
       <translation>Recognizing</translation>
     </message>
@@ -2555,7 +2555,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Confirm or edit text:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/app_lifecycle.py" line="225" />
+      <location filename="../../../src/ui/controllers/app_lifecycle.py" line="212" />
       <source>确认退出</source>
       <translation>Confirm Exit</translation>
     </message>
@@ -2585,7 +2585,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Simplified Chinese</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="384" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="377" />
       <source>粘贴</source>
       <translation>Paste</translation>
     </message>
@@ -2595,7 +2595,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Text only</translation>
     </message>
     <message>
-      <location filename="../../../src/exporting/pandoc_exporter.py" line="64" />
+      <location filename="../../../src/exporting/pandoc_exporter.py" line="63" />
       <source>纯文本 (.txt)</source>
       <translation>Plain text (.txt)</translation>
     </message>
@@ -2625,7 +2625,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Continue tour</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="362" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="355" />
       <location filename="../../../src/ui/controllers/history.py" line="76" />
       <location filename="../../../src/ui/edit_formula_dialog.py" line="25" />
       <location filename="../../../src/ui/favorites_window.py" line="196" />
@@ -2732,7 +2732,7 @@ Retry with the {hotkey} shortcut.</translation>
     </message>
     <message>
       <location filename="../../../src/platform_services/linux_provider.py" line="119" />
-      <location filename="../../../src/platform_services/macos_provider.py" line="321" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="314" />
       <location filename="../../../src/platform_services/macos_provider.py" line="263" />
       <location filename="../../../src/platform_services/windows_provider.py" line="118" />
       <source>设置...</source>
@@ -3120,7 +3120,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Exit</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="341" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="334" />
       <source>退出 LaTeXSnipper</source>
       <translation>Quit LaTeXSnipper</translation>
     </message>
@@ -3240,7 +3240,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Regenerate access key</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/capture.py" line="102" />
+      <location filename="../../../src/ui/controllers/capture.py" line="88" />
       <location filename="../../../src/ui/controllers/pdf.py" line="107" />
       <location filename="../../../src/ui/controllers/pdf.py" line="117" />
       <location filename="../../../src/ui/controllers/pdf.py" line="130" />
@@ -3268,12 +3268,12 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Error details:</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="329" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="322" />
       <source>隐藏 LaTeXSnipper</source>
       <translation>Hide LaTeXSnipper</translation>
     </message>
     <message>
-      <location filename="../../../src/platform_services/macos_provider.py" line="334" />
+      <location filename="../../../src/platform_services/macos_provider.py" line="327" />
       <source>隐藏其他窗口</source>
       <translation>Hide Others</translation>
     </message>
@@ -3330,12 +3330,12 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Advanced settings:</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/formula_export_menu.py" line="70" />
+      <location filename="../../../src/ui/formula_export_menu.py" line="74" />
       <source>；图像资源 {count} 个：{path}</source>
       <translation>; {count} image assets: {path}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/formula_export_menu.py" line="74" />
+      <location filename="../../../src/ui/formula_export_menu.py" line="78" />
       <source>；已跳过 {count} 个无效或不完整 SVG</source>
       <translation>; skipped {count} invalid or incomplete SVG files</translation>
     </message>

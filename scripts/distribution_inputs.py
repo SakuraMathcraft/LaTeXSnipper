@@ -204,8 +204,6 @@ def load_resources(path: Path) -> dict:
             "model_format",
             "model_manifest",
             "models",
-            "pandoc_version",
-            "pandoc",
             "licenses",
         },
     )
@@ -236,30 +234,13 @@ def load_resources(path: Path) -> dict:
         )
         if item.url.rsplit("/", 1)[0] != manifest.url.rsplit("/", 1)[0]:
             raise ManifestError("Model archive and manifest release mismatch")
-    version(lock["pandoc_version"])
-    fields(lock["pandoc"], set(TARGETS))
-    for target, source in lock["pandoc"].items():
-        ending = {
-            "windows-x86_64": "windows-x86_64.zip",
-            "linux-x86_64": "linux-amd64.tar.gz",
-            "macos-arm64": "arm64-macOS.zip",
-        }[target]
-        artifact(
-            source,
-            host="github.com",
-            prefix=f"/jgm/pandoc/releases/download/{lock['pandoc_version']}/",
-            suffix=f"/pandoc-{lock['pandoc_version']}-{ending}",
-        )
-    fields(lock["licenses"], {"models", "pandoc"})
-    for name, source in lock["licenses"].items():
-        item = artifact(
-            source,
-            host="raw.githubusercontent.com",
-            suffix="/LICENSE" if name == "models" else "/COPYING.md",
-        )
-        repo = "SakuraMathcraft/MathCraft-Models" if name == "models" else "jgm/pandoc"
-        if not re.fullmatch(
-            "/" + repo + r"/[0-9a-f]{40}/[^/]+", urlsplit(item.url).path
-        ):
-            raise ManifestError("License source needs a pinned upstream commit")
+    fields(lock["licenses"], {"models"})
+    license_source = artifact(
+        lock["licenses"]["models"], host="raw.githubusercontent.com", suffix="/LICENSE"
+    )
+    if not re.fullmatch(
+        r"/SakuraMathcraft/MathCraft-Models/[0-9a-f]{40}/LICENSE",
+        urlsplit(license_source.url).path,
+    ):
+        raise ManifestError("License source needs a pinned upstream commit")
     return lock

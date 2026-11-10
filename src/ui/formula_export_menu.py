@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import Literal
@@ -12,6 +13,8 @@ from qfluentwidgets import Action
 
 from exporting.formula_export import build_formula_export, get_all_export_format_specs
 from localization.manager import translate as tr
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 StatusCallback = Callable[[str, Literal["success", "info", "warning", "error"]], None]
 _active_export_threads: list[QThread] = []
@@ -31,12 +34,13 @@ class _PandocFileExportWorker(QObject):
 
     @pyqtSlot()
     def run(self) -> None:
+        from exporting.pandoc_exporter import PandocNotAvailable, convert_latex_to
+
         try:
             from exporting.document_assets import (
                 prepare_pandoc_document,
                 supports_document_assets,
             )
-            from exporting.pandoc_exporter import convert_latex_to
 
             output_path = Path(self._file_path)
             prepared = None
@@ -76,6 +80,9 @@ class _PandocFileExportWorker(QObject):
                 )
                 level = "warning"
             self.finished.emit(message, level)
+        except PandocNotAvailable as exc:
+            logger.debug("%s", exc)
+            self.finished.emit("", "info")
         except Exception as exc:
             self.failed.emit(tr("导出失败: {error}").format(error=exc))
 
@@ -96,7 +103,7 @@ class _PandocExportTask(QObject):
     def report_finished(
         self, message: str, level: Literal["success", "info", "warning", "error"]
     ) -> None:
-        if self._status_callback is not None:
+        if message and self._status_callback is not None:
             self._status_callback(message, level)
 
     @pyqtSlot(str)
@@ -193,11 +200,13 @@ def _handle_pandoc_file_export(
 ) -> tuple[bool, str]:
     from PyQt6.QtWidgets import QFileDialog
 
-    from exporting.pandoc_exporter import PANDOC_FORMAT_MAP
+    from exporting.pandoc_exporter import PANDOC_FORMAT_MAP, is_available
 
     fmt = PANDOC_FORMAT_MAP.get(format_key)
     if fmt is None:
         return False, tr("未知的 Pandoc 格式: {format}").format(format=format_key)
+    if not is_available():
+        return False, ""
 
     file_path, _ = QFileDialog.getSaveFileName(
         parent,

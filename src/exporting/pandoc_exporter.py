@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib.util
 import logging
 import os
 import re
@@ -17,7 +16,7 @@ from exporting.formula_format_helpers import normalize_latex_for_export
 from localization.manager import mark_for_translation
 from rendering.mathjax_runtime import cdn_loader_script, cdn_root
 from runtime.pandoc_runtime import resolve_pandoc
-from runtime.processes import hidden_subprocess_kwargs
+from runtime.processes import hidden_subprocess_kwargs, independent_process_environment
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
@@ -68,65 +67,11 @@ PANDOC_FORMATS: tuple[PandocFormat, ...] = (
 PANDOC_FORMAT_MAP: dict[str, PandocFormat] = {f.key: f for f in PANDOC_FORMATS}
 
 
-_available_cache: bool | None = None
-_pandoc_version_cache: str | None = None
-
-
-def _find_pandoc_binary() -> str | None:
-    path = resolve_pandoc()
-    if path is not None:
-        os.environ["PYPANDOC_PANDOC"] = str(path)
-        return str(path)
-    return None
-
-
-def check_pandoc_available(*, force: bool = False) -> bool:
-    global _available_cache, _pandoc_version_cache
-    if _available_cache is not None and not force:
-        return _available_cache
-
-    _available_cache = False
-    _pandoc_version_cache = None
-
-    if force:
-        sys.modules.pop("pypandoc", None)
-
-    if importlib.util.find_spec("pypandoc") is None:
-        logger.debug("pypandoc is not installed – Pandoc export disabled")
-        return False
-
-    try:
-        pandoc_path = _find_pandoc_binary()
-    except (OSError, ValueError) as exc:
-        logger.warning("Pandoc 安装资源不可用: %s", exc)
-        return False
-
-    if not pandoc_path:
-        logger.debug("pandoc binary not found – Pandoc export disabled")
-        return False
-
-    try:
-        ver_output = subprocess.check_output(
-            [pandoc_path, "--version"],
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            timeout=10,
-            **hidden_subprocess_kwargs(),
-        )
-        first_line = ver_output.splitlines()[0] if ver_output else ""
-        _pandoc_version_cache = first_line.strip()
-    except Exception as exc:
-        logger.warning("Pandoc 运行检查失败: %s", exc)
-        return False
-
-    _available_cache = True
-    logger.debug("Pandoc 可用: %s", _pandoc_version_cache)
-    return True
-
-
 def is_available() -> bool:
-    return check_pandoc_available()
+    if resolve_pandoc() is None:
+        logger.debug("Pandoc was not found on PATH")
+        return False
+    return True
 
 
 def _wrap_formula_in_document(latex: str) -> str:
@@ -173,8 +118,6 @@ def _pdf_text_font_args() -> list[str]:
 
 
 def _preprocess_for_pptx(text: str) -> str:
-    import re
-
     lines = text.split("\n")
     result = []
     for line in lines:
@@ -217,14 +160,36 @@ def _ensure_mathjax_script(html: str) -> str:
     )
 
 
-def _read_valid_file_output(path: str, target_key: str) -> bytes | None:
-    output_path = Path(path)
-    if not output_path.is_file() or output_path.stat().st_size == 0:
+def _read_valid_file_output(path: Path, target_key: str) -> bytes | None:
+    if not path.is_file() or path.stat().st_size == 0:
         return None
-    data = output_path.read_bytes()
+    data = path.read_bytes()
     if target_key == "pandoc_pdf" and not data.startswith(b"%PDF-"):
         return None
     return data
+
+
+def _run_pandoc(command: list[str], source: str) -> str:
+    try:
+        result = subprocess.run(
+            command,
+            input=source.encode("utf-8"),
+            capture_output=True,
+            env=independent_process_environment(),
+            **hidden_subprocess_kwargs(),
+        )
+        detail = result.stderr.decode("utf-8").strip()
+        if result.returncode:
+            raise PandocConversionError(
+                f"Pandoc exited with code {result.returncode}: {detail}"
+            )
+        if detail:
+            logger.debug("Pandoc: %s", detail)
+        return result.stdout.decode("utf-8")
+    except FileNotFoundError as exc:
+        raise PandocNotAvailable("Pandoc executable is unavailable") from exc
+    except (OSError, UnicodeError) as exc:
+        raise PandocConversionError(f"Could not run Pandoc: {exc}") from exc
 
 
 def convert_latex_to(
@@ -235,14 +200,12 @@ def convert_latex_to(
     extra_args: list[str] | None = None,
     input_format: str | None = None,
 ) -> str | bytes:
-    if not is_available():
-        raise PandocNotAvailable("Pandoc 导出不可用。")
-
     fmt = PANDOC_FORMAT_MAP.get(target_key)
     if fmt is None:
         raise ValueError(f"Unknown Pandoc format key: {target_key!r}")
-
-    import pypandoc  # type: ignore[import-untyped]
+    pandoc = resolve_pandoc()
+    if pandoc is None:
+        raise PandocNotAvailable("Pandoc was not found on PATH")
 
     is_complete_doc = (latex or "").strip().startswith("\\documentclass")
     has_inline_math = "$" in (latex or "")
@@ -300,53 +263,30 @@ def convert_latex_to(
         if is_text_content and "--pdf-engine" in args:
             args.extend(_pdf_text_font_args())
 
-    if fmt.requires_output_file:
-        with tempfile.NamedTemporaryFile(suffix=fmt.extension, delete=False) as tmp:
-            tmp_path = tmp.name
+    command = [str(pandoc), f"--from={input_fmt}", f"--to={fmt.pandoc_format}", *args]
+    if not fmt.requires_output_file:
+        result = _run_pandoc(command, src)
+        return (
+            _ensure_mathjax_script(result)
+            if target_key == "pandoc_html_standalone"
+            else result
+        )
+
+    with tempfile.TemporaryDirectory(prefix="latexsnipper-pandoc-") as temp:
+        output = Path(temp) / f"export{fmt.extension}"
         try:
-            pypandoc.convert_text(
-                src,
-                fmt.pandoc_format,
-                format=input_fmt,
-                outputfile=tmp_path,
-                extra_args=args,
-            )
-            data = _read_valid_file_output(tmp_path, target_key)
-            if data is None:
-                raise PandocConversionError(
-                    f"Pandoc conversion to {fmt.pandoc_format} produced no output"
-                )
+            _run_pandoc([*command, f"--output={output}"], src)
+        except PandocConversionError as exc:
+            if (
+                target_key != "pandoc_pdf"
+                or (data := _read_valid_file_output(output, target_key)) is None
+            ):
+                raise
+            logger.warning("Pandoc 报告转换错误，但已生成有效 PDF: %s", exc)
             return data
-        except Exception as exc:
-            data = _read_valid_file_output(tmp_path, target_key)
-            if target_key == "pandoc_pdf" and data is not None:
-                logger.warning("Pandoc 报告转换错误，但已生成有效 PDF: %s", exc)
-                return data
+        data = _read_valid_file_output(output, target_key)
+        if data is None:
             raise PandocConversionError(
-                f"Pandoc conversion to {fmt.pandoc_format} failed: {exc}"
-            ) from exc
-        finally:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-    else:
-        try:
-            result = pypandoc.convert_text(
-                src,
-                fmt.pandoc_format,
-                format=input_fmt,
-                extra_args=args,
+                f"Pandoc conversion to {fmt.pandoc_format} produced no output"
             )
-            if target_key == "pandoc_html_standalone":
-                result = _ensure_mathjax_script(result)
-            return result
-        except Exception as exc:
-            raise PandocConversionError(
-                f"Pandoc conversion to {fmt.pandoc_format} failed: {exc}"
-            ) from exc
-
-
-def get_format_label(key: str) -> str:
-    fmt = PANDOC_FORMAT_MAP.get(key)
-    return fmt.label if fmt else key
+        return data

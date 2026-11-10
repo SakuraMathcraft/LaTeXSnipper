@@ -207,6 +207,7 @@ def inputs(tmp_path, monkeypatch):
         ("linux-x86_64", "packaging/debian/DEBIAN/control", set()),
         ("linux-x86_64", "requirements.txt", {"runtime"}),
         ("macos-arm64", "requirements.txt", {"runtime", "base"}),
+        ("macos-arm64", "scripts/qt_payload.py", {"runtime", "base"}),
         ("windows-x86_64", "mathcraft_ocr/vendor/LICENSE.onnx", set()),
         (
             "windows-x86_64",
@@ -364,42 +365,61 @@ def test_cache_plan_installs_only_tools_for_missing_payloads(
 
 
 @pytest.mark.parametrize(
-    ("library", "platform_plugin", "optional_libraries"),
+    ("library", "platform_plugin", "optional_libraries", "webengine_framework"),
     [
-        ("bin/Qt6Core.dll", "qwindows.dll", ("bin/Qt6Pdf.dll",)),
+        ("bin/Qt6Core.dll", "qwindows.dll", ("bin/Qt6Pdf.dll",), None),
         (
             "lib/libQt6Core.so.6",
             "libqxcb.so",
             ("lib/libQt6Pdf.so.6", "lib/libQt6Pdf.so.6.9.0"),
+            None,
         ),
         (
             "lib/QtCore.framework/Versions/A/QtCore",
             "libqcocoa.dylib",
             ("lib/QtPdf.framework/Versions/A/QtPdf", "lib/libQt6Pdf.dylib"),
+            "lib/QtWebEngineCore.framework/Versions/A",
         ),
     ],
 )
 def test_qt_pruning_retains_native_platform_and_webengine_payload(
-    tmp_path, library, platform_plugin, optional_libraries
+    tmp_path, library, platform_plugin, optional_libraries, webengine_framework
 ):
     from qt_payload import prune_qt_payload
 
     qt = tmp_path / "PyQt6/Qt6"
+    resources = (
+        f"{webengine_framework}/Resources" if webengine_framework else "resources"
+    )
+    locales = (
+        f"{resources}/qtwebengine_locales"
+        if webengine_framework
+        else "translations/qtwebengine_locales"
+    )
     retained = {
         library,
         f"plugins/platforms/{platform_plugin}",
-        "resources/qtwebengine_resources.pak",
-        "resources/icudtl.dat",
+        f"{resources}/qtwebengine_resources.pak",
+        f"{resources}/qtwebengine_resources_100p.pak",
+        f"{resources}/qtwebengine_resources_200p.pak",
+        f"{resources}/icudtl.dat",
         "translations/qtbase_zh_CN.qm",
-        "translations/qtwebengine_locales/en-US.pak",
-        "translations/qtwebengine_locales/zh-CN.pak",
+        f"{locales}/en-US.pak",
+        f"{locales}/zh-CN.pak",
     }
+    if webengine_framework:
+        retained.update(
+            {
+                f"{webengine_framework}/QtWebEngineCore",
+                f"{webengine_framework}/Helpers/QtWebEngineProcess.app/Contents/MacOS/QtWebEngineProcess",
+            }
+        )
     optional = {
         *optional_libraries,
         "qml/QtQuick/qmldir",
-        "resources/qtwebengine_devtools_resources.pak",
+        f"{resources}/qtwebengine_devtools_resources.pak",
         "translations/qtbase_fr.qm",
-        "translations/qtwebengine_locales/fr.pak",
+        f"{locales}/fr.pak",
     }
     for relative in retained | optional:
         path = qt / relative
@@ -672,6 +692,33 @@ def test_macos_bundle_build_uses_local_signatures(tmp_path, monkeypatch):
     assert not verify_component(
         bundle / "Contents/Resources/desktop/application", manifest.application
     )
+
+
+def test_windows_signpath_rules_match_both_release_installers(tmp_path, monkeypatch):
+    from fnmatch import fnmatchcase
+    from xml.etree import ElementTree
+
+    import release_installers
+
+    monkeypatch.setattr(release_installers.shutil, "which", lambda name: name)
+    monkeypatch.setattr(release_installers, "run", lambda _arguments: None)
+    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    filenames = [
+        release_installers.windows_installer(
+            tmp_path, tmp_path, SimpleNamespace(version=version, edition=edition)
+        ).name
+        for edition in ("cpu", "gpu")
+    ]
+    config = ElementTree.parse(
+        ROOT / ".signpath/artifact-configurations/windows-installer.xml"
+    )
+    ns = {"sp": "http://signpath.io/artifact-configuration/v1"}
+    rules = config.findall("./sp:zip-file/sp:pe-file", ns)
+    assert all(rule.find("sp:authenticode-sign", ns) is not None for rule in rules)
+    assert sorted(
+        [name for name in filenames if fnmatchcase(name, rule.attrib["path"])]
+        for rule in rules
+    ) == [[name] for name in filenames]
 
 
 def test_signed_windows_installer_replaces_only_the_carrier_identity(tmp_path):
