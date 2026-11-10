@@ -17,7 +17,7 @@ import logging
 import os
 import sys
 
-from PyQt6.QtCore import QCoreApplication, QEvent, QObject, QTimer
+from PyQt6.QtCore import QCoreApplication, QEvent, QObject, Qt, QTimer
 from PyQt6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 from qfluentwidgets import InfoBar, InfoBarPosition
 
@@ -131,12 +131,56 @@ class AppLifecycleController(QObject):
                 pass
         self.view.close()
 
+    def _capture_suppresses_activation(self) -> bool:
+        """Report whether a running capture must keep the main window in the background."""
+        capture = getattr(self, "capture", None)
+        if capture is None:
+            return False
+        probe = getattr(capture, "suppresses_activation", None)
+        if callable(probe):
+            try:
+                return bool(probe())
+            except Exception:
+                logger.debug("读取截图后台状态失败", exc_info=True)
+        return bool(
+            getattr(capture, "_capture_start_pending", False)
+            or getattr(capture, "overlay", None) is not None
+        )
+
+    def _has_other_visible_window(self) -> bool:
+        """Report whether a window other than the main window is on screen.
+
+        Showing the recognition result (or settings, a PDF result, ...) activates
+        the application, which arrives here exactly like a Dock click. macOS only
+        reopens the main window when the application has no visible window, so
+        an activation caused by one of our own windows must leave it hidden.
+        """
+        transient = (
+            Qt.WindowType.Popup,
+            Qt.WindowType.ToolTip,
+            Qt.WindowType.SplashScreen,
+        )
+        for widget in QApplication.topLevelWidgets():
+            try:
+                if widget is self.view or not widget.isWindow():
+                    continue
+                if not widget.isVisible() or widget.isMinimized():
+                    continue
+                if widget.windowType() in transient:
+                    continue
+                return True
+            except RuntimeError:
+                continue
+        return False
+
     def _reactivate_from_dock(self):
         if sys.platform != "darwin" or getattr(self, "_force_exit", False):
             return
-        if self.capture._capture_start_pending or self.capture.overlay is not None:
+        if self._capture_suppresses_activation():
             return
         if QApplication.activeModalWidget() is not None:
+            return
+        if self._has_other_visible_window():
             return
         try:
             if not self.view.isVisible() or self.view.isMinimized():

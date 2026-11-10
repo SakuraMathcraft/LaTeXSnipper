@@ -282,6 +282,19 @@ class MacOSSystemProvider:
         tray.showMessage(title, text, icon, timeout_ms)
 
     def activate_window(self, window) -> None:
+        if isinstance(window, ScreenCaptureOverlay):
+            # The capture panel decides whether it may activate the application;
+            # forcing activateWindow here would pull a backgrounded LaTeXSnipper
+            # to the front over the capture surface. The panel must also be
+            # marked non-activating while it is still off screen, because macOS
+            # activates the application as soon as the panel is ordered front.
+            if window.prepare_background_presentation():
+                # raise_ would activate the application and defeat the panel.
+                window.show()
+                return
+            window.show()
+            window.raise_()
+            return
         if hasattr(window, "isMinimized") and window.isMinimized():
             window.showNormal()
         else:
