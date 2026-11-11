@@ -2,6 +2,7 @@
 
 import plistlib
 import shutil
+import subprocess
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -14,7 +15,11 @@ from runtime.distribution_manifest import DistributionManifest
 from runtime.installation_layout import installation_manifest
 from test_deployment_transaction import Interrupted, installation
 from update import debian_transaction, macos_transaction
-from update.deployment_transaction import atomic_json, verify_distribution
+from update.deployment_transaction import (
+    atomic_json,
+    needs_recovery,
+    verify_distribution,
+)
 
 
 def retarget(manifest, platform):
@@ -51,6 +56,10 @@ def mac_deployment(tmp_path, monkeypatch):
     fixed = bundle / macos_transaction.BASE
     fixed.mkdir(parents=True)
     (fixed / "weights.onnx").write_bytes(b"fixed weights")
+    (fixed / "libpython3.11.dylib").write_bytes(b"python runtime")
+    (fixed.parent / "libpython3.11.dylib").symlink_to(
+        Path(fixed.name) / "libpython3.11.dylib"
+    )
     staged = tmp_path / "staged"
     target = retarget(
         installation(staged, "4.0.0", {"application": b"new"}, full=False), "macos"
@@ -67,9 +76,17 @@ def mac_deployment(tmp_path, monkeypatch):
     )
     atomic_json(staged / "distribution.json", target.to_dict())
 
+    run = subprocess.run
+
     def native_tool(arguments, **kwargs):
+        if arguments[:2] == ["/bin/cp", "-cRp"]:
+            if sys.platform == "darwin":
+                return run(arguments, **kwargs)
+            shutil.copytree(arguments[2], arguments[3], symlinks=True)
+            return SimpleNamespace(returncode=0, stderr="")
         assert arguments[0] == "codesign" and "--deep" not in arguments
         if "--force" in arguments:
+            assert "--preserve-metadata=entitlements" in arguments
             candidate_root = Path(arguments[-1]) / macos_transaction.DESKTOP
             assert (candidate_root / "LaTeXSnipper").read_bytes() == b"new launcher"
         return SimpleNamespace(returncode=0, stderr="")
@@ -88,7 +105,7 @@ def mac_deployment(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "boundary", ["prepared", "base-retained", "bundle-exchanged", "committed"]
+    "boundary", ["prepared", "candidate-signed", "bundle-exchanged", "committed"]
 )
 def test_macos_interruption_recovers_business_and_retains_fixed_base(
     mac_deployment, boundary
@@ -104,6 +121,11 @@ def test_macos_interruption_recovers_business_and_retains_fixed_base(
 
     with pytest.raises(Interrupted):
         transaction.apply(staged, checkpoint=interrupt)
+    runtime = macos_transaction.BASE.parent / "libpython3.11.dylib"
+    for bundle in (transaction.bundle, transaction.candidate):
+        assert (bundle / runtime).is_symlink()
+        assert (bundle / runtime).read_bytes() == b"python runtime"
+    assert needs_recovery(transaction.directory) == (boundary != "committed")
     expected = target if boundary == "committed" else before
     assert transaction.recover() == (
         "committed" if boundary == "committed" else "rolled-back"
@@ -112,9 +134,9 @@ def test_macos_interruption_recovers_business_and_retains_fixed_base(
         DistributionManifest.load(root / "distribution.json")
         == expected.installed_identity()
     )
-    assert (
-        weights.stat().st_ino == identity and weights.read_bytes() == b"fixed weights"
-    )
+    assert weights.read_bytes() == b"fixed weights"
+    if boundary != "committed":
+        assert weights.stat().st_ino == identity
     verify_distribution(root, expected)
     assert (root / "LaTeXSnipper").read_bytes() == (
         root / "application/bootstrap/LaTeXSnipper"
@@ -124,11 +146,14 @@ def test_macos_interruption_recovers_business_and_retains_fixed_base(
 
 def test_macos_signing_failure_preserves_original_app(mac_deployment, monkeypatch):
     root, staged, before, _ = mac_deployment
-    monkeypatch.setattr(
-        macos_transaction.subprocess,
-        "run",
-        lambda *a, **k: SimpleNamespace(returncode=1, stderr="sign failed"),
-    )
+    run = subprocess.run
+
+    def fail_signing(arguments, **kwargs):
+        if arguments[0] == "codesign":
+            return SimpleNamespace(returncode=1, stderr="sign failed")
+        return run(arguments, **kwargs)
+
+    monkeypatch.setattr(macos_transaction.subprocess, "run", fail_signing)
     with pytest.raises(ValueError, match="signing failed"):
         macos_transaction.MacOSDeploymentTransaction(root).apply(staged)
     verify_distribution(root, before)

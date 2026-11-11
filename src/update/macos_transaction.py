@@ -83,12 +83,21 @@ class MacOSDeploymentTransaction(DeploymentTransaction):
         return state
 
     def _prepare(self, staged, before, target, replacements) -> dict:
-        def ignore(directory, names):
-            return [BASE.name] if Path(directory) == self.bundle / BASE.parent else []
-
-        # Only the small outer bundle is copied. The signed fixed base is moved
-        # after the UI exits, so neither its files nor weights are traversed.
-        shutil.copytree(self.bundle, self.candidate, symlinks=True, ignore=ignore)
+        base = self.bundle / BASE
+        if base.is_symlink() or not base.is_dir():
+            raise ManifestError("Invalid fixed base ownership")
+        # Keep both bundles bootable across the exchange. APFS clones share
+        # the unchanged data blocks, including the fixed base and its weights.
+        result = subprocess.run(
+            ["/bin/cp", "-cRp", str(self.bundle), str(self.candidate)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=300,
+            env=independent_process_environment(),
+        )
+        if result.returncode:
+            raise ManifestError(f"Could not stage the macOS bundle: {result.stderr}")
         candidate_root = self.candidate / DESKTOP
         if "application" in replacements:
             self._remove(candidate_root / "application")
@@ -115,14 +124,15 @@ class MacOSDeploymentTransaction(DeploymentTransaction):
         return {"original_bundle": [original.st_dev, original.st_ino]}
 
     def _install(self, state, checkpoint):
-        source, destination = self.bundle / BASE, self.candidate / BASE
-        if source.is_symlink() or destination.exists():
-            raise ManifestError("Invalid fixed base ownership")
-        source.rename(destination)
-        if checkpoint:
-            checkpoint("base-retained")
         result = subprocess.run(
-            ["codesign", "--force", "--sign", "-", str(self.candidate)],
+            [
+                "codesign",
+                "--force",
+                "--preserve-metadata=entitlements",
+                "--sign",
+                "-",
+                str(self.candidate),
+            ],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -132,6 +142,8 @@ class MacOSDeploymentTransaction(DeploymentTransaction):
         if result.returncode:
             raise ManifestError(f"Local app signing failed: {result.stderr}")
         verify_bundle(self.candidate)
+        if checkpoint:
+            checkpoint("candidate-signed")
         exchange_bundles(self.bundle, self.candidate)
         if checkpoint:
             checkpoint("bundle-exchanged")
@@ -156,6 +168,4 @@ class MacOSDeploymentTransaction(DeploymentTransaction):
             if [previous.st_dev, previous.st_ino] != original:
                 raise ManifestError("Original app is unavailable for failure recovery")
             exchange_bundles(self.bundle, self.candidate)
-        if not (self.bundle / BASE).exists():
-            (self.candidate / BASE).rename(self.bundle / BASE)
         self._save(state, "rolled-back")

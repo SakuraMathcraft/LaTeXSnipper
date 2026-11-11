@@ -388,3 +388,15 @@ def test_macos_resource_layout_resolves_signed_nested_base(tmp_path, monkeypatch
     )
     monkeypatch.setattr(resources_module, "sys", SimpleNamespace(platform="darwin"))
     assert installation_root(executable) == bundle / "Contents/Resources/desktop"
+
+
+def test_macos_main_executable_resolves_desktop_resources(tmp_path, monkeypatch):
+    bundle = tmp_path / "LaTeXSnipper.app"
+    monkeypatch.setattr(resources_module, "sys", SimpleNamespace(platform="darwin"))
+    assert (
+        installation_root(bundle / "Contents/MacOS/LaTeXSnipper")
+        == bundle / "Contents/Resources/desktop"
+    )
+    # A MacOS directory outside an app bundle keeps the generic layout.
+    loose = tmp_path / "tools/Contents/MacOS/LaTeXSnipper"
+    assert installation_root(loose) == tmp_path / "tools/Contents"

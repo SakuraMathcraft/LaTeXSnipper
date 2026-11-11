@@ -138,6 +138,37 @@ def test_deployment_feedback_cleans_only_its_private_staging(tmp_path, monkeypat
     assert other.is_dir()
 
 
+def test_macos_update_restarts_the_app_bundle_with_deployment_result(
+    tmp_path, monkeypatch
+):
+    bundle = tmp_path / "LaTeXSnipper.app"
+    root = bundle / "Contents/Resources/desktop"
+    root.mkdir(parents=True)
+    task = tmp_path / "deployment"
+    task.mkdir()
+    request = task / "request.json"
+    result = task / "deployment-result.json"
+    atomic_json(request, {"root": str(root), "wait_pid": 123})
+    atomic_json(result, {"state": "committed"})
+    monkeypatch.setattr(updater_entry, "current_target", lambda: ("macos", "arm64"))
+    waited = []
+    monkeypatch.setattr(
+        updater_entry, "wait_for_exit", lambda pid, **_: waited.append(pid)
+    )
+    launched = []
+
+    def open_app(arguments, **kwargs):
+        assert waited == [123]
+        assert arguments == ["/usr/bin/open", str(bundle.resolve())]
+        assert kwargs["env"]["LATEXSNIPPER_DEPLOYMENT_RESULT"] == str(result)
+        assert kwargs["check"]
+        launched.append(arguments)
+
+    monkeypatch.setattr(updater_entry.subprocess, "run", open_app)
+    updater_entry.watch_request(request)
+    assert len(launched) == 1
+
+
 def test_deployment_feedback_rejects_cleanup_outside_task_cache(tmp_path, monkeypatch):
     cache = tmp_path / "cache"
     task = cache / "deployment-task"

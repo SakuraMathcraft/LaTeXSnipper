@@ -296,16 +296,18 @@ def create_macos_bundle(layout: Path, manifest: DistributionManifest) -> Path:
     framework.mkdir()
     (desktop / "LaTeXSnipperBase.bundle").rename(framework / "LaTeXSnipperBase.bundle")
     (bundle / "Contents/MacOS").mkdir()
-    run(
-        [
-            "clang",
-            f"-mmacosx-version-min={minimum_version}",
-            "-O2",
-            ROOT / "packaging/macos/launcher.c",
-            "-o",
-            bundle / "Contents/MacOS/LaTeXSnipper",
-        ]
-    )
+    # LaunchServices ties the Dock icon, menu bar status item and privacy
+    # permissions to the executable it starts; a process that execs into
+    # another binary keeps the app identity but macOS hides its status item.
+    # The GUI host is therefore the main executable. Its bootloader loads the
+    # frozen libraries from Contents/Frameworks, linked into the signed base.
+    runtime = framework / "LaTeXSnipperBase.bundle/Contents/Resources/runtime"
+    shutil.copy2(runtime / "LaTeXSnipper", bundle / "Contents/MacOS/LaTeXSnipper")
+    for entry in sorted((runtime / "_internal").iterdir()):
+        link = framework / entry.name
+        if link.exists() or link.is_symlink():
+            raise ManifestError(f"Frozen runtime entry collides with {link}")
+        link.symlink_to(entry.relative_to(framework))
     plist = {
         "CFBundleName": "LaTeXSnipper",
         "CFBundleDisplayName": "LaTeXSnipper",
@@ -357,8 +359,19 @@ def create_macos_bundle(layout: Path, manifest: DistributionManifest) -> Path:
     plist["CFBundleIconFile"] = "icon.icns"
     with (bundle / "Contents/Info.plist").open("wb") as stream:
         plistlib.dump(plist, stream)
-    run(["codesign", "--force", "--sign", "-", bundle / "Contents/MacOS/LaTeXSnipper"])
-    run(["codesign", "--force", "--sign", "-", bundle])
+    # Signing the bundle signs its main executable, which needs the same
+    # entitlements as the GUI host in the base.
+    run(
+        [
+            "codesign",
+            "--force",
+            "--entitlements",
+            ROOT / "packaging/macos/entitlements.plist",
+            "--sign",
+            "-",
+            bundle,
+        ]
+    )
     return bundle
 
 

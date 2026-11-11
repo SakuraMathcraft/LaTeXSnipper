@@ -153,9 +153,8 @@ def watch_request(request_path: Path) -> None:
                 except TimeoutError:
                     return
                 root = Path(request["root"])
-                journal = (
-                    deployment_directory(root, current_target()[0]) / "journal.json"
-                )
+                system, _ = current_target()
+                journal = deployment_directory(root, system) / "journal.json"
                 if (
                     result.get("state") == "failed"
                     and journal.is_file()
@@ -164,12 +163,22 @@ def watch_request(request_path: Path) -> None:
                 ):
                     logger.error("部署恢复未完成，保留事务供显式恢复，不循环启动应用")
                     return
+                env = independent_process_environment()
+                env["LATEXSNIPPER_DEPLOYMENT_RESULT"] = str(status)
+                if system == "macos":
+                    from update.deployment_launch import macos_launch_command
+
+                    subprocess.run(
+                        macos_launch_command(root),
+                        env=env,
+                        check=True,
+                        timeout=30,
+                    )
+                    return
                 launcher = root / (
                     "LaTeXSnipper.exe" if os.name == "nt" else "LaTeXSnipper"
                 )
                 if launcher.is_file():
-                    env = independent_process_environment()
-                    env["LATEXSNIPPER_DEPLOYMENT_RESULT"] = str(status)
                     subprocess.Popen(
                         [str(launcher)],
                         cwd=request_path.parent,

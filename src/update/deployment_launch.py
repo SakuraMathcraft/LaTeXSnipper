@@ -21,6 +21,7 @@ from runtime.installation_layout import (
     deployment_directory,
     deployment_write_root,
     installation_manifest,
+    macos_bundle,
 )
 from runtime.installed_resources import InstalledResources, current_target
 from runtime.processes import hidden_subprocess_kwargs, independent_process_environment
@@ -29,8 +30,14 @@ from update.deployment_transaction import atomic_json, needs_recovery
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
-def launch_installed(root: Path) -> None:
-    executable = "LaTeXSnipper.exe" if os.name == "nt" else "LaTeXSnipper"
+def macos_launch_command(root: Path, *arguments: str) -> list[str]:
+    command = ["/usr/bin/open", str(macos_bundle(root))]
+    if arguments:
+        command.extend(("--args", *arguments))
+    return command
+
+
+def launch_installed(root: Path, *arguments: str) -> None:
     system, _ = current_target()
     transaction = deployment_directory(root, system)
     if needs_recovery(transaction):
@@ -79,13 +86,23 @@ def launch_installed(root: Path) -> None:
             **hidden_subprocess_kwargs(),
         )
         return
+    environment = independent_process_environment()
+    if system == "macos":
+        subprocess.run(
+            macos_launch_command(root, *arguments),
+            env=environment,
+            check=True,
+            timeout=30,
+        )
+        return
+    executable = "LaTeXSnipper.exe" if os.name == "nt" else "LaTeXSnipper"
     manifest = DistributionManifest.load(installation_manifest(root, system))
     resources = InstalledResources(root, manifest)
     target = resources.resource("runtime", executable)
     subprocess.Popen(
-        [str(target), *sys.argv[1:]],
+        [str(target), *arguments],
         cwd=deployment_write_root(root, system),
-        env=independent_process_environment(),
+        env=environment,
         **hidden_subprocess_kwargs(),
     )
 

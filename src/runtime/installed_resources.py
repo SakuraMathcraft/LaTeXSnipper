@@ -22,6 +22,15 @@ from runtime.installation_layout import installation_manifest
 def installation_root(executable: Path) -> Path:
     executable = executable.resolve()
     if sys.platform == "darwin":
+        # The GUI host is the app's main executable so LaunchServices owns its
+        # Dock, menu bar and privacy identity.
+        contents = executable.parent.parent
+        if (
+            executable.parent.name == "MacOS"
+            and contents.name == "Contents"
+            and contents.parent.suffix == ".app"
+        ):
+            return contents / "Resources/desktop"
         for parent in executable.parents:
             if parent.name == "LaTeXSnipperBase.bundle":
                 return parent.parent.parent / "Resources/desktop"
