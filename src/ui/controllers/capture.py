@@ -59,6 +59,7 @@ class CaptureController(QObject):
         self.capture_window_manager = CaptureWindowManager(view)
         self.overlay = None
         self._capture_start_pending = False
+        self._restore_main_window_on_cancel = False
         self._last_capture_screen_index = None
         self.can_capture = can_capture
 
@@ -113,6 +114,9 @@ class CaptureController(QObject):
             capture_display_mode=self.display_mode(),
             preferred_screen_index=self.display_index(),
         )
+        self._restore_main_window_on_cancel = (
+            self.view.isActiveWindow() and not self.view.isMinimized()
+        )
         windows_changed = self.capture_window_manager.prepare(
             preserve_pinned_result=bool(preserve_pinned_result)
         )
@@ -141,6 +145,7 @@ class CaptureController(QObject):
             self.system_provider.activate_window(self.overlay)
         except Exception as e:
             self.overlay = None
+            self._restore_main_window_on_cancel = False
             self._show_capture_notice(
                 tr("截图启动失败"), str(e), level="error", duration=6200
             )
@@ -155,6 +160,7 @@ class CaptureController(QObject):
             and event.type() == QEvent.Type.KeyPress
         ):
             if event.key() == Qt.Key.Key_Escape:
+                restore_main_window = self._restore_main_window_on_cancel
                 try:
                     cancel = getattr(obj, "cancel_capture", None)
                     if callable(cancel):
@@ -164,21 +170,25 @@ class CaptureController(QObject):
                 except Exception:
                     pass
                 self._capture_start_pending = False
+                self._restore_main_window_on_cancel = False
                 self.overlay = None
-                QTimer.singleShot(
-                    0,
-                    lambda: self._show_capture_notice(
-                        tr("已取消截图"),
-                        tr("未创建识别任务。"),
-                        level="info",
-                        duration=2400,
-                    ),
-                )
+                if restore_main_window:
+                    QTimer.singleShot(
+                        0,
+                        lambda: self._show_capture_notice(
+                            tr("已取消截图"),
+                            tr("未创建识别任务。"),
+                            level="info",
+                            duration=2400,
+                            notify_in_background=False,
+                        ),
+                    )
                 return True
         return False
 
     def on_capture_done(self, pixmap):
         self._capture_start_pending = False
+        self._restore_main_window_on_cancel = False
         capture_failure_message = ""
         if self.overlay:
             capture_failure_message = str(
@@ -219,12 +229,20 @@ class CaptureController(QObject):
         )
 
     def _show_capture_notice(
-        self, title: str, message: str, *, level: str = "warning", duration: int = 6200
+        self,
+        title: str,
+        message: str,
+        *,
+        level: str = "warning",
+        duration: int = 6200,
+        notify_in_background: bool = True,
     ) -> None:
         text = str(message or "").strip()
         if not text:
             return
         if not self.view.isVisible():
+            if not notify_in_background:
+                return
             tray = self.tray_icon()
             if tray is not None:
                 try:
@@ -265,6 +283,7 @@ class CaptureController(QObject):
 
     def shutdown(self):
         self._capture_start_pending = False
+        self._restore_main_window_on_cancel = False
         if self.overlay is not None:
             self.overlay.close()
             self.overlay = None

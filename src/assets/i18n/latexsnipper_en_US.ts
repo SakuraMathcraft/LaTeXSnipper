@@ -914,7 +914,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Failed to load image: {error}</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/capture.py" line="214" />
+      <location filename="../../../src/ui/controllers/capture.py" line="224" />
       <source>图片处理失败</source>
       <translation>Image processing failed</translation>
     </message>
@@ -1294,7 +1294,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Export canceled</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/capture.py" line="171" />
+      <location filename="../../../src/ui/controllers/capture.py" line="179" />
       <source>已取消截图</source>
       <translation>Capture canceled</translation>
     </message>
@@ -1514,8 +1514,8 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>A connection test is already running in the background.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/capture.py" line="72" />
-      <location filename="../../../src/ui/controllers/capture.py" line="205" />
+      <location filename="../../../src/ui/controllers/capture.py" line="73" />
+      <location filename="../../../src/ui/controllers/capture.py" line="215" />
       <source>当前已有识别任务，请稍候。</source>
       <translation>A recognition task is already running. Please wait.</translation>
     </message>
@@ -1651,22 +1651,22 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Capture, recognize, handwrite, edit, and export mathematical content.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/capture.py" line="145" />
+      <location filename="../../../src/ui/controllers/capture.py" line="150" />
       <source>截图启动失败</source>
       <translation>Failed to start capture</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/capture.py" line="264" />
+      <location filename="../../../src/ui/controllers/capture.py" line="282" />
       <source>截图失败</source>
       <translation>Capture failed</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/capture.py" line="98" />
+      <location filename="../../../src/ui/controllers/capture.py" line="99" />
       <source>截图权限不足</source>
       <translation>Insufficient capture permission</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/capture.py" line="92" />
+      <location filename="../../../src/ui/controllers/capture.py" line="93" />
       <source>截图权限被拒绝</source>
       <translation>Capture permission was denied</translation>
     </message>
@@ -2020,7 +2020,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The server returned {status_code}. Try again later or check the service log.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/capture.py" line="172" />
+      <location filename="../../../src/ui/controllers/capture.py" line="180" />
       <source>未创建识别任务。</source>
       <translation>No recognition task was created.</translation>
     </message>
@@ -2088,7 +2088,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Local models prepare in the background and may need a download on first use. Open the logs for details.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/capture.py" line="107" />
+      <location filename="../../../src/ui/controllers/capture.py" line="108" />
       <location filename="../../../src/ui/notifications.py" line="11" />
       <source>权限不足</source>
       <translation>Insufficient Permissions</translation>
@@ -2143,7 +2143,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>The model name is empty. Enter the model name used by the local service.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/capture.py" line="88" />
+      <location filename="../../../src/ui/controllers/capture.py" line="89" />
       <location filename="../../../src/ui/controllers/pdf.py" line="117" />
       <location filename="../../../src/ui/controllers/recognition.py" line="68" />
       <location filename="../../../src/ui/controllers/recognition.py" line="144" />
@@ -2294,8 +2294,8 @@ Retry with the {hotkey} shortcut.</translation>
     </message>
     <message>
       <location filename="../../../src/handwriting/handwriting_window.py" line="689" />
-      <location filename="../../../src/ui/controllers/capture.py" line="71" />
-      <location filename="../../../src/ui/controllers/capture.py" line="204" />
+      <location filename="../../../src/ui/controllers/capture.py" line="72" />
+      <location filename="../../../src/ui/controllers/capture.py" line="214" />
       <source>正在识别</source>
       <translation>Recognizing</translation>
     </message>
@@ -3240,7 +3240,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Regenerate access key</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/controllers/capture.py" line="88" />
+      <location filename="../../../src/ui/controllers/capture.py" line="89" />
       <location filename="../../../src/ui/controllers/pdf.py" line="107" />
       <location filename="../../../src/ui/controllers/pdf.py" line="117" />
       <location filename="../../../src/ui/controllers/pdf.py" line="130" />
