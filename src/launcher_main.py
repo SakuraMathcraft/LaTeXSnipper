@@ -23,9 +23,8 @@ def main() -> int:
         parser = argparse.ArgumentParser(add_help=False)
         parser.add_argument("--installation-root", type=Path)
         arguments, remaining = parser.parse_known_args()
-        sys.argv[1:] = remaining
         root = arguments.installation_root or Path(sys.executable).resolve().parent
-        launch_installed(root.resolve(strict=True))
+        launch_installed(root.resolve(strict=True), *remaining)
         return 0
     except Exception:
         logger.exception("发行启动或恢复失败")

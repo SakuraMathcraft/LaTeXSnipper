@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import plistlib
 import py_compile
 import re
 import shutil
@@ -25,6 +26,7 @@ from runtime.installation_layout import (
 )
 from runtime.installed_resources import InstalledResources
 from runtime.processes import hidden_subprocess_kwargs
+from update.deployment_launch import macos_launch_command
 from update.deployment_transaction import atomic_json, verify_distribution
 from update.deployment_validation import validate_installed_worker
 from update.platform_deployment import deployment_transaction
@@ -117,8 +119,13 @@ def validate_running_update(
     executable = "LaTeXSnipper.exe" if target.platform == "windows" else "LaTeXSnipper"
     retained = InstalledResources(root, target).resource("inference", "runtime.json")
     runtime_hash = file_sha256(retained)
+    launch_command = (
+        macos_launch_command(root)
+        if target.platform == "macos"
+        else [str(root / executable)]
+    )
     launcher = subprocess.Popen(
-        [str(root / executable)],
+        launch_command,
         cwd=deployment_write_root(root, target.platform),
         env=environment,
         **hidden_subprocess_kwargs(),
@@ -128,7 +135,10 @@ def validate_running_update(
     old_exited = None
     try:
         while time.monotonic() - started < 600:
-            launcher.poll()  # Reap the launcher even when it exits before the GUI.
+            if launcher.poll() not in (None, 0):
+                raise ManifestError(
+                    f"Installed launcher exited with {launcher.returncode}"
+                )
             driver = work / "driver.json"
             if driver.is_file():
                 report = read_json(driver)
@@ -172,6 +182,26 @@ def validate_running_update(
                     )
                 verify_distribution(root, target)
                 validate_installed_worker(root, target)
+                if target.platform == "macos":
+                    bundle = macos_bundle(root)
+                    if (
+                        Path(restarted.exe()).resolve()
+                        != bundle / "Contents/MacOS/LaTeXSnipper"
+                    ):
+                        raise ManifestError(
+                            "Update did not relaunch the macOS app bundle"
+                        )
+                    entitlements = subprocess.check_output(
+                        ["codesign", "-d", "--entitlements", "-", "--xml", str(bundle)],
+                        timeout=30,
+                    )
+                    if (
+                        plistlib.loads(entitlements).get(
+                            "com.apple.security.cs.allow-jit"
+                        )
+                        is not True
+                    ):
+                        raise ManifestError("The updated app lost its JIT entitlement")
                 if file_sha256(retained) != runtime_hash:
                     raise ManifestError("Business update changed the inference runtime")
                 for path, contents in report["user_files"].items():

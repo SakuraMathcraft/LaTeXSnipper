@@ -43,7 +43,7 @@ The source app uses the developer-selected Python environment directly.
 
 Installation metadata (`distribution.json`) records the platform, architecture, CPU/GPU edition, business-file identity and fixed `base_id`. Windows installs `application/`, `runtime/`, `inference/` and `models/` under the installation root. Linux owns these through the `latexsnipper`, `latexsnipper-runtime`, `latexsnipper-inference` and `latexsnipper-models` dpkg packages, with metadata at `/var/lib/latexsnipper/distribution.json`.
 
-macOS keeps business files and metadata in `LaTeXSnipper.app/Contents/Resources/desktop`. Its fixed resource directories live in `Contents/Frameworks/LaTeXSnipperBase.bundle/Contents/Resources` within the app. The independent nested signature allows business updates to retain that base without traversing its files.
+macOS keeps business files and metadata in `LaTeXSnipper.app/Contents/Resources/desktop`. Its fixed resource directories live in the independently signed `Contents/Frameworks/LaTeXSnipperBase.bundle/Contents/Resources` within the app. Business updates stage a complete app beside the installed one and exchange the bundles atomically. APFS shares the unchanged file data between both bundles through copy-on-write cloning.
 
 The business directory owns project code, worker source and translations. The fixed runtime owns MathJax. Business updates replace only business files. Changing or restoring the fixed base requires the complete installer. Installation resources are separate from writable user configuration.
 
