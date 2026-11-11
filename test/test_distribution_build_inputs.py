@@ -572,7 +572,11 @@ def test_linux_application_package_owns_its_launchers_and_dependencies(
         assert "Package: latexsnipper\n" in control and "Depends: libc6" in control
         assert (directory / "usr/bin/latexsnipper").is_file()
         assert (directory / "usr/lib/latexsnipper/LaTeXSnipper").is_file()
-        assert (directory / "usr/share/applications/latexsnipper.desktop").is_file()
+        desktop = directory / "usr/share/applications/latexsnipper.desktop"
+        assert (
+            "StartupWMClass=LaTeXSnipper"
+            in desktop.read_text(encoding="utf-8").splitlines()
+        )
         assert (
             directory / "usr/lib/latexsnipper/application/data.bin"
         ).read_bytes() == b"application"
