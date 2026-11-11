@@ -1,5 +1,5 @@
 // LaTeXSnipper 用户手册
-// 版本: v3.3.0
+// 版本: v3.3.0-LTS
 #set page(
   paper: "a4",
   margin: (left: 2cm, right: 2cm, top: 2cm, bottom: 2.2cm),
@@ -104,7 +104,7 @@
   #v(0.3em)
   #text(size: 12pt)[用户手册]
   #v(0.4em)
-  #text(size: 9pt, fill: rgb("#888888"))[适用于 v3.3.0]
+  #text(size: 9pt, fill: rgb("#888888"))[适用于 v3.3.0-LTS]
   #v(0.6em)
   #line(length: 30%, stroke: 0.5pt + rgb("#CCCCCC"))
   #v(1em)
