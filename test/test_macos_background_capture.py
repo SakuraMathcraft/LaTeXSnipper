@@ -6,7 +6,7 @@ import sys
 from types import SimpleNamespace
 
 import pytest
-from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtCore import QEvent, Qt, pyqtSignal
 from PyQt6.QtGui import QCloseEvent, QKeyEvent
 from PyQt6.QtWidgets import QApplication, QWidget
 
@@ -14,6 +14,7 @@ from capture import overlay as overlay_module
 from localization.manager import translate as tr
 from platform_services import macos_provider
 from ui.controllers import app_lifecycle
+from ui.controllers import capture as capture_module
 from ui.controllers.capture import CaptureController
 
 
@@ -91,46 +92,92 @@ def test_dock_activation_after_capture_ends(app, monkeypatch, cancelled):
         view.deleteLater()
 
 
-@pytest.mark.parametrize("tray_available", [True, False])
-def test_escape_does_not_reopen_hidden_main_window(app, tray_available):
+@pytest.mark.parametrize(
+    "window_state",
+    ["foreground", "hidden-after-escape", "inactive", "minimized", "hidden"],
+)
+def test_escape_only_restores_a_previously_foreground_window(
+    app, monkeypatch, window_state
+):
+    class Overlay(QWidget):
+        selection_done = pyqtSignal(object)
+
+        def cancel_capture(self):
+            self.selection_done.emit(None)
+            self.close()
+
     view = QWidget()
-    overlay = QWidget()
+    overlay = Overlay()
     capture = build_capture_controller(view)
-    capture.overlay = overlay
-    overlay.installEventFilter(capture)
+    capture.screenshot_provider = SimpleNamespace(
+        request_permission=lambda: SimpleNamespace(state="granted"),
+        create_overlay=lambda config: overlay,
+    )
+    active = window_state in {"foreground", "hidden-after-escape"}
+    monkeypatch.setattr(view, "isActiveWindow", lambda: active)
+    monkeypatch.setattr(capture.capture_window_manager, "flush_desktop", lambda: None)
+    callbacks = []
+    monkeypatch.setattr(
+        capture_module,
+        "QTimer",
+        SimpleNamespace(singleShot=lambda _, callback: callbacks.append(callback)),
+    )
+    notices = []
+    monkeypatch.setattr(
+        capture_module.InfoBar, "info", lambda **kwargs: notices.append(kwargs)
+    )
     notifications = []
-    tray = object() if tray_available else None
+    activations = []
+    recognitions = []
+    capture.recognition = SimpleNamespace(
+        recognize_image=lambda *args, **kwargs: recognitions.append(args)
+    )
+    tray = object()
     capture.tray_icon = lambda: tray
+
+    def activate(window):
+        activations.append(window)
+        window.showNormal()
+
     capture.system_provider = SimpleNamespace(
-        activate_window=lambda window: window.show(),
-        show_notification=lambda tray, title, text, **kwargs: notifications.append(
-            (tray, title, text, kwargs)
-        ),
+        activate_window=activate,
+        show_notification=lambda *args, **kwargs: notifications.append(args),
     )
     try:
-        overlay.show()
+        if window_state == "minimized":
+            view.showMinimized()
+        elif window_state != "hidden":
+            view.show()
+        capture.start_capture()
+        if callbacks:
+            callbacks.pop(0)()
+        assert capture.overlay is overlay
+        assert overlay.isVisible()
         QApplication.sendEvent(
             overlay,
             QKeyEvent(
                 QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier
             ),
         )
-        app.processEvents()
+        if window_state == "hidden-after-escape":
+            view.hide()
+        if callbacks:
+            callbacks.pop(0)()
 
         assert not capture.is_capturing()
         assert not overlay.isVisible()
-        assert not view.isVisible()
-        if tray_available:
-            assert notifications == [
-                (
-                    tray,
-                    tr("已取消截图"),
-                    tr("未创建识别任务。"),
-                    {"critical": False, "timeout_ms": 2400},
-                )
-            ]
+        assert not notifications
+        assert not recognitions
+        if window_state == "foreground":
+            assert activations == [overlay, view]
+            assert view.isVisible() and not view.isMinimized()
+            assert len(notices) == 1
+            assert notices[0]["parent"] is view
+            assert notices[0]["title"] == tr("已取消截图")
         else:
-            assert notifications == []
+            assert activations == [overlay]
+            assert not notices
+            assert not view.isVisible() or view.isMinimized()
     finally:
         overlay.close()
         view.close()

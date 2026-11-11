@@ -109,7 +109,7 @@ Windows/Linux 提供 CPU 与 NVIDIA GPU 两种发行，macOS Apple Silicon 使�
 - **复制 / 导出：** 复制当前编辑器内容，或通过统一导出菜单导出为 LaTeX、Markdown、MathML、HTML、OMML、SVG 以及 Pandoc 扩展格式（Word、ODT、PowerPoint、EPUB、PDF、HTML 独立页、Typst、纯文本）。
 - **收藏夹 / 历史记录：** 历史项和收藏项都支持复制、编辑、导出、重命名和删除。
 
-框选时按 `Esc` 可取消截图。主窗口隐藏且有托盘或菜单栏图标时，取消提示走系统通知。macOS 上可在主窗口隐藏时直接用全局快捷键打开截图浮层。
+框选时按 `Esc` 可取消截图。
 
 桌面端提供 **12 种内置导出格式**。检测到 Pandoc 时，菜单另显示 **8 种扩展格式**。
 
