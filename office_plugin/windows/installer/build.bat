@@ -6,7 +6,7 @@ setlocal
 ::   config:  Debug or Release (defaults to Release)
 
 set SCRIPT_DIR=%~dp0
-set VERSION_FILE=%SCRIPT_DIR%..\..\VERSION
+set VERSION_FILE=%SCRIPT_DIR%..\..\..\VERSION
 if not exist "%VERSION_FILE%" (
   echo ERROR: Product version file not found: %VERSION_FILE%
   exit /b 1

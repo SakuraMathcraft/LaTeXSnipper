@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import {strict as assert} from 'node:assert';
 import {formulaColor, hasFormulaContent, inheritFormulaColor, initialFormulaColor, withFormulaColor}
-  from '../../../office_plugin/src/LaTeXSnipper.OfficePlugin.Editor/EditorAssets/formula-color.mjs';
+  from '../../../office_plugin/shared/EditorAssets/formula-color.mjs';
 
 test('global color remains in source through visual recoloring and toolbar changes', () => {
   const blue = '#363bd3';

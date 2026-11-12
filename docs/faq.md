@@ -89,7 +89,7 @@ Automation API is disabled by default. After enabling it in Settings, local clie
 
 ## What is the Office plugin direction?
 
-LaTeXSnipper Office integration is developed in the Windows-native `office_plugin` tree. The plugin provides persistent Ribbon loading, native KeyTip shortcuts, Word OLE and OMML formula insertion, PowerPoint OLE and PNG formula insertion, managed formula metadata, Word automatic numbering/references, and screenshot OCR as an authenticated Automation API client without requiring Microsoft 365 enterprise deployment.
+LaTeXSnipper Office integration is developed in the Windows-native `office_plugin/windows` tree. The plugin provides persistent Ribbon loading, native KeyTip shortcuts, Word OLE and OMML formula insertion, PowerPoint OLE and PNG formula insertion, managed formula metadata, Word automatic numbering/references, and screenshot OCR as an authenticated Automation API client without requiring Microsoft 365 enterprise deployment.
 
 ## Why does Word OMML conversion report a missing Office stylesheet?
 

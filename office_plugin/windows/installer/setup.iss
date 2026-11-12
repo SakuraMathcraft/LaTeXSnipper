@@ -6,7 +6,7 @@
 #define AppUrl "https://github.com/SakuraMathcraft/LaTeXSnipper"
 #define WordAddInName "LaTeXSnipper.OfficePlugin.WordVstoAddIn"
 #define PowerPointAddInName "LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn"
-#define VersionFileHandle FileOpen(AddBackslash(SourcePath) + "..\..\VERSION")
+#define VersionFileHandle FileOpen(AddBackslash(SourcePath) + "..\..\..\VERSION")
 #define Version Trim(FileRead(VersionFileHandle))
 #expr FileClose(VersionFileHandle)
 
@@ -32,14 +32,14 @@ ArchitecturesInstallIn64BitMode=x64compatible
 WizardStyle=modern
 SetupIconFile=icon.ico
 UninstallDisplayIcon={app}\Word\icon.ico
-LicenseFile=..\..\LICENSE
+LicenseFile=..\..\..\LICENSE
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "chinesesimplified"; MessagesFile: "ChineseSimplified.isl"
 
 [Files]
-Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
 ; ===== Word VSTO Add-in =====
 Source: "..\hosts\WordVstoAddIn\bin\{#Config}\LaTeXSnipper.OfficePlugin.WordVstoAddIn.vsto"; \

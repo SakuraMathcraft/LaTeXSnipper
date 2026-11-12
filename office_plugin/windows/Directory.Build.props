@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <LaTeXSnipperVersionFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\VERSION'))</LaTeXSnipperVersionFile>
+    <LaTeXSnipperVersionFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\VERSION'))</LaTeXSnipperVersionFile>
     <LaTeXSnipperProductVersion>$([System.IO.File]::ReadAllText('$(LaTeXSnipperVersionFile)').Trim())</LaTeXSnipperProductVersion>
     <Version>$(LaTeXSnipperProductVersion)</Version>
     <AssemblyVersion>$(LaTeXSnipperProductVersion).0</AssemblyVersion>

@@ -27,7 +27,7 @@
 运行前必须关闭所有 Word 窗口，且测试完成前不要再次启动 Word，以确保测试实例与日常文档隔离：
 
 ```powershell
-.\office_plugin\tools\Test-OfficeTypographyE2E.ps1 -HostScope Word
+.\office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -HostScope Word
 ```
 
 先构建 Release 版本；统一脚本默认使用 Release，可通过 `-Configuration Debug` 改变。通过后，临时输出目录会生成 OMML/OLE 两份 DOCX、Word 导出的同名 PDF 和日志；可通过 `-OutputDirectory` 指定位置。只测原生公式时使用 `-WordBackend Omml`，不涉及 OLE 注册。
@@ -37,7 +37,7 @@
 仅运行 Word MathType 核心转换验收：
 
 ```powershell
-.\office_plugin\tools\Test-OfficeTypographyE2E.ps1 -HostScope Word -WordBackend Ole -WordMathTypeOnly
+.\office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -HostScope Word -WordBackend Ole -WordMathTypeOnly
 ```
 
 核心验收覆盖红色 Euler 和用户报告的红色 cases、WMF 实际绘制非空、对象数量及保存重开尺寸、混合选择和首项失败续跑、两个相同公式仅转换一个、保留用户缩放、正文/表格文字和段落结构、批量取消后重试、关闭来源后的跨文档复制。核心测试不因没有 MathType 而跳过。

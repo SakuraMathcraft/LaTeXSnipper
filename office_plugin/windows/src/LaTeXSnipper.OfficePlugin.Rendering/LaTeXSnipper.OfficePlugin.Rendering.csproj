@@ -2,18 +2,23 @@
 
   <ItemGroup>
     <ProjectReference Include="..\LaTeXSnipper.OfficePlugin.Abstractions\LaTeXSnipper.OfficePlugin.Abstractions.csproj" />
+    <EmbeddedResource Include="..\..\..\shared\mathjax\MathJaxTypographyAdapter.js" LogicalName="LaTeXSnipper.OfficePlugin.Rendering.MathJaxTypographyAdapter.js" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
-    <Content Include="EditorAssets\**\*">
-      <Link>EditorSharedAssets\%(RecursiveDir)%(Filename)%(Extension)</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Drawing" />
+    <Reference Include="System.IO.Compression" />
     <Reference Include="System.Web.Extensions" />
     <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml.Linq" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3967.48" />
   </ItemGroup>
+
+  <Import Project="..\..\..\..\tools\mathjax\office.props" />
 
   <PropertyGroup>
     <TargetFrameworks>net48;net9.0</TargetFrameworks>

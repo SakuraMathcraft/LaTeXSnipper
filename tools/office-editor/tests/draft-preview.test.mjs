@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {DraftPreview} from '../../../office_plugin/src/LaTeXSnipper.OfficePlugin.Editor/EditorAssets/draft-preview.mjs';
+import {DraftPreview} from '../../../office_plugin/shared/EditorAssets/draft-preview.mjs';
 function fixture() {
   const messages = [], results = [], jobs = new Map(); let id = 0;
   let draft = {latex: 'x', typography: {fontSizePoints: 12}};
