@@ -96,4 +96,4 @@ jobs:
 
       - name: Build Office plugin managed projects
         shell: pwsh
-        run: dotnet build office_plugin\LaTeXSnipper.OfficePlugin.slnx -c Release
+        run: dotnet build office_plugin\windows\LaTeXSnipper.OfficePlugin.slnx -c Release

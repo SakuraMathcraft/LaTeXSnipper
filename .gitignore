@@ -14,15 +14,15 @@ office_plugin/**/bin/
 office_plugin/**/obj/
 office_plugin/**/obj-handler/
 office_plugin/**/*.user.props
-office_plugin/installer/vsto-signing.cer
-office_plugin/tests/**/artifacts/
+office_plugin/windows/installer/vsto-signing.cer
+office_plugin/windows/tests/**/artifacts/
 *.egg-info/
 packaging/debian/usr
 
 # Large binary files
 *.exe
-!office_plugin/release/LaTeXSnipperOffice_*_amd64.exe
-office_plugin/release/InstallerAssets/
+!office_plugin/windows/release/LaTeXSnipperOffice_*_amd64.exe
+office_plugin/windows/release/InstallerAssets/
 *.dll
 *.zip
 *.tar

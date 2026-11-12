@@ -317,7 +317,7 @@ jobs:
             echo "Release version $version does not match VERSION $product_version." >&2
             exit 1
           fi
-          installer="office_plugin/release/LaTeXSnipperOffice_${version}_amd64.exe"
+          installer="office_plugin/windows/release/LaTeXSnipperOffice_${version}_amd64.exe"
           checksum="${installer}.sha256"
           test -f "$installer"
           test -f "$checksum"

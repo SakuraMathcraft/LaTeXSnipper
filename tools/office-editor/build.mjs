@@ -5,7 +5,7 @@ import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const root = dirname(fileURLToPath(import.meta.url));
-const assets = resolve(root, '../../office_plugin/src/LaTeXSnipper.OfficePlugin.Editor/EditorAssets');
+const assets = resolve(root, '../../office_plugin/shared/EditorAssets');
 const result = await build({entryPoints: [resolve(root, 'source-editor.js')], outfile: resolve(assets, 'source-editor.bundle.js'),
   absWorkingDir: root, bundle: true, minify: true, format: 'esm', target: 'es2022', legalComments: 'inline', metafile: true});
 const licenses = [];

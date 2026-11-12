@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {SourceSync, formatVisualLatex} from '../../../office_plugin/src/LaTeXSnipper.OfficePlugin.Editor/EditorAssets/source-sync.mjs';
-import {inspectLatex, comparableLatex} from '../../../office_plugin/src/LaTeXSnipper.OfficePlugin.Editor/EditorAssets/latex-structure.mjs';
+import {SourceSync, formatVisualLatex} from '../../../office_plugin/shared/EditorAssets/source-sync.mjs';
+import {inspectLatex, comparableLatex} from '../../../office_plugin/shared/EditorAssets/latex-structure.mjs';
 
 function setup() {
   let sync, preview = '', mode;

@@ -49,8 +49,8 @@ function Copy-Directory {
     }
 }
 
-$mathJaxSource = Join-Path $pluginRoot "..\src\assets\MathJax"
-$sharedEditorSource = Join-Path $pluginRoot "src\LaTeXSnipper.OfficePlugin.Editor\EditorAssets"
+$mathJaxSource = Join-Path $pluginRoot "..\..\src\assets\MathJax"
+$sharedEditorSource = Join-Path $pluginRoot "..\shared\EditorAssets"
 $wordEditorSource = Join-Path $pluginRoot "hosts\WordAddIn\EditorAssets"
 $powerPointEditorSource = Join-Path $pluginRoot "hosts\PowerPointAddIn\EditorAssets"
 

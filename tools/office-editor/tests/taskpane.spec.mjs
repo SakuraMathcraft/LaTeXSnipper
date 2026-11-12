@@ -11,8 +11,8 @@ async function routeHostAssets(page, host) {
     const url = new URL(route.request().url());
     const relative = decodeURIComponent(url.pathname.slice(1));
     const directory = url.hostname.includes('editor-shared')
-      ? resolve(root, 'office_plugin/src/LaTeXSnipper.OfficePlugin.Editor/EditorAssets')
-      : resolve(root, `office_plugin/hosts/${host === 'word' ? 'Word' : 'PowerPoint'}AddIn/EditorAssets`);
+      ? resolve(root, 'office_plugin/shared/EditorAssets')
+      : resolve(root, `office_plugin/windows/hosts/${host === 'word' ? 'Word' : 'PowerPoint'}AddIn/EditorAssets`);
     const path = resolve(directory, relative);
     const types = {'.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css',
       '.html': 'text/html', '.woff2': 'font/woff2'};

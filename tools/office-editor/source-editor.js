@@ -6,7 +6,7 @@ import {defaultKeymap, history, historyKeymap, undo, redo, insertTab, indentLess
 import {search, searchKeymap, highlightSelectionMatches} from '@codemirror/search';
 import {autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap, snippetCompletion} from '@codemirror/autocomplete';
 import {linter, lintGutter} from '@codemirror/lint';
-import {inspectLatex, isMathMl} from '../../office_plugin/src/LaTeXSnipper.OfficePlugin.Editor/EditorAssets/latex-structure.mjs';
+import {inspectLatex, isMathMl} from '../../office_plugin/shared/EditorAssets/latex-structure.mjs';
 
 import {templateFields, templateTransaction} from './template-fields.js';
 

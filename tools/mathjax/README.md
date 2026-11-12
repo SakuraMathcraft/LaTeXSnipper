@@ -35,12 +35,12 @@ python -X utf8 .\tools\mathjax\prepare.py --verify
 python -X utf8 tools/mathjax/prepare.py --verify
 python -X utf8 -m pytest test/test_mathjax_runtime.py test/test_formula_export_matrix.py test/test_formula_omml_export.py test/test_content_preview.py test/test_handwriting_preview.py test/test_pandoc_export_formats.py -q
 python -X utf8 tools/mathjax/smoke_qt.py
-dotnet test office_plugin/LaTeXSnipper.OfficePlugin.slnx -c Release
+dotnet test office_plugin/windows/LaTeXSnipper.OfficePlugin.slnx -c Release
 ```
 
 Qt 验证覆盖 SVG/MathML 转换、公式预览、混排、手写、HTML 独立页和字体，WebEngine 子进程必须允许运行。内置资源检查可离线执行；HTML 独立页的 CDN 检查需要联网，源码导出验证还需要开发环境的 PATH Pandoc。
 
-Office 实际渲染与文档往返使用 `office_plugin/tools/Test-OfficeTypographyE2E.ps1`，覆盖 Word OMML/OLE、PowerPoint 文本内原生公式、OLE/PNG 对象和批处理。先构建插件，再按 [Office 插件说明](../../office_plugin/README.md) 选择宿主与测试范围。浏览器编辑器另有 [共享编辑器回归](../office-editor/README.md)，使用模拟桥接，不能替代真实 Office 验证。
+Office 实际渲染与文档往返使用 `office_plugin/windows/tools/Test-OfficeTypographyE2E.ps1`，覆盖 Word OMML/OLE、PowerPoint 文本内原生公式、OLE/PNG 对象和批处理。先构建插件，再按 [Windows Office 插件说明](../../office_plugin/windows/README.md) 选择宿主与测试范围。浏览器编辑器另有 [共享编辑器回归](../office-editor/README.md)，使用模拟桥接，不能替代真实 Office 验证。
 
 ## 工具与发布边界
 

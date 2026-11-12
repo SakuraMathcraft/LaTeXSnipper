@@ -12,13 +12,13 @@ Produces the released Word and PowerPoint plugin installer with Inno Setup 6 or 
 ## Build
 
 ```batch
-cd office_plugin\installer
+cd office_plugin\windows\installer
 build.bat Release
 ```
 
 The build reads the shared product version from the repository `VERSION` file.
 
-Output: `office_plugin\release\LaTeXSnipperOffice_<version>_amd64.exe` and its adjacent `.sha256` file. The SignPath Office artifact configuration matches the same filename pattern.
+Output: `office_plugin\windows\release\LaTeXSnipperOffice_<version>_amd64.exe` and its adjacent `.sha256` file. The SignPath Office artifact configuration matches the same filename pattern.
 
 ## Installation Responsibilities
 
