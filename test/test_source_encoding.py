@@ -11,7 +11,7 @@ BOM_CHECK_ROOTS = (
     "docs",
     "Inno",
     "mathcraft_ocr",
-    "office_plugin",
+    "Office_plugin",
     "packaging",
     "scripts",
     "src",

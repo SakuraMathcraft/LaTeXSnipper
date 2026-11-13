@@ -16,19 +16,19 @@
 先关闭 PowerPoint，输出路径必须尚不存在：
 
 ```powershell
-office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint
+Office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint
 # 只检查 OLE 复制往返：
-office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint -PowerPointMode Copy
+Office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint -PowerPointMode Copy
 # 检查 MathType 批量转换与 OLE 复制：
-office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint -PowerPointMode Copy -IncludeMathType
+Office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint -PowerPointMode Copy -IncludeMathType
 # 只检查 MathType 双向转换：
-office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint -PowerPointMode MathType
+Office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint -PowerPointMode MathType
 # 额外打开已安装的 MathType 编辑服务器，修改内容后再导入：
-office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint -PowerPointMode MathType -PowerPointMathTypeNativeEdit
+Office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint -PowerPointMode MathType -PowerPointMathTypeNativeEdit
 # 交互式双击验收：出现 READY 后在 90 秒内双击第一页公式，验证正式回调加载命中的对象：
-office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint -PowerPointMode Gesture
+Office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint -PowerPointMode Gesture
 # 只检查批处理：
-office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint -PowerPointMode Batch
+Office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint -PowerPointMode Batch
 ```
 
 先构建 Release 版本；需要 Windows、PowerPoint、WebView2 和所需系统字体。统一脚本使用唯一的临时输出目录，并为完整测试临时注册 OLE handler；详细要求见 [插件说明](../../README.md)。完整测试保存的 PPTX 可用于人工复核；批处理模式不保存 PPTX，临时 PNG 在测试结束时清理。

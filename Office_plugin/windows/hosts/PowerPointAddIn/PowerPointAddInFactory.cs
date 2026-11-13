@@ -46,8 +46,8 @@ public static class PowerPointAddInFactory
             "latexsnipper-powerpoint.officeplugin.local",
             "latexsnipper-editor-shared.officeplugin.local",
             "PowerPointEditorWebView2",
-            new[] { @"office_plugin\windows\hosts\PowerPointAddIn\EditorAssets" },
-            new[] { @"office_plugin\shared\EditorAssets" },
+            new[] { @"Office_plugin\windows\hosts\PowerPointAddIn\EditorAssets" },
+            new[] { @"Office_plugin\shared\EditorAssets" },
             new[]
             {
                 @"Software\Microsoft\Office\PowerPoint\Addins\LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn",

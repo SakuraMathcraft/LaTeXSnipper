@@ -33,7 +33,7 @@ npm run test:browser
 
 参考：[CodeMirror API](https://codemirror.net/docs/ref/)、[MathLive 输入事件与静默更新](https://mathlive.io/mathfield/guides/interacting/)。
 
-字体回归覆盖字体 / 字号 / 颜色、预览和提交快照一致、失效响应、取消、新会话、渲染错误、提交失败恢复及面板小窗口布局。浏览器测试使用模拟桥接；真实宿主渲染使用 `office_plugin/windows/tools/Test-OfficeTypographyE2E.ps1` 验证，参数与环境要求见 [Windows Office 插件说明](../../office_plugin/windows/README.md)。
+字体回归覆盖字体 / 字号 / 颜色、预览和提交快照一致、失效响应、取消、新会话、渲染错误、提交失败恢复及面板小窗口布局。浏览器测试使用模拟桥接；真实宿主渲染使用 `Office_plugin/windows/tools/Test-OfficeTypographyE2E.ps1` 验证，参数与环境要求见 [Windows Office 插件说明](../../Office_plugin/windows/README.md)。
 
 MathLive 与源码均可用 Escape 后再按 Tab 离开编辑器；预览往返在源码未改动时恢复原编辑目标与选区。字号组合输入纳入编辑保护。字体面板在外部点击或 Escape 时关闭，避免原生字体下拉列表因短暂失焦而无法选中；真实输入法与 Office 内下拉交互仍待宿主验收。
 

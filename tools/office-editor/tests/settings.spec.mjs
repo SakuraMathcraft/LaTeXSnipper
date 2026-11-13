@@ -15,8 +15,8 @@ for (const host of ['Word', 'PowerPoint']) {
     await page.route('https://*.officeplugin.local/**', async route => {
       const url = new URL(route.request().url());
       const directory = url.hostname.includes('editor-shared')
-        ? 'office_plugin/shared/EditorAssets'
-        : `office_plugin/windows/hosts/${host}AddIn/EditorAssets`;
+        ? 'Office_plugin/shared/EditorAssets'
+        : `Office_plugin/windows/hosts/${host}AddIn/EditorAssets`;
       const path = resolve(root, directory, decodeURIComponent(url.pathname.slice(1)));
       const types = {'.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.html': 'text/html'};
       await route.fulfill({body: await readFile(path), contentType: types[extname(path)]});
@@ -96,8 +96,8 @@ for (const host of ['Word', 'PowerPoint']) {
         return;
       }
       const path = url.hostname.includes('editor-shared')
-        ? resolve(root, 'office_plugin/shared/EditorAssets', name)
-        : resolve(root, `office_plugin/windows/hosts/${host}AddIn/EditorAssets`, name);
+        ? resolve(root, 'Office_plugin/shared/EditorAssets', name)
+        : resolve(root, `Office_plugin/windows/hosts/${host}AddIn/EditorAssets`, name);
       await route.fulfill({body: await readFile(path), contentType: name.endsWith('.css') ? 'text/css' : 'text/html'});
     });
     await page.goto(`https://latexsnipper-${host.toLowerCase()}.officeplugin.local/taskpane.html`);

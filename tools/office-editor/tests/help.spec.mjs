@@ -8,13 +8,13 @@ for (const host of ['Word', 'PowerPoint']) {
   test(host + ' help follows the current task and settings flow in both languages', async ({page}) => {
     await page.setViewportSize({width: 744, height: 632});
     const html = await readFile(fileURLToPath(new URL(
-      '../../../office_plugin/windows/hosts/' + host + 'AddIn/EditorAssets/help.html', import.meta.url)));
+      '../../../Office_plugin/windows/hosts/' + host + 'AddIn/EditorAssets/help.html', import.meta.url)));
     await page.route('https://*.officeplugin.local/help.html*', route =>
       route.fulfill({body: html, contentType: 'text/html'}));
     await page.route('https://*.officeplugin.local/support/**', async route => {
       const name = decodeURIComponent(new URL(route.request().url()).pathname.slice(1));
       const file = fileURLToPath(new URL(
-        '../../../office_plugin/windows/hosts/' + host + 'AddIn/EditorAssets/' + name, import.meta.url));
+        '../../../Office_plugin/windows/hosts/' + host + 'AddIn/EditorAssets/' + name, import.meta.url));
       const contentType = extname(file) === '.png' ? 'image/png' : 'image/jpeg';
       await route.fulfill({body: await readFile(file), contentType});
     });
