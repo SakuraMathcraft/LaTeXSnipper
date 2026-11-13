@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {CATALOG, CATEGORIES, COMMANDS, findEntries, entryTemplate, templateParts} from '../../../office_plugin/shared/EditorAssets/template-catalog.mjs';
+import {CATALOG, CATEGORIES, COMMANDS, findEntries, entryTemplate, templateParts} from '../../../Office_plugin/shared/EditorAssets/template-catalog.mjs';
 
 test('every category searches the same unique catalog in either language and by command', () => {
   assert.equal(new Set(CATALOG.map(entry => entry.template)).size, CATALOG.length);

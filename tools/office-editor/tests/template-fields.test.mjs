@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {EditorState} from '@codemirror/state';
 import {keymap} from '@codemirror/view';
 import {templateFields, templateTransaction} from '../template-fields.js';
-import {templateParts} from '../../../office_plugin/shared/EditorAssets/template-catalog.mjs';
+import {templateParts} from '../../../Office_plugin/shared/EditorAssets/template-catalog.mjs';
 
 test('source templates preserve literal TeX, multiline selections and snippet-like user text', () => {
   const selected = '\\{x\\}\n\\text{${literal} #?}';

@@ -77,7 +77,7 @@ Windows/Linux 安装包提供 CPU 与 NVIDIA GPU 发行，macOS 14.0 及以上�
 
 从 [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest) 单独下载 `LaTeXSnipperOffice_<version>_amd64.exe`。支持 Windows 上的 32 位和 64 位 Office 2019/2021/2024、LTSC 2021/2024 及 Microsoft 365 Apps。
 
-[安装要求与完整功能](office_plugin/README.md) · [公式工作流](docs/office_plugin_formula_workflows.md)
+[安装要求与完整功能](Office_plugin/README.md) · [公式工作流](docs/Office_plugin_formula_workflows.md)
 
 ---
 

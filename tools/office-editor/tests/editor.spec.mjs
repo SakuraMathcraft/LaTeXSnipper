@@ -20,7 +20,7 @@ test('catalog previews are renderable formulas', async ({page}) => {
 });
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
-const shared = resolve(root, 'office_plugin/shared/EditorAssets');
+const shared = resolve(root, 'Office_plugin/shared/EditorAssets');
 const source = page => page.locator('#latexSource .cm-content');
 async function open(page, latex = 'x+1', host = 'word', color = '#000000') {
   const errors = [];
@@ -30,7 +30,7 @@ async function open(page, latex = 'x+1', host = 'word', color = '#000000') {
     const url = new URL(route.request().url());
     const relative = decodeURIComponent(url.pathname.slice(1));
     const directory = url.hostname.includes('editor-shared') ? shared
-      : resolve(root, `office_plugin/windows/hosts/${host === 'word' ? 'Word' : 'PowerPoint'}AddIn/EditorAssets`);
+      : resolve(root, `Office_plugin/windows/hosts/${host === 'word' ? 'Word' : 'PowerPoint'}AddIn/EditorAssets`);
     const path = resolve(directory, relative);
     const types = {'.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.woff2': 'font/woff2'};
     await route.fulfill({body: await readFile(path), contentType: types[extname(path)] || 'application/octet-stream'});

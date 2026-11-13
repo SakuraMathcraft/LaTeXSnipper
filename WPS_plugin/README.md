@@ -10,7 +10,7 @@
 | [`windows/`](windows/README.md) | Windows 的 WPS 加载入口、平台适配、安装和实机测试 |
 | [`macos/`](macos/README.md) | macOS 的 WPS 加载入口、平台适配、安装和实机测试 |
 
-复用 [Office 插件公共资源](../office_plugin/shared/) 中的公式编辑器、符号与模板、MathJax 排版适配器。WPS 宿主操作集中在文字和演示各自的适配层。不同操作系统共用的实现归入 `shared/`，安装、权限和本机桥接按平台管理。Windows 与 macOS 使用同一套文档契约和测试样本。
+复用 [Office 插件公共资源](../Office_plugin/shared/) 中的公式编辑器、符号与模板、MathJax 排版适配器。WPS 宿主操作集中在文字和演示各自的适配层。不同操作系统共用的实现归入 `shared/`，安装、权限和本机桥接按平台管理。Windows 与 macOS 使用同一套文档契约和测试样本。
 
 通过目标 WPS 版本公开支持的加载项接口操作活动文档、选区、公式、域和形状。平台适配层只处理宿主差异，公式数据随文档保存。WPS 插件的安装、构建、测试和发布均由本目录管理。Microsoft Office 插件的源码、桌面端源码及其发布流程保持固定。
 
@@ -42,7 +42,7 @@ Windows 的 OLE 公式复用 LaTeXSnipper 已有的 Windows 本机对象组件�
 - 两个宿主提供中英文功能区、状态窗格、公式预览、可视化与源码编辑、符号模板和收藏、公式样式、JSON 预设及帮助。使用共用编辑器和宿主提供的选区与文档状态。
 - 插件独立安装和运行。输入、渲染、加载、编辑、格式化和设置在本机完成。只有截图识别调用现有 [Automation API](../docs/automation_api.md) 的 `next_result` 订阅、查询和取消，截图由用户通过桌面端发起。会话令牌由本机调用方保管。
 - Windows 只将通过类标识和元数据校验的 LaTeXSnipper OLE 纳入编辑。macOS 只识别已有 OLE 的对象类型，选中时提示回 Windows 编辑，文档写入跳过 OLE。各平台的插入、删除、格式化、转换、解析和重编号均保护混合选区中的非目标对象。
-- 普通编辑只更新已确认的目标。损坏或不受支持的元数据应提示并保留原对象。文档契约和操作语义见 [Office 公式工作流](../docs/office_plugin_formula_workflows.md)。
+- 普通编辑只更新已确认的目标。损坏或不受支持的元数据应提示并保留原对象。文档契约和操作语义见 [Office 公式工作流](../docs/Office_plugin_formula_workflows.md)。
 
 ## 验收与贡献
 
