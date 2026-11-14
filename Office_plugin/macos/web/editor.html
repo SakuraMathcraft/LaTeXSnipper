@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LaTeXSnipper</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <link rel="stylesheet" href="/shared/editor.css">
+  <link rel="stylesheet" href="/shared/source-editor.css">
+  <link rel="stylesheet" href="./app/mac.css">
+  <!-- Must run before the shared editor module so its postMessage calls reach the bridge. -->
+  <script type="module" src="./app/editor-bridge.mjs"></script>
+</head>
+<body>
+  <script type="module" src="/shared/editor.js"></script>
+</body>
+</html>
