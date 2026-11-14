@@ -1,0 +1,436 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LaTeXSnipper Office add-in for Word and PowerPoint on macOS.
+  LaTeXSnipper Office.app replaces {{BASE_URL}} and {{VERSION}} and sideloads the
+  result into each host's wef directory. Do not load this template directly.
+-->
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+           xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
+           xsi:type="TaskPaneApp">
+  <Id>5864b814-d492-4f4c-812c-b14a147c05c1</Id>
+  <Version>{{VERSION}}</Version>
+  <ProviderName>LaTeXSnipper</ProviderName>
+  <DefaultLocale>zh-CN</DefaultLocale>
+  <DisplayName DefaultValue="LaTeXSnipper">
+    <Override Locale="en-US" Value="LaTeXSnipper"/>
+  </DisplayName>
+  <Description DefaultValue="插入和编辑 LaTeX 公式，并接收 LaTeXSnipper 截图识别结果。">
+    <Override Locale="en-US" Value="Insert and edit LaTeX formulas and receive LaTeXSnipper screenshot recognition results."/>
+  </Description>
+  <IconUrl DefaultValue="{{BASE_URL}}/addin/icons/app-32.png"/>
+  <HighResolutionIconUrl DefaultValue="{{BASE_URL}}/addin/icons/app-80.png"/>
+  <SupportUrl DefaultValue="https://github.com/SakuraMathcraft/LaTeXSnipper"/>
+  <AppDomains>
+    <AppDomain>{{BASE_URL}}</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Document"/>
+    <Host Name="Presentation"/>
+  </Hosts>
+  <Requirements>
+    <Sets DefaultMinVersion="1.1">
+      <Set Name="SharedRuntime" MinVersion="1.1"/>
+    </Sets>
+  </Requirements>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="{{BASE_URL}}/addin/taskpane.html"/>
+  </DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Document">
+        <Runtimes>
+          <Runtime resid="Taskpane.Url" lifetime="long"/>
+        </Runtimes>
+        <DesktopFormFactor>
+          <GetStarted>
+            <Title resid="GetStarted.Title"/>
+            <Description resid="GetStarted.Description"/>
+            <LearnMoreUrl resid="Help.Url"/>
+          </GetStarted>
+          <FunctionFile resid="Taskpane.Url"/>
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <CustomTab id="LaTeXSnipper.Word.Tab">
+              <Group id="LaTeXSnipper.Word.FormulaGroup">
+                <Label resid="Group.Formula"/>
+                <Icon><bt:Image size="16" resid="Icon.insert-inline.16"/><bt:Image size="32" resid="Icon.insert-inline.32"/><bt:Image size="80" resid="Icon.insert-inline.80"/></Icon>
+                <Control xsi:type="Button" id="LaTeXSnipper.Word.InsertInline">
+                  <Label resid="InsertInline.Label"/>
+                  <Supertip><Title resid="InsertInline.Label"/><Description resid="InsertInline.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.insert-inline.16"/><bt:Image size="32" resid="Icon.insert-inline.32"/><bt:Image size="80" resid="Icon.insert-inline.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>insertInline</FunctionName></Action>
+                </Control>
+                <Control xsi:type="Button" id="LaTeXSnipper.Word.InsertDisplay">
+                  <Label resid="InsertDisplay.Label"/>
+                  <Supertip><Title resid="InsertDisplay.Label"/><Description resid="InsertDisplay.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.insert-display.16"/><bt:Image size="32" resid="Icon.insert-display.32"/><bt:Image size="80" resid="Icon.insert-display.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>insertDisplay</FunctionName></Action>
+                </Control>
+                <Control xsi:type="Button" id="LaTeXSnipper.Word.InsertNumbered">
+                  <Label resid="InsertNumbered.Label"/>
+                  <Supertip><Title resid="InsertNumbered.Label"/><Description resid="InsertNumbered.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.insert-numbered.16"/><bt:Image size="32" resid="Icon.insert-numbered.32"/><bt:Image size="80" resid="Icon.insert-numbered.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>insertNumbered</FunctionName></Action>
+                </Control>
+                <Control xsi:type="Button" id="LaTeXSnipper.Word.ScreenshotOcr">
+                  <Label resid="ScreenshotOcr.Label"/>
+                  <Supertip><Title resid="ScreenshotOcr.Label"/><Description resid="ScreenshotOcr.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.ocr.16"/><bt:Image size="32" resid="Icon.ocr.32"/><bt:Image size="80" resid="Icon.ocr.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>screenshotOcr</FunctionName></Action>
+                </Control>
+              </Group>
+              <Group id="LaTeXSnipper.Word.EditGroup">
+                <Label resid="Group.Edit"/>
+                <Icon><bt:Image size="16" resid="Icon.load.16"/><bt:Image size="32" resid="Icon.load.32"/><bt:Image size="80" resid="Icon.load.80"/></Icon>
+                <Control xsi:type="Button" id="LaTeXSnipper.Word.LoadSelected">
+                  <Label resid="LoadSelected.Label"/>
+                  <Supertip><Title resid="LoadSelected.Label"/><Description resid="LoadSelected.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.load.16"/><bt:Image size="32" resid="Icon.load.32"/><bt:Image size="80" resid="Icon.load.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>loadSelected</FunctionName></Action>
+                </Control>
+                <Control xsi:type="Button" id="LaTeXSnipper.Word.DeleteSelected">
+                  <Label resid="DeleteSelected.Label"/>
+                  <Supertip><Title resid="DeleteSelected.Label"/><Description resid="DeleteSelected.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.delete.16"/><bt:Image size="32" resid="Icon.delete.32"/><bt:Image size="80" resid="Icon.delete.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>deleteSelected</FunctionName></Action>
+                </Control>
+              </Group>
+              <Group id="LaTeXSnipper.Word.ParsingGroup">
+                <Label resid="Group.Parsing"/>
+                <Icon><bt:Image size="16" resid="Icon.parse-selected.16"/><bt:Image size="32" resid="Icon.parse-selected.32"/><bt:Image size="80" resid="Icon.parse-selected.80"/></Icon>
+                <Control xsi:type="Button" id="LaTeXSnipper.Word.ParseSelected">
+                  <Label resid="ParseSelected.Label"/>
+                  <Supertip><Title resid="ParseSelected.Label"/><Description resid="ParseSelected.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.parse-selected.16"/><bt:Image size="32" resid="Icon.parse-selected.32"/><bt:Image size="80" resid="Icon.parse-selected.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>parseSelected</FunctionName></Action>
+                </Control>
+                <Control xsi:type="Button" id="LaTeXSnipper.Word.ParseAll">
+                  <Label resid="ParseAll.Label"/>
+                  <Supertip><Title resid="ParseAll.Label"/><Description resid="ParseAll.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.parse-all.16"/><bt:Image size="32" resid="Icon.parse-all.32"/><bt:Image size="80" resid="Icon.parse-all.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>parseAll</FunctionName></Action>
+                </Control>
+              </Group>
+              <Group id="LaTeXSnipper.Word.ReferenceGroup">
+                <Label resid="Group.Reference"/>
+                <Icon><bt:Image size="16" resid="Icon.reference.16"/><bt:Image size="32" resid="Icon.reference.32"/><bt:Image size="80" resid="Icon.reference.80"/></Icon>
+                <Control xsi:type="Button" id="LaTeXSnipper.Word.InsertReference">
+                  <Label resid="InsertReference.Label"/>
+                  <Supertip><Title resid="InsertReference.Label"/><Description resid="InsertReference.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.reference.16"/><bt:Image size="32" resid="Icon.reference.32"/><bt:Image size="80" resid="Icon.reference.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>insertReference</FunctionName></Action>
+                </Control>
+              </Group>
+              <Group id="LaTeXSnipper.Word.NumberingGroup">
+                <Label resid="Group.Numbering"/>
+                <Icon><bt:Image size="16" resid="Icon.add-number.16"/><bt:Image size="32" resid="Icon.add-number.32"/><bt:Image size="80" resid="Icon.add-number.80"/></Icon>
+                <Control xsi:type="Button" id="LaTeXSnipper.Word.AutoNumber">
+                  <Label resid="AutoNumber.Label"/>
+                  <Supertip><Title resid="AutoNumber.Label"/><Description resid="AutoNumber.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.add-number.16"/><bt:Image size="32" resid="Icon.add-number.32"/><bt:Image size="80" resid="Icon.add-number.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>addNumber</FunctionName></Action>
+                </Control>
+                <Control xsi:type="Button" id="LaTeXSnipper.Word.Renumber">
+                  <Label resid="Renumber.Label"/>
+                  <Supertip><Title resid="Renumber.Label"/><Description resid="Renumber.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.renumber.16"/><bt:Image size="32" resid="Icon.renumber.32"/><bt:Image size="80" resid="Icon.renumber.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>renumberAll</FunctionName></Action>
+                </Control>
+              </Group>
+              <Group id="LaTeXSnipper.Word.BoundaryGroup">
+                <Label resid="Group.Boundary"/>
+                <Icon><bt:Image size="16" resid="Icon.chapter.16"/><bt:Image size="32" resid="Icon.chapter.32"/><bt:Image size="80" resid="Icon.chapter.80"/></Icon>
+                <Control xsi:type="Button" id="LaTeXSnipper.Word.ChapterBoundary">
+                  <Label resid="ChapterBoundary.Label"/>
+                  <Supertip><Title resid="ChapterBoundary.Label"/><Description resid="ChapterBoundary.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.chapter.16"/><bt:Image size="32" resid="Icon.chapter.32"/><bt:Image size="80" resid="Icon.chapter.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>insertChapterBoundary</FunctionName></Action>
+                </Control>
+                <Control xsi:type="Button" id="LaTeXSnipper.Word.SectionBoundary">
+                  <Label resid="SectionBoundary.Label"/>
+                  <Supertip><Title resid="SectionBoundary.Label"/><Description resid="SectionBoundary.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.section.16"/><bt:Image size="32" resid="Icon.section.32"/><bt:Image size="80" resid="Icon.section.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>insertSectionBoundary</FunctionName></Action>
+                </Control>
+              </Group>
+              <Group id="LaTeXSnipper.Word.FormattingGroup">
+                <Label resid="Group.Formatting"/>
+                <Icon><bt:Image size="16" resid="Icon.format.16"/><bt:Image size="32" resid="Icon.format.32"/><bt:Image size="80" resid="Icon.format.80"/></Icon>
+                <Control xsi:type="Button" id="LaTeXSnipper.Word.FormatSelected">
+                  <Label resid="FormatSelected.Label"/>
+                  <Supertip><Title resid="FormatSelected.Label"/><Description resid="FormatSelected.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.format.16"/><bt:Image size="32" resid="Icon.format.32"/><bt:Image size="80" resid="Icon.format.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>formatSelected</FunctionName></Action>
+                </Control>
+                <Control xsi:type="Button" id="LaTeXSnipper.Word.FormatAll">
+                  <Label resid="FormatAll.Label"/>
+                  <Supertip><Title resid="FormatAll.Label"/><Description resid="FormatAll.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.format-all.16"/><bt:Image size="32" resid="Icon.format-all.32"/><bt:Image size="80" resid="Icon.format-all.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>formatAll</FunctionName></Action>
+                </Control>
+              </Group>
+              <Group id="LaTeXSnipper.Word.ToolsGroup">
+                <Label resid="Group.Tools"/>
+                <Icon><bt:Image size="16" resid="Icon.pane.16"/><bt:Image size="32" resid="Icon.pane.32"/><bt:Image size="80" resid="Icon.pane.80"/></Icon>
+                <Control xsi:type="Button" id="LaTeXSnipper.Word.ShowTaskPane">
+                  <Label resid="ShowTaskPane.Label"/>
+                  <Supertip><Title resid="ShowTaskPane.Label"/><Description resid="ShowTaskPane.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.pane.16"/><bt:Image size="32" resid="Icon.pane.32"/><bt:Image size="80" resid="Icon.pane.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>showTaskPane</FunctionName></Action>
+                </Control>
+                <Control xsi:type="Button" id="LaTeXSnipper.Word.Settings">
+                  <Label resid="Settings.Label"/>
+                  <Supertip><Title resid="Settings.Label"/><Description resid="Settings.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.settings.16"/><bt:Image size="32" resid="Icon.settings.32"/><bt:Image size="80" resid="Icon.settings.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>openSettings</FunctionName></Action>
+                </Control>
+                <Control xsi:type="Button" id="LaTeXSnipper.Word.Help">
+                  <Label resid="Help.Label"/>
+                  <Supertip><Title resid="Help.Label"/><Description resid="Help.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.help.16"/><bt:Image size="32" resid="Icon.help.32"/><bt:Image size="80" resid="Icon.help.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>openHelp</FunctionName></Action>
+                </Control>
+              </Group>
+              <Label resid="Tab.Label"/>
+            </CustomTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+      <Host xsi:type="Presentation">
+        <Runtimes>
+          <Runtime resid="Taskpane.Url" lifetime="long"/>
+        </Runtimes>
+        <DesktopFormFactor>
+          <GetStarted>
+            <Title resid="GetStarted.Title"/>
+            <Description resid="GetStarted.Description"/>
+            <LearnMoreUrl resid="Help.Url"/>
+          </GetStarted>
+          <FunctionFile resid="Taskpane.Url"/>
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <CustomTab id="LaTeXSnipper.PowerPoint.Tab">
+              <Group id="LaTeXSnipper.PowerPoint.FormulaGroup">
+                <Label resid="Group.Formula"/>
+                <Icon><bt:Image size="16" resid="Icon.insert-formula.16"/><bt:Image size="32" resid="Icon.insert-formula.32"/><bt:Image size="80" resid="Icon.insert-formula.80"/></Icon>
+                <Control xsi:type="Button" id="LaTeXSnipper.PowerPoint.InsertFormula">
+                  <Label resid="InsertFormula.Label"/>
+                  <Supertip><Title resid="InsertFormula.Label"/><Description resid="InsertFormula.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.insert-formula.16"/><bt:Image size="32" resid="Icon.insert-formula.32"/><bt:Image size="80" resid="Icon.insert-formula.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>insertFormula</FunctionName></Action>
+                </Control>
+                <Control xsi:type="Button" id="LaTeXSnipper.PowerPoint.ScreenshotOcr">
+                  <Label resid="ScreenshotOcr.Label"/>
+                  <Supertip><Title resid="ScreenshotOcr.Label"/><Description resid="ScreenshotOcr.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.ocr.16"/><bt:Image size="32" resid="Icon.ocr.32"/><bt:Image size="80" resid="Icon.ocr.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>screenshotOcr</FunctionName></Action>
+                </Control>
+              </Group>
+              <Group id="LaTeXSnipper.PowerPoint.EditGroup">
+                <Label resid="Group.Edit"/>
+                <Icon><bt:Image size="16" resid="Icon.load.16"/><bt:Image size="32" resid="Icon.load.32"/><bt:Image size="80" resid="Icon.load.80"/></Icon>
+                <Control xsi:type="Button" id="LaTeXSnipper.PowerPoint.LoadSelected">
+                  <Label resid="LoadSelected.Label"/>
+                  <Supertip><Title resid="LoadSelected.Label"/><Description resid="LoadSelected.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.load.16"/><bt:Image size="32" resid="Icon.load.32"/><bt:Image size="80" resid="Icon.load.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>loadSelected</FunctionName></Action>
+                </Control>
+                <Control xsi:type="Button" id="LaTeXSnipper.PowerPoint.DeleteSelected">
+                  <Label resid="DeleteSelected.Label"/>
+                  <Supertip><Title resid="DeleteSelected.Label"/><Description resid="DeleteSelected.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.delete.16"/><bt:Image size="32" resid="Icon.delete.32"/><bt:Image size="80" resid="Icon.delete.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>deleteSelected</FunctionName></Action>
+                </Control>
+              </Group>
+              <Group id="LaTeXSnipper.PowerPoint.ConversionGroup">
+                <Label resid="Group.Conversion"/>
+                <Icon><bt:Image size="16" resid="Icon.to-png.16"/><bt:Image size="32" resid="Icon.to-png.32"/><bt:Image size="80" resid="Icon.to-png.80"/></Icon>
+                <Control xsi:type="Button" id="LaTeXSnipper.PowerPoint.ToPng">
+                  <Label resid="ToPng.Label"/>
+                  <Supertip><Title resid="ToPng.Label"/><Description resid="ToPng.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.to-png.16"/><bt:Image size="32" resid="Icon.to-png.32"/><bt:Image size="80" resid="Icon.to-png.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>convertToPng</FunctionName></Action>
+                </Control>
+                <Control xsi:type="Button" id="LaTeXSnipper.PowerPoint.ToSvg">
+                  <Label resid="ToSvg.Label"/>
+                  <Supertip><Title resid="ToSvg.Label"/><Description resid="ToSvg.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.to-svg.16"/><bt:Image size="32" resid="Icon.to-svg.32"/><bt:Image size="80" resid="Icon.to-svg.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>convertToSvg</FunctionName></Action>
+                </Control>
+              </Group>
+              <Group id="LaTeXSnipper.PowerPoint.FormattingGroup">
+                <Label resid="Group.Formatting"/>
+                <Icon><bt:Image size="16" resid="Icon.format.16"/><bt:Image size="32" resid="Icon.format.32"/><bt:Image size="80" resid="Icon.format.80"/></Icon>
+                <Control xsi:type="Button" id="LaTeXSnipper.PowerPoint.FormatSelected">
+                  <Label resid="FormatSelected.Label"/>
+                  <Supertip><Title resid="FormatSelected.Label"/><Description resid="FormatSelected.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.format.16"/><bt:Image size="32" resid="Icon.format.32"/><bt:Image size="80" resid="Icon.format.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>formatSelected</FunctionName></Action>
+                </Control>
+                <Control xsi:type="Button" id="LaTeXSnipper.PowerPoint.FormatAll">
+                  <Label resid="FormatAll.Label"/>
+                  <Supertip><Title resid="FormatAll.Label"/><Description resid="FormatAll.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.format-all.16"/><bt:Image size="32" resid="Icon.format-all.32"/><bt:Image size="80" resid="Icon.format-all.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>formatAll</FunctionName></Action>
+                </Control>
+              </Group>
+              <Group id="LaTeXSnipper.PowerPoint.ToolsGroup">
+                <Label resid="Group.Tools"/>
+                <Icon><bt:Image size="16" resid="Icon.pane.16"/><bt:Image size="32" resid="Icon.pane.32"/><bt:Image size="80" resid="Icon.pane.80"/></Icon>
+                <Control xsi:type="Button" id="LaTeXSnipper.PowerPoint.ShowTaskPane">
+                  <Label resid="ShowTaskPane.Label"/>
+                  <Supertip><Title resid="ShowTaskPane.Label"/><Description resid="ShowTaskPane.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.pane.16"/><bt:Image size="32" resid="Icon.pane.32"/><bt:Image size="80" resid="Icon.pane.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>showTaskPane</FunctionName></Action>
+                </Control>
+                <Control xsi:type="Button" id="LaTeXSnipper.PowerPoint.Settings">
+                  <Label resid="Settings.Label"/>
+                  <Supertip><Title resid="Settings.Label"/><Description resid="Settings.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.settings.16"/><bt:Image size="32" resid="Icon.settings.32"/><bt:Image size="80" resid="Icon.settings.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>openSettings</FunctionName></Action>
+                </Control>
+                <Control xsi:type="Button" id="LaTeXSnipper.PowerPoint.Help">
+                  <Label resid="Help.Label"/>
+                  <Supertip><Title resid="Help.Label"/><Description resid="Help.Tip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.help.16"/><bt:Image size="32" resid="Icon.help.32"/><bt:Image size="80" resid="Icon.help.80"/></Icon>
+                  <Action xsi:type="ExecuteFunction"><FunctionName>openHelp</FunctionName></Action>
+                </Control>
+              </Group>
+              <Label resid="Tab.Label"/>
+            </CustomTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+    <Resources>
+      <bt:Images>
+        <bt:Image id="Icon.add-number.16" DefaultValue="{{BASE_URL}}/addin/icons/add-number-16.png"/>
+        <bt:Image id="Icon.add-number.32" DefaultValue="{{BASE_URL}}/addin/icons/add-number-32.png"/>
+        <bt:Image id="Icon.add-number.80" DefaultValue="{{BASE_URL}}/addin/icons/add-number-80.png"/>
+        <bt:Image id="Icon.chapter.16" DefaultValue="{{BASE_URL}}/addin/icons/chapter-16.png"/>
+        <bt:Image id="Icon.chapter.32" DefaultValue="{{BASE_URL}}/addin/icons/chapter-32.png"/>
+        <bt:Image id="Icon.chapter.80" DefaultValue="{{BASE_URL}}/addin/icons/chapter-80.png"/>
+        <bt:Image id="Icon.delete.16" DefaultValue="{{BASE_URL}}/addin/icons/delete-16.png"/>
+        <bt:Image id="Icon.delete.32" DefaultValue="{{BASE_URL}}/addin/icons/delete-32.png"/>
+        <bt:Image id="Icon.delete.80" DefaultValue="{{BASE_URL}}/addin/icons/delete-80.png"/>
+        <bt:Image id="Icon.format.16" DefaultValue="{{BASE_URL}}/addin/icons/format-16.png"/>
+        <bt:Image id="Icon.format.32" DefaultValue="{{BASE_URL}}/addin/icons/format-32.png"/>
+        <bt:Image id="Icon.format.80" DefaultValue="{{BASE_URL}}/addin/icons/format-80.png"/>
+        <bt:Image id="Icon.format-all.16" DefaultValue="{{BASE_URL}}/addin/icons/format-all-16.png"/>
+        <bt:Image id="Icon.format-all.32" DefaultValue="{{BASE_URL}}/addin/icons/format-all-32.png"/>
+        <bt:Image id="Icon.format-all.80" DefaultValue="{{BASE_URL}}/addin/icons/format-all-80.png"/>
+        <bt:Image id="Icon.help.16" DefaultValue="{{BASE_URL}}/addin/icons/help-16.png"/>
+        <bt:Image id="Icon.help.32" DefaultValue="{{BASE_URL}}/addin/icons/help-32.png"/>
+        <bt:Image id="Icon.help.80" DefaultValue="{{BASE_URL}}/addin/icons/help-80.png"/>
+        <bt:Image id="Icon.insert-display.16" DefaultValue="{{BASE_URL}}/addin/icons/insert-display-16.png"/>
+        <bt:Image id="Icon.insert-display.32" DefaultValue="{{BASE_URL}}/addin/icons/insert-display-32.png"/>
+        <bt:Image id="Icon.insert-display.80" DefaultValue="{{BASE_URL}}/addin/icons/insert-display-80.png"/>
+        <bt:Image id="Icon.insert-formula.16" DefaultValue="{{BASE_URL}}/addin/icons/insert-formula-16.png"/>
+        <bt:Image id="Icon.insert-formula.32" DefaultValue="{{BASE_URL}}/addin/icons/insert-formula-32.png"/>
+        <bt:Image id="Icon.insert-formula.80" DefaultValue="{{BASE_URL}}/addin/icons/insert-formula-80.png"/>
+        <bt:Image id="Icon.insert-inline.16" DefaultValue="{{BASE_URL}}/addin/icons/insert-inline-16.png"/>
+        <bt:Image id="Icon.insert-inline.32" DefaultValue="{{BASE_URL}}/addin/icons/insert-inline-32.png"/>
+        <bt:Image id="Icon.insert-inline.80" DefaultValue="{{BASE_URL}}/addin/icons/insert-inline-80.png"/>
+        <bt:Image id="Icon.insert-numbered.16" DefaultValue="{{BASE_URL}}/addin/icons/insert-numbered-16.png"/>
+        <bt:Image id="Icon.insert-numbered.32" DefaultValue="{{BASE_URL}}/addin/icons/insert-numbered-32.png"/>
+        <bt:Image id="Icon.insert-numbered.80" DefaultValue="{{BASE_URL}}/addin/icons/insert-numbered-80.png"/>
+        <bt:Image id="Icon.load.16" DefaultValue="{{BASE_URL}}/addin/icons/load-16.png"/>
+        <bt:Image id="Icon.load.32" DefaultValue="{{BASE_URL}}/addin/icons/load-32.png"/>
+        <bt:Image id="Icon.load.80" DefaultValue="{{BASE_URL}}/addin/icons/load-80.png"/>
+        <bt:Image id="Icon.ocr.16" DefaultValue="{{BASE_URL}}/addin/icons/ocr-16.png"/>
+        <bt:Image id="Icon.ocr.32" DefaultValue="{{BASE_URL}}/addin/icons/ocr-32.png"/>
+        <bt:Image id="Icon.ocr.80" DefaultValue="{{BASE_URL}}/addin/icons/ocr-80.png"/>
+        <bt:Image id="Icon.pane.16" DefaultValue="{{BASE_URL}}/addin/icons/pane-16.png"/>
+        <bt:Image id="Icon.pane.32" DefaultValue="{{BASE_URL}}/addin/icons/pane-32.png"/>
+        <bt:Image id="Icon.pane.80" DefaultValue="{{BASE_URL}}/addin/icons/pane-80.png"/>
+        <bt:Image id="Icon.parse-all.16" DefaultValue="{{BASE_URL}}/addin/icons/parse-all-16.png"/>
+        <bt:Image id="Icon.parse-all.32" DefaultValue="{{BASE_URL}}/addin/icons/parse-all-32.png"/>
+        <bt:Image id="Icon.parse-all.80" DefaultValue="{{BASE_URL}}/addin/icons/parse-all-80.png"/>
+        <bt:Image id="Icon.parse-selected.16" DefaultValue="{{BASE_URL}}/addin/icons/parse-selected-16.png"/>
+        <bt:Image id="Icon.parse-selected.32" DefaultValue="{{BASE_URL}}/addin/icons/parse-selected-32.png"/>
+        <bt:Image id="Icon.parse-selected.80" DefaultValue="{{BASE_URL}}/addin/icons/parse-selected-80.png"/>
+        <bt:Image id="Icon.reference.16" DefaultValue="{{BASE_URL}}/addin/icons/reference-16.png"/>
+        <bt:Image id="Icon.reference.32" DefaultValue="{{BASE_URL}}/addin/icons/reference-32.png"/>
+        <bt:Image id="Icon.reference.80" DefaultValue="{{BASE_URL}}/addin/icons/reference-80.png"/>
+        <bt:Image id="Icon.renumber.16" DefaultValue="{{BASE_URL}}/addin/icons/renumber-16.png"/>
+        <bt:Image id="Icon.renumber.32" DefaultValue="{{BASE_URL}}/addin/icons/renumber-32.png"/>
+        <bt:Image id="Icon.renumber.80" DefaultValue="{{BASE_URL}}/addin/icons/renumber-80.png"/>
+        <bt:Image id="Icon.section.16" DefaultValue="{{BASE_URL}}/addin/icons/section-16.png"/>
+        <bt:Image id="Icon.section.32" DefaultValue="{{BASE_URL}}/addin/icons/section-32.png"/>
+        <bt:Image id="Icon.section.80" DefaultValue="{{BASE_URL}}/addin/icons/section-80.png"/>
+        <bt:Image id="Icon.settings.16" DefaultValue="{{BASE_URL}}/addin/icons/settings-16.png"/>
+        <bt:Image id="Icon.settings.32" DefaultValue="{{BASE_URL}}/addin/icons/settings-32.png"/>
+        <bt:Image id="Icon.settings.80" DefaultValue="{{BASE_URL}}/addin/icons/settings-80.png"/>
+        <bt:Image id="Icon.to-png.16" DefaultValue="{{BASE_URL}}/addin/icons/to-png-16.png"/>
+        <bt:Image id="Icon.to-png.32" DefaultValue="{{BASE_URL}}/addin/icons/to-png-32.png"/>
+        <bt:Image id="Icon.to-png.80" DefaultValue="{{BASE_URL}}/addin/icons/to-png-80.png"/>
+        <bt:Image id="Icon.to-svg.16" DefaultValue="{{BASE_URL}}/addin/icons/to-svg-16.png"/>
+        <bt:Image id="Icon.to-svg.32" DefaultValue="{{BASE_URL}}/addin/icons/to-svg-32.png"/>
+        <bt:Image id="Icon.to-svg.80" DefaultValue="{{BASE_URL}}/addin/icons/to-svg-80.png"/>
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="Taskpane.Url" DefaultValue="{{BASE_URL}}/addin/taskpane.html"/>
+        <bt:Url id="Help.Url" DefaultValue="{{BASE_URL}}/addin/help.html"/>
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="Tab.Label" DefaultValue="LaTeXSnipper"><bt:Override Locale="en-US" Value="LaTeXSnipper"/></bt:String>
+        <bt:String id="GetStarted.Title" DefaultValue="LaTeXSnipper 已就绪"><bt:Override Locale="en-US" Value="LaTeXSnipper is ready"/></bt:String>
+        <bt:String id="Group.Formula" DefaultValue="公式"><bt:Override Locale="en-US" Value="Formula"/></bt:String>
+        <bt:String id="Group.Edit" DefaultValue="编辑"><bt:Override Locale="en-US" Value="Edit"/></bt:String>
+        <bt:String id="Group.Conversion" DefaultValue="转换"><bt:Override Locale="en-US" Value="Conversion"/></bt:String>
+        <bt:String id="Group.Parsing" DefaultValue="公式解析"><bt:Override Locale="en-US" Value="Formula Parsing"/></bt:String>
+        <bt:String id="Group.Reference" DefaultValue="交叉引用"><bt:Override Locale="en-US" Value="Cross Reference"/></bt:String>
+        <bt:String id="Group.Numbering" DefaultValue="编号"><bt:Override Locale="en-US" Value="Numbering"/></bt:String>
+        <bt:String id="Group.Boundary" DefaultValue="编号边界"><bt:Override Locale="en-US" Value="Numbering Boundaries"/></bt:String>
+        <bt:String id="Group.Formatting" DefaultValue="公式样式"><bt:Override Locale="en-US" Value="Formula Style"/></bt:String>
+        <bt:String id="Group.Tools" DefaultValue="工具"><bt:Override Locale="en-US" Value="Tools"/></bt:String>
+        <bt:String id="InsertInline.Label" DefaultValue="行内公式"><bt:Override Locale="en-US" Value="Inline Formula"/></bt:String>
+        <bt:String id="InsertDisplay.Label" DefaultValue="行间公式"><bt:Override Locale="en-US" Value="Display Formula"/></bt:String>
+        <bt:String id="InsertNumbered.Label" DefaultValue="带编号公式"><bt:Override Locale="en-US" Value="Numbered Formula"/></bt:String>
+        <bt:String id="InsertFormula.Label" DefaultValue="插入公式"><bt:Override Locale="en-US" Value="Insert Formula"/></bt:String>
+        <bt:String id="ScreenshotOcr.Label" DefaultValue="截图识别"><bt:Override Locale="en-US" Value="Screenshot OCR"/></bt:String>
+        <bt:String id="LoadSelected.Label" DefaultValue="加载所选"><bt:Override Locale="en-US" Value="Load Selected"/></bt:String>
+        <bt:String id="DeleteSelected.Label" DefaultValue="删除所选"><bt:Override Locale="en-US" Value="Delete Selected"/></bt:String>
+        <bt:String id="ParseSelected.Label" DefaultValue="解析所选"><bt:Override Locale="en-US" Value="Parse Selected"/></bt:String>
+        <bt:String id="ParseAll.Label" DefaultValue="解析全文"><bt:Override Locale="en-US" Value="Parse All"/></bt:String>
+        <bt:String id="InsertReference.Label" DefaultValue="插入引用"><bt:Override Locale="en-US" Value="Insert Reference"/></bt:String>
+        <bt:String id="AutoNumber.Label" DefaultValue="添加编号"><bt:Override Locale="en-US" Value="Add Number"/></bt:String>
+        <bt:String id="Renumber.Label" DefaultValue="重编号"><bt:Override Locale="en-US" Value="Renumber All"/></bt:String>
+        <bt:String id="ChapterBoundary.Label" DefaultValue="章分隔符"><bt:Override Locale="en-US" Value="Chapter Separator"/></bt:String>
+        <bt:String id="SectionBoundary.Label" DefaultValue="节分隔符"><bt:Override Locale="en-US" Value="Section Boundary"/></bt:String>
+        <bt:String id="ToPng.Label" DefaultValue="转为 PNG"><bt:Override Locale="en-US" Value="To PNG"/></bt:String>
+        <bt:String id="ToSvg.Label" DefaultValue="转为 SVG"><bt:Override Locale="en-US" Value="To SVG"/></bt:String>
+        <bt:String id="FormatSelected.Label" DefaultValue="格式化所选"><bt:Override Locale="en-US" Value="Format Selected"/></bt:String>
+        <bt:String id="FormatAll.Label" DefaultValue="格式化全文"><bt:Override Locale="en-US" Value="Format All"/></bt:String>
+        <bt:String id="ShowTaskPane.Label" DefaultValue="状态窗格"><bt:Override Locale="en-US" Value="Status Pane"/></bt:String>
+        <bt:String id="Settings.Label" DefaultValue="设置"><bt:Override Locale="en-US" Value="Settings"/></bt:String>
+        <bt:String id="Help.Label" DefaultValue="帮助"><bt:Override Locale="en-US" Value="Help"/></bt:String>
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="GetStarted.Description" DefaultValue="在 LaTeXSnipper 选项卡中插入、编辑公式或接收截图识别结果。"><bt:Override Locale="en-US" Value="Use the LaTeXSnipper tab to insert and edit formulas or receive screenshot OCR results."/></bt:String>
+        <bt:String id="InsertInline.Tip" DefaultValue="插入行内公式。"><bt:Override Locale="en-US" Value="Insert an inline Word equation."/></bt:String>
+        <bt:String id="InsertDisplay.Tip" DefaultValue="插入行间公式。"><bt:Override Locale="en-US" Value="Insert a centered display equation."/></bt:String>
+        <bt:String id="InsertNumbered.Tip" DefaultValue="插入带编号的行间公式。"><bt:Override Locale="en-US" Value="Insert a numbered display equation."/></bt:String>
+        <bt:String id="InsertFormula.Tip" DefaultValue="打开公式编辑器。"><bt:Override Locale="en-US" Value="Open the formula editor."/></bt:String>
+        <bt:String id="ScreenshotOcr.Tip" DefaultValue="等待截图识别结果，再次点击取消。"><bt:Override Locale="en-US" Value="Wait for screenshot OCR; click again to cancel."/></bt:String>
+        <bt:String id="LoadSelected.Tip" DefaultValue="将所选公式加载到编辑器。"><bt:Override Locale="en-US" Value="Load the selected formula into the editor."/></bt:String>
+        <bt:String id="DeleteSelected.Tip" DefaultValue="删除所选公式。"><bt:Override Locale="en-US" Value="Delete selected formulas."/></bt:String>
+        <bt:String id="ParseSelected.Tip" DefaultValue="将选区内带定界符的 LaTeX 转为公式。"><bt:Override Locale="en-US" Value="Convert delimited LaTeX in the selection to formulas."/></bt:String>
+        <bt:String id="ParseAll.Tip" DefaultValue="将正文及表格中带定界符的 LaTeX 转为公式。"><bt:Override Locale="en-US" Value="Convert delimited LaTeX in the document body and tables to formulas."/></bt:String>
+        <bt:String id="InsertReference.Tip" DefaultValue="插入占位符，再单击带编号公式。"><bt:Override Locale="en-US" Value="Insert a placeholder, then click a numbered formula."/></bt:String>
+        <bt:String id="AutoNumber.Tip" DefaultValue="为选中的行间公式添加自动编号。"><bt:Override Locale="en-US" Value="Add an automatic number to the selected display formula."/></bt:String>
+        <bt:String id="Renumber.Tip" DefaultValue="重排所有自动编号的公式。"><bt:Override Locale="en-US" Value="Renumber all automatically numbered formulas in document order."/></bt:String>
+        <bt:String id="ChapterBoundary.Tip" DefaultValue="标记自动编号的新章节起点。"><bt:Override Locale="en-US" Value="Mark the start of a chapter for automatic numbering."/></bt:String>
+        <bt:String id="SectionBoundary.Tip" DefaultValue="标记自动编号的新节起点。"><bt:Override Locale="en-US" Value="Mark the start of a section for automatic numbering."/></bt:String>
+        <bt:String id="ToPng.Tip" DefaultValue="将所选 SVG 公式转换为 PNG。"><bt:Override Locale="en-US" Value="Convert the selected SVG formulas to PNG."/></bt:String>
+        <bt:String id="ToSvg.Tip" DefaultValue="将所选 PNG 公式转换为 SVG。"><bt:Override Locale="en-US" Value="Convert the selected PNG formulas to SVG."/></bt:String>
+        <bt:String id="FormatSelected.Tip" DefaultValue="恢复所选插件公式的默认样式和自然大小。"><bt:Override Locale="en-US" Value="Reset selected plugin formulas to the default style and natural size."/></bt:String>
+        <bt:String id="FormatAll.Tip" DefaultValue="恢复全文插件公式的默认样式和自然大小。"><bt:Override Locale="en-US" Value="Reset all plugin formulas to the default style and natural size."/></bt:String>
+        <bt:String id="ShowTaskPane.Tip" DefaultValue="显示状态窗格。"><bt:Override Locale="en-US" Value="Show the status pane."/></bt:String>
+        <bt:String id="Settings.Tip" DefaultValue="打开插件设置。"><bt:Override Locale="en-US" Value="Open plugin settings."/></bt:String>
+        <bt:String id="Help.Tip" DefaultValue="查看插件帮助。"><bt:Override Locale="en-US" Value="View plugin help."/></bt:String>
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>

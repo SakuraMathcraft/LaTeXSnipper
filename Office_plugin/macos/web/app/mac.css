@@ -1,0 +1,4 @@
+/* macOS Office additions on top of the shared Windows styles. */
+:root { -webkit-font-smoothing: antialiased; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif; }
+
