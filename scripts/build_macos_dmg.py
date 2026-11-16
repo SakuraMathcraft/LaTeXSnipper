@@ -13,10 +13,9 @@ requirements-build.txt installed and Python 3.11.4 or newer: the GUI host is
 frozen from this interpreter and the inference payload unpacks its own Python
 with tarfile's data filter.
 
-Every stage is skipped when its payload already exists in the work directory,
-so an interrupted build resumes instead of starting over. Use ``--force`` to
-throw the work directory away and build everything again; the download cache
-is separate and is always reused.
+Completed component payloads are reused while their input fingerprints match.
+The application and DMG are assembled on each run. Use ``--force`` to rebuild
+the cached components; the separate download cache is always reused.
 """
 
 from __future__ import annotations
@@ -24,10 +23,13 @@ from __future__ import annotations
 import argparse
 import shutil
 import sys
+import tempfile
 import time
 from argparse import Namespace
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import replace
+from importlib.metadata import distributions
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,8 +37,10 @@ sys.path[:0] = [str(ROOT), str(ROOT / "src"), str(ROOT / "scripts")]
 
 from desktop_distribution import write_json  # noqa: E402
 from release_artifacts import artifact  # noqa: E402
+from release_build_inputs import build_inputs, fingerprint  # noqa: E402
 from release_installers import run  # noqa: E402
 from runtime.distribution_manifest import (  # noqa: E402
+    Component,
     DistributionManifest,
     ManifestError,
 )
@@ -47,6 +51,8 @@ RESOURCES = ROOT / "packaging/runtime/resources.lock.json"
 RELEASES = "https://github.com/SakuraMathcraft/LaTeXSnipper/releases/download"
 
 EDITION = "cpu"
+WORKSPACE_LOCK = ".latexsnipper-macos-dmg"
+CACHED_STAGES = ("runtime", "models", "inference", "maintenance", "base")
 
 
 def product_version() -> str:
@@ -99,7 +105,7 @@ def ensure_build_tools(install: bool) -> None:
 
 
 @contextmanager
-def stage(name: str):
+def stage(name: str) -> Iterator[None]:
     started = time.monotonic()
     print(f"\n==> {name}", flush=True)
     try:
@@ -110,10 +116,93 @@ def stage(name: str):
     print(f"<== {name} done in {time.monotonic() - started:.1f}s", flush=True)
 
 
-def payload(work: Path, name: str) -> Path:
-    directory = work / name
-    directory.mkdir(parents=True, exist_ok=True)
-    return directory / "payload"
+def prepare_workspace(work: Path, cache: Path, output: Path) -> Path:
+    for directory in (cache, output):
+        if any(directory.is_relative_to(work / name) for name in CACHED_STAGES):
+            raise ManifestError(
+                f"Cache and output cannot be inside a build stage: {directory}"
+            )
+    work.mkdir(parents=True, exist_ok=True)
+    lock = work / WORKSPACE_LOCK
+    if lock.is_symlink():
+        raise ManifestError(f"Workspace marker must be a regular file: {lock}")
+    if not lock.is_file():
+        if any(work.iterdir()):
+            raise ManifestError(f"Choose an empty build workspace: {work}")
+        lock.touch(exist_ok=False)
+    return lock
+
+
+@contextmanager
+def build_workspace(work: Path, cache: Path, output: Path) -> Iterator[None]:
+    import fcntl
+
+    with prepare_workspace(work, cache, output).open("r+b") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise ManifestError(
+                f"A build is already using this workspace: {work}"
+            ) from error
+        yield
+
+
+def stage_inputs(build_target: str) -> dict[str, str]:
+    keys = build_inputs(ROOT, build_target)
+    environment = {
+        "executable": str(Path(sys.executable).resolve()),
+        "python": sys.version,
+        "packages": sorted((entry.name, entry.version) for entry in distributions()),
+    }
+    local_script = [Path(__file__).resolve()]
+    for name in ("runtime", "maintenance"):
+        keys[name] = fingerprint(ROOT, local_script, [keys[name], environment])
+    keys["inference"] = fingerprint(
+        ROOT, local_script, [keys[f"inference-{EDITION}"], sys.version]
+    )
+    keys["base"] = fingerprint(
+        ROOT,
+        local_script,
+        [keys[name] for name in ("base", "runtime", "inference", "models")],
+    )
+    return keys
+
+
+def build_cached_stage(
+    directory: Path,
+    key: str,
+    builder: Callable[[Path], None],
+    *,
+    force: bool,
+    signed: bool,
+) -> bool:
+    destination = directory / "payload"
+    complete = directory / "complete"
+    if directory.is_symlink() or (directory.exists() and not directory.is_dir()):
+        raise ManifestError(f"Build stage must be a regular directory: {directory}")
+    if (
+        not force
+        and destination.is_dir()
+        and not destination.is_symlink()
+        and complete.is_file()
+        and not complete.is_symlink()
+        and complete.read_bytes() == key.encode("ascii")
+    ):
+        print(f"Reusing {directory.name} payload: {destination}", flush=True)
+        strip_finder_metadata(destination)
+        return False
+    if directory.exists():
+        shutil.rmtree(directory)
+    directory.mkdir()
+    with stage(directory.name):
+        builder(destination)
+        strip_finder_metadata(destination)
+        if signed:
+            from build_macos_base import sign_macos_tree
+
+            sign_macos_tree(destination)
+        complete.write_text(key, encoding="utf-8")
+    return True
 
 
 def build_runtime(destination: Path, build_target: str) -> None:
@@ -178,23 +267,11 @@ def strip_finder_metadata(directory: Path) -> None:
             path.unlink()
 
 
-def sign_payload(directory: Path) -> None:
-    """Ad-hoc sign every Mach-O in a payload, as the release build does."""
-    from build_macos_base import sign_macos_tree
-
-    stamp = directory.parent / "signed"
-    if stamp.exists():
-        print(f"Reusing signatures: {directory}", flush=True)
-        return
-    sign_macos_tree(directory)
-    stamp.write_text("signed\n", encoding="utf-8")
-
-
-def component(name: str, source: Path, build_target: str):
+def component(name: str, source: Path, build_target: str) -> Component:
     """Inventory a payload with a placeholder artifact; nothing is uploaded."""
     from mathcraft_ocr.protocol import MODEL_FORMAT, WORKER_PROTOCOL
     from runtime.component_inventory import inventory_component
-    from runtime.distribution_manifest import Artifact, Component
+    from runtime.distribution_manifest import Artifact
 
     system, architecture = build_target.split("-")
     return Component(
@@ -209,7 +286,9 @@ def component(name: str, source: Path, build_target: str):
     )
 
 
-def assemble_layout(work: Path, parts: dict[str, Path], manifest) -> Path:
+def assemble_layout(
+    work: Path, parts: dict[str, Path], manifest: DistributionManifest
+) -> Path:
     from release_installers import link_or_copy
 
     layout = work / "layout"
@@ -235,7 +314,9 @@ def assemble_layout(work: Path, parts: dict[str, Path], manifest) -> Path:
     return layout
 
 
-def package(work: Path, parts: dict[str, Path], output: Path, manifest):
+def package(
+    work: Path, parts: dict[str, Path], output: Path, manifest: DistributionManifest
+) -> Path:
     from build_desktop_release import create_macos_bundle
     from release_installers import macos_installer
     from runtime.installation_layout import macos_bundle
@@ -248,7 +329,7 @@ def package(work: Path, parts: dict[str, Path], output: Path, manifest):
     )
 
 
-def build(arguments) -> Path:
+def build(arguments: Namespace) -> Path:
     check_interpreter()
     build_target = target()
     version = product_version()
@@ -256,78 +337,61 @@ def build(arguments) -> Path:
     work = arguments.work.resolve()
     cache = arguments.cache.resolve()
     output = arguments.output.resolve()
-    output.mkdir(parents=True, exist_ok=True)
-    if arguments.force and work.exists():
-        shutil.rmtree(work)
-    work.mkdir(parents=True, exist_ok=True)
-    # Packaging products are cheap to derive and block a rerun if left behind.
-    for leftover in ("layout", "LaTeXSnipper.app", "dmg", "latexsnipper.iconset"):
-        path = work / leftover
-        if path.is_symlink() or path.is_file():
-            path.unlink()
-        elif path.exists():
-            shutil.rmtree(path)
-    cache.mkdir(parents=True, exist_ok=True)
     print(
         f"Building LaTeXSnipper {version} ({build_target})"
         f"\n  work   {work}\n  cache  {cache}\n  output {output}",
         flush=True,
     )
-    ensure_build_tools(install=not arguments.skip_tool_install)
-    parts: dict[str, Path] = {}
+    with build_workspace(work, cache, output):
+        cache.mkdir(parents=True, exist_ok=True)
+        output.mkdir(parents=True, exist_ok=True)
+        ensure_build_tools(install=not arguments.skip_tool_install)
+        keys = stage_inputs(build_target)
+        parts = {name: work / name / "payload" for name in CACHED_STAGES}
+        builders: dict[str, Callable[[Path], None]] = {
+            "runtime": lambda out: build_runtime(out, build_target),
+            "models": lambda out: build_models(out, cache),
+            "inference": lambda out: build_inference(out, build_target, cache),
+            "maintenance": build_maintenance,
+            "base": lambda out: build_base(out, parts),
+        }
+        rebuilt = set()
+        for name in CACHED_STAGES:
+            upstream_changed = name == "base" and bool(
+                rebuilt.intersection(("runtime", "inference", "models"))
+            )
+            if build_cached_stage(
+                work / name,
+                keys[name],
+                builders[name],
+                force=arguments.force or upstream_changed,
+                signed=name in ("runtime", "inference", "maintenance"),
+            ):
+                rebuilt.add(name)
 
-    def reuse(name: str, builder, *, signed: bool = False) -> Path:
-        destination = payload(work, name)
-        complete = destination.parent / "complete"
-        if complete.exists() and destination.is_dir():
-            print(f"Reusing {name} payload: {destination}", flush=True)
-        else:
-            # Without the stamp the payload is partial: discard it, the old
-            # signature stamp and any temporary directories a builder left.
-            for entry in destination.parent.iterdir():
-                if entry.is_dir() and not entry.is_symlink():
-                    shutil.rmtree(entry)
-                else:
-                    entry.unlink()
-            with stage(name):
-                builder(destination)
-            complete.write_text("complete\n", encoding="utf-8")
-        strip_finder_metadata(destination)
-        if signed:
-            sign_payload(destination)
-        return destination
-
-    parts["runtime"] = reuse(
-        "runtime",
-        lambda out: build_runtime(out, build_target),
-        signed=True,
-    )
-    parts["models"] = reuse("models", lambda out: build_models(out, cache))
-    parts["inference"] = reuse(
-        "inference",
-        lambda out: build_inference(out, build_target, cache),
-        signed=True,
-    )
-    parts["maintenance"] = reuse("maintenance", build_maintenance, signed=True)
-    parts["base"] = reuse("base", lambda out: build_base(out, parts))
-    parts["application"] = reuse(
-        "application", lambda out: build_application(out, parts, build_target)
-    )
-    with stage("manifest"):
-        manifest = DistributionManifest(
-            version,
-            "macos",
-            "arm64",
-            EDITION,
-            component("application", parts["application"], build_target),
-            component("base", parts["base"], build_target).content_sha256,
-            release_tag=tag,
+        with tempfile.TemporaryDirectory(prefix="package-", dir=work) as temporary:
+            package_root = Path(temporary)
+            parts["application"] = package_root / "application"
+            with stage("application"):
+                build_application(parts["application"], parts, build_target)
+                strip_finder_metadata(parts["application"])
+            with stage("manifest"):
+                manifest = DistributionManifest(
+                    version,
+                    "macos",
+                    "arm64",
+                    EDITION,
+                    component("application", parts["application"], build_target),
+                    component("base", parts["base"], build_target).content_sha256,
+                    release_tag=tag,
+                )
+            with stage("dmg"):
+                carrier = package(package_root, parts, output, manifest)
+        manifest = replace(manifest, installer=artifact(carrier, f"{RELEASES}/{tag}"))
+        write_json(
+            output / f"distribution-macos-arm64-{EDITION}.json", manifest.to_dict()
         )
-    with stage("dmg"):
-        carrier = package(work, parts, output, manifest)
-    manifest = replace(manifest, installer=artifact(carrier, f"{RELEASES}/{tag}"))
-    write_json(output / f"distribution-macos-arm64-{EDITION}.json", manifest.to_dict())
-    return carrier
+        return carrier
 
 
 def main() -> None:
@@ -336,7 +400,7 @@ def main() -> None:
         "--work",
         type=Path,
         default=ROOT / "build/macos-dmg",
-        help="intermediate payloads; rebuilt stages are reused",
+        help="empty or previously initialized local build workspace",
     )
     parser.add_argument(
         "--cache",
@@ -351,7 +415,7 @@ def main() -> None:
         help="directory receiving the DMG and its distribution metadata",
     )
     parser.add_argument(
-        "--force", action="store_true", help="discard the work directory first"
+        "--force", action="store_true", help="rebuild all cached component payloads"
     )
     parser.add_argument(
         "--tag",
