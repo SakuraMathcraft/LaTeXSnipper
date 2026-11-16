@@ -148,12 +148,13 @@
   #text(size: 10pt, weight: "bold")[第二卷 · Office 加载项指南]
   #v(0.3em)
   - #link(<sec-office-intro>)[加载项介绍与系统要求]
-  - #link(<sec-office-install>)[安装与注册]
-  - #link(<sec-office-word>)[Word 功能详解]
-  - #link(<sec-office-ppt>)[PowerPoint 功能详解]
-  - #link(<sec-office-editor>)[公式编辑器与侧边栏]
-  - #link(<sec-office-settings>)[设置与帮助]
-  - #link(<sec-office-trouble>)[常见问题排查]
+  - #link(<sec-office-install>)[Windows 版安装与注册]
+  - #link(<sec-office-word>)[Windows 版 Word 功能详解]
+  - #link(<sec-office-ppt>)[Windows 版 PowerPoint 功能详解]
+  - #link(<sec-office-editor>)[Windows 版公式编辑器与侧边栏]
+  - #link(<sec-office-settings>)[Windows 版设置与帮助]
+  - #link(<sec-office-trouble>)[Windows 版常见问题排查]
+  - #link(<sec-office-macos>)[macOS 版安装与使用]
 
   #v(0.5em)
   #text(size: 10pt, weight: "bold")[第三卷 · 移动端使用指南]
@@ -553,7 +554,7 @@ Windows 使用系统卸载入口；Linux 卸载四个安装包：
 sudo dpkg --purge latexsnipper-runtime latexsnipper-inference latexsnipper-models latexsnipper
 ```
 
-macOS 删除安装的应用。卸载只移除产品拥有的安装资源；用户配置、日志及共享模型缓存可另外按需清理。Windows 卸载选项分别提供应用数据与模型缓存清理；Linux 在卸载前可使用 `latexsnipper-clean-user-data` 命令选择清理范围。macOS 退出应用后可按用户数据位置手动清理，源码仓库也提供支持 Linux/macOS 的 `scripts/latexsnipper-clean-user-data.sh`。共享模型缓存可能也被 mathcraft-ocr CLI 使用。用户保存的导出文件和外部工具由用户自行管理。
+macOS 删除安装的应用。卸载只移除产品拥有的安装资源；用户配置、日志及共享模型缓存可另外按需清理。Windows 卸载选项分别提供应用数据与模型缓存清理；Linux 在卸载前可使用 `latexsnipper-clean-user-data` 命令选择清理范围。macOS 退出应用后可按用户数据位置手动清理，源码仓库也提供支持 Linux/macOS 的 `scripts/release/latexsnipper-clean-user-data.sh`。共享模型缓存可能也被 mathcraft-ocr CLI 使用。用户保存的导出文件和外部工具由用户自行管理。
 
 // ═══════════════════════════════════════════
 // 网络与更新
@@ -755,7 +756,7 @@ python -m pip install -e '.[cpu]'
 python src/main.py
 ```
 
-源码 worker 使用启动应用的 Python，固定 CPU，并显式使用库的平台默认缓存。开发依赖由标准开发工具管理。扩展导出所需工具见“预览与导出”。
+源码 worker 使用启动应用的 Python 和平台默认模型缓存，并自动选择计算提供者，优先使用 CUDA。使用 CUDA 12.8 和 cuDNN 9 的环境可用 `python -m pip install -e '.[gpu-cu12]'` 安装 GPU 版，CPU 版和 GPU 版应分别装在不同环境。扩展导出所需工具见“预览与导出”。
 
 == 检查与发行构建
 
@@ -763,10 +764,11 @@ python src/main.py
 
 ```bash
 python -m pytest -q
+python -m ruff check .
 python -m pyright --pythonpath <selected-python>
 python -m compileall -q src mathcraft_ocr scripts
-python scripts/update_translations.py --check
-python scripts/check_ui_translations.py
+python scripts/translations/update_translations.py --check
+python scripts/translations/check_ui_translations.py
 ```
 
 客户端安装器由 GitHub Actions 构建，复用输入未变化的固定底座和维护程序；原生安装与识别验收按需单独运行。
@@ -790,9 +792,14 @@ python scripts/check_ui_translations.py
 
 == 什么是 Office 加载项
 
-LaTeXSnipper Office 加载项是一个 Windows 原生 VSTO 插件，安装后会在 Word 和 PowerPoint 的功能区（Ribbon）中添加 LaTeXSnipper 专用标签页。截图 OCR 作为普通客户端通过本机 Automation API 创建、查询和取消独立任务。
+LaTeXSnipper Office 加载项支持 Windows 和 macOS 的桌面版 Word 与 PowerPoint。两端均可本地编辑和渲染公式。只有截图识别需要在本机运行 LaTeXSnipper 桌面端并开启 *自动化接口*。
 
-== 系统要求
+在 #link("https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest")[GitHub Releases] 单独下载对应平台的 Office 插件安装包。
+
+- *Windows* 使用 `LaTeXSnipperOffice_<版本>_windows_x86_64.exe`。Word 支持 OLE 和 OMML，PowerPoint 支持 OLE 和 PNG。见 #link(<sec-office-install>)[Windows 版安装与注册]。
+- *macOS* 使用 `LaTeXSnipperOffice_<版本>_macos_arm64.dmg`。Word 使用 OMML，PowerPoint 默认使用 PNG，也可选 SVG。见 #link(<sec-office-macos>)[macOS 版安装与使用]。
+
+== Windows 版系统要求
 
 #block(
   inset: 12pt,
@@ -803,11 +810,10 @@ LaTeXSnipper Office 加载项是一个 Windows 原生 VSTO 插件，安装后会
   - *Windows 版本：* Windows 10 22H2 或更高版本 / Windows 11
   - *Office 版本：* Microsoft 365 应用（当前通道或月度企业通道）、Office 2024 / 2021 / 2019 零售版或批量许可版、Office LTSC 2024 / 2021
   - *运行时：* .NET Framework 4.8、Visual Studio Tools for Office Runtime 10.0、Microsoft Edge WebView2 Runtime；缺少 VSTO Runtime 时，安装器会提示先安装
-  - *Office 体系：* 仅支持 32 位和 64 位桌面版 Office；不支持网页版、移动版和 macOS 版 Office
-  - *LaTeXSnipper 桌面端：* 使用截图 OCR 时需在本机运行并开启"自动化接口"
+  - *Office 体系：* 支持 32 位和 64 位的 Windows 桌面版 Office
 ]
 
-== 安装前检查
+== Windows 版安装前检查
 
 #warn-block("首次安装必读", [
   - 安装前请关闭所有正在运行的 Word 和 PowerPoint 窗口。Office 进程会锁定加载项 DLL，安装程序无法覆盖。
@@ -820,7 +826,7 @@ LaTeXSnipper Office 加载项是一个 Windows 原生 VSTO 插件，安装后会
 // ═══════════════════════════════════════════
 // 安装与注册
 // ═══════════════════════════════════════════
-#heading(level: 1)[安装与注册] <sec-office-install>
+#heading(level: 1)[Windows 版安装与注册] <sec-office-install>
 
 == 安装流程
 
@@ -852,13 +858,13 @@ LaTeXSnipper Office 加载项是一个 Windows 原生 VSTO 插件，安装后会
 
 ```text
 # 静默安装（显示进度条）
-LaTeXSnipperOffice_3.3.0_amd64.exe /silent
+LaTeXSnipperOffice_3.3.0_windows_x86_64.exe /silent
 
 # 完全静默（无界面）
-LaTeXSnipperOffice_3.3.0_amd64.exe /verysilent
+LaTeXSnipperOffice_3.3.0_windows_x86_64.exe /verysilent
 
 # 自定义安装目录
-LaTeXSnipperOffice_3.3.0_amd64.exe /dir="<安装目录>"
+LaTeXSnipperOffice_3.3.0_windows_x86_64.exe /dir="<安装目录>"
 ```
 
 #pagebreak()
@@ -866,7 +872,7 @@ LaTeXSnipperOffice_3.3.0_amd64.exe /dir="<安装目录>"
 // ═══════════════════════════════════════════
 // Word 功能详解
 // ═══════════════════════════════════════════
-#heading(level: 1)[Word 功能详解] <sec-office-word>
+#heading(level: 1)[Windows 版 Word 功能详解] <sec-office-word>
 
 == 功能区概览
 
@@ -1061,7 +1067,7 @@ Word 原生 OMML 或 MathType 转为 OLE 后保存的是 MathML 源码，可加�
 // ═══════════════════════════════════════════
 // PowerPoint 功能详解
 // ═══════════════════════════════════════════
-#heading(level: 1)[PowerPoint 功能详解] <sec-office-ppt>
+#heading(level: 1)[Windows 版 PowerPoint 功能详解] <sec-office-ppt>
 
 == 功能区概览
 
@@ -1130,7 +1136,7 @@ MathType 双向转换无需安装 MathType；双击编辑 MathType 对象需要�
 // ═══════════════════════════════════════════
 // 公式编辑器与侧边栏
 // ═══════════════════════════════════════════
-#heading(level: 1)[公式编辑器与侧边栏] <sec-office-editor>
+#heading(level: 1)[Windows 版公式编辑器与侧边栏] <sec-office-editor>
 
 == 侧边栏（任务窗格）
 
@@ -1200,7 +1206,7 @@ Word 侧边栏包含行间公式、自动编号、自定义编号输入框等 Wo
 // ═══════════════════════════════════════════
 // 设置与帮助
 // ═══════════════════════════════════════════
-#heading(level: 1)[设置与帮助] <sec-office-settings>
+#heading(level: 1)[Windows 版设置与帮助] <sec-office-settings>
 
 == 设置窗口
 
@@ -1273,7 +1279,7 @@ Word 侧边栏包含行间公式、自动编号、自定义编号输入框等 Wo
 // ═══════════════════════════════════════════
 // 常见问题排查
 // ═══════════════════════════════════════════
-#heading(level: 1)[常见问题排查] <sec-office-trouble>
+#heading(level: 1)[Windows 版常见问题排查] <sec-office-trouble>
 
 == 加载项未出现在功能区
 
@@ -1361,6 +1367,45 @@ Word 插件从当前运行的 Word 安装目录读取 `MML2OMML.XSL` 和 `OMML2M
 #v(0.35em)
 
 *说明：* 这些是 VSTO ClickOnce 部署的注册痕迹，属于正常现象。加载项安装程序已将其标记为系统组件，通常不会在用户界面上显示。如果仍然可见，不影响加载项的正常使用。
+
+#pagebreak()
+
+#heading(level: 1)[macOS 版安装与使用] <sec-office-macos>
+
+独立安装包适用于 Apple Silicon，声明的最低系统版本为 macOS 12.0。请使用支持 SharedRuntime 1.1 的 Word 或 PowerPoint for Mac。截图识别还须满足桌面端的系统要求。
+
+== 安装、修复与卸载
+
++ 打开 `LaTeXSnipperOffice_<版本>_macos_arm64.dmg`，把 *LaTeXSnipper Office* 拖到“应用程序”。
++ 打开 *LaTeXSnipper Office*，点击 *安装 / 修复*。macOS 请求信任仅用于本机插件服务的 `localhost` 证书时，选择允许。
++ 完全退出并重新打开 Word 或 PowerPoint，在 *开始 → 加载项 → 开发人员加载项* 中选择 *LaTeXSnipper*。
+
+首次在 Word 中保存公式时，允许 LaTeXSnipper Office 控制 Microsoft Word。若此前拒绝，可在 *系统设置 → 隐私与安全性 → 自动化* 中开启该权限。
+
+卸载时，在 *LaTeXSnipper Office* 应用中点击 *卸载*，再将应用移出“应用程序”。
+
+== 插入与编辑公式
+
+状态窗格可编辑和预览新公式，点击 *插入* 即可使用当前草稿。公式编辑器提供可视化区、LaTeX 源码和符号模板。按 `Shift+Enter` 插入或更新公式。
+
+- *Word* 统一插入原生 OMML 公式，支持行内、行间和带编号公式。用 *加载所选* 打开已有公式，修改后点击 *更新*。编号、引用和周围文字会保留。可用 *添加编号*、*重编号*、*插入引用*、*章分隔符*和*节分隔符*管理带编号公式。
+- 在 *Word* 中，用 *解析所选* 或 *解析全文* 将正文和表格中带定界符的 LaTeX 转为公式。行内用 `$…$` 或 `\(…\)`，行间用 `$$…$$` 或 `\[…\]`，用 `\tag{5}` 指定手动编号。
+- *PowerPoint* 默认插入 PNG 公式，可在设置中改为 SVG。功能区提供 *转为 PNG* 和 *转为 SVG*。更新或转换时保留位置、缩放和图层顺序。光标位于文本框中时，公式作为独立对象插入幻灯片。
+- Word 和 PowerPoint 都可以用 *格式化所选* 或 *格式化全文* 恢复公式的默认样式和自然大小。
+
+== 与 Windows 交换文档
+
+Word 中保留了插件元数据的 OMML 公式，以及 PowerPoint 中保留了插件元数据的 PNG 公式，可以在两端用 *加载所选* 继续编辑。PowerPoint 文档需要在两端继续编辑时，优先选择 PNG。已有的 Windows OLE 公式会保留在文档中，Mac 版插件会跳过这些对象，需要编辑时请回到 Windows 版插件。
+
+== 截图识别与设置
+
+- 在同一台 Mac 上启动 LaTeXSnipper 桌面端并开启 *自动化接口*。在 Office 中点 *截图识别*，再用桌面端快捷键或按钮发起截图。识别结果填入状态窗格的草稿，确认后点击 *插入*。等待期间可以点 *取消识别*。
+- *设置* 页面支持导入、导出公式默认属性的 JSON 预设，可与 Windows 版互换。Word 更改默认编号布局后，可用 *重编号* 应用到已有自动编号。
+
+== 常见问题
+
+- 功能区没有出现或服务没有运行时，打开 *LaTeXSnipper Office* 并点击 *安装 / 修复*，然后重新打开 Word 或 PowerPoint。服务日志位于 `~/Library/Application Support/LaTeXSnipper Office/host.log`。
+- 在 PowerPoint 中按两次 `⌘Z`，依次撤销图片设置和图片插入。
 
 #pagebreak()
 

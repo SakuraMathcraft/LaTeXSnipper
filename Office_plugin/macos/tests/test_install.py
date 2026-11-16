@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import plistlib
 import sys
 from pathlib import Path
@@ -25,6 +26,7 @@ class Recorder:
             return type("Done", (), {"returncode": code})()
 
         monkeypatch.setattr(install, "_launchctl", launchctl)
+        monkeypatch.setattr(os, "getuid", lambda: 501, raising=False)
         monkeypatch.setattr(
             install,
             "prepare_certificate",
@@ -50,8 +52,9 @@ def test_install_registers_a_login_agent_that_runs_the_host(monkeypatch, tmp_pat
     assert agent["KeepAlive"] == {"SuccessfulExit": False}
     assert agent["StandardErrorPath"].startswith(str(tmp_path / "state"))
     assert ("trust", True) in recorder.calls
-    assert recorder.calls[-1][:2] == ("launchctl", "bootstrap")
-    assert (tmp_path / "state").stat().st_mode & 0o777 == 0o700
+    assert recorder.calls[-1][:3] == ("launchctl", "bootstrap", "gui/501")
+    if os.name == "posix":
+        assert (tmp_path / "state").stat().st_mode & 0o777 == 0o700
 
 
 def test_source_installs_point_launchd_at_the_package(monkeypatch, tmp_path):

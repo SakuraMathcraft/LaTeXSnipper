@@ -17,7 +17,7 @@ $MatchPatterns = @(
     "*LaTeXSnipper Office Plugin*",
     "*LaTeXSnipper\OfficePlugin*",
     "*LaTeXSnipper/OfficePlugin*",
-    "*LaTeXSnipperOffice_*_amd64.exe"
+    "*LaTeXSnipperOffice_*_windows_x86_64.exe"
 )
 $SigningCertificateSubjects = @(
     "CN=LaTeXSnipper Office Plugin VSTO"

@@ -16,7 +16,6 @@ BOM_CHECK_ROOTS = (
     "scripts",
     "src",
     "test",
-    "tools/mathjax",
     "user_manual",
 )
 BOM_CHECK_EXTENSIONS = {
@@ -83,7 +82,7 @@ def test_text_sources_are_utf8_without_bom() -> None:
 
 def test_text_files_and_subprocess_pipes_declare_utf8() -> None:
     offenders = []
-    for root in ("src", "mathcraft_ocr", "scripts", "tools/mathjax", "benchmarks"):
+    for root in ("src", "mathcraft_ocr", "scripts", "benchmarks"):
         for path in (ROOT / root).rglob("*.py"):
             if "vendor" in path.parts:
                 continue

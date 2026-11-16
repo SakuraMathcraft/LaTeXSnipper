@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "scripts/release"))
 import build_desktop_release as build  # noqa: E402
 
 
@@ -105,8 +105,9 @@ def test_release_preparation_requires_a_unique_target(monkeypatch, count):
 
 
 @pytest.mark.parametrize("missing", [None, "macos.dmg", "office.exe", "manual.pdf"])
+@pytest.mark.parametrize("include_macos_addin", [False, True])
 def test_release_completion_uses_id_and_requires_all_uploads(
-    tmp_path, monkeypatch, missing
+    tmp_path, monkeypatch, missing, include_macos_addin
 ):
     import release_artifacts as release
 
@@ -114,17 +115,25 @@ def test_release_completion_uses_id_and_requires_all_uploads(
     names = {
         "application.zip",
         "macos.dmg",
-        "LaTeXSnipperOffice_3.2.0_amd64.exe",
+        "LaTeXSnipperOffice_3.2.0_windows_x86_64.exe",
         "LaTeXSnipper_User_Manual.pdf",
     }
     omitted = {
-        "office.exe": "LaTeXSnipperOffice_3.2.0_amd64.exe",
+        "office.exe": "LaTeXSnipperOffice_3.2.0_windows_x86_64.exe",
         "manual.pdf": "LaTeXSnipper_User_Manual.pdf",
     }.get(missing, missing)
     assets = [
         {"name": name, "id": index, "state": "uploaded"}
         for index, name in enumerate(sorted(names - {omitted}))
     ]
+    if include_macos_addin:
+        assets.append(
+            {
+                "name": "LaTeXSnipperOffice_3.2.0_macos_arm64.dmg",
+                "id": 98,
+                "state": "uploaded",
+            }
+        )
     assets.append({"name": "obsolete.zip", "id": 99, "state": "uploaded"})
     mutations = []
     upload_url = "https://uploads.github.com/repos/owner/repo/releases/40/assets"
@@ -201,17 +210,17 @@ def inputs(tmp_path, monkeypatch):
 @pytest.mark.parametrize(
     ("target", "path", "affected"),
     [
-        ("windows-x86_64", "scripts/normalize_windows_crt.ps1", {"runtime"}),
+        ("windows-x86_64", "scripts/release/normalize_windows_crt.ps1", {"runtime"}),
         ("windows-x86_64", "VERSION", {"maintenance"}),
-        ("linux-x86_64", "scripts/linux_hotkey_packaging.py", {"runtime"}),
+        ("linux-x86_64", "scripts/release/linux_hotkey_packaging.py", {"runtime"}),
         ("linux-x86_64", "packaging/debian/DEBIAN/control", set()),
         ("linux-x86_64", "requirements.txt", {"runtime"}),
         ("macos-arm64", "requirements.txt", {"runtime", "base"}),
-        ("macos-arm64", "scripts/qt_payload.py", {"runtime", "base"}),
+        ("macos-arm64", "scripts/release/qt_payload.py", {"runtime", "base"}),
         ("windows-x86_64", "mathcraft_ocr/vendor/LICENSE.onnx", set()),
         (
             "windows-x86_64",
-            "scripts/payload_pruning.py",
+            "scripts/release/payload_pruning.py",
             {"inference-cpu", "inference-gpu"},
         ),
         (

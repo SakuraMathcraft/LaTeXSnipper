@@ -182,7 +182,7 @@ def test_component_builder_packages_real_files_and_stable_identity(tmp_path):
     (source / "resource.bin").write_bytes(b"actual build input")
     command = [
         sys.executable,
-        str(root / "scripts/desktop_distribution.py"),
+        str(root / "scripts/release/desktop_distribution.py"),
         "component",
         "--source",
         str(source),
@@ -256,7 +256,7 @@ def test_public_release_rejects_missing_installer_and_duplicate_targets():
 @pytest.mark.parametrize("entry", ["../escape.txt", "/outside.txt", "C:/outside.txt"])
 def test_archive_extractor_rejects_external_members(tmp_path, entry):
     root = Path(__file__).resolve().parents[1]
-    sys.path.insert(0, str(root / "scripts"))
+    sys.path.insert(0, str(root / "scripts/release"))
     from runtime.component_archive import extract_archive
 
     archive = tmp_path / "unsafe.zip"
@@ -268,7 +268,7 @@ def test_archive_extractor_rejects_external_members(tmp_path, entry):
 
 def test_archive_extractor_preserves_real_payload(tmp_path):
     root = Path(__file__).resolve().parents[1]
-    sys.path.insert(0, str(root / "scripts"))
+    sys.path.insert(0, str(root / "scripts/release"))
     from runtime.component_archive import extract_archive
 
     archive = tmp_path / "payload.zip"
@@ -281,7 +281,7 @@ def test_archive_extractor_preserves_real_payload(tmp_path):
 
 def test_download_cache_is_verified_before_reuse(tmp_path, monkeypatch):
     root = Path(__file__).resolve().parents[1]
-    sys.path.insert(0, str(root / "scripts"))
+    sys.path.insert(0, str(root / "scripts/release"))
     import distribution_archives
 
     payload = b"verified archive"

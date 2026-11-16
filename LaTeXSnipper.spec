@@ -8,7 +8,7 @@ import PyQt6
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 ROOT = Path(SPECPATH)
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "scripts/release"))
 from qt_payload import prune_qt_payload
 
 sys.setrecursionlimit(max(5000, sys.getrecursionlimit() * 5))

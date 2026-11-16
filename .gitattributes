@@ -21,9 +21,13 @@ packaging/debian/DEBIAN/* text eol=lf
 *.pyd filter=lfs diff=lfs merge=lfs -text
 *.dll filter=lfs diff=lfs merge=lfs -text
 
+# Office plugin release installers.
+Office_plugin/windows/release/LaTeXSnipperOffice_*_windows_x86_64.exe filter=lfs diff=lfs merge=lfs -text
+Office_plugin/macos/release/LaTeXSnipperOffice_*_macos_arm64.dmg filter=lfs diff=lfs merge=lfs -text
+
 # Preserve upstream-distributed vendor runtime contents verbatim.
 Office_plugin/shared/EditorAssets/vendor/mathlive.min.mjs -whitespace
 Office_plugin/shared/EditorAssets/vendor/mathlive.LICENSE.txt -whitespace
 src/assets/MathJax/** -text -whitespace
-tools/mathjax/liteDOM.js -text -whitespace
-tools/mathjax/office.props -text
+scripts/mathjax/liteDOM.js -text -whitespace
+scripts/mathjax/office.props -text

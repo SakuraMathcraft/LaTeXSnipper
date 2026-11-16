@@ -95,7 +95,7 @@ def test_business_payload_contains_compiled_localization_assets(tmp_path):
     import sys
     from argparse import Namespace
 
-    sys.path.insert(0, str(ROOT / "scripts"))
+    sys.path.insert(0, str(ROOT / "scripts/release"))
     from build_application_resources import assemble
 
     output = tmp_path / "application"

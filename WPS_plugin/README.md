@@ -42,7 +42,7 @@ Windows 的 OLE 公式复用 LaTeXSnipper 已有的 Windows 本机对象组件�
 - 两个宿主提供中英文功能区、状态窗格、公式预览、可视化与源码编辑、符号模板和收藏、公式样式、JSON 预设及帮助。使用共用编辑器和宿主提供的选区与文档状态。
 - 插件独立安装和运行。输入、渲染、加载、编辑、格式化和设置在本机完成。只有截图识别调用现有 [Automation API](../docs/automation_api.md) 的 `next_result` 订阅、查询和取消，截图由用户通过桌面端发起。会话令牌由本机调用方保管。
 - Windows 只将通过类标识和元数据校验的 LaTeXSnipper OLE 纳入编辑。macOS 只识别已有 OLE 的对象类型，选中时提示回 Windows 编辑，文档写入跳过 OLE。各平台的插入、删除、格式化、转换、解析和重编号均保护混合选区中的非目标对象。
-- 普通编辑只更新已确认的目标。损坏或不受支持的元数据应提示并保留原对象。文档契约和操作语义见 [Office 公式工作流](../docs/Office_plugin_formula_workflows.md)。
+- 普通编辑只更新已确认的目标。损坏或不受支持的元数据应提示并保留原对象。文档契约和操作语义见 [Office 公式工作流](../docs/office_plugin_formula_workflows.md)。
 
 ## 验收与贡献
 

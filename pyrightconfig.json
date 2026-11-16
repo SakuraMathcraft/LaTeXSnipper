@@ -5,13 +5,12 @@
     "include": [
         "src",
         "mathcraft_ocr",
-        "scripts",
-        "tools/mathjax"
+        "scripts"
     ],
     "extraPaths": [
         ".",
         "src",
-        "scripts"
+        "scripts/release"
     ],
     "exclude": [
         "**/__pycache__",
@@ -34,7 +33,7 @@
             "root": "src",
             "extraPaths": [
                 ".",
-                "scripts"
+                "scripts/release"
             ]
         },
         {

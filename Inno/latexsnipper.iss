@@ -4,7 +4,7 @@
 #expr FileClose(VersionFileHandle)
 #define MyRepoRoot AddBackslash(SourcePath) + ".."
 #ifndef MyBuildDir
-  #error Build using scripts/build_desktop_release.py on GitHub Actions
+  #error Build using scripts/release/build_desktop_release.py on GitHub Actions
 #endif
 
 [Setup]
