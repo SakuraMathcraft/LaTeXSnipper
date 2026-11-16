@@ -85,7 +85,7 @@ def build_inputs(root: Path, target: str) -> dict[str, str]:
         for name in (
             "requirements.txt",
             "requirements-build.txt",
-            "LaTeXSnipper.spec",
+            "packaging/runtime/gui.spec",
             "scripts/release/build_gui_runtime.py",
             "scripts/release/qt_payload.py",
             "scripts/release/payload_paths.py",
@@ -141,7 +141,7 @@ def build_inputs(root: Path, target: str) -> dict[str, str]:
             )
         keys[f"inference-{edition}"] = fingerprint(root, inference, settings)
     maintenance = [
-        root / "scripts/release/build_maintenance.spec",
+        root / "packaging/runtime/maintenance.spec",
         root / "requirements-build.txt",
     ]
     maintenance += source_dependencies(

@@ -36,7 +36,7 @@ def windows_installer(
             f"/DMyBuildDir={layout}",
             f"/DMyOutputDir={output}",
             f"/DMyEdition={manifest.edition}",
-            ROOT / "Inno/latexsnipper.iss",
+            ROOT / "packaging/windows/latexsnipper.iss",
         ]
     )
     return (

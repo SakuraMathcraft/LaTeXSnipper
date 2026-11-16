@@ -1,5 +1,4 @@
 <!-- LaTeXSnipper 用户手册 -->
-<!-- 版本: v3.3.0-LTS -->
 
 <div align="center">
 
@@ -375,7 +374,7 @@ CPU 发行固定使用 CPU；GPU 发行固定请求 CUDA，并在推理后核对
 - Debian/Ubuntu 兼容的 Linux x86_64（glibc 2.35 及以上）：CPU 或 NVIDIA GPU 离线安装归档，解包后运行 `sh install.sh`。
 - macOS 14.0 及以上的 Apple Silicon：CPU DMG，把应用复制到 Applications 后运行。
 
-发行携带 Python、推理依赖、模型和内置预览资源，无需自行安装 Python 或 CUDA Toolkit。Linux 包管理器负责 Qt 所需的系统图形库，缺少依赖时通过 apt 补齐。GPU 需要支持的显卡和系统驱动，3.3.0 的最低 NVIDIA 驱动版本为 Windows 570.65、Linux 570.26。扩展导出所需工具见[预览与导出](#预览与导出)。
+发行携带 Python、推理依赖、模型和内置预览资源，无需自行安装 Python 或 CUDA Toolkit。Linux 包管理器负责 Qt 所需的系统图形库，缺少依赖时通过 apt 补齐。GPU 版需要兼容的 NVIDIA 显卡和驱动。最低驱动版本见所选版本的[发布说明](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)。扩展导出所需工具见[预览与导出](#预览与导出)。
 
 ### 安装资源与用户数据
 
@@ -640,17 +639,17 @@ LaTeXSnipper Office 加载项支持 Windows 和 macOS 的桌面版 Word 与 Powe
 
 ### 命令行静默安装
 
-安装包支持 Inno Setup 标准静默参数：
+在安装包所在目录的命令提示符中运行以下命令，将 `<版本>` 替换为文件名中的版本号。 自定义路径时，将 `<安装目录>` 换成目标路径。
 
 ```text
 :: 静默安装（显示进度条）
-LaTeXSnipperOffice_3.3.0_windows_x86_64.exe /silent
+"LaTeXSnipperOffice_<版本>_windows_x86_64.exe" /silent
 
 :: 完全静默（无界面）
-LaTeXSnipperOffice_3.3.0_windows_x86_64.exe /verysilent
+"LaTeXSnipperOffice_<版本>_windows_x86_64.exe" /verysilent
 
 :: 自定义安装目录
-LaTeXSnipperOffice_3.3.0_windows_x86_64.exe /dir="<安装目录>"
+"LaTeXSnipperOffice_<版本>_windows_x86_64.exe" /dir="<安装目录>"
 ```
 
 ---

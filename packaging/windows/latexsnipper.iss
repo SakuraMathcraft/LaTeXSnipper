@@ -1,8 +1,8 @@
 #define MyAppName "LaTeXSnipper"
-#define VersionFileHandle FileOpen(AddBackslash(SourcePath) + "..\VERSION")
+#define MyRepoRoot AddBackslash(SourcePath) + "..\.."
+#define VersionFileHandle FileOpen(MyRepoRoot + "\VERSION")
 #define MyAppVersion Trim(FileRead(VersionFileHandle))
 #expr FileClose(VersionFileHandle)
-#define MyRepoRoot AddBackslash(SourcePath) + ".."
 #ifndef MyBuildDir
   #error Build using scripts/release/build_desktop_release.py on GitHub Actions
 #endif
@@ -35,7 +35,7 @@ RestartApplications=no
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
-Name: "chinesesimplified"; MessagesFile: "{#MyRepoRoot}\Inno\ChineseSimplified.isl"
+Name: "chinesesimplified"; MessagesFile: "ChineseSimplified.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; Flags: unchecked

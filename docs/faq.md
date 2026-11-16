@@ -38,12 +38,13 @@ The shortcut UI uses the platform's primary modifier: `Ctrl` on Windows/Linux an
 - macOS 14.0 or later on Apple Silicon uses `LaTeXSnipper_<version>_macos_arm64_cpu.dmg`. Copy the app to Applications, then launch that copy.
 
 Windows installers are unsigned unless optional SignPath signing succeeds.
-macOS builds use ad-hoc signatures without Developer ID or notarization. GPU builds
-carry private CUDA/cuDNN user-mode libraries and require supported NVIDIA
-hardware and drivers. The desktop app does not require system Python or CUDA
-Toolkit. The 3.3.0 GPU editions require NVIDIA driver 570.65 or newer on Windows,
-or 570.26 or newer on Linux. These minimums are declared in
-`packaging/runtime/sources.lock.json`; the GPU must also support the bundled CUDA runtime.
+macOS builds use ad-hoc signatures without Developer ID or notarization. The installers
+include Python, and the GPU editions bundle the CUDA and cuDNN runtime libraries.
+The GPU must support the bundled CUDA runtime. Check the
+[release notes](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)
+for the minimum NVIDIA driver for your platform. For the current build, each
+platform's minimum is recorded as `minimum_driver` in the
+[runtime source lock](../packaging/runtime/sources.lock.json).
 Linux still requires its declared system GUI libraries. Its installer uses apt to
 resolve missing system dependencies, which requires configured package sources
 and network access unless the dependencies are already installed or cached.
