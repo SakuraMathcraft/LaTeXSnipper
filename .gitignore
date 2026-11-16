@@ -18,11 +18,14 @@ Office_plugin/windows/installer/vsto-signing.cer
 Office_plugin/windows/tests/**/artifacts/
 *.egg-info/
 packaging/debian/usr
+Office_plugin/macos/node_modules/
+Office_plugin/macos/release/
 
 # Large binary files
 *.exe
 !Office_plugin/windows/release/LaTeXSnipperOffice_*_amd64.exe
 Office_plugin/windows/release/InstallerAssets/
+*.dmg
 *.dll
 *.zip
 *.tar

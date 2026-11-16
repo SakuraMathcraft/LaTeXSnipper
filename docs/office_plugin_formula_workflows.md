@@ -379,3 +379,11 @@ Word 插入、更新、删除、编号、解析、转换和格式化都在必要
 OLE 的内容随对象存储传递，Word 中缺失的实例绑定可以根据有效对象内容重建；PowerPoint 使用随复制保留的完整 shape tags。接收方需安装插件才能再次用 LaTeXSnipper 编辑；MathType 转换后的对象需 MathType 编辑。
 
 Word OMML 仍依赖 content control `Tag` 和完整 `Document.Variables`，PowerPoint OLE / PNG 依赖完整 shape tags；只保留图像或丢弃这些载体的粘贴方式不能恢复原始源码。所有载体均在 Office 文档内持久化，不依赖本机临时内存。
+
+## macOS 插件的元数据边界
+
+macOS 插件（`Office_plugin/macos`）是 Office.js 加载项，与 Windows 插件读写同一套文档元数据，详细说明见 [Office_plugin/macos/README.md](../Office_plugin/macos/README.md)。与本文 Windows 链路的差别：
+
+- **Word**：只插入 OMML 公式。content control 标签、`LS.E.{equationId}.{revision}` 与 `LaTeXSnipper.DocumentId` 变量、编号书签、`SEQ` / `REF` 字段和章节分隔符都与 Windows 相同。Office.js 能从文档 OOXML 读取文档变量，但不能写入，写入由本机插件服务通过 Word 的 AppleScript 接口完成。Office.js 没有 undo record，Mac 上的批量操作不会合并为一次撤销。
+- **PowerPoint**：PNG 公式就是 Windows 的 `Image` 公式，不写本机临时图片路径。SVG 公式使用相同的 shape tags，另加 `LaTeXSnipperImageFormat=Svg`；Windows 不读取这个标签，把它当作可重新渲染的图片公式处理。
+- **OLE**：Mac 按 ProgID（Word）或 `LaTeXSnipperRenderEngine=MathJaxSvg`（PowerPoint）识别插件 OLE，只保留、不读写；加载、替换、删除、转换、格式化和批量操作都会跳过它们。
