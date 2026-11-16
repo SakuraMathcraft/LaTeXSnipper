@@ -77,7 +77,7 @@ Routine app updates download only application code and resources, retaining Pyth
 
 Download `LaTeXSnipperOffice_<version>_amd64.exe` separately from [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest). Supports 32-bit and 64-bit Office 2019/2021/2024, LTSC 2021/2024, and Microsoft 365 Apps on Windows.
 
-[Installation requirements and features](office_plugin/README.md) · [Formula workflows](docs/office_plugin_formula_workflows.md)
+[Installation requirements and features](Office_plugin/README.md) · [Formula workflows](docs/Office_plugin_formula_workflows.md)
 
 ---
 
