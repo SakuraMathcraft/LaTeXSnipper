@@ -50,7 +50,7 @@ Word OMML conversion uses the stylesheets supplied with the running Word install
 
 ## Project Layout
 
-Desktop and Office share pinned MathJax 4.1.3 with independent resource profiles and asynchronous conversion. See [runtime maintenance and verification](../../tools/mathjax/README.md) and the [current formula workflows and metadata](../../docs/Office_plugin_formula_workflows.md).
+Desktop and Office share pinned MathJax 4.1.3 with independent resource profiles and asynchronous conversion. See [runtime maintenance and verification](../../scripts/mathjax/README.md) and the [current formula workflows and metadata](../../docs/office_plugin_formula_workflows.md).
 
 Word and PowerPoint convert between LaTeXSnipper OLE and native MathType objects without activating MathType or calling its SDK. PowerPoint preserves the original display width, height, position and layer directly. Double-click editing of native MathType objects requires MathType. Conversion has not yet been verified in a clean Office environment without MathType.
 
@@ -71,8 +71,9 @@ Word and PowerPoint convert between LaTeXSnipper OLE and native MathType objects
 | `tests/LaTeXSnipper.OfficePlugin.WordParsingE2E` | Real-Word OMML/OLE parsing, formatting, conversion, and persistence |
 | `tests/LaTeXSnipper.OfficePlugin.PowerPointE2E` | Real-PowerPoint text insertion, shape round trips, and batch failure handling |
 | `tests/OfficeE2E` | Optional checks against an installed MathType editing server; excluded from product assemblies |
+| `tests/editor-browser` | Playwright tests of the Windows Word and PowerPoint UI with a simulated WebView2 bridge |
 | `installer/` | Inno Setup installer and release build entry point |
-| `tools/` | Build, installer, metadata, and Word parsing test entry points |
+| `tools/` | Build, installer, and code analysis entry points |
 | `hosts/OleFormulaObjectNative/` | Native C++ COM/OLE in-proc handler DLL registered as the Office formula object for 32-bit and 64-bit Office |
 
 Shared libraries target `net48;net9.0`. Office hosts target .NET Framework 4.8. The native OLE handler is built for x64 and Win32 Office.
@@ -87,7 +88,7 @@ Office_plugin\windows\installer\build.bat Release
 
 The build reads the shared product version from the repository `VERSION` file.
 
-Output: `Office_plugin\windows\release\LaTeXSnipperOffice_<version>_amd64.exe` and its SHA-256 file. The release workflow validates and publishes this locally built installer.
+Output: `Office_plugin\windows\release\LaTeXSnipperOffice_<version>_windows_x86_64.exe` and its SHA-256 file. The release workflow validates and publishes this locally built installer.
 
 Run the installer as administrator. Close Word and PowerPoint before installation, upgrade, or removal.
 
@@ -99,28 +100,39 @@ Run:
 dotnet test Office_plugin/windows/LaTeXSnipper.OfficePlugin.slnx -c Release
 ```
 
-The deterministic tests validate typography, current-schema writes, copied metadata identity, corrupt metadata rejection, and document identity without starting Office. Shared editor tests are documented in [tools/office-editor](../../tools/office-editor/README.md).
+The deterministic tests validate typography, current-schema writes, copied metadata identity, corrupt metadata rejection, and document identity without starting Office. See the [shared editor build and unit tests](../shared/editor/README.md).
 
 Word integration tests also verify that inserting, parsing, formatting, and converting formulas preserve neighboring MathType objects and existing superscript, subscript, and baseline formatting in body paragraphs and table cells, including save/reopen. Formula formatting must be confined to the target formula, its generated numbering/reference fields, or an empty typing selection; it must not reset surrounding paragraph content.
+
+### Editor browser tests
+
+Use the installed Microsoft Edge browser to test the editor, settings, status pane and help for both hosts. Playwright serves local assets and simulates the WebView2 bridge. From the repository root:
+
+```powershell
+npm --prefix Office_plugin/windows/tests/editor-browser ci
+npm --prefix Office_plugin/windows/tests/editor-browser test
+```
+
+Use the real Office integration tests below to verify native rendering and document editing.
 
 ### Real Office integration
 
 Build the installer or the managed solution and native handler first, then close Word and PowerPoint. Run from 64-bit PowerShell:
 
 ```powershell
-Office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1
+Office_plugin\windows\tests\Test-OfficeTypographyE2E.ps1
 # Include native MathType conversion and save/reopen checks:
-Office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -IncludeMathType
+Office_plugin\windows\tests\Test-OfficeTypographyE2E.ps1 -IncludeMathType
 # Word conversion checks only; native-edit verification additionally requires MathType:
-Office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -HostScope Word -WordBackend Ole -WordMathTypeOnly
-Office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -HostScope Word -WordBackend Ole -WordMathTypeOnly -WordMathTypeNativeEdit
+Office_plugin\windows\tests\Test-OfficeTypographyE2E.ps1 -HostScope Word -WordBackend Ole -WordMathTypeOnly
+Office_plugin\windows\tests\Test-OfficeTypographyE2E.ps1 -HostScope Word -WordBackend Ole -WordMathTypeOnly -WordMathTypeNativeEdit
 # PowerPoint conversion checks only; native-edit verification additionally requires MathType:
-Office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint -PowerPointMode MathType
-Office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint -PowerPointMode MathType -PowerPointMathTypeNativeEdit
+Office_plugin\windows\tests\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint -PowerPointMode MathType
+Office_plugin\windows\tests\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint -PowerPointMode MathType -PowerPointMathTypeNativeEdit
 # Word OMML only, without temporary OLE registration:
-Office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -HostScope Word -WordBackend Omml
+Office_plugin\windows\tests\Test-OfficeTypographyE2E.ps1 -HostScope Word -WordBackend Omml
 # PowerPoint batch failure and retry only, without OLE:
-Office_plugin\windows\tools\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint -PowerPointMode Batch
+Office_plugin\windows\tests\Test-OfficeTypographyE2E.ps1 -HostScope PowerPoint -PowerPointMode Batch
 ```
 
 The unified runner defaults to Release binaries, Word OMML/OLE, and the full PowerPoint suite. Use `-Configuration Debug`, `-WordBackend Ole`, or `-HostScope` to select a smaller run. Evidence goes to a unique temporary directory, or `-OutputDirectory`. OLE runs require 64-bit Click-to-Run Office and temporarily register the built handler under HKCU; valid existing user registration is refused; original values are restored, and the runner removes only the roots it creates. The plugin installer itself registers the OLE handler under HKLM.

@@ -145,9 +145,10 @@ def test_private_worker_environment_confines_dll_search(tmp_path, monkeypatch):
     assert "CUDA_HOME" not in env
 
 
-def test_source_worker_uses_running_developer_interpreter():
-    assert worker_command(None)[0] == sys.executable
-    assert "'provider_preference': 'cpu'" in worker_command(None)[-1]
+def test_source_worker_uses_developer_interpreter_and_automatic_provider():
+    command = worker_command(None)
+    assert command[0] == sys.executable
+    assert "'provider_preference': 'auto'" in command[-1]
 
 
 def test_source_desktop_worker_uses_default_mathcraft_cache(tmp_path, monkeypatch):

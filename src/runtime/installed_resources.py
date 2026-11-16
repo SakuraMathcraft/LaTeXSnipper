@@ -218,7 +218,7 @@ def worker_command(resources: InstalledResources | None) -> list[str]:
         root = Path(__file__).resolve().parents[2]
         python = Path(sys.executable)
         arguments = {
-            "provider_preference": "cpu",
+            "provider_preference": "auto",
             "cache_dir": str(desktop_model_resources(None).root),
         }
     else:

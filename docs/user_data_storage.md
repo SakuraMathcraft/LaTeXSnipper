@@ -107,7 +107,7 @@ Windows uninstall owns the installation components and offers separate app-data
 and shared-model-cache cleanup choices. Linux uses dpkg removal/purge of the
 four installation packages; macOS removes the app. While installed, Linux provides
 `latexsnipper-clean-user-data` with separate app-data and shared-model-cache
-options. The repository script `scripts/latexsnipper-clean-user-data.sh` supports
+options. The repository script `scripts/release/latexsnipper-clean-user-data.sh` supports
 both Linux and macOS; it is not deployed inside the macOS app. On macOS, user
 data can also be removed manually using the paths above after quitting the app.
 Uninstall leaves user data unless explicitly selected for cleanup.

@@ -1,0 +1,396 @@
+"""Validate native installers and installed update handoffs in release CI."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path[:0] = [str(ROOT), str(ROOT / "src")]
+
+from mathcraft_ocr.protocol import validate_response  # noqa: E402
+from runtime.component_archive import extract_archive  # noqa: E402
+from runtime.distribution_manifest import (  # noqa: E402
+    DistributionManifest,
+    ManifestError,
+)
+from runtime.installation_layout import (  # noqa: E402
+    installation_manifest,
+    macos_bundle,
+)
+from runtime.installed_resources import (  # noqa: E402
+    InstalledResources,
+    current_target,
+    worker_command,
+    worker_environment,
+)
+from runtime.processes import hidden_subprocess_kwargs  # noqa: E402
+from update.deployment_transaction import atomic_json, verify_distribution  # noqa: E402
+from update.deployment_validation import validate_installed_worker  # noqa: E402
+from update.platform_deployment import deployment_transaction  # noqa: E402
+
+
+def archive_path(directory: Path, url: str) -> Path:
+    from urllib.parse import unquote, urlsplit
+
+    return directory / unquote(urlsplit(url).path.rsplit("/", 1)[-1])
+
+
+def validate_recognition(
+    root: Path, manifest: DistributionManifest, output: Path
+) -> dict:
+    from PIL import Image, ImageDraw, ImageFont
+
+    image = Image.new("RGB", (720, 170), "white")
+    ImageDraw.Draw(image).text(
+        (30, 40), "1 + 1 = 2", fill="black", font=ImageFont.load_default(size=64)
+    )
+    sample = output / "recognition-中文−𝛼🙂.png"
+    image.save(sample)
+    resources = InstalledResources(root, manifest)
+    requests = [
+        {
+            "protocol": manifest.application.worker_protocol,
+            "id": f"{action}-中文−𝛼🙂",
+            "action": action,
+            "image": str(sample),
+        }
+        for action in ("recognize_formula", "recognize_text", "recognize_mixed")
+    ]
+    result = subprocess.run(
+        worker_command(resources),
+        input="".join(json.dumps(item, ensure_ascii=False) + "\n" for item in requests),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=600,
+        env=worker_environment(resources),
+        **hidden_subprocess_kwargs(),
+    )
+    if result.returncode:
+        raise ManifestError(
+            f"Release recognition worker failed: {result.stderr[-4000:]}"
+        )
+    lines = result.stdout.splitlines()
+    if len(lines) != len(requests):
+        raise ManifestError(
+            "Recognition validation received an incomplete worker protocol"
+        )
+    reports = {}
+    for request, line in zip(requests, lines, strict=False):
+        response = validate_response(json.loads(line), request["id"])
+        if not response["ok"]:
+            raise ManifestError(f"Release recognition failed: {response.get('error')}")
+        report = response["result"]
+        if (
+            not report.get("text", "").strip()
+            or report.get("provider") != "CPUExecutionProvider"
+        ):
+            raise ManifestError(
+                "Recognition did not produce text on the required execution provider"
+            )
+        reports[request["action"]] = report
+    return reports
+
+
+def native_install(directory: Path, target: DistributionManifest, work: Path) -> Path:
+    if target.installer is None:
+        raise ManifestError("A native acceptance run requires a first-install carrier")
+    carrier = archive_path(directory, target.installer.url)
+    if target.platform == "windows":
+        root = work / "installed"
+        subprocess.run(
+            [
+                str(carrier),
+                "/VERYSILENT",
+                "/SUPPRESSMSGBOXES",
+                "/NORESTART",
+                f"/DIR={root}",
+            ],
+            check=True,
+            timeout=1800,
+        )
+        return root
+    if target.platform == "linux":
+        extracted = work / f"installer-{target.edition}"
+        extract_archive(carrier, extracted)
+        subprocess.run(
+            ["sudo", "sh", str(extracted / "LaTeXSnipper/install.sh")],
+            check=True,
+            timeout=1800,
+        )
+        return Path("/usr/lib/latexsnipper")
+    mount = work / "volume"
+    mount.mkdir()
+    subprocess.run(
+        [
+            "hdiutil",
+            "attach",
+            "-readonly",
+            "-nobrowse",
+            "-mountpoint",
+            str(mount),
+            str(carrier),
+        ],
+        check=True,
+        timeout=120,
+    )
+    bundle = work / "LaTeXSnipper.app"
+    try:
+        subprocess.run(
+            ["ditto", str(mount / "LaTeXSnipper.app"), str(bundle)],
+            check=True,
+            timeout=900,
+        )
+    finally:
+        subprocess.run(["hdiutil", "detach", str(mount)], check=True, timeout=120)
+    from update.macos_transaction import verify_bundle
+
+    verify_bundle(bundle)
+    return bundle / "Contents/Resources/desktop"
+
+
+def native_acceptance(
+    directory: Path,
+    work: Path,
+    targets: list[DistributionManifest],
+    *,
+    update: bool = False,
+    diagnostics: Path | None = None,
+) -> dict:
+    reports = {}
+    root = None
+    try:
+        for target in targets:
+            root = native_install(directory, target, work)
+            installed = DistributionManifest.load(
+                installation_manifest(root, target.platform)
+            )
+            if installed != target.installed_identity():
+                raise ManifestError(
+                    "Native first-install identity differs from the published component combination"
+                )
+            verify_distribution(root, target)
+            validate_installed_worker(root, target)
+            if update:
+                from installed_update_acceptance import validate_running_update
+
+                assert diagnostics is not None
+                reports[target.edition] = validate_running_update(
+                    root, target, work, diagnostics
+                )
+                continue
+            resources = InstalledResources(root, installed)
+            retained = resources.resource("inference", "runtime.json").read_bytes()
+            staged = work / f"business-{target.edition}"
+            staged.mkdir()
+            # Force a distinct business identity to exercise a real replacement.
+            from dataclasses import replace
+
+            from runtime.component_inventory import inventory_component
+
+            extract_archive(
+                archive_path(directory, target.application.artifact.url),
+                staged / "application",
+                component=target.application,
+            )
+            (staged / "application/acceptance.txt").write_text(
+                "business update", encoding="utf-8"
+            )
+            updated = replace(
+                target,
+                application=replace(
+                    target.application,
+                    files=inventory_component(staged / "application"),
+                ),
+            )
+            atomic_json(staged / "distribution.json", updated.to_dict())
+            deployment_transaction(root).apply(
+                staged, validate=validate_installed_worker
+            )
+            verify_distribution(root, updated)
+            if resources.resource("inference", "runtime.json").read_bytes() != retained:
+                raise ManifestError("Business update changed the inference runtime")
+            report: dict = {"first_install": True, "business_update": True}
+            if target.edition == "cpu":
+                executable = (
+                    "LaTeXSnipper.exe"
+                    if target.platform == "windows"
+                    else "LaTeXSnipper"
+                )
+                validation = work / "application-validation.json"
+                environment = {
+                    **os.environ,
+                    "QTWEBENGINE_CHROMIUM_FLAGS": "--disable-gpu --no-sandbox",
+                }
+                if target.platform == "linux":
+                    environment["QT_QPA_PLATFORM"] = "offscreen"
+                subprocess.run(
+                    [
+                        str(resources.directory("runtime") / executable),
+                        "--validate-application",
+                        str(validation),
+                    ],
+                    check=True,
+                    env=environment,
+                    timeout=180,
+                )
+                report["application"] = json.loads(
+                    validation.read_text(encoding="utf-8")
+                )
+            if target.edition == "cpu":
+                report["recognition"] = validate_recognition(root, target, work)
+            reports[target.edition] = report
+    finally:
+        if root is not None:
+            system = targets[0].platform
+            if system == "windows":
+                uninstaller = root / "unins000.exe"
+                if not uninstaller.is_file():
+                    raise ManifestError("Installed Windows release has no uninstaller")
+                subprocess.run(
+                    [
+                        str(uninstaller),
+                        "/VERYSILENT",
+                        "/SUPPRESSMSGBOXES",
+                        "/NORESTART",
+                    ],
+                    check=True,
+                    timeout=900,
+                )
+            elif system == "linux":
+                subprocess.run(
+                    [
+                        "sudo",
+                        "dpkg",
+                        "--purge",
+                        "latexsnipper-runtime",
+                        "latexsnipper-inference",
+                        "latexsnipper-models",
+                        "latexsnipper",
+                    ],
+                    check=True,
+                    timeout=900,
+                )
+            else:
+                shutil.rmtree(macos_bundle(root))
+            remaining = [
+                name
+                for name in ("application", "runtime", "inference", "models")
+                if (root / name).exists()
+            ]
+            if remaining or installation_manifest(root, system).exists():
+                residue = [
+                    str(path.relative_to(root))
+                    for name in remaining
+                    for path in (root / name).rglob("*")
+                    if path.is_file() or path.is_symlink()
+                ]
+                if diagnostics is not None:
+                    atomic_json(
+                        diagnostics / "uninstall-residue.json", {"paths": residue}
+                    )
+                raise ManifestError(
+                    f"Uninstall left owned installation resources: {remaining}; files: {residue}"
+                )
+    return reports
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--directory", type=Path)
+    source.add_argument("--release-tag")
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--update", action="store_true")
+    args = parser.parse_args()
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        raise ManifestError("Native installer acceptance must run in GitHub Actions")
+    system, architecture = current_target()
+    if system == "linux" and os.geteuid() != 0:
+        subprocess.run(
+            [
+                "sudo",
+                "env",
+                "GITHUB_ACTIONS=true",
+                *(
+                    f"{key}={os.environ[key]}"
+                    for key in (
+                        "DISPLAY",
+                        "XAUTHORITY",
+                        "DBUS_SESSION_BUS_ADDRESS",
+                        "NETRC",
+                    )
+                    if key in os.environ
+                ),
+                sys.executable,
+                "-X",
+                "utf8",
+                str(Path(__file__).resolve()),
+                *(
+                    ["--directory", str(args.directory.resolve(strict=True))]
+                    if args.directory
+                    else ["--release-tag", args.release_tag]
+                ),
+                "--output",
+                str(args.output.resolve()),
+                *(["--update"] if args.update else []),
+            ],
+            check=True,
+        )
+        return
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="release-acceptance-") as temporary:
+        work = Path(temporary).resolve()
+        if args.release_tag:
+            if not args.update:
+                raise ManifestError("Published release acceptance requires --update")
+            from update.component_download import download_component
+            from update.component_release import fetch_component_release
+
+            release = fetch_component_release(work / "downloads", tag=args.release_tag)
+            target = release.catalog.select(system, architecture, "cpu")
+            if target.installer is None:
+                raise ManifestError("Release has no CPU installer")
+            directory = work / "carriers"
+            directory.mkdir()
+            shutil.move(
+                download_component(target.installer, work / "downloads"),
+                archive_path(directory, target.installer.url),
+            )
+            targets = [target]
+        else:
+            directory = args.directory.resolve(strict=True)
+            targets = [
+                DistributionManifest.load(path)
+                for path in sorted(
+                    directory.glob(f"distribution-{system}-{architecture}-*.json")
+                )
+            ]
+            if not targets:
+                raise ManifestError("No matching native release targets")
+        if args.update:
+            (target,) = (item for item in targets if item.edition == "cpu")
+            result = native_acceptance(
+                directory,
+                work,
+                [target],
+                update=True,
+                diagnostics=args.output.parent / "update-diagnostics",
+            )
+        else:
+            result = native_acceptance(directory, work, targets)
+    atomic_json(
+        args.output,
+        {"platform": system, "architecture": architecture, "result": result},
+    )
+
+
+if __name__ == "__main__":
+    main()

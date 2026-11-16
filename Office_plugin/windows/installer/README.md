@@ -18,7 +18,7 @@ build.bat Release
 
 The build reads the shared product version from the repository `VERSION` file.
 
-Output: `Office_plugin\windows\release\LaTeXSnipperOffice_<version>_amd64.exe` and its adjacent `.sha256` file. The SignPath Office artifact configuration matches the same filename pattern.
+Output: `Office_plugin\windows\release\LaTeXSnipperOffice_<version>_windows_x86_64.exe` and its adjacent `.sha256` file. The SignPath Office artifact configuration matches the same filename pattern.
 
 ## Installation Responsibilities
 

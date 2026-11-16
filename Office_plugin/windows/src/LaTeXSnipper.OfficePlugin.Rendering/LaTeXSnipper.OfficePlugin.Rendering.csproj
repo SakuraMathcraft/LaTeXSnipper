@@ -18,7 +18,7 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3967.48" />
   </ItemGroup>
 
-  <Import Project="..\..\..\..\tools\mathjax\office.props" />
+  <Import Project="..\..\..\..\scripts\mathjax\office.props" />
 
   <PropertyGroup>
     <TargetFrameworks>net48;net9.0</TargetFrameworks>

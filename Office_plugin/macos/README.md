@@ -1,6 +1,8 @@
 # LaTeXSnipper Office for Mac
 
-Word and PowerPoint for Mac cannot load VSTO, COM or custom OLE add-ins, so the Mac version is an Office web add-in. It is a standalone app, **LaTeXSnipper Office.app**, shipped as its own DMG like the Windows plugin installer. It reuses `Office_plugin/shared` unchanged: the editor and task pane (`EditorAssets`) and the MathJax typography renderer (`mathjax/MathJaxTypographyAdapter.js`).
+LaTeXSnipper Office for Mac is an Office.js add-in for Word and PowerPoint on Apple Silicon. The [DMG build](#build) produces the standalone **LaTeXSnipper Office.app** installer. The add-in uses the editor, task pane, and MathJax typography renderer from [`Office_plugin/shared`](../shared/).
+
+See the [user manual](../../user_manual/user_manual.md#macos-版安装与使用) for installation, formula workflows, and troubleshooting.
 
 ## Independence from the desktop app
 
@@ -8,19 +10,11 @@ The add-in does not need the LaTeXSnipper desktop app. Editing, rendering, inser
 
 The add-in reads exactly one desktop file, the published discovery file `~/Library/Application Support/LaTeXSnipper/automation-api.json`. The Automation API token stays in the host and is never sent to the Office pages.
 
-## Install
+## Local host and installation
 
-Open the DMG, drag **LaTeXSnipper Office** to Applications and open it. Click **安装 / 修复** (Install / Repair). The app then:
+The app generates a self-signed, non-CA certificate valid for `localhost` and `127.0.0.1` in `~/Library/Application Support/LaTeXSnipper Office/`. The per-user LaunchAgent `com.mathcraft.latexsnipper.office.host` serves add-in pages over `https://localhost:28766` from login and restarts the host after a crash. Installation writes `latexsnipper-office-addin.xml` into the Word and PowerPoint `wef` folders.
 
-1. creates a self-signed, non-CA certificate valid only for `localhost` / `127.0.0.1` in `~/Library/Application Support/LaTeXSnipper Office/` and asks macOS to trust it for SSL (Office loads add-in pages only over HTTPS);
-2. registers the per-user LaunchAgent `com.mathcraft.latexsnipper.office.host`, which serves the pages on `https://localhost:28766` from login and is restarted if it crashes;
-3. writes `latexsnipper-office-addin.xml` into the `wef` sideload folders of Word and PowerPoint.
-
-Reopen Word or PowerPoint and choose **Home › Add-ins › LaTeXSnipper**. A Chinese user manual with screenshots is in [docs/manual.md](docs/manual.md), and the computer-use test report in [docs/report.md](docs/report.md). The first time a Word formula is saved, macOS asks whether LaTeXSnipper Office may control Microsoft Word (see [Word document contract](#word-document-contract)).
-
-**Uninstall** in the same window (or `LaTeXSnipper Office --uninstall`) stops the agent and removes the LaunchAgent, both manifests, the certificate trust and the add-in's settings. It never touches the desktop app's data.
-
-Command line: `LaTeXSnipper Office --install | --uninstall | --serve` (`--serve` is what launchd runs). The host logs to `~/Library/Application Support/LaTeXSnipper Office/host.log` through Python `logging` (`latexsnipper.*` loggers).
+The app exposes `--install`, `--uninstall`, and `--serve`. Uninstall removes the agent, the manifests, the certificate trust, and the add-in's settings. Launchd runs `--serve`, which writes `host.log` under the add-in's application support directory.
 
 ## Features
 
@@ -117,3 +111,5 @@ cd Office_plugin/macos && npm ci && npm test
 ```
 
 The Node tests cover the Word contract, the OOXML rewrites (including what must survive: neighbouring text, formatting, bookmarks, fields and section breaks), the LaTeX parser against the Windows parsing fixture, and the PowerPoint tags. They use `@xmldom/xmldom` as the DOM the browser provides in Office.
+
+Use the [Office sample documents](tests/samples/README.md) to check whether Windows can load and update formulas saved by the macOS add-in.

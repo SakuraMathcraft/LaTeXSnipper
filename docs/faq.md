@@ -87,9 +87,11 @@ multi-display layout, and `~/Library/Logs/LaTeXSnipper/` for Qt diagnostics.
 
 Automation API is disabled by default. After enabling it in Settings, local clients read `automation-api.json` from the application state directory and use its address and per-session Bearer token. Remote access must be explicitly enabled with a separate key and either HTTPS or an encrypted tunnel. See the [Automation API guide](automation_api.md).
 
-## What is the Office plugin direction?
+## Which Office add-in should I use?
 
-LaTeXSnipper Office integration is developed in the Windows-native `Office_plugin/windows` tree. The plugin provides persistent Ribbon loading, native KeyTip shortcuts, Word OLE and OMML formula insertion, PowerPoint OLE and PNG formula insertion, managed formula metadata, Word automatic numbering/references, and screenshot OCR as an authenticated Automation API client without requiring Microsoft 365 enterprise deployment.
+Use the [Windows add-in](../Office_plugin/windows/README.md) for desktop Word and PowerPoint on Windows. It supports LaTeXSnipper OLE objects, Word OMML, and PowerPoint PNG. Use the [macOS add-in](../Office_plugin/macos/README.md) for Word and PowerPoint on Apple Silicon. It inserts native Word OMML and PowerPoint PNG or SVG. Both edit LaTeXSnipper Word OMML and PowerPoint PNG formulas when the document retains the formula metadata. macOS leaves Windows OLE formulas in place for editing on Windows.
+
+Both add-ins can edit and render formulas independently. Screenshot OCR uses the desktop app's local Automation API. See the [Office user guide](../user_manual/user_manual.md#加载项介绍与系统要求) for installation and troubleshooting.
 
 ## Why does Word OMML conversion report a missing Office stylesheet?
 

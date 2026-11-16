@@ -68,16 +68,14 @@ Windows/Linux 安装包提供 CPU 与 NVIDIA GPU 发行，macOS 14.0 及以上�
 
 ## Microsoft Office 插件
 
-> [!NOTE]
-> Office 插件面向 **Windows 桌面版 Microsoft Word 和 PowerPoint**，可直接插入与编辑公式。
+LaTeXSnipper Office 插件支持 Windows 和 macOS 的桌面版 Microsoft Word 与 PowerPoint，可在本地编辑和渲染公式。Word 还支持公式编号和交叉引用。截图识别通过 LaTeXSnipper 桌面端的自动化接口接收结果。
 
-* 支持 Word OLE/OMML 与 PowerPoint OLE/PNG 插入，保留可编辑的 LaTeX 源码。
-* 支持公式编辑、更新，以及 Word 自动编号和引用。
-* 本地渲染公式，通过桌面端 Automation API 调用截图识别。
+在 [GitHub Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest) 单独下载对应平台的 Office 插件安装包。
 
-从 [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest) 单独下载 `LaTeXSnipperOffice_<version>_amd64.exe`。支持 Windows 上的 32 位和 64 位 Office 2019/2021/2024、LTSC 2021/2024 及 Microsoft 365 Apps。
+- **Windows** 使用 `LaTeXSnipperOffice_<version>_windows_x86_64.exe`。Word 支持 OLE 和 OMML，PowerPoint 支持 OLE 和 PNG。
+- **macOS** 在 Apple Silicon 上使用 `LaTeXSnipperOffice_<version>_macos_arm64.dmg`。Word 使用原生 OMML，PowerPoint 支持 PNG 和 SVG。
 
-[安装要求与完整功能](Office_plugin/README.md) · [公式工作流](docs/Office_plugin_formula_workflows.md)
+[Office 加载项指南](user_manual/user_manual.md#加载项介绍与系统要求) · [平台要求与源码](Office_plugin/README.md) · [公式工作流](docs/office_plugin_formula_workflows.md)
 
 ---
 

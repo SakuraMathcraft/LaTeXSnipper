@@ -9,8 +9,8 @@ from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS_DIR = ROOT / "scripts"
-VERIFIER = ROOT / "scripts" / "verify_linux_hotkey_archive.py"
+SCRIPTS_DIR = ROOT / "scripts/release"
+VERIFIER = ROOT / "scripts/release" / "verify_linux_hotkey_archive.py"
 
 
 if str(SCRIPTS_DIR) in sys.path:

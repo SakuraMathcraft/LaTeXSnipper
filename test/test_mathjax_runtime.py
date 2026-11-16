@@ -38,7 +38,7 @@ def test_resource_profiles_are_reproducible_and_office_is_self_contained():
             sys.executable,
             "-X",
             "utf8",
-            str(root / "tools/mathjax/prepare.py"),
+            str(root / "scripts/mathjax/prepare.py"),
             "--verify",
         ],
         check=True,

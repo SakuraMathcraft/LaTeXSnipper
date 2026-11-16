@@ -48,14 +48,14 @@ jobs:
           publish='${{ inputs.publish_assets }}'
           echo "publish=$publish" >> "$GITHUB_OUTPUT"
           if [ "$publish" = true ]; then
-            python3 -X utf8 scripts/release_artifacts.py prepare --tag "$RELEASE_TAG" --target '${{ github.sha }}'
+            python3 -X utf8 scripts/release/release_artifacts.py prepare --tag "$RELEASE_TAG" --target '${{ github.sha }}'
           fi
 
       - name: Probe shared model cache
         id: models
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 -X utf8 scripts/build_desktop_release.py models-plan
+        run: python3 -X utf8 scripts/release/build_desktop_release.py models-plan
       - name: Seed missing immutable model resources
         if: steps.models.outputs.models_missing == 'true'
         env:
@@ -63,7 +63,7 @@ jobs:
         run: |
           python3 -m venv build/model-tools
           build/model-tools/bin/python -m pip install -c requirements.txt requests
-          build/model-tools/bin/python -X utf8 scripts/build_desktop_release.py models
+          build/model-tools/bin/python -X utf8 scripts/release/build_desktop_release.py models
 
   desktop:
     needs: prepare-release
@@ -80,12 +80,12 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ needs.prepare-release.outputs.python }}
-      - run: python scripts/desktop_distribution.py sources
+      - run: python scripts/release/desktop_distribution.py sources
       - name: Probe immutable build inputs before dependency installation
         id: cache
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python -X utf8 scripts/build_desktop_release.py plan
+        run: python -X utf8 scripts/release/build_desktop_release.py plan
       - name: Select dependency cache for this build
         id: dependencies
         shell: python
@@ -139,9 +139,9 @@ jobs:
       - name: Reuse fixed resources and build business payload
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python -X utf8 scripts/build_desktop_release.py assemble
+        run: python -X utf8 scripts/release/build_desktop_release.py assemble
       - name: Package business update and offline installers
-        run: python scripts/build_desktop_release.py package --tag "${{ env.RELEASE_TAG }}"
+        run: python scripts/release/build_desktop_release.py package --tag "${{ env.RELEASE_TAG }}"
       - name: Check optional Windows signing
         id: signpath-config
         if: runner.os == 'Windows'
@@ -184,12 +184,12 @@ jobs:
           output-artifact-directory: signed-installers
       - name: Compute final Windows installer identities
         if: runner.os == 'Windows' && steps.sign-installers.outcome == 'success'
-        run: python scripts/build_desktop_release.py finalize-windows --signed signed-installers
+        run: python scripts/release/build_desktop_release.py finalize-windows --signed signed-installers
       - name: Upload installers and business update
         if: needs.prepare-release.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python -X utf8 scripts/build_desktop_release.py upload --release-id "${{ needs.prepare-release.outputs.release_id }}"
+        run: python -X utf8 scripts/release/build_desktop_release.py upload --release-id "${{ needs.prepare-release.outputs.release_id }}"
       - uses: actions/upload-artifact@v7
         if: needs.prepare-release.outputs.publish == 'true'
         with:
@@ -219,11 +219,11 @@ jobs:
       - name: Upload update catalog and check release assets
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python -X utf8 scripts/release_artifacts.py publish --release-id "${{ needs.prepare-release.outputs.release_id }}" --tag "$RELEASE_TAG" --version "$(cat VERSION)" --directory release-metadata
+        run: python -X utf8 scripts/release/release_artifacts.py publish --release-id "${{ needs.prepare-release.outputs.release_id }}" --tag "$RELEASE_TAG" --version "$(cat VERSION)" --directory release-metadata
       - name: Remove obsolete build-cache drafts
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python -X utf8 scripts/release_artifacts.py prune-cache --directory release-metadata
+        run: python -X utf8 scripts/release/release_artifacts.py prune-cache --directory release-metadata
 
   installed-desktop:
     permissions:
@@ -267,13 +267,13 @@ jobs:
           sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y kwin-wayland xwayland xdg-desktop-portal xdg-desktop-portal-kde qt6-wayland python3-pyatspi at-spi2-core qml6-module-org-kde-kcmutils qml6-module-org-kde-kquickcontrols qml6-module-qt5compat-graphicaleffects
       - name: Accept installed hotkeys and update under Wayland
         if: matrix.session == 'wayland'
-        run: sudo env GITHUB_ACTIONS=true PATH="$PATH" NETRC="$NETRC" python -X utf8 scripts/wayland_acceptance.py -- python -X utf8 scripts/validate_desktop_release.py --release-tag "$RELEASE_TAG" --update --output build/update-acceptance.json
+        run: sudo env GITHUB_ACTIONS=true PATH="$PATH" NETRC="$NETRC" python -X utf8 scripts/acceptance/wayland_acceptance.py -- python -X utf8 scripts/acceptance/validate_desktop_release.py --release-tag "$RELEASE_TAG" --update --output build/update-acceptance.json
       - name: Accept installed hotkeys and update
         if: runner.os != 'Linux'
-        run: python -X utf8 scripts/validate_desktop_release.py --release-tag "${{ env.RELEASE_TAG }}" --update --output build/update-acceptance.json
+        run: python -X utf8 scripts/acceptance/validate_desktop_release.py --release-tag "${{ env.RELEASE_TAG }}" --update --output build/update-acceptance.json
       - name: Accept installed hotkeys and update under X11
         if: matrix.session == 'x11'
-        run: dbus-run-session -- xvfb-run -a python -X utf8 scripts/validate_desktop_release.py --release-tag "$RELEASE_TAG" --update --output build/update-acceptance.json
+        run: dbus-run-session -- xvfb-run -a python -X utf8 scripts/acceptance/validate_desktop_release.py --release-tag "$RELEASE_TAG" --update --output build/update-acceptance.json
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -317,7 +317,7 @@ jobs:
             echo "Release version $version does not match VERSION $product_version." >&2
             exit 1
           fi
-          installer="Office_plugin/windows/release/LaTeXSnipperOffice_${version}_amd64.exe"
+          installer="Office_plugin/windows/release/LaTeXSnipperOffice_${version}_windows_x86_64.exe"
           checksum="${installer}.sha256"
           test -f "$installer"
           test -f "$checksum"
@@ -334,7 +334,7 @@ jobs:
         if: needs.prepare-release.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 -X utf8 scripts/release_artifacts.py upload --release-id "${{ needs.prepare-release.outputs.release_id }}" '${{ steps.installer.outputs.path }}'
+        run: python3 -X utf8 scripts/release/release_artifacts.py upload --release-id "${{ needs.prepare-release.outputs.release_id }}" '${{ steps.installer.outputs.path }}'
 
       - name: Upload Office plugin installer artifact
         if: needs.prepare-release.outputs.publish != 'true'
@@ -391,7 +391,7 @@ jobs:
         if: needs.prepare-release.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python -X utf8 scripts/release_artifacts.py upload --release-id "${{ needs.prepare-release.outputs.release_id }}" user_manual/LaTeXSnipper_User_Manual.pdf
+        run: python -X utf8 scripts/release/release_artifacts.py upload --release-id "${{ needs.prepare-release.outputs.release_id }}" user_manual/LaTeXSnipper_User_Manual.pdf
 
       - name: Upload user manual artifact
         if: needs.prepare-release.outputs.publish != 'true'

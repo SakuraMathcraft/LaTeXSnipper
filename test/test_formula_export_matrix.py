@@ -33,7 +33,7 @@ def run_mathjax(inputs: list[dict], *, font: str = "mathjax-tex") -> dict:
     completed = subprocess.run(
         [
             node,
-            str(Path(__file__).parents[1] / "tools/mathjax/probe.cjs"),
+            str(Path(__file__).parents[1] / "scripts/mathjax/probe.cjs"),
             json.dumps({"font": font}),
         ],
         input=json.dumps(inputs),

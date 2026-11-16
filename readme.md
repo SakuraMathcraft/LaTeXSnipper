@@ -68,16 +68,14 @@ Routine app updates download only application code and resources, retaining Pyth
 
 ## Microsoft Office Plugin
 
-> [!NOTE]
-> The Office plugin is designed for **Windows desktop Microsoft Word and PowerPoint**, where you can insert and edit formulas directly.
+LaTeXSnipper Office adds local formula editing and rendering to desktop Microsoft Word and PowerPoint on Windows and macOS. Word also supports equation numbering and cross-references. Screenshot OCR uses the LaTeXSnipper desktop app through its Automation API.
 
-* Word OLE/OMML and PowerPoint OLE/PNG insertion, with editable LaTeX source.
-* Formula editing, updates, and Word automatic numbering and references.
-* Local formula rendering and screenshot OCR through the desktop Automation API.
+Download the Office add-in for your platform from [GitHub Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest).
 
-Download `LaTeXSnipperOffice_<version>_amd64.exe` separately from [Releases](https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest). Supports 32-bit and 64-bit Office 2019/2021/2024, LTSC 2021/2024, and Microsoft 365 Apps on Windows.
+- **Windows** uses `LaTeXSnipperOffice_<version>_windows_x86_64.exe`. Word supports OLE and OMML, and PowerPoint supports OLE and PNG.
+- **macOS** uses `LaTeXSnipperOffice_<version>_macos_arm64.dmg` on Apple Silicon. Word uses native OMML, and PowerPoint supports PNG and SVG.
 
-[Installation requirements and features](Office_plugin/README.md) · [Formula workflows](docs/Office_plugin_formula_workflows.md)
+[Office user guide (Chinese)](user_manual/user_manual.md#加载项介绍与系统要求) · [Platform requirements and source](Office_plugin/README.md) · [Formula workflows](docs/office_plugin_formula_workflows.md)
 
 ---
 
