@@ -1,0 +1,6 @@
+# LaTeXSnipper Office for Mac (add-in host). Independent of the desktop app's requirements.
+lxml==6.1.2
+pyobjc-core==13.0
+pyobjc-framework-Cocoa==13.0
+pyobjc-framework-Quartz==13.0
+pyobjc-framework-CoreText==13.0

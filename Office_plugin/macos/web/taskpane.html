@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LaTeXSnipper</title>
+  <!-- Office.js must come from Microsoft's CDN; add-ins may not self-host it. -->
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <link rel="stylesheet" href="/shared/taskpane.css">
+  <link rel="stylesheet" href="/shared/source-editor.css">
+  <link rel="stylesheet" href="./app/mac.css">
+</head>
+<body>
+  <main class="taskpane-shell">
+    <section class="toolbar">
+      <div>
+        <h1>LaTeXSnipper</h1>
+        <p id="hostLabel">Office 插件</p>
+      </div>
+      <button id="connectButton" type="button" class="ghost-button">连接</button>
+    </section>
+
+    <div id="statusBanner" class="status-banner" role="status">
+      <span id="statusText">就绪。</span>
+    </div>
+
+    <section class="panel editor-panel">
+      <label id="equationLabel" for="previewHost">公式</label>
+      <div id="previewHost" class="preview-host"></div>
+      <div id="sourceModeNote" class="source-mode-note" hidden></div>
+      <label for="latexSource">LaTeX</label>
+      <div id="latexSource" class="source-host"></div>
+      <!-- Word only; the PowerPoint pane removes it before the shared pane script starts. -->
+      <div id="optionsRow" class="options-row">
+        <label><input id="displayMode" type="checkbox"><span id="displayLabel">行间公式</span></label>
+        <label><input id="autoNumber" type="checkbox"><span id="autoNumberLabel">自动编号</span></label>
+        <input id="manualNumber" type="text" spellcheck="false" placeholder="自定义编号">
+      </div>
+    </section>
+
+    <section class="actions primary-actions">
+      <button id="ocrButton" type="button">截图识别</button>
+      <button id="insertButton" type="button" class="primary">插入</button>
+    </section>
+  </main>
+  <script type="module" src="./app/taskpane.mjs"></script>
+</body>
+</html>
