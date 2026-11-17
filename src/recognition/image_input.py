@@ -9,6 +9,7 @@ from typing import BinaryIO
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from mathcraft_ocr.image_color import to_ocr_rgb
 from recognition.image_contracts import (
     DEFAULT_MAX_DECODED_IMAGE_PIXELS,
     DEFAULT_MAX_ENCODED_IMAGE_BYTES,
@@ -42,7 +43,7 @@ def _normalize_open_image(image: Image.Image, *, max_pixels: int) -> Image.Image
         oriented = ImageOps.exif_transpose(image)
         _validate_size(oriented, max_pixels=max_pixels)
         oriented.load()
-        rgb = oriented.convert("RGB")
+        rgb = to_ocr_rgb(oriented)
     except Image.DecompressionBombError as exc:
         raise ImageInputError("image_too_large", "图片尺寸超过安全解码限制。") from exc
     except (OSError, SyntaxError, ValueError) as exc:
@@ -139,7 +140,7 @@ def image_from_pil(
 ) -> Image.Image:
     _validate_size(image, max_pixels=max_pixels)
     try:
-        copy = ImageOps.exif_transpose(image).convert("RGB")
+        copy = to_ocr_rgb(ImageOps.exif_transpose(image))
         copy.load()
     except (OSError, SyntaxError, ValueError) as exc:
         raise ImageInputError("corrupt_image", "图片数据已损坏或不完整。") from exc

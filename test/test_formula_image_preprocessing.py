@@ -5,7 +5,11 @@ import pytest
 from PIL import Image
 
 from mathcraft_ocr.formula_lines import split_formula_line_groups
-from mathcraft_ocr.image import normalize_formula_polarity, prepare_formula_image
+from mathcraft_ocr.image import (
+    load_image_rgb,
+    normalize_formula_polarity,
+    prepare_formula_image,
+)
 
 
 def formula_strip():
@@ -54,6 +58,19 @@ def test_formula_model_input_preserves_normalized_pixels(width, dark, as_pil):
     source = 255 - image if dark else image
     if as_pil:
         source = Image.fromarray(source)
+    assert np.array_equal(np.array(prepare_formula_image(source)), image)
+
+
+@pytest.mark.parametrize("dark", [False, True])
+def test_transparent_formula_corners_keep_the_opaque_background(tmp_path, dark):
+    image = formula_strip()[:, :180]
+    rgb = 255 - image if dark else image
+    source = Image.fromarray(rgb).convert("RGBA")
+    source.paste((0, 0, 0, 0), (0, 0, 8, 8))
+    path = tmp_path / "formula.png"
+    source.save(path)
+
+    assert np.array_equal(load_image_rgb(path), rgb)
     assert np.array_equal(np.array(prepare_formula_image(source)), image)
 
 

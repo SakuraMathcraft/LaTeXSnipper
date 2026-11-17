@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 from PIL import Image
-from PyQt6.QtGui import QImage
+from PyQt6.QtGui import QColor, QImage
 
 import recognition.image_input as image_input_module
 from recognition.image_contracts import DEFAULT_MAX_ENCODED_IMAGE_BYTES
@@ -72,6 +72,31 @@ def test_exif_orientation_is_applied() -> None:
 def test_common_color_modes_normalize_to_rgb(mode: str) -> None:
     source = Image.new(mode, (7, 6))
     assert image_from_pil(source).mode == "RGB"
+
+
+def test_indexed_png_composites_transparent_background_on_white() -> None:
+    source = Image.new("P", (12, 10))
+    source.putpalette([0, 0, 0, 10, 20, 30])
+    source.putpixel((6, 5), 1)
+    buffer = io.BytesIO()
+    source.save(buffer, format="PNG", transparency=0)
+
+    image = image_from_bytes(buffer.getvalue())
+
+    assert image.getpixel((0, 0)) == (255, 255, 255)
+    assert image.getpixel((6, 5)) == (10, 20, 30)
+
+
+def test_qimage_transparency_uses_the_same_background_as_file_input() -> None:
+    source = QImage(12, 10, QImage.Format.Format_ARGB32)
+    source.fill(QColor(240, 242, 244))
+    source.setPixelColor(0, 0, QColor(0, 0, 0, 0))
+    source.setPixelColor(6, 5, QColor(0, 0, 0, 128))
+
+    image = image_from_qimage(source)
+
+    assert image.getpixel((0, 0)) == (240, 242, 244)
+    assert image.getpixel((6, 5)) == (120, 121, 122)
 
 
 def test_path_stream_bytes_and_pil_are_consistent(tmp_path: Path) -> None:

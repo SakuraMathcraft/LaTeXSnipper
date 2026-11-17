@@ -6,6 +6,8 @@ from typing import TypeAlias
 import numpy as np
 from PIL import Image
 
+from .image_color import to_ocr_rgb
+
 ImageInput: TypeAlias = str | Path | Image.Image | np.ndarray
 
 
@@ -33,9 +35,9 @@ def prepare_formula_image(image: Image.Image | np.ndarray) -> Image.Image:
 def load_image_rgb(image: ImageInput) -> np.ndarray:
     if isinstance(image, (str, Path)):
         with Image.open(image) as handle:
-            return np.array(handle.convert("RGB"))
+            return np.array(to_ocr_rgb(handle))
     if isinstance(image, Image.Image):
-        return np.array(image.convert("RGB"))
+        return np.array(to_ocr_rgb(image))
     if not isinstance(image, np.ndarray):
         raise TypeError(f"unsupported image input: {type(image)!r}")
     if image.ndim == 2:
