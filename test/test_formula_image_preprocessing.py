@@ -74,6 +74,17 @@ def test_transparent_formula_corners_keep_the_opaque_background(tmp_path, dark):
     assert np.array_equal(np.array(prepare_formula_image(source)), image)
 
 
+@pytest.mark.parametrize("light_ink", [False, True])
+def test_ink_on_transparency_gets_a_contrasting_canvas(light_ink):
+    image = formula_strip()[:, :180]
+    alpha = 255 - image[:, :, 0]
+    ink = 255 if light_ink else 0
+    source = Image.new("RGBA", (image.shape[1], image.shape[0]), (ink, ink, ink))
+    source.putalpha(Image.fromarray(alpha))
+
+    assert np.array_equal(np.array(prepare_formula_image(source)), image)
+
+
 @pytest.mark.parametrize("scale", [1, 2])
 def test_long_strip_cuts_are_polarity_independent_and_preserve_all_ink(scale):
     image = np.repeat(np.repeat(formula_strip(), scale, axis=0), scale, axis=1)

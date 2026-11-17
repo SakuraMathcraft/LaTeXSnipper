@@ -2,25 +2,33 @@
 
 from collections import Counter
 
-from PIL import Image
+from PIL import Image, ImageStat
 
 
 def to_ocr_rgb(image: Image.Image) -> Image.Image:
-    """Composite transparency over the opaque edge color or a white canvas."""
+    """Composite transparency over the opaque edge color or a contrasting canvas."""
     if not image.has_transparency_data or not image.width or not image.height:
         return image if image.mode == "RGB" else image.convert("RGB")
 
     rgba = image if image.mode == "RGBA" else image.convert("RGBA")
     alpha = rgba.getchannel("A")
-    if alpha.getextrema() == (255, 255):
+    minimum, maximum = alpha.getextrema()
+    if minimum == 255:
         return rgba.convert("RGB")
+    if maximum == 0:
+        return Image.new("RGB", rgba.size, "white")
 
-    background = Image.new("RGB", rgba.size, _edge_background(rgba))
+    color = _edge_background(rgba)
+    if color is None:
+        brightness = ImageStat.Stat(rgba.convert("L"), alpha).mean[0]
+        level = 0 if brightness >= 128 else 255
+        color = (level, level, level)
+    background = Image.new("RGB", rgba.size, color)
     background.paste(rgba, mask=alpha)
     return background
 
 
-def _edge_background(rgba: Image.Image) -> tuple[int, ...]:
+def _edge_background(rgba: Image.Image) -> tuple[int, ...] | None:
     right, bottom = rgba.width - 1, rgba.height - 1
     # Sample the perimeter so a transparent corner cannot set the background.
     samples = []
@@ -41,4 +49,4 @@ def _edge_background(rgba: Image.Image) -> tuple[int, ...]:
         color, count = colors.most_common(1)[0]
         if count * 2 > len(samples):
             return color
-    return (255, 255, 255)
+    return None
