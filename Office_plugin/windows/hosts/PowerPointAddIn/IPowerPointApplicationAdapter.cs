@@ -37,6 +37,14 @@ public interface IPowerPointApplicationAdapter
 
     Task ReplaceWithMathTypeAsync(PowerPointFormulaEditTarget target, byte[] compoundFile, OlePresentationResult presentation, CancellationToken cancellationToken);
 
+    MathTypeFormulaTarget? CaptureMathTypeFormula(object? selection);
+
+    MathTypeFormulaTarget? CaptureMathTypeFormulaAtPoint(System.IntPtr window, int x, int y);
+
+    Task InsertMathTypeAsync(byte[] compoundFile, OlePresentationResult presentation, CancellationToken cancellationToken);
+
+    Task UpdateMathTypeAsync(MathTypeFormulaTarget target, byte[] compoundFile, OlePresentationResult presentation, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<PowerPointFormulaEntry>> LoadConversionEntriesAsync(bool includeMathType, CancellationToken cancellationToken);
 
     Task<MathTypeFormulaContent> ReadMathTypeAsync(MathTypeFormulaTarget target, CancellationToken cancellationToken);

@@ -40,6 +40,7 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
                 statusPaneHost.AttachCallbacks(ribbonCallbacks);
                 ribbonExtensibility?.AttachCallbacks(ribbonCallbacks);
                 Application.WindowSelectionChange += OnWindowSelectionChange;
+                Application.WindowBeforeDoubleClick += OnWindowBeforeDoubleClick;
                 _ = WarmUpControllerAsync(controller, statusPaneHost);
             }
         }
@@ -49,10 +50,18 @@ namespace LaTeXSnipper.OfficePlugin.WordVstoAddIn
             doubleClickListener?.Dispose();
             doubleClickListener = null;
             Application.WindowSelectionChange -= OnWindowSelectionChange;
+            Application.WindowBeforeDoubleClick -= OnWindowBeforeDoubleClick;
+            ribbonCallbacks?.Dispose();
+            ribbonCallbacks = null;
             controller?.Dispose();
             controller = null;
             statusPaneHost?.Dispose();
             statusPaneHost = null;
+        }
+
+        private void OnWindowBeforeDoubleClick(Microsoft.Office.Interop.Word.Selection selection, ref bool cancel)
+        {
+            if (!cancel && ribbonCallbacks?.TryOpenMathTypeDoubleClick(selection) == true) cancel = true;
         }
 
         private void OnWindowSelectionChange(Microsoft.Office.Interop.Word.Selection selection)

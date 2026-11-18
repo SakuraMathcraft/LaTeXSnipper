@@ -46,4 +46,13 @@ public sealed class FormulaMetadata
     public FormulaMetadata WithTypography(FormulaTypography typography) =>
         new FormulaMetadata(Identity, Latex, DisplayMode, NumberingMode, NumberText,
             RenderEngine, SchemaVersion, typography ?? throw new System.ArgumentNullException(nameof(typography)));
+
+    public FormulaMetadata FormatWith(FormulaTypography typography)
+    {
+        if (typography == null) throw new System.ArgumentNullException(nameof(typography));
+        string source = FormulaSourceColor.Reset(Latex, typography.Color);
+        return Typography.Equals(typography) && source == Latex ? this
+            : new FormulaMetadata(Identity, source, DisplayMode, NumberingMode, NumberText,
+                RenderEngine, SchemaVersion, typography);
+    }
 }

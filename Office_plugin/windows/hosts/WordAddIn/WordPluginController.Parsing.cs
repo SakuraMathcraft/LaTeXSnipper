@@ -97,7 +97,12 @@ public sealed partial class WordPluginController
                     cancellationToken.ThrowIfCancellationRequested();
                     try
                     {
-                        if (prepared.OlePresentation != null)
+                        if (prepared.MathType != null)
+                        {
+                            await _wordAdapter.ReplaceParsedMathTypeAsync(candidate, prepared.Metadata, prepared.MathType,
+                                prepared.OlePresentation!, cancellationToken).ConfigureAwait(true);
+                        }
+                        else if (prepared.OlePresentation != null)
                         {
                             await _wordAdapter.ReplaceParsedOleFormulaAsync(
                                 candidate,

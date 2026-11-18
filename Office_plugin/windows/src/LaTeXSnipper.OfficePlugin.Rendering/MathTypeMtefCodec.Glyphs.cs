@@ -34,6 +34,21 @@ internal static partial class MathTypeMtefCodec
             // an italic variable apostrophe.
             var scalar = originalScalar == '\'' ? 0x2032 : originalScalar;
             var effectiveVariant = variant;
+            if (scalar == 0x2036)
+            {
+                EmitOperator("‶", output);
+                continue;
+            }
+            if (IsExpandableMathTypeSymbol(scalar))
+            {
+                EmitScalar(scalar, TypefaceExpand, output);
+                continue;
+            }
+            if (scalar is '#' or 0x005C)
+            {
+                EmitScalar(scalar, TypefaceFunction, output);
+                continue;
+            }
             if (string.IsNullOrWhiteSpace(effectiveVariant)
                 && TryNormalizeLetterlikeForWrite(
                     originalScalar,
@@ -397,7 +412,7 @@ internal static partial class MathTypeMtefCodec
     {
         if (scalar < 0 || scalar > char.MaxValue) return false;
         if (scalar is 0x2020 or 0x2021
-            or 0x2032 or 0x2033 or 0x2034
+            or 0x2032 or 0x2033 or 0x2034 or 0x2036
             // Unicode classifies floor/ceiling as opening/closing punctuation,
             // not MathSymbol. MathJax emits the common shorthand
             // \lfloor x\rfloor / \lceil x\rceil as standalone <mo> tokens, so
@@ -406,7 +421,7 @@ internal static partial class MathTypeMtefCodec
             // rejects an otherwise valid MathType equation.
             or 0x2308 or 0x2309 or 0x230A or 0x230B
             or 0x2329 or 0x232A
-            or 0x27E8 or 0x27E9)
+            or 0x2016 or 0x27E8 or 0x27E9 or 0x27EE or 0x27EF)
             return true;
         var character = (char)scalar;
         var category = char.GetUnicodeCategory(character);
@@ -458,6 +473,12 @@ internal static partial class MathTypeMtefCodec
         typeface = TypefaceSymbol;
         encoded8 = 0;
 
+        if (mtCode == 0x2035)
+        {
+            typeface = TypefaceMtExtra;
+            encoded8 = 0x60;
+            return true;
+        }
         if (mtCode == 0x2223)
         {
             // \mid uses the ordinary vertical-bar position in Symbol while its
@@ -482,10 +503,9 @@ internal static partial class MathTypeMtefCodec
             encoded8 = 0x61;
             return true;
         }
-        if (mtCode == 0x2225)
+        if (mtCode is 0x2225 or 0x2016)
         {
-            // Genuine MathType 7 persists \parallel in MT Extra:
-            // fnMTEXTRA + MTCode U+2225 + encoded8 0x50.
+            // The fixed double bar and parallel relation share the MT Extra glyph.
             typeface = TypefaceMtExtra;
             encoded8 = 0x50;
             return true;
@@ -692,8 +712,16 @@ internal static partial class MathTypeMtefCodec
     }
 
 
+    private static bool IsExpandableMathTypeSymbol(int scalar) =>
+        scalar is 0x03E0 or 0x03E1 or 0x21A4 or 0x21C6 or 0x27F7 or 0x27FB or 0x24C8;
+
     private static bool TryEmitMathTypeSpecialOperator(int scalar, List<byte> output)
     {
+        if (IsExpandableMathTypeSymbol(scalar))
+        {
+            EmitScalar(scalar, TypefaceExpand, output);
+            return true;
+        }
         switch (scalar)
         {
             case 0x2020: // \\dagger: genuine MathType uses Function typeface.
@@ -702,8 +730,8 @@ internal static partial class MathTypeMtefCodec
             case 0x2021: // \\ddagger: genuine MathType uses Function typeface.
                 EmitScalar(0x2021, TypefaceFunction, output, includeEncoded8: false);
                 return true;
-            case 0x2218: // \\circ: MathType uses the degree glyph in Symbol.
-                EmitScalar(0x00B0, TypefaceSymbol, output, includeEncoded8: true, encoded8Override: 0xB0);
+            case 0x2218: // \\circ: composition operator at MT Extra position 0x6F.
+                EmitScalar(0x2218, TypefaceMtExtra, output, includeEncoded8: true, encoded8Override: 0x6F);
                 return true;
             case 0x2022: // \\bullet: genuine MathType uses Function, no encoded8.
                 EmitScalar(0x2022, TypefaceFunction, output, includeEncoded8: false);
@@ -761,6 +789,13 @@ internal static partial class MathTypeMtefCodec
             case 0x21C0: // \\rightharpoonup
                 EmitScalar(0x21C0, TypefaceMtExtra, output, includeEncoded8: true, encoded8Override: 0x86);
                 return true;
+            case 0x21CC:
+                EmitScalar(0x21CC, TypefaceMtExtra, output, includeEncoded8: true, encoded8Override: 0x83);
+                return true;
+            case 0xE409:
+            case 0xE40A:
+                throw new InvalidDataException(
+                    "This asymmetric equilibrium arrow cannot be written as an editable MathType glyph. The original equation was retained.");
             case 0x2197: // \\nearrow
                 EmitScalar(0x2197, TypefaceMtExtra, output, includeEncoded8: true, encoded8Override: 0x5A);
                 return true;
@@ -778,6 +813,14 @@ internal static partial class MathTypeMtefCodec
                 return true;
             case 0x220B: // \\ni: built-in typeface 12, no encoded8.
                 EmitScalar(0x220B, TypefaceMathTypeSpecial12, output, includeEncoded8: false);
+                return true;
+            case 0x220C:
+                EmitScalar(0x220B, TypefaceMathTypeSpecial12, output, embellishments: new[] { EmbellNot });
+                return true;
+            case 0x27F5:
+            case 0x27F6:
+                EmitRelationArrow(scalar == 0x27F5 ? 0x2190 : 0x2192, scalar == 0x27F5 ? ArrowLeft : ArrowRight,
+                    null, new XElement("mrow"), output);
                 return true;
             case 0x22EF: // \\cdots
                 EmitScalar(0x22EF, TypefaceMtExtra, output, includeEncoded8: true, encoded8Override: 0x4C);
@@ -799,6 +842,16 @@ internal static partial class MathTypeMtefCodec
         if (value == "⁡") return;
         foreach (var scalar in EnumerateBmpScalars(value))
         {
+            if (scalar == 0x2036)
+            {
+                EmitOperator("‵‵", output);
+                continue;
+            }
+            if (scalar == 0x02DA)
+            {
+                EmitScalar(scalar, TypefaceMtExtra, output, includeEncoded8: true, encoded8Override: 0xFE);
+                continue;
+            }
             if (scalar is 0x223C or '~')
             {
                 // Genuine MathType 7 represents TeX \sim as ASCII '~' in the
@@ -876,10 +929,6 @@ internal static partial class MathTypeMtefCodec
 
     private static bool IsWhiteSpaceScalar(int scalar) =>
         scalar <= char.MaxValue && char.IsWhiteSpace((char)scalar);
-
-
-    private static void EmitCharacter(char character, int typeface, List<byte> output) =>
-        EmitScalar(character, typeface, output);
 
 
     private static void EmitScalar(

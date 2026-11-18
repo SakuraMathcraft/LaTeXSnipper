@@ -95,7 +95,12 @@
       if (!node.isToken) return;
       const attrs = node.attributes;
       const local = node.getProperty('officeLocalVariant');
-      if (local) attrs.set('mathvariant', local);
+      const glyph = node.kind === 'mo' ? node.getText() : '';
+      const code = glyph.length === 1 ? glyph.charCodeAt(0) : 0;
+      // Labelled mhchem arrows carry private glyphs without an explicit font variant.
+      if (code >= 0xE408 && code <= 0xE42E && jax.font.getChar('-mhchem', code))
+        attrs.set('mathvariant', '-mhchem');
+      else if (local) attrs.set('mathvariant', local);
       else if (node.kind !== 'mtext' && !attrs.hasExplicit('mathvariant')) {
         // Explicit style inherited from a MathML ancestor also outranks formula defaults.
         let ancestor = node.parent, inherited = false;
@@ -172,6 +177,36 @@
     jax.font = fonts.get(id);
   }
 
+  function recordMathTypeRulers(semantic, svg, fontSizePoints) {
+    const tables = Array.from(semantic.querySelectorAll('mtable'));
+    const rendered = Array.from(svg.querySelectorAll('[data-mml-node="mtable"]'));
+    if (tables.length !== rendered.length) return;
+    for (let index = 0; index < tables.length; index++) {
+      const table = tables[index];
+      const alignment = (table.getAttribute('columnalign') || '').trim().split(/\s+/);
+      if (alignment.length < 2 || alignment.length % 2 || alignment.some((value, column) => value !== (column % 2 ? 'left' : 'right'))) continue;
+      const width = Array(alignment.length).fill(0);
+      for (const row of rendered[index].querySelectorAll('[data-mml-node="mtr"]')) {
+        if (row.closest('[data-mml-node="mtable"]') !== rendered[index]) continue;
+        const cells = row.querySelectorAll(':scope > [data-mml-node="mtd"]');
+        for (let column = 0; column < cells.length && column < width.length; column++)
+          width[column] = Math.max(width[column], cells[column].getBBox().width);
+      }
+      if (width.every(value => value === 0)) continue;
+      const gaps = (table.getAttribute('columnspacing') || '').trim().split(/\s+/);
+      const stops = [];
+      let x = 0;
+      for (let column = 0; column < width.length; column += 2) {
+        const gap = column ? gaps[Math.min(column - 1, gaps.length - 1)] : '';
+        const spacing = gap.endsWith('em') ? 1000 * parseFloat(gap) : 0;
+        x += width[column] + (column ? width[column - 1] + spacing : 0);
+        const stop = Math.round(x * fontSizePoints * 32 / 1000);
+        stops.push(Math.max((stops.at(-1) || 0) + 1, stop));
+      }
+      if (stops.at(-1) <= 65535) table.setAttribute('data-mtef-ruler-stops', stops.join(','));
+    }
+  }
+
   function execute(input, outlines) {
     return LaTeXSnipperMathJax.enqueue(async () => {
       const savedFont = jax.font;
@@ -194,6 +229,14 @@
         for (const node of semantic.querySelectorAll('[mathvariant]')) {
           const variant = publicVariants[node.getAttribute('mathvariant')];
           if (variant) node.setAttribute('mathvariant', variant);
+        }
+        if (input.measureMathTypeLayout && semantic.querySelector('mtable[columnalign]')) {
+          texInput.reset();
+          const measured = await doc.convertPromise(source, options);
+          measured.style.position = 'absolute'; measured.style.visibility = 'hidden';
+          document.body.appendChild(measured);
+          try { recordMathTypeRulers(semantic, measured.firstElementChild, input.typography.FontSizePoints); }
+          finally { measured.remove(); }
         }
         const mathml = new XMLSerializer().serializeToString(semantic.documentElement);
         if (mathml.includes('<merror')) throw new Error('Formula parse error: ' + mathml);

@@ -3,14 +3,17 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using LaTeXSnipper.OfficePlugin.Abstractions;
+using LaTeXSnipper.OfficePlugin.Rendering;
 
 namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 
-public sealed class PowerPointRibbonCallbacks
+public sealed class PowerPointRibbonCallbacks : IDisposable
 {
     private readonly PowerPointPluginController _controller;
     private readonly IPowerPointStatusSink _statusSink;
     private readonly Action? _showTaskPane;
+    private readonly OfficeStaDispatcher _officeThread = new();
+    private PowerPointMathTypeDoubleClickHook? _mathTypeDoubleClickHook;
     private CancellationTokenSource? _ocrCancellation;
     private int _ocrRunning;
 
@@ -19,7 +22,7 @@ public sealed class PowerPointRibbonCallbacks
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
         _statusSink = statusSink ?? NullPowerPointStatusSink.Instance;
         _showTaskPane = showTaskPane;
-        if (SynchronizationContext.Current == null)
+        if (SynchronizationContext.Current == null || SynchronizationContext.Current.GetType() == typeof(SynchronizationContext))
         {
             SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
         }
@@ -47,10 +50,49 @@ public sealed class PowerPointRibbonCallbacks
 
     public IDisposable ListenForFormulaDoubleClick(int officeProcessId)
     {
-        return new LaTeXSnipper.OfficePlugin.Rendering.OfficeFormulaDoubleClickListener(officeProcessId, (x, y) =>
+        // The cancellable hook must be installed by the in-process add-in.
+        if (officeProcessId == System.Diagnostics.Process.GetCurrentProcess().Id)
+        {
+            try
+            {
+                _mathTypeDoubleClickHook ??= new PowerPointMathTypeDoubleClickHook(
+                    (window, x, y) => QueueMathTypeEditor(_controller.CaptureMathTypeDoubleClick(window, x, y)));
+            }
+            catch (System.ComponentModel.Win32Exception error)
+            {
+                System.Diagnostics.Trace.TraceError("PowerPoint MathType double-click hook: {0}", error);
+            }
+        }
+        return new OfficeFormulaDoubleClickListener(officeProcessId, (x, y) =>
         {
             if (_controller.TrySelectOleFormulaAtScreenPoint(x, y)) OnLoadSelected(this);
         });
+    }
+
+    public bool TryOpenMathTypeDoubleClick(object selection)
+    {
+        try
+        {
+            return QueueMathTypeEditor(_controller.CaptureMathTypeDoubleClick(selection));
+        }
+        catch (Exception error)
+        {
+            _statusSink.Post(PowerPointStatusKind.Error, PowerPointAddInText.GetExceptionMessage(error));
+            return false;
+        }
+    }
+
+    private bool QueueMathTypeEditor(MathTypeFormulaTarget? target)
+    {
+        if (target == null) return false;
+        _officeThread.Post(() => FireAndForgetSerial(ct => _controller.LoadMathTypeAsync(target, ct)));
+        return true;
+    }
+
+    public void Dispose()
+    {
+        _mathTypeDoubleClickHook?.Dispose();
+        _officeThread.Dispose();
     }
 
     public void OnScreenshotOcr(object control)

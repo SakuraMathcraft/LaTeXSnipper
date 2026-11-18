@@ -38,9 +38,11 @@ h2 { font-size: 16px; font-weight: 650; }
 .numbering-controls { display: grid; gap: 16px; }
 .numbering-grid > .segmented, .follow-host-option { grid-column: 1 / -1; }
 .segmented {
+  --segment-count: 2;
+  --segment-index: 0;
   position: relative;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--segment-count), minmax(0, 1fr));
   gap: 6px;
   padding: 4px;
   border: 1px solid #e7edf5;
@@ -50,17 +52,21 @@ h2 { font-size: 16px; font-weight: 650; }
 .segmented::before {
   content: "";
   position: absolute;
-  inset: 4px auto 4px 4px;
-  width: calc((100% - 14px) / 2);
+  inset: 4px auto 4px calc(4px + var(--segment-index) * ((100% - 2px) / var(--segment-count)));
+  width: calc((100% - 8px - (var(--segment-count) - 1) * 6px) / var(--segment-count));
   border: 1px solid #c4d7f7;
   border-radius: 7px;
   background: #fff;
   box-shadow: 0 1px 3px #182b4508;
-  transition: transform 180ms ease;
+  transition: left 180ms ease;
   pointer-events: none;
 }
-.segmented:has(button:nth-child(2).active)::before { transform: translateX(calc(100% + 6px)); }
-.backend-panel > .segmented { margin-top: 16px; }
+.segmented:has(button:nth-child(2).active) { --segment-index: 1; }
+.segmented:has(button:nth-child(3).active) { --segment-index: 2; }
+.backend-panel > .segmented {
+  margin-top: 16px;
+  --segment-count: 3;
+}
 label { display: grid; min-width: 0; gap: 7px; color: var(--muted); font-size: 13px; }
 button, select, input[type="color"] {
   min-height: 38px;

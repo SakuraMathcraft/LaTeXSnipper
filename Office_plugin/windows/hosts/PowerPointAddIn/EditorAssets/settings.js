@@ -4,9 +4,10 @@ const TEXT = {
   zh: {
     title: "LaTeXSnipper PowerPoint 插件设置",
     backendTitle: "公式插入方式",
-    backendHint: "默认使用 OLE 公式对象，也可切换为 PNG 图片。",
+    backendHint: "选择 MathType 时，双击原生 MathType 公式会打开 LaTeXSnipper 编辑器。",
     backendOle: "OLE 对象",
     backendPng: "PNG 图片",
+    backendMathType: "MathType",
     formulaDefaultsTitle: "公式默认属性",
     formulaDefaultsHint: "这些设置应用于新插入公式和格式化命令。",
     colorLabel: "字体颜色",
@@ -34,9 +35,10 @@ const TEXT = {
   en: {
     title: "LaTeXSnipper PowerPoint Plugin Settings",
     backendTitle: "Formula Insertion",
-    backendHint: "OLE formula objects are the default. PNG image insertion is also available.",
+    backendHint: "Select MathType to open native MathType equations in LaTeXSnipper when double-clicked.",
     backendOle: "OLE Object",
     backendPng: "PNG Image",
+    backendMathType: "MathType",
     formulaDefaultsTitle: "Default Formula Properties",
     formulaDefaultsHint: "These settings apply to new formulas and formatting commands.",
     colorLabel: "Font color",
@@ -123,8 +125,8 @@ function save() {
 
 function init(payload) {
   locale = String(payload?.locale || navigator.language || "zh").toLowerCase();
-  insertionBackend = payload?.insertionBackend === "PowerPointPng"
-    ? "PowerPointPng"
+  insertionBackend = ["PowerPointPng", "MathType"].includes(payload?.insertionBackend)
+    ? payload.insertionBackend
     : "Ole";
   formulaColor = payload?.formulaColor || "#000000";
   formulaMathStyle = payload.mathStyles.some(style => style.id === payload.formulaMathStyle)

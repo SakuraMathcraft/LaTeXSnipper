@@ -24,7 +24,8 @@ public enum FormulaInsertionBackend
 {
     Ole,
     WordOmml,
-    PowerPointPng
+    PowerPointPng,
+    MathType
 }
 
 public enum OlePresentationKind

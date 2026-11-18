@@ -368,7 +368,8 @@ public sealed partial class DynamicWordApplicationAdapter
         {
             dynamic field = fields.Item(index);
             string code = Convert.ToString(field.Code.Text) ?? string.Empty;
-            if (code.IndexOf("REF " + WordEquationNumbering.BookmarkPrefix, StringComparison.Ordinal) >= 0)
+            if (code.TrimStart().StartsWith("REF " + WordEquationNumbering.BookmarkPrefix, StringComparison.OrdinalIgnoreCase) ||
+                code.TrimStart().StartsWith("REF ZEqnNum", StringComparison.OrdinalIgnoreCase))
             {
                 TryCom(() => field.Update());
             }

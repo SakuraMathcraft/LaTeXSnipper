@@ -21,7 +21,6 @@ public sealed partial class DynamicWordApplicationAdapter
         ExecuteWithScreenUpdatingSuspended(() =>
         {
             dynamic selection = _wordApplication.Selection;
-            ValidateInsertionTarget(selection.Range);
             dynamic range = ResolveManagedEquationInsertionRange(selection, display);
             int insertionPoint = GetRangeStart(range);
             range.InsertXML(ooxml);
@@ -96,7 +95,6 @@ public sealed partial class DynamicWordApplicationAdapter
         ExecuteWithScreenUpdatingSuspended(() =>
         {
             dynamic selection = _wordApplication.Selection;
-            ValidateInsertionTarget(selection.Range);
             dynamic range = ResolveInsertionTargetRange(selection, display);
             dynamic inlineShape = metadata.NumberingMode == NumberingMode.None
                 ? InsertPlainOleInlineShape(range, metadata, presentation, display)
@@ -241,7 +239,7 @@ public sealed partial class DynamicWordApplicationAdapter
                 metadata.DisplayMode != currentMetadata.DisplayMode ||
                 metadata.NumberText != currentMetadata.NumberText)
             {
-                dynamic range = RemoveFormulaForReplacement(inlineShape.Range, equationId, display);
+                dynamic range = RemoveFormulaForReplacement(inlineShape.Range, currentMetadata, display);
                 dynamic inserted = metadata.NumberingMode == NumberingMode.None
                     ? InsertPlainOleInlineShape(range, metadata, presentation, display)
                     : InsertNumberedOleInlineShape(range, metadata, presentation);
@@ -344,40 +342,41 @@ public sealed partial class DynamicWordApplicationAdapter
     }
 
     private dynamic InsertNumberedOleInlineShape(dynamic range, FormulaMetadata metadata, OlePresentationResult presentation)
+        => InsertNumberedInlineShape((object)range, metadata, presentation,
+            cursor => AddOleInlineShapeAtRange((dynamic)cursor, metadata, presentation));
+
+    private dynamic InsertNumberedInlineShape(object range, FormulaMetadata metadata, OlePresentationResult presentation,
+        Func<object, object> addShape, Func<object, WordEquationNumberState, object>? addNumber = null)
     {
-        dynamic cursor = range.Duplicate;
+        dynamic cursor = ((dynamic)range).Duplicate;
         cursor.Collapse(WdCollapseEnd);
-        WordNumberPlacement placement = WordPluginSettings.Load().NumberPlacement;
-        WordEquationNumberState numberState = BuildEquationNumberStateAtPosition(GetRangeStart(cursor), WordPluginSettings.Load());
-        ApplyNumberedFormulaParagraphLayout(cursor);
+        WordPluginSettings settings = _settingsLoader();
+        WordNumberPlacement placement = settings.NumberPlacement;
+        WordEquationNumberState numberState = BuildEquationNumberStateAtPosition(GetRangeStart(cursor), settings);
         dynamic? numberRange = null;
         int leftNumberPosition = GetRangeStart(cursor);
         InsertTextAtRange(cursor, "\t");
         cursor = CreateDocumentRange(GetRangeEnd(cursor), GetRangeEnd(cursor));
 
-        dynamic inlineShape = AddOleInlineShapeAtRange(cursor, metadata, presentation);
+        dynamic inlineShape = addShape((object)cursor);
         cursor = CreateDocumentRange(GetRangeEnd(inlineShape.Range), GetRangeEnd(inlineShape.Range));
         if (placement == WordNumberPlacement.Left)
         {
-            numberRange = InsertEquationNumberAtRange(
-                CreateDocumentRange(leftNumberPosition, leftNumberPosition),
-                metadata,
-                numberState.Prefix,
-                numberState.ResetSequence,
-                numberState.Enclosure,
-                addBookmark: false);
+            cursor = CreateDocumentRange(leftNumberPosition, leftNumberPosition);
         }
         else
         {
             InsertTextAtRange(cursor, "\t");
-            numberRange = InsertEquationNumberAtRange(
-                cursor,
+        }
+
+        numberRange = addNumber != null
+            ? addNumber((object)cursor, numberState)
+            : InsertEquationNumberAtRange(cursor,
                 metadata,
                 numberState.Prefix,
                 numberState.ResetSequence,
                 numberState.Enclosure,
                 addBookmark: false);
-        }
 
         if (numberRange != null)
         {
@@ -385,6 +384,7 @@ public sealed partial class DynamicWordApplicationAdapter
             ApplyEquationNumberBaseline(numberRange, presentation.HeightPoints);
         }
 
+        ApplyNumberedFormulaParagraphLayout(inlineShape.Range);
         return inlineShape;
     }
 
@@ -575,6 +575,10 @@ public sealed partial class DynamicWordApplicationAdapter
         }
 
         dynamic field = sequenceField;
+        // An imported MathType number carries its document's numeric format and section reset in the field.
+        string existing = Convert.ToString((object?)field.Code.Text) ?? string.Empty;
+        if (existing.TrimEnd().EndsWith(@"\* Charformat", StringComparison.OrdinalIgnoreCase))
+            return true;
         field.Code.Text = WordEquationNumbering.BuildSequenceFieldCode(
             state.ResetSequence,
             state.Prefix,

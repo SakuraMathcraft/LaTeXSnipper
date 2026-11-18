@@ -58,17 +58,30 @@ public sealed partial class DynamicPowerPointApplicationAdapter : IPowerPointApp
             if (Convert.ToInt32(window.Active) != MsoTrue || Convert.ToInt32(window.ViewType) != 9) return false;
             // PowerPoint's RangeFromPoint can return null for an embedded OLE shape.
             // The delayed gesture runs after Office selected the clicked object.
-            dynamic selection = window.Selection;
-            if (Convert.ToInt32(selection.Type) != 2 || Convert.ToInt32(selection.ShapeRange.Count) != 1) return false;
-            dynamic shape = selection.ShapeRange.Item(1);
+            dynamic? shape = GetSelectedShape((object)window.Selection);
+            if (shape == null) return false;
             if (!OleFormulaContent.IsFormula((object)shape)) return false;
-            int left = window.PointsToScreenPixelsX(shape.Left), top = window.PointsToScreenPixelsY(shape.Top);
-            int right = window.PointsToScreenPixelsX(shape.Left + shape.Width), bottom = window.PointsToScreenPixelsY(shape.Top + shape.Height);
-            return x >= Math.Min(left, right) && x <= Math.Max(left, right)
-                && y >= Math.Min(top, bottom) && y <= Math.Max(top, bottom);
+            return IsShapeAtPoint((object)window, (object)shape, x, y);
         }
         catch (Exception error) when (error is COMException || error is Microsoft.CSharp.RuntimeBinder.RuntimeBinderException) { }
         return false;
+    }
+
+    private static object? GetSelectedShape(object selection)
+    {
+        dynamic selected = selection;
+        if (Convert.ToInt32((object)selected.Type) != 2 || Convert.ToInt32((object)selected.ShapeRange.Count) != 1)
+            return null;
+        return (object)selected.ShapeRange.Item(1);
+    }
+
+    private static bool IsShapeAtPoint(object documentWindow, object formulaShape, int x, int y)
+    {
+        dynamic window = documentWindow, shape = formulaShape;
+        int left = window.PointsToScreenPixelsX(shape.Left), top = window.PointsToScreenPixelsY(shape.Top);
+        int right = window.PointsToScreenPixelsX(shape.Left + shape.Width), bottom = window.PointsToScreenPixelsY(shape.Top + shape.Height);
+        return x >= Math.Min(left, right) && x <= Math.Max(left, right)
+            && y >= Math.Min(top, bottom) && y <= Math.Max(top, bottom);
     }
 
     public Task ActivateForEditingAsync(CancellationToken cancellationToken)
@@ -755,9 +768,23 @@ public sealed partial class DynamicPowerPointApplicationAdapter : IPowerPointApp
         try
         {
             ActivateForEditingAsync(cancellationToken).GetAwaiter().GetResult();
-            dynamic insertionRange = shape.TextFrame.TextRange.Characters(target.Start, 0);
-            insertionRange.Select();
-            pasted = PowerPointClipboard.PasteAtRange(insertionRange, mathMl);
+            for (int attempt = 0; ; attempt++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                dynamic insertionRange = shape.TextFrame.TextRange.Characters(target.Start, 0);
+                insertionRange.Select();
+                try
+                {
+                    pasted = PowerPointClipboard.PasteAtRange(insertionRange, mathMl);
+                    break;
+                }
+                catch (System.Runtime.InteropServices.COMException error) when (attempt < 2
+                    && error.HResult == unchecked((int)0x80004005)
+                    && string.Equals(Convert.ToString(shape.TextFrame2.TextRange.Text), target.OriginalText, StringComparison.Ordinal))
+                {
+                    Thread.Sleep(100);
+                }
+            }
             if (pasted.Length <= 0)
                 throw new InvalidOperationException(PowerPointAddInText.Get("NativeEquationInsertFailed"));
             dynamic inserted = shape.TextFrame2.TextRange.Characters(pasted.Start, pasted.Length);

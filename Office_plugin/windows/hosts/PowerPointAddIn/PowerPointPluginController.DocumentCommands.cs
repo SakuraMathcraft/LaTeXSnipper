@@ -20,7 +20,16 @@ public sealed partial class PowerPointPluginController
         ThrowIfDisposed();
         // Capture every target before conversion changes the host selection.
         IReadOnlyList<PowerPointFormulaEditTarget> targets = await _powerPointAdapter.LoadSelectedFormulaTargetsAsync(cancellationToken);
-        if (targets.Count == 0) throw new InvalidOperationException(MathTypeText.Get("MathTypeOleRequired"));
+        if (targets.All(item => item.Metadata.RenderEngine != RenderEngineKind.MathJaxSvg))
+        {
+            var selected = await _powerPointAdapter.LoadConversionEntriesAsync(includeMathType: true, cancellationToken);
+            if (selected.Count == 0)
+                throw new InvalidOperationException(PowerPointAddInText.Get("SelectedFormulaRequired"));
+            _statusSink.Post(PowerPointStatusKind.Info, selected.All(item => item.MathTypeTarget != null)
+                ? PowerPointAddInText.Get("NoConversionNeededStatus")
+                : MathTypeText.Get("PowerPointMathTypeUnsupported"));
+            return;
+        }
         int converted = 0, skipped = 0, failed = 0;
         string? firstFailure = null;
         for (int index = 0; index < targets.Count; index++)
@@ -34,10 +43,7 @@ public sealed partial class PowerPointPluginController
                     skipped++;
                     continue;
                 }
-                string mathMl = await _mathJaxRenderer.ConvertTypographyToMathMlAsync(target.Metadata.Latex,
-                    target.Metadata.DisplayMode, target.Metadata.Typography, cancellationToken);
-                byte[] native = MathTypeNativeEquation.Create(mathMl, target.Metadata.Typography.FontSizePoints);
-                byte[] compoundFile = MathTypeCompoundFile.Create(native);
+                byte[] compoundFile = await _mathJaxRenderer.CreateMathTypeCompoundFileAsync(target.Metadata, cancellationToken);
                 OlePresentationResult presentation = await RenderOlePresentationAsync(target.Metadata, cancellationToken);
                 await _powerPointAdapter.ReplaceWithMathTypeAsync(target, compoundFile, presentation, cancellationToken);
                 converted++;
@@ -83,6 +89,8 @@ public sealed partial class PowerPointPluginController
     {
         IReadOnlyList<PowerPointFormulaEntry> entries =
             await _powerPointAdapter.LoadConversionEntriesAsync(target == RenderEngineKind.MathJaxSvg, cancellationToken);
+        if (entries.Count == 0)
+            throw new InvalidOperationException(PowerPointAddInText.Get("SelectedFormulaRequired"));
         int converted = 0;
         int skipped = 0;
         int failed = 0;
@@ -101,11 +109,13 @@ public sealed partial class PowerPointPluginController
                     if (entry.MathTypeTarget is MathTypeFormulaTarget mathType)
                     {
                         MathTypeFormulaContent content = await _powerPointAdapter.ReadMathTypeAsync(mathType, cancellationToken);
+                        FormulaTypography typography = content.OriginalTypography ?? FormulaTypography.Default.WithFontSize(content.FontSizePoints);
+                        string latex = content.OriginalLatex ?? await _mathJaxRenderer.ConvertMathTypeToLatexAsync(content, typography, cancellationToken);
                         var imported = new FormulaMetadata(
                             new FormulaIdentity(mathType.DocumentId, Guid.NewGuid().ToString("N")),
-                            content.MathMl, FormulaDisplayMode.Display, NumberingMode.None, string.Empty,
+                            latex, content.DisplayMode, NumberingMode.None, string.Empty,
                             RenderEngineKind.MathJaxSvg, FormulaMetadata.CurrentSchemaVersion,
-                            PowerPointPluginSettings.Load().Typography.WithFontSize(content.FontSizePoints));
+                            typography);
                         OlePresentationResult presentation = await RenderOlePresentationAsync(imported, cancellationToken);
                         await _powerPointAdapter.ReplaceMathTypeWithOleAsync(mathType, imported, presentation, cancellationToken);
                         converted++;
@@ -171,7 +181,8 @@ public sealed partial class PowerPointPluginController
                 cancellationToken.ThrowIfCancellationRequested();
                 try
                 {
-                    if (!NeedsFormatting(entry, settings))
+                    FormulaMetadata metadata = entry.Metadata.FormatWith(settings.Typography);
+                    if (ReferenceEquals(metadata, entry.Metadata) && Math.Abs(entry.Scale - 1) <= 0.01)
                     {
                         continue;
                     }
@@ -182,16 +193,6 @@ public sealed partial class PowerPointPluginController
                         continue;
                     }
 
-                    string latex = entry.Metadata.Latex;
-                    FormulaMetadata metadata = new FormulaMetadata(
-                        entry.Metadata.Identity,
-                        latex,
-                        entry.Metadata.DisplayMode,
-                        entry.Metadata.NumberingMode,
-                        entry.Metadata.NumberText,
-                        entry.Metadata.RenderEngine,
-                        entry.Metadata.SchemaVersion,
-                        settings.Typography);
                     if (await ReplaceEntryAsync(entry, metadata, scale: 1, cancellationToken))
                     {
                         formatted++;
@@ -305,12 +306,6 @@ public sealed partial class PowerPointPluginController
             PowerPointAddInText.Get(key)
                 .Replace("{processed}", processed.ToString(CultureInfo.InvariantCulture))
                 .Replace("{total}", total.ToString(CultureInfo.InvariantCulture)));
-    }
-
-    private static bool NeedsFormatting(PowerPointFormulaEntry entry, PowerPointPluginSettings settings)
-    {
-        return !entry.Metadata.Typography.Equals(settings.Typography)
-            || Math.Abs(entry.Scale - 1) > 0.01;
     }
 
 }

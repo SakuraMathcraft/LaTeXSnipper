@@ -14,6 +14,7 @@ param(
     [switch]$IncludeMathType,
     [switch]$WordMathTypeOnly,
     [switch]$WordMathTypeNativeEdit,
+    [string]$WordMathTypeNumberFixture,
     [switch]$PowerPointMathTypeNativeEdit,
 
     [ValidateSet('Full', 'Batch', 'Copy', 'Gesture', 'MathType')]
@@ -108,6 +109,9 @@ try {
             if ($IncludeMathType) { $wordArgs += '--mathtype' }
             if ($WordMathTypeOnly) { $wordArgs += '--mathtype-only' }
             if ($WordMathTypeNativeEdit) { $wordArgs += '--mathtype-native-edit' }
+            if ($WordMathTypeNumberFixture -and $backend -eq 'ole') {
+                $wordArgs += @('--mathtype-number-fixture', (Resolve-Path -LiteralPath $WordMathTypeNumberFixture).Path)
+            }
             & $wordTest @wordArgs | Tee-Object -FilePath (Join-Path $OutputDirectory "word-$backend.log")
             if ($LASTEXITCODE -ne 0) { throw "Word $backend E2E failed: $LASTEXITCODE" }
             Wait-OfficeExit 'WINWORD'

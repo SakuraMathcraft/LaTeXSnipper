@@ -141,7 +141,8 @@ internal static partial class MathTypeMtefCodec
             Expect(RecordPile);
             var options = ReadByte();
             SkipNudge(options);
-            Skip(2); // horizontal and vertical alignment
+            var horizontalAlignment = ReadByte();
+            _ = ReadByte(); // vertical alignment
             var rulerStops = (options & 0x02) != 0
                 ? ReadRulerOffsets()
                 : Array.Empty<int>();
@@ -217,6 +218,8 @@ internal static partial class MathTypeMtefCodec
                 // inside ordinary parentheses is MathType's native binomial
                 // representation, while a MATRIX of the same shape is not.
                 table.SetAttributeValue("data-mtef-pile", "true");
+                if (horizontalAlignment is 1 or 3)
+                    table.SetAttributeValue("columnalign", horizontalAlignment == 1 ? "left" : "right");
             }
             return table;
         }
@@ -318,6 +321,14 @@ internal static partial class MathTypeMtefCodec
 
         private void ReadObjectList(XElement row)
         {
+            var prescripts = new List<ParsedTemplate>();
+            XElement AttachPrescripts(XElement basis)
+            {
+                for (int index = prescripts.Count - 1; index >= 0; index--)
+                    basis = BuildScriptNode(basis, prescripts[index]);
+                prescripts.Clear();
+                return basis;
+            }
             while (true)
             {
                 SkipFormattingRecords();
@@ -325,6 +336,8 @@ internal static partial class MathTypeMtefCodec
                 if (record == RecordEnd)
                 {
                     _position++;
+                    if (prescripts.Count > 0)
+                        row.Add(AttachPrescripts(new XElement("mrow")));
                     return;
                 }
                 if (record == RecordChar)
@@ -332,7 +345,7 @@ internal static partial class MathTypeMtefCodec
                     var character = ReadCharacter();
                     ApplyCurrentColor(character);
                     ApplyCurrentSize(character);
-                    AppendNode(row, character);
+                    AppendNode(row, AttachPrescripts(character));
                     continue;
                 }
                 if (record == RecordTemplate)
@@ -340,34 +353,34 @@ internal static partial class MathTypeMtefCodec
                     int templateColor = _currentColor;
                     var template = ReadTemplate();
                     if (template.Node != null) ApplyColor(template.Node, templateColor);
-                    if (template.ScriptKind != 0)
+                    if (template.ScriptPrecedes)
+                        prescripts.Add(template);
+                    else if (template.ScriptKind != 0)
                     {
-                        var baseNode = row.Nodes().LastOrDefault();
-                        if (baseNode is null)
-                            throw new InvalidDataException(
-                                $"MathType script template at offset {_position} has no preceding base object.");
-                        baseNode.Remove();
+                        var baseNode = prescripts.Count > 0 ? null : row.Elements().LastOrDefault();
+                        if (baseNode is not null) baseNode.Remove();
+                        else baseNode = AttachPrescripts(new XElement("mrow"));
                         row.Add(BuildScriptNode(baseNode, template));
                     }
                     else if (template.Node is not null)
                     {
-                        row.Add(template.Node);
+                        row.Add(AttachPrescripts(template.Node));
                     }
                     continue;
                 }
                 if (record == RecordLine)
                 {
-                    row.Add(ReadLine());
+                    row.Add(AttachPrescripts(ReadLine()));
                     continue;
                 }
                 if (record == RecordPile)
                 {
-                    row.Add(ReadPile());
+                    row.Add(AttachPrescripts(ReadPile()));
                     continue;
                 }
                 if (record == RecordMatrix)
                 {
-                    row.Add(ReadMatrix());
+                    row.Add(AttachPrescripts(ReadMatrix()));
                     continue;
                 }
                 if (record >= 100)
@@ -395,7 +408,7 @@ internal static partial class MathTypeMtefCodec
             }
             int encoded = -1;
             if ((options & CharEncoded8) != 0) encoded = ReadByte();
-            if ((options & 0x10) != 0)
+            if ((options & CharEncoded16) != 0)
             {
                 Require(_data, _position, 2);
                 encoded = _data[_position] | (_data[_position + 1] << 8);
@@ -487,6 +500,8 @@ internal static partial class MathTypeMtefCodec
                 token = new XElement("mo", "◯");
             else if (typeface == TypefaceMathTypeSpecial12 && scalar == 0x2661)
                 token = new XElement("mo", "♡");
+            else if (typeface == TypefaceMtExtra && scalar is 0x2016 or 0x2218 or 0x21CC)
+                token = new XElement("mo", text);
             else if (typeface == TypefaceMtExtra && scalar == 0xFFFD && encoded == 0x6E)
             {
                 // MathType 7 uses this MT Extra position for the diamondsuit glyph.
@@ -503,7 +518,11 @@ internal static partial class MathTypeMtefCodec
                 token = new XElement("mo", "⨿");
             }
             else if (typeface == TypefaceSpace)
-                token = new XElement("mspace", new XAttribute("width", "0.2em"));
+                token = new XElement("mspace", new XAttribute("width", scalar switch
+                {
+                    0xEF01 => "0em", 0xEF02 => "0.167em", 0xEF03 => "0.222em",
+                    0xEF04 => "0.278em", 0xEF05 => "1em", 0xEF06 => "2em", _ => "0.2em",
+                }));
             else if (typeface == TypefaceSymbol
                 && scalar is 0x2135 or 0x2118 or 0x211C or 0x2111)
             {
@@ -514,6 +533,8 @@ internal static partial class MathTypeMtefCodec
                 token = new XElement("mi", text);
             }
             else if (typeface == TypefaceSymbol)
+                token = new XElement("mo", text);
+            else if (typeface == TypefaceExpand && IsMathematicalSymbolScalar(scalar))
                 token = new XElement("mo", text);
             else if (typeface == TypefaceText)
                 token = IsMathematicalSymbolScalar(scalar)
@@ -528,11 +549,13 @@ internal static partial class MathTypeMtefCodec
                         new XAttribute("mathvariant", "normal"),
                         new XAttribute("data-mtef-run", "function"),
                         text);
+                    if ((options & CharFunctionStart) != 0)
+                        token.SetAttributeValue("data-mtef-function-start", "true");
                 }
                 else if (text.All(char.IsWhiteSpace))
                     token = new XElement("mspace", new XAttribute("width", "0.2em"));
                 else
-                    token = new XElement("mo", text);
+                    token = new XElement("mo", NormalizeOperatorToken(text));
             }
             else if (typeface == TypefaceVector)
                 token = new XElement("mi", new XAttribute("mathvariant", "bold"), text);
@@ -544,7 +567,7 @@ internal static partial class MathTypeMtefCodec
             // nested bra/ket characters inside a scalable absolute-value pair.
             if (token.Name.LocalName == "mo"
                 && NormalizeFence(text) is "(" or ")" or "[" or "]" or "{" or "}"
-                    or "⟨" or "⟩" or "⌈" or "⌉" or "⌊" or "⌋" or "|" or "‖")
+                    or "⟨" or "⟩" or "⌈" or "⌉" or "⌊" or "⌋" or "|" or "‖" or "⟦" or "⟧")
             {
                 token.SetAttributeValue("fence", "false");
                 token.SetAttributeValue("stretchy", "false");
@@ -564,6 +587,11 @@ internal static partial class MathTypeMtefCodec
                     case EmbellDoublePrime: rightPrimes.Append('″'); continue;
                     case EmbellTriplePrime: rightPrimes.Append('‴'); continue;
                     case EmbellBackPrime: leftPrimes.Append('‵'); continue;
+                    case EmbellNot:
+                        token = token.Name.LocalName == "mo" && token.Value == "∋"
+                            ? new XElement("mo", "∌")
+                            : new XElement("menclose", new XAttribute("notation", "updiagonalstrike"), token);
+                        continue;
                 }
                 var mark = EmbellishmentMark(embellishment);
                 if (mark.Length == 0)
@@ -727,6 +755,7 @@ internal static partial class MathTypeMtefCodec
                         StringComparison.Ordinal);
             if (previous is not null
                 && mergeableRun
+                && node.Attribute("data-mtef-function-start") is null
                 && previous.Name.LocalName == node.Name.LocalName
                 && (string?)previous.Attribute("mathcolor") == (string?)node.Attribute("mathcolor")
                 && (string?)previous.Attribute("mathsize") == (string?)node.Attribute("mathsize")
@@ -838,6 +867,7 @@ internal static partial class MathTypeMtefCodec
                 case TemplateDoubleBar:
                 case TemplateFloor:
                 case TemplateCeiling:
+                case TemplateWhiteBracket:
                 {
                     var main = ReadNextLineSlot();
                     // MathType may include explicit left/right fence CHAR records.
@@ -864,9 +894,10 @@ internal static partial class MathTypeMtefCodec
                             CollapseRow(main)),
                     };
                 }
+                case TemplateArrow:
+                    return ReadRelationArrow(variation);
                 case TemplateUnderbar:
                 case TemplateOverbar:
-                case TemplateArrow:
                 case TemplateVector:
                 case TemplateTilde:
                 case TemplateHat:
@@ -882,7 +913,7 @@ internal static partial class MathTypeMtefCodec
                         node = new XElement("munder", body, new XElement("mo", "_"));
                     else if (selector == TemplateOverbar)
                         node = new XElement("mover", body, new XElement("mo", "¯"));
-                    else if (selector is TemplateArrow or TemplateVector)
+                    else if (selector == TemplateVector)
                     {
                         var arrow = (variation & 0x03) switch
                         {
@@ -947,7 +978,7 @@ internal static partial class MathTypeMtefCodec
                 case 22:
                     return ReadBigOperatorTemplate(selector, variation);
                 case TemplateLimit:
-                    return ReadLimitTemplate();
+                    return ReadLimitTemplate(variation);
                 default:
                     throw new InvalidDataException(
                         $"Unsupported MathType template selector {selector} at offset {_position}.");
@@ -992,13 +1023,50 @@ internal static partial class MathTypeMtefCodec
             return new ParsedTemplate { Node = row };
         }
 
-        private ParsedTemplate ReadLimitTemplate()
+        private ParsedTemplate ReadRelationArrow(int variation)
+        {
+            var top = ReadNextLineSlot();
+            var bottom = ReadNextLineSlot();
+            SkipFormattingRecords();
+            var glyph = ReadCharacter().Value;
+            ConsumeRemainingTemplateObjects();
+            if (glyph == "⇌" && (variation & 3) == ArrowHarpoon)
+                glyph = (variation & (ArrowLeft | ArrowRight)) switch
+                {
+                    ArrowLeft => "\uE409",
+                    ArrowRight => "\uE40A",
+                    _ => glyph,
+                };
+            XElement arrow = new("mo", new XAttribute("data-mtef-arrow", "true"), glyph);
+            if (!top.HasElements && !bottom.HasElements && (variation & 3) == 0)
+                arrow.Value = glyph switch { "→" => "⟶", "←" => "⟵", _ => glyph };
+            else if (top.HasElements && bottom.HasElements)
+                arrow = new XElement("munderover", arrow, CollapseRow(bottom), CollapseRow(top));
+            else if (top.HasElements)
+                arrow = new XElement("mover", arrow, CollapseRow(top));
+            else if (bottom.HasElements)
+                arrow = new XElement("munder", arrow, CollapseRow(bottom));
+            return new ParsedTemplate { Node = arrow };
+        }
+
+        private ParsedTemplate ReadLimitTemplate(int variation)
         {
             var main = ReadNextLineSlot();
             var lower = ReadNextLineSlot();
             var upper = ReadNextLineSlot();
             ConsumeRemainingTemplateObjects();
             XNode baseNode = CollapseRow(main);
+            var stacked = variation & (StackedLower | StackedUpper);
+            if (stacked != 0)
+            {
+                XElement annotation = stacked switch
+                {
+                    StackedLower => new XElement("munder", baseNode, CollapseRow(lower)),
+                    StackedUpper => new XElement("mover", baseNode, CollapseRow(upper)),
+                    _ => new XElement("munderover", baseNode, CollapseRow(lower), CollapseRow(upper)),
+                };
+                return new ParsedTemplate { Node = annotation };
+            }
             return new ParsedTemplate
             {
                 Node = (XElement)DecorateWithLimits(baseNode, lower, upper),
@@ -1084,7 +1152,7 @@ internal static partial class MathTypeMtefCodec
             }
         }
 
-        private static XNode BuildScriptNode(XNode baseNode, ParsedTemplate template)
+        private static XElement BuildScriptNode(XElement baseNode, ParsedTemplate template)
         {
             var sub = template.Subscript is null
                 ? new XElement("mrow")
@@ -1092,10 +1160,17 @@ internal static partial class MathTypeMtefCodec
             var sup = template.Superscript is null
                 ? new XElement("mrow")
                 : CollapseRow(template.Superscript);
+            var subSlot = template.ScriptKind == TemplateSup ? new XElement("none") : sub;
+            var supSlot = template.ScriptKind == TemplateSub ? new XElement("none") : sup;
             if (template.ScriptPrecedes)
                 return new XElement("mmultiscripts", baseNode, new XElement("mprescripts"),
-                    template.ScriptKind == TemplateSup ? new XElement("none") : sub,
-                    template.ScriptKind == TemplateSub ? new XElement("none") : sup);
+                    subSlot, supSlot);
+            if (baseNode.Name.LocalName == "mmultiscripts"
+                && baseNode.Elements("mprescripts").FirstOrDefault() is { } separator)
+            {
+                separator.AddBeforeSelf(subSlot, supSlot);
+                return baseNode;
+            }
             if (template.ScriptKind == TemplateSub)
                 return new XElement("msub", baseNode, sub);
             if (template.ScriptKind == TemplateSup)
@@ -1301,6 +1376,7 @@ internal static partial class MathTypeMtefCodec
                 TemplateParen => ("(", ")"),
                 TemplateBrace => ("{", "}"),
                 TemplateBracket => ("[", "]"),
+                TemplateWhiteBracket => ("⟦", "⟧"),
                 TemplateBar => ("|", "|"),
                 TemplateDoubleBar => ("‖", "‖"),
                 TemplateFloor => ("⌊", "⌋"),

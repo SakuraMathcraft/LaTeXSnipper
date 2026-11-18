@@ -14,59 +14,40 @@ internal static class WordNumberedLayout
     private const string TestOmml = "<m:oMath xmlns:m='http://schemas.openxmlformats.org/officeDocument/2006/math'><m:r><m:t>y+2</m:t></m:r></m:oMath>";
     public static async Task VerifyAsync(object application, WordPluginSettings settings, string output)
     {
+        if (settings.InsertionBackend == FormulaInsertionBackend.WordOmml)
+            await VerifyInlineEditingAsync(application);
+        else
+            await VerifyOleSelectionInsertionAsync(application, settings);
         dynamic word = application;
-        foreach (string layout in new[] { "body", "columns", "unequal-left", "unequal-right", "section", "table" })
+        foreach (string layout in Layouts)
         foreach (bool automatic in new[] { false, true })
         {
             dynamic document = word.Documents.Add();
             using var adapter = new DynamicWordApplicationAdapter(application);
             var options = new TestFormulaOptionsProvider { CurrentLatex = "x+1",
                 Options = new WordFormulaOptions(true, automatic ? NumberingMode.Automatic : NumberingMode.Manual, automatic ? "" : "N") };
-            using var controller = WordAddInFactory.CreateController(application,
+            var status = new RecordingStatusSink();
+            using var controller = WordAddInFactory.CreateController(application, status,
                 optionsProvider: options, settingsLoader: () => settings,
                 applicationAdapter: adapter, mathJaxHostName: "NumberLayout-" + Guid.NewGuid().ToString("N"));
             try
             {
-                if (layout == "columns") document.PageSetup.TextColumns.SetCount(2);
-                dynamic range = document.Range(0, 0);
-                if (layout == "section")
-                {
-                    range.InsertBreak(2);
-                    range = document.Sections.Item(2).Range;
-                    range.Collapse(1);
-                    range.Sections.Item(1).PageSetup.LeftMargin = 110;
-                    range.Sections.Item(1).PageSetup.RightMargin = 95;
-                }
-                if (layout.StartsWith("unequal-"))
-                {
-                    dynamic columns = document.PageSetup.TextColumns;
-                    columns.SetCount(2);
-                    columns.EvenlySpaced = 0;
-                    columns.Item(1).Width = 160;
-                    columns.Item(1).SpaceAfter = 30;
-                    if (layout == "unequal-right")
-                    {
-                        range.InsertBreak(8);
-                        range = document.Range(1, 1);
-                    }
-                }
-                double expected;
-                if (layout == "table")
-                {
-                    dynamic table = document.Tables.Add(range, 1, 2);
-                    table.AllowAutoFit = false;
-                    dynamic cell = table.Cell(1, 1);
-                    range = cell.Range;
-                    expected = Convert.ToDouble(cell.Width) - Convert.ToDouble(cell.LeftPadding) - Convert.ToDouble(cell.RightPadding);
-                }
-                else expected = Convert.ToDouble(range.Sections.Item(1).PageSetup.TextColumns.Item(layout == "unequal-right" ? 2 : 1).Width);
+                var (targetRange, expected) = CreateLayout((object)document, layout);
+                dynamic range = targetRange;
                 range.Collapse(1);
                 range.Select();
                 await controller.InsertOmmlAsync(CancellationToken.None);
                 var entry = (await adapter.LoadFormulaEntriesAsync(true, CancellationToken.None)).Single();
+                if (settings.InsertionBackend == FormulaInsertionBackend.WordOmml && layout == "body" && !automatic)
+                {
+                    word.Selection.SetRange(entry.Start, entry.Start + 1);
+                    await controller.ConvertSelectedToMathTypeAsync(CancellationToken.None);
+                    E2EAssert.Equal(MathTypeText.Get("WordMathTypeUnsupported"), status.Entries.Last().Message,
+                        "OMML is not already in the MathType format");
+                }
                 dynamic paragraph = document.Range(entry.Start, entry.Start + 1).Paragraphs.Item(1).Range;
                 double actual = Convert.ToDouble(paragraph.ParagraphFormat.TabStops.Item(2).Position);
-                E2EAssert.True(Math.Abs(actual - expected) < 1, layout + " number tab width");
+                E2EAssert.True(Math.Abs(actual - expected) < 1, $"{layout} number tab width: expected {expected}, actual {actual}");
                 dynamic numberBookmark = document.Bookmarks.Item(1);
                 string numberName = Convert.ToString(numberBookmark.Name);
                 int numberStart = Convert.ToInt32(numberBookmark.Range.Start);
@@ -157,6 +138,124 @@ internal static class WordNumberedLayout
             }
             finally { document.Close(0); }
         }
+    }
+
+    private static async Task VerifyInlineEditingAsync(object application)
+    {
+        dynamic word = application, document = word.Documents.Add();
+        using var adapter = new DynamicWordApplicationAdapter(application);
+        var token = CancellationToken.None;
+        try
+        {
+            document.Range(0, 0).Text = "left right";
+            word.Selection.SetRange(5, 5);
+            string documentId = adapter.GetCurrentDocumentId();
+            FormulaMetadata NewFormula() => new(new FormulaIdentity(documentId, Guid.NewGuid().ToString("N")),
+                "y+2", FormulaDisplayMode.Inline, NumberingMode.None, "", RenderEngineKind.Omml,
+                FormulaMetadata.CurrentSchemaVersion, FormulaTypography.Default);
+            Task InsertAsync(FormulaMetadata formula) => adapter.InsertManagedEquationAsync(
+                WordOmmlDocumentBuilder.BuildFlatOpcDocument(TestOmml, formula, false), formula, false, token);
+
+            FormulaMetadata original = NewFormula();
+            await InsertAsync(original);
+            document.ContentControls.Item(1).Range.Select();
+            var target = await adapter.LoadSelectedFormulaTargetAsync(token);
+            using (adapter.BeginUndoRecord())
+                await adapter.UpdateFormulaAsync(target, WordOmmlDocumentBuilder.BuildFlatOpcDocument(TestOmml, original, false),
+                    WordOmmlDocumentBuilder.BuildFlatOpcInlineEquationDocument(TestOmml, original),
+                    WordOmmlDocumentBuilder.BuildFlatOpcEquationContentDocument(TestOmml), original, false, token);
+            int start = Convert.ToInt32(document.ContentControls.Item(1).Range.Start);
+            int end = Convert.ToInt32(document.ContentControls.Item(1).Range.End);
+            int caret = Convert.ToInt32(word.Selection.Start);
+            E2EAssert.True(caret >= end && caret == Convert.ToInt32(word.Selection.End), "OMML update caret is outside the formula");
+            E2EAssert.Equal("right", ((string)document.Range(caret, document.Content.End).Text).Trim('\r'), "OMML update caret precedes the following text");
+
+            word.Selection.SetRange(start + 1, start + 1);
+            FormulaMetadata appended = NewFormula();
+            await InsertAsync(appended);
+            var formulas = await adapter.LoadFormulaEntriesAsync(true, token);
+            E2EAssert.Equal(2, formulas.Count, "A collapsed OMML selection adds a formula");
+            E2EAssert.True(formulas.Any(e => e.Metadata!.Identity.EquationId == appended.Identity.EquationId),
+                "Word inserts a formula with the caret inside another OMML formula");
+
+            document.ContentControls.Item(1).Range.Select();
+            FormulaMetadata replacement = NewFormula();
+            await InsertAsync(replacement);
+            formulas = await adapter.LoadFormulaEntriesAsync(true, token);
+            E2EAssert.Equal(2, formulas.Count, "A complete OMML selection is replaced by Word");
+            E2EAssert.True(formulas.Any(e => e.Metadata!.Identity.EquationId == replacement.Identity.EquationId),
+                "Word inserts a formula while another OMML formula is selected");
+            string text = Convert.ToString(document.Content.Text);
+            E2EAssert.True(text.StartsWith("left ", StringComparison.Ordinal) && text.TrimEnd('\r').EndsWith("right", StringComparison.Ordinal),
+                "Insertion and replacement preserve neighboring text");
+            Console.WriteLine("PASS|OMML edit caret and insertion inside a formula or over a formula selection");
+        }
+        finally { document.Close(0); }
+    }
+
+    private static async Task VerifyOleSelectionInsertionAsync(object application, WordPluginSettings settings)
+    {
+        dynamic word = application, document = word.Documents.Add();
+        var options = new TestFormulaOptionsProvider
+        {
+            CurrentLatex = "x+1",
+            Options = new WordFormulaOptions(false, NumberingMode.None, "")
+        };
+        using var adapter = new DynamicWordApplicationAdapter(application);
+        using var controller = WordAddInFactory.CreateController(application, optionsProvider: options,
+            settingsLoader: () => settings, applicationAdapter: adapter, mathJaxHostName: "OleSelectionInsertion");
+        try
+        {
+            await controller.InsertOmmlAsync(CancellationToken.None);
+            document.InlineShapes.Item(1).Range.Select();
+            options.CurrentLatex = "x+2";
+            await controller.InsertOmmlAsync(CancellationToken.None);
+            var formulas = await adapter.LoadFormulaEntriesAsync(true, CancellationToken.None);
+            E2EAssert.True(formulas.Any(e => e.Metadata!.Latex == "x+2"), "Word inserts an OLE formula while another is selected");
+            Console.WriteLine($"PASS|OLE insertion while another formula is selected|{formulas.Count} formulas");
+        }
+        finally { document.Close(0); }
+    }
+
+    internal static readonly string[] Layouts = { "body", "columns", "unequal-left", "unequal-right", "section", "table" };
+
+    internal static (object Range, double Width) CreateLayout(object targetDocument, string layout)
+    {
+        dynamic document = targetDocument;
+        if (layout == "columns") document.PageSetup.TextColumns.SetCount(2);
+        dynamic range = document.Range(0, 0);
+        if (layout == "section")
+        {
+            range.InsertBreak(2);
+            range = document.Sections.Item(2).Range;
+            range.Collapse(1);
+            range.Sections.Item(1).PageSetup.LeftMargin = 110;
+            range.Sections.Item(1).PageSetup.RightMargin = 95;
+        }
+        if (layout.StartsWith("unequal-"))
+        {
+            dynamic columns = document.PageSetup.TextColumns;
+            columns.SetCount(2);
+            columns.EvenlySpaced = 0;
+            columns.Item(1).Width = 160;
+            columns.Item(1).SpaceAfter = 30;
+            if (layout == "unequal-right")
+            {
+                range.InsertBreak(8);
+                range = document.Range(1, 1);
+            }
+        }
+        double expected;
+        if (layout == "table")
+        {
+            dynamic table = document.Tables.Add(range, 1, 2);
+            table.AllowAutoFit = false;
+            dynamic cell = table.Cell(1, 1);
+            range = cell.Range;
+            expected = Convert.ToDouble(cell.Width) - Convert.ToDouble(cell.LeftPadding) - Convert.ToDouble(cell.RightPadding);
+        }
+        else expected = Convert.ToDouble(range.Sections.Item(1).PageSetup.TextColumns.Item(layout == "unequal-right" ? 2 : 1).Width);
+        return ((object)range, expected);
     }
 
     private static void VerifySurrounding(dynamic document)

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
+using System.Xml.Linq;
 using LaTeXSnipper.OfficePlugin.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -9,6 +11,52 @@ namespace LaTeXSnipper.OfficePlugin.Typography.Tests;
 [TestClass]
 public sealed class FormulaTypographyTests
 {
+    [TestMethod]
+    [DataRow(@"\textcolor{#ed3507}{\displaylines{x\\y+\textcolor{blue}{z}}}", @"\textcolor{#000000}{\displaylines{x\\y+\textcolor{blue}{z}}}")]
+    [DataRow(@"\textcolor{red}{\textcolor{red}{x}}", @"\textcolor{#000000}{\textcolor{red}{x}}")]
+    [DataRow(@"\textcolor[RGB]{255,0,0}{\mathbf{x}}", @"\textcolor{#000000}{\mathbf{x}}")]
+    [DataRow(@"{\color{red}x}", @"\textcolor{#000000}{{x}}")]
+    [DataRow(@"\textcolor{red}{x}+y", @"\textcolor{red}{x}+y")]
+    public void FormattingResetsOnlyWholeFormulaColorEvenWhenTypographyAlreadyMatches(string source, string expected)
+    {
+        var metadata = CreateMetadata(source);
+        var formatted = metadata.FormatWith(metadata.Typography);
+        Assert.AreEqual(expected, formatted.Latex);
+        Assert.AreSame(formatted, formatted.FormatWith(metadata.Typography));
+        Assert.AreEqual(metadata.Identity, formatted.Identity);
+        Assert.AreEqual(metadata.NumberText, formatted.NumberText);
+    }
+
+    [TestMethod]
+    public void FormattingCopiesDefaultFontSizeAndColorAndPreservesLocalStyleAndComments()
+    {
+        var defaults = Create(symbol: "mathjax-stix2", size: 17.5, color: "#184FA0");
+        var metadata = CreateMetadata(@"\textbf{x}+\textcolor{red}{y}% keep }");
+        var formatted = metadata.FormatWith(defaults);
+        Assert.AreEqual(defaults, formatted.Typography);
+        Assert.AreEqual(@"\textcolor{#184FA0}{\textbf{x}+\textcolor{red}{y}% keep }" + "\n}", formatted.Latex);
+        Assert.AreSame(formatted, formatted.FormatWith(defaults));
+    }
+
+    [TestMethod]
+    public void FormattingMathMlResetsTheRootAndOuterStyleColor()
+    {
+        const string source = "<math xmlns='http://www.w3.org/1998/Math/MathML' color='#FF3300'><mstyle mathcolor='#ED3507' displaystyle='true'><mi>x</mi><mi mathcolor='#FF3300'>y</mi></mstyle></math>";
+        var defaults = Create(color: "#184FA0");
+        var formatted = CreateMetadata(source).FormatWith(defaults);
+        var math = XElement.Parse(formatted.Latex);
+        Assert.AreEqual("#184FA0", (string?)math.Attribute("mathcolor"));
+        Assert.IsNull(math.Attribute("color"));
+        var style = math.Elements().Single();
+        Assert.AreEqual("true", (string?)style.Attribute("displaystyle"));
+        Assert.IsNull(style.Attribute("mathcolor"));
+        Assert.AreEqual("#FF3300", (string?)style.Elements().Last().Attribute("mathcolor"));
+        Assert.AreSame(formatted, formatted.FormatWith(defaults));
+    }
+
+    private static FormulaMetadata CreateMetadata(string source) => new(new FormulaIdentity("test-doc", "test-equation"),
+        source, FormulaDisplayMode.Display, NumberingMode.Manual, "3.1", RenderEngineKind.MathJaxSvg, FormulaMetadata.CurrentSchemaVersion);
+
     [TestMethod]
     [DataRow("初号", 42d)]
     [DataRow("小初", 36d)]

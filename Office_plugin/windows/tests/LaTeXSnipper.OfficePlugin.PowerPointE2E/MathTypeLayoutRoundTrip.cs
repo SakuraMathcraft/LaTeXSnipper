@@ -43,7 +43,8 @@ internal static class MathTypeLayoutRoundTrip
                 await adapter.InsertOleFormulaObjectOnSlideAsync(1, metadata, emf, 80 + index % 2 * 350, 100 + index / 2 * 120, 1.2f, token);
                 dynamic shape = slide.Shapes.Item(index + 2);
                 geometry.Add((Convert.ToSingle(shape.Left), Convert.ToSingle(shape.Top), Convert.ToSingle(shape.Width), Convert.ToSingle(shape.Height)));
-                string mathMl = await renderer.ConvertTypographyToMathMlAsync(metadata.Latex, metadata.DisplayMode, typography, token);
+                string mathMl = await renderer.ConvertTypographyToMathMlAsync(metadata.Latex, metadata.DisplayMode, typography, token,
+                    measureMathTypeLayout: true);
                 content.Add(MathTypeNativeEquation.ReadMathMl(MathTypeNativeEquation.Create(mathMl, typography.FontSizePoints)));
             }
             slide.Shapes.AddTextbox(1, 40, 490, 500, 30).TextFrame.TextRange.Text = "After formulas";
@@ -82,7 +83,8 @@ internal static class MathTypeLayoutRoundTrip
                 dynamic shape = targetSlide.Shapes.Item(index + 2);
                 var native = await adapter.ReadMathTypeAsync(new MathTypeFormulaTarget((object)copied, adapter.GetCurrentDocumentId(),
                     Convert.ToInt32(shape.Id), 2), token);
-                Check(native.MathMl == content[index] && Math.Abs(native.FontSizePoints - (16 + index)) < 0.001,
+                Check(native.MathMl == content[index] && native.OriginalLatex == formulas[index]
+                    && Math.Abs(native.FontSizePoints - (16 + index)) < 0.001,
                     "Copied MathType content changed after the source closed");
                 geometry[index] = (Convert.ToSingle(shape.Left), Convert.ToSingle(shape.Top), Convert.ToSingle(shape.Width), Convert.ToSingle(shape.Height));
             }

@@ -3,14 +3,16 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using LaTeXSnipper.OfficePlugin.Abstractions;
+using LaTeXSnipper.OfficePlugin.Rendering;
 
 namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
-public sealed class WordRibbonCallbacks
+public sealed class WordRibbonCallbacks : IDisposable
 {
     private readonly WordPluginController _controller;
     private readonly IWordStatusSink _statusSink;
     private readonly Action? _showTaskPane;
+    private readonly OfficeStaDispatcher _officeThread = new();
     private CancellationTokenSource? _ocrCancellation;
     private int _ocrRunning;
 
@@ -19,7 +21,7 @@ public sealed class WordRibbonCallbacks
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
         _statusSink = statusSink ?? NullWordStatusSink.Instance;
         _showTaskPane = showTaskPane;
-        if (SynchronizationContext.Current == null)
+        if (SynchronizationContext.Current == null || SynchronizationContext.Current.GetType() == typeof(SynchronizationContext))
         {
             SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
         }
@@ -62,11 +64,29 @@ public sealed class WordRibbonCallbacks
 
     public IDisposable ListenForFormulaDoubleClick(int officeProcessId)
     {
-        return new LaTeXSnipper.OfficePlugin.Rendering.OfficeFormulaDoubleClickListener(officeProcessId, (x, y) =>
+        return new OfficeFormulaDoubleClickListener(officeProcessId, (x, y) =>
         {
             if (_controller.TrySelectOleFormulaAtScreenPoint(x, y)) OnLoadSelected(this);
         });
     }
+
+    public bool TryOpenMathTypeDoubleClick(object selection)
+    {
+        try
+        {
+            MathTypeFormulaTarget? target = _controller.CaptureMathTypeDoubleClick(selection);
+            if (target == null) return false;
+            _officeThread.Post(() => FireAndForgetSerial(ct => _controller.LoadMathTypeAsync(target, ct)));
+            return true;
+        }
+        catch (Exception error)
+        {
+            _statusSink.Post(WordStatusKind.Error, WordAddInText.GetExceptionMessage(error));
+            return false;
+        }
+    }
+
+    public void Dispose() => _officeThread.Dispose();
 
     public void OnScreenshotOcr(object control)
     {

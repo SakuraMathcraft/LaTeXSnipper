@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Xml.Linq;
+using LaTeXSnipper.OfficePlugin.Abstractions;
 using LaTeXSnipper.OfficePlugin.Rendering;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -10,6 +11,15 @@ namespace LaTeXSnipper.OfficePlugin.Typography.Tests;
 [TestClass]
 public sealed class MathTypeNativeEquationTests
 {
+    [TestMethod]
+    [DataRow(FormulaDisplayMode.Inline)]
+    [DataRow(FormulaDisplayMode.Display)]
+    public void NativeHeaderPreservesEquationMode(FormulaDisplayMode displayMode)
+    {
+        byte[] native = MathTypeNativeEquation.Create("<math><mi>x</mi></math>", 18, displayMode);
+        Assert.AreEqual(displayMode, MathTypeNativeEquation.ReadContent(native).DisplayMode);
+    }
+
     [TestMethod]
     public void ReadsEquationNativeProducedByInstalledMathType()
     {
@@ -33,6 +43,38 @@ public sealed class MathTypeNativeEquationTests
     [TestMethod]
     public void LocalSizeIsRejectedRatherThanSilentlyDiscarded()
         => Assert.ThrowsExactly<InvalidDataException>(() => MathTypeNativeEquation.Create("<math><mstyle mathsize='20pt'><mi>x</mi></mstyle></math>", 12));
+
+    [TestMethod]
+    public void CompositionOperatorAndDegreeSignKeepDistinctNativeCharacters()
+    {
+        const string mathMl = "<math><mi>f</mi><mo>∘</mo><mi>g</mi><mo>=</mo><mn>90</mn><mo>°</mo></math>";
+        byte[] native = MathTypeNativeEquation.Create(mathMl, 12);
+        var operators = XDocument.Parse(MathTypeNativeEquation.ReadMathMl(native)).Descendants()
+            .Where(node => node.Name.LocalName == "mo").Select(node => node.Value).ToArray();
+        CollectionAssert.AreEqual(new[] { "∘", "=", "°" }, operators);
+    }
+
+    [TestMethod]
+    [DataRow("\uE409")]
+    [DataRow("\uE40A")]
+    public void AsymmetricEquilibriumArrowCannotExportAsAnInvalidNativeGlyph(string glyph)
+    {
+        var error = Assert.ThrowsExactly<InvalidDataException>(() =>
+            MathTypeNativeEquation.Create("<math><mo>" + glyph + "</mo></math>", 12));
+        StringAssert.Contains(error.Message, "asymmetric equilibrium arrow");
+    }
+
+    [TestMethod]
+    public void NativeMultilinePileRetainsQuadAndNorm()
+    {
+        const string mathMl = "<math><mtable displaystyle='true'><mtr><mtd><mo>‖</mo><mi>x</mi><mo>‖</mo><mspace width='1em'/><mi>y</mi></mtd></mtr><mtr><mtd><mi>z</mi></mtd></mtr></mtable></math>";
+        byte[] native = MathTypeNativeEquation.Create(mathMl, 14);
+        var nodes = XDocument.Parse(MathTypeNativeEquation.ReadMathMl(native)).Descendants().ToArray();
+        Assert.AreEqual("true", (string?)nodes.Single(node => node.Name.LocalName == "mtable").Attribute("data-mtef-pile"));
+        Assert.AreEqual("1em", (string?)nodes.Single(node => node.Name.LocalName == "mspace").Attribute("width"));
+        CollectionAssert.AreEqual(new[] { "‖", "‖" }, nodes.Where(node => node.Name.LocalName == "mo").Select(node => node.Value).ToArray());
+    }
+
     [TestMethod]
     [DataRow("<msup><mi>e</mi><mrow><mi>i</mi><mi>π</mi></mrow></msup><mo>+</mo><mn>1</mn><mo>=</mo><mn>0</mn>", "msup")]
     [DataRow("<mfrac><mi>x</mi><mi>y</mi></mfrac><mtext>端</mtext>", "mfrac")]

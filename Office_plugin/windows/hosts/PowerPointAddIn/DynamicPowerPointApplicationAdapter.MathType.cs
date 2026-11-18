@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using LaTeXSnipper.OfficePlugin.Abstractions;
@@ -10,6 +11,41 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointAddIn;
 public sealed partial class DynamicPowerPointApplicationAdapter
 {
     private byte[]? mathTypeTemplate;
+
+    public MathTypeFormulaTarget? CaptureMathTypeFormula(object? selection)
+    {
+        try
+        {
+            return CreateMathTypeTarget(GetSelectedShape(selection ?? (object)_application.ActiveWindow.Selection));
+        }
+        catch (COMException) { return null; }
+    }
+
+    public MathTypeFormulaTarget? CaptureMathTypeFormulaAtPoint(IntPtr hitWindow, int x, int y)
+    {
+        IntPtr frame = GetActiveWindow();
+        if (frame == IntPtr.Zero || GetAncestor(hitWindow, 2) != GetAncestor(frame, 2)) return null;
+        dynamic window = _application.ActiveWindow;
+        if (Convert.ToInt32((object)window.Active) != MsoTrue || Convert.ToInt32((object)window.ActivePane.ViewType) != 1)
+            return null;
+        object? selected = GetSelectedShape((object)window.Selection);
+        return selected != null && IsShapeAtPoint((object)window, selected, x, y)
+            ? CreateMathTypeTarget(selected) : null;
+    }
+
+    private MathTypeFormulaTarget? CreateMathTypeTarget(object? selected)
+    {
+        if (selected == null || !MathTypeOleBridge.IsEquation(selected)) return null;
+        dynamic shape = selected;
+        return new MathTypeFormulaTarget((object)_application.ActivePresentation, GetCurrentDocumentId(),
+            Convert.ToInt32((object)shape.Id), Convert.ToInt32((object)shape.Parent.SlideIndex), selected);
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetAncestor(IntPtr window, uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetActiveWindow();
 
     public Task<System.Collections.Generic.IReadOnlyList<PowerPointFormulaEntry>> LoadConversionEntriesAsync(bool includeMathType, CancellationToken cancellationToken)
         => _officeThread.InvokeAsync(() =>
@@ -37,6 +73,14 @@ public sealed partial class DynamicPowerPointApplicationAdapter
     private static dynamic FindMathTypeFormula(MathTypeFormulaTarget target)
     {
         dynamic document = target.Document;
+        if (target.Anchor != null)
+        {
+            dynamic captured = target.Anchor;
+            dynamic slide = document.Slides.FindBySlideID(Convert.ToInt32((object)captured.Parent.SlideID));
+            dynamic current = slide.Shapes.Item(Convert.ToString((object)captured.Name)!);
+            if (Convert.ToInt32((object)current.Id) == target.Location && MathTypeOleBridge.IsEquation((object)current)) return current;
+            throw new InvalidOperationException(PowerPointAddInText.Get("SelectedFormulaRequired"));
+        }
         dynamic shapes = document.Slides.Item(target.ContainerIndex).Shapes;
         for (int i = 1; i <= Convert.ToInt32(shapes.Count); i++)
         {
@@ -50,8 +94,7 @@ public sealed partial class DynamicPowerPointApplicationAdapter
         => _officeThread.InvokeAsync(() =>
         {
             dynamic shape = FindMathTypeFormula(target);
-            byte[] native = ReadMathTypeNative(target.Document, target.ContainerIndex, Convert.ToInt32(shape.Id));
-            return new MathTypeFormulaContent(MathTypeNativeEquation.ReadMathMl(native), MathTypeNativeEquation.ReadFontSizePoints(native));
+            return ReadMathTypeContent(target.Document, Convert.ToInt32((object)shape.Parent.SlideIndex), Convert.ToInt32((object)shape.Id));
         }, cancellationToken);
 
     public Task ReplaceMathTypeWithOleAsync(MathTypeFormulaTarget target, FormulaMetadata metadata,
@@ -98,76 +141,123 @@ public sealed partial class DynamicPowerPointApplicationAdapter
             dynamic original = FindFormulaShapeById(target.Presentation, target.Metadata.Identity.EquationId);
             if (!OleFormulaContent.IsFormula((object)original))
                 throw new InvalidOperationException(PowerPointAddInText.Get("SelectedFormulaRequired"));
-            dynamic document = target.Presentation, slide = original.Parent;
-            float left = Convert.ToSingle(original.Left), top = Convert.ToSingle(original.Top);
-            float width = Convert.ToSingle(original.Width), height = Convert.ToSingle(original.Height);
-            float rotation = Convert.ToSingle(original.Rotation);
-            int shapeCount = Convert.ToInt32(slide.Shapes.Count);
-            byte[] expected = MathTypeCompoundFile.ReadNative(compoundFile);
-            byte[] package = MathTypePowerPointPackage.Create(GetMathTypeTemplate(), compoundFile, presentation,
-                left, top, width, height, rotation,
-                Convert.ToSingle(document.PageSetup.SlideWidth), Convert.ToSingle(document.PageSetup.SlideHeight));
-            string path = MathTypeTemporaryPath();
-            dynamic? staging = null, converted = null;
-            try
-            {
-                File.WriteAllBytes(path, package);
-                staging = _application.Presentations.Open(path, MsoTrue, MsoFalse, MsoFalse);
-                if (Convert.ToInt32(staging.Slides.Item(1).Shapes.Count) != 1)
-                    throw new InvalidDataException("MathType insertion package did not produce one shape.");
-                object sourceShape = staging.Slides.Item(1).Shapes.Item(1);
-                PowerPointClipboard.WithSavedClipboard(() =>
-                {
-                    ((dynamic)sourceShape).Copy();
-                    dynamic pasted = slide.Shapes.Paste();
-                    if (Convert.ToInt32(pasted.Count) != 1)
-                    {
-                        pasted.Delete();
-                        throw new InvalidDataException("MathType insertion produced multiple shapes.");
-                    }
-                    converted = pasted.Item(1);
-                    return true;
-                });
-                staging.Close();
-                staging = null;
-                File.Delete(path);
-                dynamic inserted = converted ?? throw new InvalidDataException("PowerPoint did not insert the MathType object.");
-                if (!MathTypeOleBridge.IsEquation((object)inserted))
-                    throw new InvalidDataException("PowerPoint did not preserve the native MathType class.");
-                // PowerPoint offsets pasted shapes even when their package has the correct coordinates.
-                inserted.Left = left;
-                inserted.Top = top;
-                if (Convert.ToInt32(slide.Shapes.Count) != shapeCount + 1
-                    || Math.Abs(Convert.ToSingle(inserted.Width) - width) > 0.1f
-                    || Math.Abs(Convert.ToSingle(inserted.Height) - height) > 0.1f
-                    || Math.Abs(Convert.ToSingle(inserted.Left) - left) > 0.1f
-                    || Math.Abs(Convert.ToSingle(inserted.Top) - top) > 0.1f
-                    || Math.Abs(Convert.ToSingle(inserted.Rotation) - rotation) > 0.1f)
-                    throw new InvalidDataException($"PowerPoint did not preserve the equation geometry: "
-                        + $"({left}, {top}, {width}, {height}, {rotation}) -> "
-                        + $"({inserted.Left}, {inserted.Top}, {inserted.Width}, {inserted.Height}, {inserted.Rotation}).");
-                byte[] actual = ReadMathTypeNative(target.Presentation, Convert.ToInt32(slide.SlideIndex), Convert.ToInt32(inserted.Id));
-                if (MathTypeNativeEquation.ReadMathMl(actual) != MathTypeNativeEquation.ReadMathMl(expected)
-                    || Math.Abs(MathTypeNativeEquation.ReadFontSizePoints(actual) - MathTypeNativeEquation.ReadFontSizePoints(expected)) > 0.001)
-                    throw new InvalidDataException("PowerPoint did not preserve the native MathType content.");
-                inserted.AlternativeText = string.Empty;
-                PreserveMathTypeLayer(original, inserted);
-                cancellationToken.ThrowIfCancellationRequested();
-                original.Delete();
-            }
-            catch
-            {
-                if (converted != null) TryDeleteShape(converted);
-                throw;
-            }
-            finally
-            {
-                if (staging != null) TryCom(() => staging.Close());
-                File.Delete(path);
-            }
-            TryCom(() => converted.Select());
+            return ReplaceMathTypeShape(target.Presentation, (object)original, compoundFile, presentation, preserveSize: true, cancellationToken);
+        }, cancellationToken);
+
+    public Task InsertMathTypeAsync(byte[] compoundFile, OlePresentationResult presentation, CancellationToken cancellationToken)
+        => _officeThread.InvokeAsync(() =>
+        {
+            object document = _application.ActivePresentation;
+            dynamic slide = GetActiveSlide();
+            float width = (float)presentation.WidthPoints, height = (float)presentation.HeightPoints;
+            InsertionPoint point = GetInsertionPoint(slide, width, height);
+            InsertMathTypeShape(document, (object)slide, compoundFile, presentation,
+                point.Left, point.Top, width, height, 0, null, cancellationToken);
             return true;
         }, cancellationToken);
+
+    public Task UpdateMathTypeAsync(MathTypeFormulaTarget target, byte[] compoundFile,
+        OlePresentationResult presentation, CancellationToken cancellationToken)
+        => _officeThread.InvokeAsync(() => ReplaceMathTypeShape(target.Document, (object)FindMathTypeFormula(target),
+            compoundFile, presentation, preserveSize: false, cancellationToken), cancellationToken);
+
+    private bool ReplaceMathTypeShape(object document, object originalShape, byte[] compoundFile,
+        OlePresentationResult presentation, bool preserveSize, CancellationToken cancellationToken)
+    {
+        dynamic original = originalShape;
+        InsertMathTypeShape(document, (object)original.Parent, compoundFile, presentation,
+            Convert.ToSingle((object)original.Left), Convert.ToSingle((object)original.Top),
+            preserveSize ? Convert.ToSingle((object)original.Width) : (float)presentation.WidthPoints,
+            preserveSize ? Convert.ToSingle((object)original.Height) : (float)presentation.HeightPoints,
+            Convert.ToSingle((object)original.Rotation), originalShape, cancellationToken);
+        return true;
+    }
+
+    private void InsertMathTypeShape(object targetDocument, object targetSlide, byte[] compoundFile,
+        OlePresentationResult presentation, float left, float top, float width, float height, float rotation,
+        object? original, CancellationToken cancellationToken)
+    {
+        dynamic document = targetDocument, slide = targetSlide;
+        int shapeCount = Convert.ToInt32(slide.Shapes.Count);
+        var expected = MathTypeCompoundFile.ReadContent(compoundFile);
+        byte[] package = MathTypePowerPointPackage.Create(GetMathTypeTemplate(), compoundFile, presentation,
+            left, top, width, height, rotation,
+            Convert.ToSingle(document.PageSetup.SlideWidth), Convert.ToSingle(document.PageSetup.SlideHeight));
+        string path = MathTypeTemporaryPath();
+        dynamic? staging = null, converted = null;
+        try
+        {
+            File.WriteAllBytes(path, package);
+            staging = _application.Presentations.Open(path, MsoTrue, MsoFalse, MsoFalse);
+            if (Convert.ToInt32(staging.Slides.Item(1).Shapes.Count) != 1)
+                throw new InvalidDataException("MathType insertion package did not produce one shape.");
+            object sourceShape = staging.Slides.Item(1).Shapes.Item(1);
+            PowerPointClipboard.WithSavedClipboard(() =>
+            {
+                ((dynamic)sourceShape).Copy();
+                dynamic pasted = slide.Shapes.Paste();
+                if (Convert.ToInt32(pasted.Count) != 1)
+                {
+                    pasted.Delete();
+                    throw new InvalidDataException("MathType insertion produced multiple shapes.");
+                }
+                converted = pasted.Item(1);
+                return true;
+            });
+            staging.Close();
+            staging = null;
+            File.Delete(path);
+            dynamic inserted = converted ?? throw new InvalidDataException("PowerPoint did not insert the MathType object.");
+            if (!MathTypeOleBridge.IsEquation((object)inserted))
+                throw new InvalidDataException("PowerPoint did not preserve the native MathType class.");
+            // PowerPoint offsets pasted shapes even when their package has the correct coordinates.
+            inserted.Left = left;
+            inserted.Top = top;
+            if (Convert.ToInt32(slide.Shapes.Count) != shapeCount + 1
+                || Math.Abs(Convert.ToSingle(inserted.Width) - width) > 0.1f
+                || Math.Abs(Convert.ToSingle(inserted.Height) - height) > 0.1f
+                || Math.Abs(Convert.ToSingle(inserted.Left) - left) > 0.1f
+                || Math.Abs(Convert.ToSingle(inserted.Top) - top) > 0.1f
+                || Math.Abs(Convert.ToSingle(inserted.Rotation) - rotation) > 0.1f)
+                throw new InvalidDataException($"PowerPoint did not preserve the equation geometry: "
+                    + $"({left}, {top}, {width}, {height}, {rotation}) -> "
+                    + $"({inserted.Left}, {inserted.Top}, {inserted.Width}, {inserted.Height}, {inserted.Rotation}).");
+            var actual = ReadMathTypeContent(targetDocument, Convert.ToInt32((object)slide.SlideIndex), Convert.ToInt32((object)inserted.Id));
+            if (actual.MathMl != expected.MathMl || actual.DisplayMode != expected.DisplayMode
+                || Math.Abs(actual.FontSizePoints - expected.FontSizePoints) > 0.001
+                || actual.OriginalLatex != expected.OriginalLatex || !Equals(actual.OriginalTypography, expected.OriginalTypography))
+                throw new InvalidDataException("PowerPoint did not preserve the native MathType content.");
+            if (original != null)
+            {
+                inserted.AlternativeText = MathTypeOleBridge.IsEquation(original) ? ((dynamic)original).AlternativeText : string.Empty;
+                PreserveMathTypeLayer(original, inserted);
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            if (original != null) ((dynamic)original).Delete();
+        }
+        catch
+        {
+            if (converted != null) TryDeleteShape(converted);
+            throw;
+        }
+        finally
+        {
+            if (staging != null) TryCom(() => staging.Close());
+            File.Delete(path);
+        }
+        if (original != null)
+        {
+            TryCom(() => converted.Select());
+            return;
+        }
+        TryCom(() =>
+        {
+            dynamic selection = _application.ActiveWindow.Selection;
+            object? selected = GetSelectedShape((object)selection);
+            if (selected != null && ((dynamic)selected).Id == converted!.Id)
+                selection.Unselect();
+        });
+    }
 
     private byte[] GetMathTypeTemplate()
     {
@@ -189,13 +279,13 @@ public sealed partial class DynamicPowerPointApplicationAdapter
         }
     }
 
-    private static byte[] ReadMathTypeNative(object presentation, int slideIndex, int shapeId)
+    private static MathTypeFormulaContent ReadMathTypeContent(object presentation, int slideIndex, int shapeId)
     {
         string path = MathTypeTemporaryPath();
         try
         {
             ((dynamic)presentation).SaveCopyAs(path, 24);
-            return MathTypePowerPointPackage.ReadNative(path, slideIndex, shapeId);
+            return MathTypePowerPointPackage.ReadContent(path, slideIndex, shapeId);
         }
         finally { File.Delete(path); }
     }

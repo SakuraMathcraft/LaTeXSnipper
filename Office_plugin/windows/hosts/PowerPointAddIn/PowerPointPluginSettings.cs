@@ -42,9 +42,12 @@ public sealed class PowerPointPluginSettings
     {
         using RegistryKey? key = Registry.CurrentUser.OpenSubKey(RegistryPath);
         string raw = key?.GetValue(InsertionBackendValue) as string ?? string.Empty;
-        FormulaInsertionBackend backend = raw == FormulaInsertionBackend.PowerPointPng.ToString()
-            ? FormulaInsertionBackend.PowerPointPng
-            : FormulaInsertionBackend.Ole;
+        FormulaInsertionBackend backend = raw switch
+        {
+            nameof(FormulaInsertionBackend.PowerPointPng) => FormulaInsertionBackend.PowerPointPng,
+            nameof(FormulaInsertionBackend.MathType) => FormulaInsertionBackend.MathType,
+            _ => FormulaInsertionBackend.Ole
+        };
         FormulaTypographyDefaults preset = new TypographySettingsStore().Load("powerpoint");
         return new PowerPointPluginSettings(backend, preset.Typography.Color, preset.Typography.DefaultMathStyle, preset.Typography.FontSizePoints,
             preset.FollowHostFontSize, preset.Typography);

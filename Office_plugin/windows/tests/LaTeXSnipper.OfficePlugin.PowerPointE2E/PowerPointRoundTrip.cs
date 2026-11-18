@@ -53,6 +53,8 @@ internal static class PowerPointRoundTrip
                 statusSink: new BatchStatusSink(), optionsProvider: options);
             if (includeMathType) await MathTypeRoundTrip.VerifyAsync((object)app, (object)presentation, controller, renderer, output, mathTypeNativeEdit);
             if (mathTypeOnly) return;
+            if (includeOle && !copyOnly && !gestureOnly)
+                await VerifyFormattingColorAsync(adapter, (object)presentation, controller, renderer, editor);
             var style = new FormulaTypography("mathjax-stix2", "Times New Roman", "SimSun",
                 FormulaMathStyle.BoldItalic, 15.5, "#123ABC");
             if (copyOnly || gestureOnly)
@@ -63,10 +65,19 @@ internal static class PowerPointRoundTrip
                 var svg = await renderer.RenderAsync(new RenderRequest(metadata.Latex, metadata.DisplayMode, metadata.RenderEngine, style), Token);
                 var emf = await new EnhancedMetafilePresentationRenderer().RenderPresentationAsync(new OlePresentationRequest(svg, OlePresentationKind.EnhancedMetafile), Token);
                 presentation.Windows.Item(1).Activate();
+                if (gestureOnly && PowerPointPluginSettings.Load().InsertionBackend == FormulaInsertionBackend.MathType)
+                {
+                    presentation.Windows.Item(1).View.GotoSlide(1);
+                    var compound = await renderer.CreateMathTypeCompoundFileAsync(metadata, Token);
+                    await adapter.InsertMathTypeAsync(compound, emf, Token);
+                    await VerifyInstalledMathTypeGestureAsync((object)presentation, Process.GetProcessesByName("POWERPNT").Single().Id);
+                    return;
+                }
                 await adapter.InsertOleFormulaObjectOnSlideAsync(1, metadata, emf, 80, 90, 1.5f, Token);
                 if (gestureOnly)
                 {
-                    using var listener = new PowerPointRibbonCallbacks(controller).ListenForFormulaDoubleClick(Process.GetProcessesByName("POWERPNT").Single().Id);
+                    using var callbacks = new PowerPointRibbonCallbacks(controller);
+                    using var listener = callbacks.ListenForFormulaDoubleClick(Process.GetProcessesByName("POWERPNT").Single().Id);
                     presentation.Windows.Item(1).View.GotoSlide(1);
                     Console.WriteLine("READY|Double-click the OLE formula on the first slide within 90 seconds");
                     var deadline = DateTime.UtcNow.AddSeconds(90);
@@ -206,12 +217,8 @@ internal static class PowerPointRoundTrip
             Console.WriteLine("PASS|PPT MathML with Chinese inserts as a native equation");
             presentation.Slides.Item(1).Shapes.Item(1).Select();
             Console.WriteLine("PASS|PPT selected formula still opens editor and inserts a centered formula");
-            var target = await adapter.LoadSelectedFormulaAsync(Token);
-            var edited = new FormulaMetadata(target.Metadata.Identity, target.Metadata.Latex + "+1",
-                FormulaDisplayMode.Display, NumberingMode.None, "", RenderEngineKind.Image,
-                FormulaMetadata.CurrentSchemaVersion, style);
-            await adapter.UpdateFormulaImageAsync(target, await RenderAsync(renderer, edited, imagePath), edited, Token);
-            originals[edited.Identity.EquationId] = edited.Latex;
+            var edited = await EditWithDifferentInsertionBackendAsync(controller, editor, FormulaInsertionBackend.Ole, "+1");
+            originals[edited.EquationId] = edited.Latex;
             await VerifyAsync(adapter, style, originals, 1.5f);
             Console.WriteLine("PASS|PPT insert, selection, edit, scale and full typography");
 
@@ -225,16 +232,8 @@ internal static class PowerPointRoundTrip
                 dynamic selectedOle = FormulaShape((object)presentation.Slides.Item(1));
                 selectedOle.Select();
                 selectedOle.OLEFormat.DoVerb(0);
-                var oleTarget = await adapter.LoadSelectedFormulaAsync(Token);
-                var oleEdit = new FormulaMetadata(oleTarget.Metadata.Identity, oleTarget.Metadata.Latex + "+2",
-                    FormulaDisplayMode.Display, NumberingMode.None, "", RenderEngineKind.MathJaxSvg,
-                    FormulaMetadata.CurrentSchemaVersion, style);
-                var vector = await renderer.RenderAsync(new RenderRequest(oleEdit.Latex, oleEdit.DisplayMode,
-                    RenderEngineKind.MathJaxSvg, style), Token);
-                var emf = await new EnhancedMetafilePresentationRenderer().RenderPresentationAsync(
-                    new OlePresentationRequest(vector, OlePresentationKind.EnhancedMetafile), Token);
-                await adapter.UpdateOleFormulaObjectAsync(oleTarget, oleEdit, emf, Token);
-                originals[oleEdit.Identity.EquationId] = oleEdit.Latex;
+                var oleEdit = await EditWithDifferentInsertionBackendAsync(controller, editor, FormulaInsertionBackend.PowerPointPng, "+2");
+                originals[oleEdit.EquationId] = oleEdit.Latex;
                 string olePath = Path.Combine(Path.GetDirectoryName(output)!, Path.GetFileNameWithoutExtension(output) + "-ole.pptx");
                 if (File.Exists(olePath)) throw new IOException("Output already exists: " + olePath);
                 presentation.SaveAs(olePath, 24);
@@ -274,6 +273,77 @@ internal static class PowerPointRoundTrip
             app.Quit();
             if (File.Exists(imagePath)) File.Delete(imagePath);
         }
+    }
+
+    private static async Task VerifyInstalledMathTypeGestureAsync(object target, int officeProcessId)
+    {
+        dynamic presentation = target;
+        dynamic window = presentation.Windows.Item(1);
+        dynamic shape = presentation.Slides.Item(1).Shapes.Item(1);
+        Check(Convert.ToInt32((object)window.Selection.Type) != 2,
+            "Inserting a new MathType formula left it selected");
+        int[] existingMathTypeProcesses = Process.GetProcessesByName("MathType").Select(p => p.Id).ToArray();
+        shape.Select();
+        PowerPointGesture.PostDoubleClick(officeProcessId,
+            Convert.ToInt32((object)window.PointsToScreenPixelsX(shape.Left + shape.Width / 2f)),
+            Convert.ToInt32((object)window.PointsToScreenPixelsY(shape.Top + shape.Height / 2f)));
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+        while (DateTime.UtcNow < deadline && !PowerPointGesture.HasEditorWindow(officeProcessId))
+        {
+            await Task.Delay(100);
+        }
+        Check(Process.GetProcessesByName("MathType").All(p => existingMathTypeProcesses.Contains(p.Id)),
+            "PowerPoint opened the native MathType editor");
+        Check(PowerPointGesture.HasEditorWindow(officeProcessId), "The installed add-in did not open LaTeXSnipper after the double-click");
+        Console.WriteLine("PASS|PowerPoint mouse messages opened LaTeXSnipper for a native MathType formula");
+    }
+
+    private static async Task<(string EquationId, string Latex)> EditWithDifferentInsertionBackendAsync(PowerPointPluginController controller,
+        TrackingEditor editor, FormulaInsertionBackend backend, string suffix)
+    {
+        using var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\LaTeXSnipper\OfficePlugin");
+        const string setting = "PowerPointInsertionBackend";
+        object? previous = key.GetValue(setting);
+        try
+        {
+            await controller.LoadSelectedAsync(Token);
+            FormulaMetadata initial = editor.InitialFormula!;
+            new PowerPointPluginSettings(backend).Save();
+            var accepted = new FormulaEditorAcceptedEventArgs(initial, true, initial.Latex + suffix, false,
+                editor.Generation, initial.Typography);
+            await controller.AcceptEditorFormulaAsync(accepted, Token);
+            return (initial.Identity.EquationId, accepted.Latex);
+        }
+        finally
+        {
+            if (previous == null) key.DeleteValue(setting, false);
+            else key.SetValue(setting, previous);
+        }
+    }
+
+    private static async Task VerifyFormattingColorAsync(DynamicPowerPointApplicationAdapter adapter, object document,
+        PowerPointPluginController controller, MathJaxSvgRenderer renderer, TrackingEditor editor)
+    {
+        dynamic presentation = document;
+        var defaults = PowerPointPluginSettings.Load().Typography;
+        string oldColor = defaults.Color == "#ED3507" ? "#C12354" : "#ED3507";
+        const string body = @"\displaylines{x=1\\y=\textcolor{#00AA00}{\mathbf{z}}}";
+        var metadata = new FormulaMetadata(new FormulaIdentity(adapter.GetCurrentDocumentId(), Guid.NewGuid().ToString("N")),
+            @"\textcolor{" + oldColor + "}{" + body + "}", FormulaDisplayMode.Display, NumberingMode.None, "",
+            RenderEngineKind.MathJaxSvg, FormulaMetadata.CurrentSchemaVersion, defaults);
+        var svg = await renderer.RenderAsync(new RenderRequest(metadata.Latex, metadata.DisplayMode, metadata.RenderEngine, defaults), Token);
+        var emf = await new EnhancedMetafilePresentationRenderer().RenderPresentationAsync(
+            new OlePresentationRequest(svg, OlePresentationKind.EnhancedMetafile), Token);
+        await adapter.InsertOleFormulaObjectOnSlideAsync(1, metadata, emf, 80, 90, 1, Token);
+        presentation.Windows.Item(1).View.GotoSlide(1);
+        presentation.Slides.Item(1).Shapes.Item(1).Select();
+        await controller.FormatSelectedAsync(Token);
+        presentation.Slides.Item(1).Shapes.Item(1).Select();
+        await controller.LoadSelectedAsync(Token);
+        Check(editor.InitialFormula?.Latex == @"\textcolor{" + defaults.Color + "}{" + body + "}"
+            && editor.InitialFormula.Typography.Equals(defaults), "PowerPoint editor received stale formula color");
+        presentation.Slides.Item(1).Shapes.Item(1).Delete();
+        Console.WriteLine("PASS|PowerPoint formatting replaces the global color in the source loaded by the editor");
     }
 
     private static async Task VerifyBatchFailureHandlingAsync(DynamicPowerPointApplicationAdapter adapter,

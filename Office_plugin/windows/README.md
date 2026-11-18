@@ -42,7 +42,7 @@ Word OMML conversion uses the stylesheets supplied with the running Word install
 ### Shared
 
 - Double-click editing and independent cross-document copies of LaTeXSnipper OLE formulas
-- Conversion between LaTeXSnipper OLE and native MathType objects without MathType installed; Word numbered formulas are excluded. MathType is required for native double-click editing
+- Native MathType insertion and conversion in both hosts, including native numbering fields for Word. With MathType selected as the insertion backend, double-click a native MathType equation or use Load Selected to edit it in LaTeXSnipper
 - Reusable WebView2/MathLive formula editor
 - 18-category shared symbol and formula library
 - Chinese and English Ribbon, task pane, editor, settings, and help
@@ -52,7 +52,7 @@ Word OMML conversion uses the stylesheets supplied with the running Word install
 
 Desktop and Office share pinned MathJax 4.1.3 with independent resource profiles and asynchronous conversion. See [runtime maintenance and verification](../../scripts/mathjax/README.md) and the [current formula workflows and metadata](../../docs/office_plugin_formula_workflows.md).
 
-Word and PowerPoint convert between LaTeXSnipper OLE and native MathType objects without activating MathType or calling its SDK. PowerPoint preserves the original display width, height, position and layer directly. Double-click editing of native MathType objects requires MathType. Conversion has not yet been verified in a clean Office environment without MathType.
+Word and PowerPoint convert between LaTeXSnipper OLE and native MathType objects without activating MathType or calling its SDK. Word preserves the formula mode, paragraph formatting, and existing numbering fields and references. PowerPoint preserves the original display width, height, position, and layer. The MathType insertion backend uses the same package writers. Double-clicks follow the current host setting. Other backends leave native MathType activation to Office, which requires an installed MathType server.
 
 | Path (relative to this directory) | Role |
 |---|---|

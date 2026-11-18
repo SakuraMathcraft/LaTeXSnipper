@@ -255,6 +255,27 @@ async function searchTile(page, query) {
   await page.locator('#symbolSearch').fill(query);
 }
 
+test('congruence tile submits a delimited modulus from both editing surfaces', async ({page}) => {
+  await open(page, '');
+  for (const editor of [visual(page), source(page)]) {
+    await page.evaluate(() => window.LaTeXSnipperEditor.init({...window.editorInit, latex: ''}));
+    await editor.click();
+    await searchTile(page, '同余');
+    await tile(page, '同余').click();
+    expect(await submitted(page)).toBe('a\\equiv b\\pmod m');
+  }
+});
+
+test('visual bra-ket tile submits a TeX middle delimiter and retains its placeholders', async ({page}) => {
+  await open(page, '');
+  await visual(page).click();
+  await searchTile(page, 'Bra-ket');
+  await tile(page, '⟨ψ|φ⟩').click();
+  const latex = await submitted(page);
+  expect(latex).toMatch(/\\middle\s*\|/);
+  expect(latex.match(/\\placeholder\{\}/g)).toHaveLength(2);
+});
+
 for (const host of ['word', 'powerpoint']) {
   test(`${host}: source selection survives search, template fields and a single undo/redo`, async ({page}) => {
     const errors = await open(page, 'x+1', host);
@@ -767,7 +788,7 @@ test('large categories paint on demand and keep visible tiles available', async 
   expect(errors).toEqual([]);
 });
 
-test('symbol tiles render LaTeX and pack to their measured width', async ({page}) => {
+test('symbol tiles render LaTeX and wrap in catalog order at their measured width', async ({page}) => {
   await page.setViewportSize({width: 932, height: 592});
   const errors = await open(page, '');
   await page.locator('[data-group="greek"]').click();
@@ -812,13 +833,17 @@ test('symbol tiles render LaTeX and pack to their measured width', async ({page}
   await page.setViewportSize({width: 932, height: 592});
   await page.setViewportSize({width: 1920, height: 900});
   await page.locator('[data-group="analysis"]').click();
-  const firstRow = await page.locator('#symbolGrid .symbol-tile').evaluateAll(buttons => {
-    const top = buttons[0].getBoundingClientRect().top;
-    return buttons.filter(button => Math.abs(button.getBoundingClientRect().top - top) < 2).length;
-  });
-  expect(firstRow).toBeGreaterThan(1);
+  await expect(tile(page, '定积分').locator('.tile-preview-content')).toHaveCount(1);
+  const leadingCaptions = () => page.locator('#symbolGrid .tile-caption').evaluateAll(captions =>
+    captions.slice(0, 4).map(caption => caption.textContent));
+  const analysisOrder = ['函数极限', '导数', '定积分', '不定积分'];
+  expect(await leadingCaptions()).toEqual(analysisOrder);
+  const limit = await tile(page, '函数极限').boundingBox();
+  const integral = await tile(page, '定积分').boundingBox();
+  expect(integral.y).toBeGreaterThan(limit.y);
   await page.screenshot({path: join(tmpdir(), 'latexsnipper-editor-wide-analysis.png')});
   await page.setViewportSize({width: 932, height: 592});
+  await expect.poll(leadingCaptions).toEqual(analysisOrder);
   await page.locator('[data-group="chemistry"]').click();
   const barium = tile(page, 'Ba²⁺');
   await barium.scrollIntoViewIfNeeded();
@@ -1066,6 +1091,18 @@ test('keyboard entry into MathLive works while a late focus cannot steal a toolb
 
 
 for (const host of ['word', 'powerpoint']) {
+  test(`${host} reopens formatted MathML without wrapping it in LaTeX`, async ({page}) => {
+    const math = '<math xmlns="http://www.w3.org/1998/Math/MathML" mathcolor="#184FA0"><mi>x</mi><mi mathcolor="#00AA00">y</mi></math>';
+    await open(page, math, host, '#184fa0');
+    await expect(page.locator('#color')).toHaveValue('#184fa0');
+    expect(await submitted(page)).toBe(math);
+    await page.locator('#color').fill('#000000');
+    const recolored = await submitted(page);
+    expect(recolored).toMatch(/^<math\b/);
+    expect(recolored).toContain('mathcolor="#00AA00"');
+    expect(recolored).not.toContain('#184FA0');
+  });
+
   test(`${host} colored displaylines stay rendered after recolor and reload`, async ({page}) => {
     const body = String.raw`\displaylines{\mu(n)=\begin{cases}1,&n=1\\
 (-1)^{k},&n=p_1\cdots p_{k}\\

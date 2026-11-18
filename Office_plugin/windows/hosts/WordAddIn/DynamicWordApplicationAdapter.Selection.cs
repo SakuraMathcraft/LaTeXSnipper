@@ -16,30 +16,37 @@ public sealed partial class DynamicWordApplicationAdapter
 
     public bool TrySelectOleFormulaAtScreenPoint(int x, int y)
     {
+        dynamic? shape = FindInlineShapeAtScreenPoint(x, y, LaTeXSnipper.OfficePlugin.Rendering.OleFormulaContent.IsFormula);
+        if (shape == null) return false;
+        try { shape.Range.Select(); return true; }
+        catch (System.Runtime.InteropServices.COMException) { return false; }
+    }
+
+    private object? FindInlineShapeAtScreenPoint(int x, int y, Func<object, bool> matches)
+    {
         try
         {
             dynamic window = _wordApplication.ActiveWindow;
-            if (GetForegroundWindow() != new IntPtr(Convert.ToInt32(window.Hwnd))) return false;
+            if (GetForegroundWindow() != new IntPtr(Convert.ToInt32(window.Hwnd))) return null;
             dynamic hit = window.RangeFromPoint(x, y);
-            if (hit == null) return false;
+            if (hit == null) return null;
             int position = GetRangeStart(hit);
-            dynamic nearby = CreateDocumentRange(Math.Max(0, position - 1),
-                Math.Min(GetRangeEnd(CurrentDocument.Content), position + 1));
+            dynamic nearby = hit.Duplicate;
+            nearby.SetRange(Math.Max(0, position - 1), Math.Min(Convert.ToInt32((object)hit.StoryLength), position + 1));
             dynamic shapes = nearby.InlineShapes;
             for (int index = 1; index <= Convert.ToInt32(shapes.Count); index++)
             {
                 dynamic shape = shapes.Item(index);
-                if (!LaTeXSnipper.OfficePlugin.Rendering.OleFormulaContent.IsFormula((object)shape)) continue;
+                if (!matches((object)shape)) continue;
                 int left = 0, top = 0, width = 0, height = 0;
                 window.GetPoint(out left, out top, out width, out height, shape.Range);
                 if (x < left || x > left + width || y < top || y > top + height) continue;
-                shape.Range.Select();
-                return true;
+                return (object)shape;
             }
         }
         catch (Exception error) when (error is System.Runtime.InteropServices.COMException
             || error is Microsoft.CSharp.RuntimeBinder.RuntimeBinderException) { }
-        return false;
+        return null;
     }
 
     public Task<FormulaMetadata> LoadSelectedFormulaAsync(CancellationToken cancellationToken)
@@ -69,6 +76,8 @@ public sealed partial class DynamicWordApplicationAdapter
 
         try
         {
+            if (target.MathType is MathTypeFormulaTarget mathType)
+                return IsCapturedMathTypeFormulaValid(mathType);
             dynamic document = target.Document;
             if (!string.Equals(
                 WordDocumentIdentityStore.GetOrCreate(document),
@@ -279,7 +288,7 @@ public sealed partial class DynamicWordApplicationAdapter
                 }
                 else
                 {
-                    insertionRange = RemoveFormulaForReplacement(inlineShape.Range, equationId, display);
+                    insertionRange = RemoveFormulaForReplacement(inlineShape.Range, existingMetadata, display);
                     replacementOoxml = display ? ooxml : equationOoxml;
                     insertionRange.InsertXML(replacementOoxml);
                 }
@@ -364,6 +373,8 @@ public sealed partial class DynamicWordApplicationAdapter
                 metadata,
                 display,
                 cancellationToken).ConfigureAwait(true);
+            CloseOmmlScratchDocument();
+            MoveSelectionAfterInsertedFormula(metadata, display);
         }
     }
 
@@ -372,7 +383,7 @@ public sealed partial class DynamicWordApplicationAdapter
         FormulaMetadata existingMetadata = LoadFormulaMetadata(control, metadata.Identity.EquationId, RenderEngineKind.Omml);
         if (metadata.NumberingMode != NumberingMode.None || existingMetadata.NumberingMode != NumberingMode.None)
         {
-            return RemoveFormulaForReplacement(control.Range, metadata.Identity.EquationId, metadata.DisplayMode == FormulaDisplayMode.Display);
+            return RemoveFormulaForReplacement(control.Range, existingMetadata, metadata.DisplayMode == FormulaDisplayMode.Display);
         }
 
         int insertionPoint = GetRangeStart(control.Range);

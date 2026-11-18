@@ -40,6 +40,10 @@
 .\Office_plugin\windows\tests\Test-OfficeTypographyE2E.ps1 -HostScope Word -WordBackend Ole -WordMathTypeOnly
 ```
 
-核心验收覆盖红色 Euler 和用户报告的红色 cases、WMF 实际绘制非空、对象数量及保存重开尺寸、混合选择和首项失败续跑、两个相同公式仅转换一个、保留用户缩放、正文/表格文字和段落结构、批量取消后重试、关闭来源后的跨文档复制。核心测试不因没有 MathType 而跳过。
+核心验收覆盖红色 Euler 和红色分段公式、WMF 非空绘制、保存重开后的对象数量和尺寸、混合选择和首项失败续跑、用户缩放、批量取消后重试以及跨文档复制。
+
+布局验收交叉测试正文、表格、等宽双栏、不等宽双栏的左右栏和独立节中的六种公式类型，共 36 种组合。公式类型包括行内、无编号独行、左右手动编号和左右自动编号。测试断言 MTEF 显示模式、段落格式、制表位、原有 `SEQ`、编号书签、`REF`、保存重开后的对象尺寸和可编辑 LaTeX。另验证 `MTDisplayEquation` 段落中既有的左右 `SEQ` 编号与 `REF`，并在实际编辑器中修改导入的分式，保存并重新导出，核对 MathType 原生数据。核心验收无需调用 MathType。
 
 追加 `-WordMathTypeNativeEdit` 才启用需要安装 MathType 的独立验收：实际原生服务器读取生成的每个对象，修改内容，再通过不激活 MathType 的正式反向入口读取最新内容。SDK MathML 导出器可能省略颜色，因此颜色以持久化 MTEF 和可见预览验证，不能只依据 SDK 返回的 MathML。尚未完成未安装 MathType 的隔离环境验证。
+
+用 `-HostScope Word -WordBackend Ole -WordMathTypeNumberFixture <docx>` 验收由 MathType 生成的带编号文档。样本文档需包含编号公式和至少一处 MathType 交叉引用。测试对副本执行双向转换，检查编号域、标签与引用书签。追加 `-WordMathTypeNativeEdit` 可用已安装的 MathType 执行更新编号命令，验证它会刷新过期的引用结果。

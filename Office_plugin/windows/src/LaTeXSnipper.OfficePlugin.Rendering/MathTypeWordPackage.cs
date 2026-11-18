@@ -82,7 +82,11 @@ public static class MathTypeWordPackage
             .ToString(SaveOptions.DisableFormatting);
     }
 
-    public static byte[] ReadNative(string flatOpc)
+    public static byte[] ReadNative(string flatOpc) => MathTypeCompoundFile.ReadNative(ReadCompoundFile(flatOpc));
+
+    public static MathTypeFormulaContent ReadContent(string flatOpc) => MathTypeCompoundFile.ReadContent(ReadCompoundFile(flatOpc));
+
+    private static byte[] ReadCompoundFile(string flatOpc)
     {
         if (flatOpc == null || flatOpc.Length > 192 * 1024 * 1024) throw new InvalidDataException("Invalid MathType Flat OPC size.");
         var package = XDocument.Parse(flatOpc);
@@ -99,7 +103,7 @@ public static class MathTypeWordPackage
         string target = new Uri(partUri, (string)relationship.Attribute("Target")!).AbsolutePath;
         var binary = package.Descendants(P + "part").Single(p => (string?)p.Attribute(P + "name") == target).Element(P + "binaryData")
             ?? throw new InvalidDataException("Missing MathType binary data.");
-        return MathTypeCompoundFile.ReadNative(Convert.FromBase64String(binary.Value));
+        return Convert.FromBase64String(binary.Value);
     }
 
     private static XElement Relationship(string id, string type, string target) => new XElement(Rel + "Relationship",

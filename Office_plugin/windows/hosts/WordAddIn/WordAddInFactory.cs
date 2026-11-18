@@ -15,15 +15,16 @@ public static class WordAddInFactory
         IWordFormulaOptionsProvider? optionsProvider = null,
         Func<WordPluginSettings>? settingsLoader = null,
         string? mathJaxHostName = null,
-        IWordApplicationAdapter? applicationAdapter = null)
+        IWordApplicationAdapter? applicationAdapter = null,
+        string? editorProfileName = null)
     {
         statusSink ??= NullWordStatusSink.Instance;
         var oleIntermediateRenderer = new MathJaxSvgRenderer(
             new WebView2MathJaxJavaScriptRuntime(mathJaxHostName ?? "WordAddIn"));
-        var editor = new MathLiveFormulaEditor(CreateEditorOptions(oleIntermediateRenderer));
+        var editor = new MathLiveFormulaEditor(CreateEditorOptions(oleIntermediateRenderer, editorProfileName));
         var editorSession = new FormulaEditorSession(editor);
         var automationClient = new AutomationApiClient(new AutomationApiOptions());
-        IWordApplicationAdapter wordAdapter = applicationAdapter ?? new DynamicWordApplicationAdapter(wordApplication);
+        IWordApplicationAdapter wordAdapter = applicationAdapter ?? new DynamicWordApplicationAdapter(wordApplication, settingsLoader: settingsLoader);
 
         var olePresentationPipeline = new OlePresentationPipeline(new IOlePresentationRenderer[] { new EnhancedMetafilePresentationRenderer() });
         var controller = new WordPluginController(
@@ -45,12 +46,12 @@ public static class WordAddInFactory
         return controller;
     }
 
-    private static MathLiveFormulaEditorOptions CreateEditorOptions(IFormulaRenderer renderer)
+    private static MathLiveFormulaEditorOptions CreateEditorOptions(IFormulaRenderer renderer, string? editorProfileName)
     {
         return new MathLiveFormulaEditorOptions(
             "latexsnipper-word.officeplugin.local",
             "latexsnipper-editor-shared.officeplugin.local",
-            "WordEditorWebView2",
+            editorProfileName ?? "WordEditorWebView2",
             new[] { @"Office_plugin\windows\hosts\WordAddIn\EditorAssets" },
             new[] { @"Office_plugin\shared\EditorAssets" },
             new[]

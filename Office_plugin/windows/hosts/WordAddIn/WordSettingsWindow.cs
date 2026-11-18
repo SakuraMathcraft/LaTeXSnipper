@@ -193,9 +193,12 @@ internal sealed class WordSettingsWindow : Form
         string backend = message.TryGetValue("insertionBackend", out object rawBackend)
             ? Convert.ToString(rawBackend, CultureInfo.InvariantCulture) ?? string.Empty
             : string.Empty;
-        FormulaInsertionBackend insertionBackend = backend == FormulaInsertionBackend.WordOmml.ToString()
-            ? FormulaInsertionBackend.WordOmml
-            : FormulaInsertionBackend.Ole;
+        FormulaInsertionBackend insertionBackend = backend switch
+        {
+            nameof(FormulaInsertionBackend.WordOmml) => FormulaInsertionBackend.WordOmml,
+            nameof(FormulaInsertionBackend.MathType) => FormulaInsertionBackend.MathType,
+            _ => FormulaInsertionBackend.Ole
+        };
         string enclosureRaw = message.TryGetValue("numberEnclosure", out object rawEnclosure)
             ? Convert.ToString(rawEnclosure, CultureInfo.InvariantCulture) ?? string.Empty
             : string.Empty;

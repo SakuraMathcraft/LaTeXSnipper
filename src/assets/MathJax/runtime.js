@@ -35,7 +35,15 @@
           scale: settings.scale || 1
         },
         tex: {
-          packages: {'[+]': config.extensions},
+          packages: {'[+]': config.extensions, '[-]': settings.rejectUnknownCommands ? ['noundefined'] : []},
+          macros: {
+            Sampi: '\\mathord{Ϡ}', sampi: '\\mathord{ϡ}',
+            mapsfrom: '\\mathrel{↤}', longmapsfrom: '\\mathrel{⟻}',
+            notni: '\\mathrel{∌}', backdoubleprime: '\\mathord{‶}',
+            pounds: '\\text{£}',
+            // MathLive emits this command for unfilled fields in visual templates.
+            placeholder: ['\\square', 1]
+          },
           inlineMath: [['$', '$'], ['\\(', '\\)']],
           displayMath: [['$$', '$$'], ['\\[', '\\]']],
           processEscapes: true
@@ -46,6 +54,14 @@
           output,
           typeset: settings.typeset !== false,
           pageReady() {
+            const tex = MathJax.startup.document.inputJax.find(input => input.name === 'TeX');
+            const delimiters = tex.parseOptions.handlers.retrieve('delimiter');
+            for (const [name, source, glyph] of [
+              ['\\llbracket', '\\lbrack', '⟦'], ['\\rrbracket', '\\rbrack', '⟧']
+            ]) {
+              const bracket = delimiters.lookup(source);
+              delimiters.add(name, new bracket.constructor(name, glyph, bracket.attributes));
+            }
             return MathJax.startup.defaultPageReady().then(() => { api.ready = true; });
           }
         }

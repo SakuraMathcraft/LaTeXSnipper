@@ -37,6 +37,7 @@ internal static partial class MathTypeMtefCodec
     private const byte LineNull = 0x01;
     private const byte CharHasEmbellishment = 0x01;
     private const byte CharFunctionStart = 0x02;
+    private const byte CharEncoded16 = 0x10;
     private const byte CharEncoded8 = 0x04;
 
     private const byte TypefaceText = 1;
@@ -53,10 +54,8 @@ internal static partial class MathTypeMtefCodec
     // Symbol positions and carry no encoded8 byte.
     private const byte TypefaceMathTypeSpecial12 = 12;
     private const byte TypefaceMarker = 23;
-    // MathType 7 persists expanding fence characters ((), [], {}, |, ...)
-    // with typeface 22 and MTCode, not Symbol style. Using Symbol here makes
-    // the same ASCII code point resolve to a different fence glyph.
-    private const byte TypefaceFence = 22;
+    // fnEXPAND uses MTCode directly for extensible and supplementary symbols.
+    private const byte TypefaceExpand = 22;
     private const byte TypefaceSpace = 24;
 
     private const int MathTypeAlignmentMarkerMtCode = 0xEF00;
@@ -67,6 +66,7 @@ internal static partial class MathTypeMtefCodec
     private const byte TemplateParen = 1;
     private const byte TemplateBrace = 2;
     private const byte TemplateBracket = 3;
+    private const byte TemplateWhiteBracket = 8;
     private const byte TemplateBar = 4;
     private const byte TemplateDoubleBar = 5;
     private const byte TemplateFloor = 6;
@@ -76,6 +76,11 @@ internal static partial class MathTypeMtefCodec
     private const byte TemplateUnderbar = 12;
     private const byte TemplateOverbar = 13;
     private const byte TemplateArrow = 14;
+    private const byte ArrowHarpoon = 0x02;
+    private const byte ArrowTop = 0x04;
+    private const byte ArrowBottom = 0x08;
+    private const byte ArrowLeft = 0x10;
+    private const byte ArrowRight = 0x20;
     private const byte TemplateIntegral = 15;
     private const byte TemplateSum = 16;
     private const byte TemplateProduct = 17;
@@ -83,6 +88,8 @@ internal static partial class MathTypeMtefCodec
     private const byte TemplateUnion = 19;
     private const byte TemplateIntersection = 20;
     private const byte TemplateLimit = 23;
+    private const byte StackedLower = 0x10;
+    private const byte StackedUpper = 0x20;
     private const byte TemplateHorizontalBrace = 24;
     private const byte TemplateHorizontalBracket = 25;
     private const byte TemplateSub = 27;
@@ -103,6 +110,7 @@ internal static partial class MathTypeMtefCodec
     private const byte EmbellTriplePrime = 18;
     private const byte EmbellTilde = 8;
     private const byte EmbellHat = 9;
+    private const byte EmbellNot = 10;
     private const byte EmbellRightArrow = 11;
     private const byte EmbellLeftArrow = 12;
     private const byte EmbellBothArrow = 13;
@@ -163,7 +171,8 @@ internal static partial class MathTypeMtefCodec
                 element.Name = mathMlNamespace + element.Name.LocalName;
         }
         foreach (var marker in math.DescendantsAndSelf()
-                     .Attributes("data-mtef-run")
+                     .Attributes()
+                     .Where(attribute => attribute.Name.LocalName is "data-mtef-run" or "data-mtef-function-start")
                      .ToArray())
             marker.Remove();
         return new XDocument(math).ToString(SaveOptions.DisableFormatting);
@@ -185,12 +194,14 @@ internal static partial class MathTypeMtefCodec
     };
 
     private static byte[] CreateEquationNative(
-        string mathMl)
+        string mathMl, LaTeXSnipper.OfficePlugin.Abstractions.FormulaDisplayMode displayMode)
     {
         if (string.IsNullOrWhiteSpace(mathMl))
             throw new InvalidDataException("MathType creation requires MathML.");
 
         var prefix = Convert.FromBase64String(StandaloneMtefPrefixBase64);
+        prefix[FindEquationOptionsOffset(prefix)] = displayMode == LaTeXSnipper.OfficePlugin.Abstractions.FormulaDisplayMode.Inline
+            ? (byte)1 : (byte)0;
         var seedMtef = new byte[prefix.Length + 4];
         Buffer.BlockCopy(prefix, 0, seedMtef, 0, prefix.Length);
         seedMtef[prefix.Length] = RecordLine;
@@ -205,6 +216,7 @@ internal static partial class MathTypeMtefCodec
         var math = document.Root?.DescendantsAndSelf()
             .FirstOrDefault(element => element.Name.LocalName == "math")
             ?? throw new InvalidDataException("MathML has no <math> root.");
+        NormalizeMtefInput(math);
         var generated = BuildRootStructure(math, seedMtef, out var prefixDefinitions);
         var mtef = AssembleRewrittenMtef(
             seedMtef,
@@ -233,6 +245,12 @@ internal static partial class MathTypeMtefCodec
             mtef.Length);
 
         return equationNative;
+    }
+
+    internal static bool IsInlineEquation(byte[] equationNative)
+    {
+        byte[] mtef = ExtractNativeMtef(equationNative);
+        return (mtef[FindEquationOptionsOffset(mtef)] & 1) != 0;
     }
 
     private static int FindRootStructureOffset(byte[] mtef)

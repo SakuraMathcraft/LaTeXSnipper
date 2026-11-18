@@ -9,12 +9,14 @@ public sealed class WordFormulaEditTarget
         object document,
         object formulaObject,
         FormulaMetadata metadata,
-        bool isOle)
+        bool isOle,
+        MathTypeFormulaTarget? mathType = null)
     {
         Document = document ?? throw new ArgumentNullException(nameof(document));
         FormulaObject = formulaObject ?? throw new ArgumentNullException(nameof(formulaObject));
         Metadata = metadata ?? throw new ArgumentNullException(nameof(metadata));
         IsOle = isOle;
+        MathType = mathType;
     }
 
     internal object Document { get; }
@@ -24,4 +26,6 @@ public sealed class WordFormulaEditTarget
     public FormulaMetadata Metadata { get; }
 
     public bool IsOle { get; }
+
+    internal MathTypeFormulaTarget? MathType { get; }
 }

@@ -58,8 +58,22 @@ internal sealed class WordParsingE2ERunner
             Console.WriteLine("STAGE|Word started");
             word.Visible = false;
             word.DisplayAlerts = 0;
+            if (_options.MathTypeNumberFixture != null && _options.Backend == FormulaInsertionBackend.Ole)
+            {
+                await MathTypeRoundTrip.VerifyNumberFixtureAsync((object)word, _options.MathTypeNumberFixture, _options.OutputPath,
+                    _options.MathTypeNativeEdit);
+                return;
+            }
             document = word.Documents.Add();
             Console.WriteLine("STAGE|Document created");
+            if (_options.MathTypeOnly && _options.Backend == FormulaInsertionBackend.Ole)
+            {
+                await MathTypeRoundTrip.VerifyAsync((object)word, _options.OutputPath, _options.MathTypeNativeEdit);
+                return;
+            }
+            if (_options.Backend == FormulaInsertionBackend.Ole && !_options.NumberedLayoutOnly && !_options.CopyOnly)
+                await WordOleStyles.VerifyFormattingColorAsync((object)word, CreateSettings(_options.Backend));
+            document.Activate();
             await WordNumberedLayout.VerifyAsync((object)word, CreateSettings(_options.Backend), _options.OutputPath);
             if (_options.NumberedLayoutOnly) return;
             document.Activate();
@@ -68,7 +82,6 @@ internal sealed class WordParsingE2ERunner
             if (_options.Backend == FormulaInsertionBackend.Ole)
             {
                 if (_options.IncludeMathType) await MathTypeRoundTrip.VerifyAsync((object)word, _options.OutputPath, _options.MathTypeNativeEdit);
-                if (_options.MathTypeOnly) return;
                 await WordOleStyles.VerifyAsync((object)word, _options.OutputPath);
                 document.Activate();
                 await WordOleCopyRoundTrip.VerifyAsync((object)word, (object)document, _options.OutputPath);
@@ -180,14 +193,19 @@ internal sealed class WordParsingE2ERunner
             Console.WriteLine("DOCX|" + _options.OutputPath);
             Console.WriteLine("PDF|" + pdfPath);
         }
+        catch (Exception exception)
+        {
+            Console.Error.WriteLine(exception);
+            throw;
+        }
         finally
         {
             controller?.Dispose();
-            if (document != null)
+            if (document is not null)
             {
                 document.Close(WdDoNotSaveChanges);
             }
-            if (word != null)
+            if (word is not null)
             {
                 word.Quit(WdDoNotSaveChanges);
             }

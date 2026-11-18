@@ -19,7 +19,16 @@ public sealed partial class WordPluginController
         ThrowIfDisposed();
         // Capture every target before conversion changes the host selection.
         IReadOnlyList<WordFormulaEditTarget> targets = await _wordAdapter.LoadSelectedFormulaTargetsAsync(cancellationToken);
-        if (targets.Count == 0) throw new InvalidOperationException(MathTypeText.Get("MathTypeOleRequired"));
+        if (targets.All(item => !item.IsOle))
+        {
+            var selected = await _wordAdapter.LoadConversionEntriesAsync(includeMathType: true, cancellationToken);
+            if (selected.Count == 0)
+                throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaRequired"));
+            _statusSink.Post(WordStatusKind.Info, selected.All(item => item.MathTypeTarget != null)
+                ? WordAddInText.Get("NoConversionNeededStatus")
+                : MathTypeText.Get("WordMathTypeUnsupported"));
+            return;
+        }
         int converted = 0, skipped = 0, failed = 0;
         string? firstFailure = null;
         for (int index = 0; index < targets.Count; index++)
@@ -28,15 +37,12 @@ public sealed partial class WordPluginController
             WordFormulaEditTarget target = targets[index];
             try
             {
-                if (!target.IsOle || target.Metadata.NumberingMode != NumberingMode.None)
+                if (!target.IsOle)
                 {
                     skipped++;
                     continue;
                 }
-                string mathMl = await _mathJaxRenderer.ConvertTypographyToMathMlAsync(target.Metadata.Latex,
-                    target.Metadata.DisplayMode, target.Metadata.Typography, cancellationToken);
-                byte[] native = MathTypeNativeEquation.Create(mathMl, target.Metadata.Typography.FontSizePoints);
-                byte[] compoundFile = MathTypeCompoundFile.Create(native);
+                byte[] compoundFile = await _mathJaxRenderer.CreateMathTypeCompoundFileAsync(target.Metadata, cancellationToken);
                 OlePresentationResult presentation = await RenderOlePresentationAsync(target.Metadata, target.Metadata.Latex, cancellationToken);
                 await _wordAdapter.ReplaceWithMathTypeAsync(target, compoundFile, presentation, cancellationToken);
                 converted++;
@@ -147,11 +153,13 @@ public sealed partial class WordPluginController
                 {
                     if (entry.MathTypeTarget is MathTypeFormulaTarget mathType)
                     {
-                        MathTypeFormulaContent content = await _wordAdapter.ReadMathTypeAsync(mathType, cancellationToken);
+                        var (content, equationId, numberingMode, numberText) = await _wordAdapter.ReadMathTypeAsync(mathType, cancellationToken);
+                        FormulaTypography typography = content.OriginalTypography ?? FormulaTypography.Default.WithFontSize(content.FontSizePoints);
+                        string latex = content.OriginalLatex ?? await _mathJaxRenderer.ConvertMathTypeToLatexAsync(content, typography, cancellationToken);
                         var imported = new FormulaMetadata(
-                            new FormulaIdentity(mathType.DocumentId, Guid.NewGuid().ToString("N")),
-                            content.MathMl, FormulaDisplayMode.Inline, NumberingMode.None, string.Empty,
-                            RenderEngineKind.MathJaxSvg, FormulaMetadata.CurrentSchemaVersion, _settingsLoader().Typography.WithFontSize(content.FontSizePoints));
+                            new FormulaIdentity(mathType.DocumentId, equationId ?? Guid.NewGuid().ToString("N")),
+                            latex, content.DisplayMode, numberingMode, numberText,
+                            RenderEngineKind.MathJaxSvg, FormulaMetadata.CurrentSchemaVersion, typography);
                         PreparedWordFormula importedPrepared = await PrepareRenderedFormulaAsync(imported,
                             includeEquationOoxml: false, cancellationToken, FormulaInsertionBackend.Ole, reportProgress: false);
                         preparedBatch.Add((entry, importedPrepared));
@@ -324,7 +332,8 @@ public sealed partial class WordPluginController
                 {
                     FormulaMetadata formula = entry.Metadata
                         ?? throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
-                    if (!NeedsFormatting(formula, settings))
+                    FormulaMetadata formatted = formula.FormatWith(settings.Typography);
+                    if (ReferenceEquals(formatted, formula) && !_wordAdapter.HasCustomFormulaScale(formula))
                     {
                         continue;
                     }
@@ -335,7 +344,6 @@ public sealed partial class WordPluginController
                         continue;
                     }
 
-                    FormulaMetadata formatted = WithDefaultStyle(formula, settings);
                     if (formula.RenderEngine == RenderEngineKind.MathJaxSvg)
                     {
                         PreparedWordFormula prepared = await PrepareRenderedFormulaAsync(
@@ -441,26 +449,6 @@ public sealed partial class WordPluginController
         }
 
         _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("BoundaryInsertedStatus"));
-    }
-
-    private static FormulaMetadata WithDefaultStyle(FormulaMetadata metadata, WordPluginSettings settings)
-    {
-        string latex = metadata.Latex;
-        return new FormulaMetadata(
-            metadata.Identity,
-            latex,
-            metadata.DisplayMode,
-            metadata.NumberingMode,
-            metadata.NumberText,
-            metadata.RenderEngine,
-            metadata.SchemaVersion,
-            settings.Typography);
-    }
-
-    private bool NeedsFormatting(FormulaMetadata metadata, WordPluginSettings settings)
-    {
-        return !metadata.Typography.Equals(settings.Typography)
-            || _wordAdapter.HasCustomFormulaScale(metadata);
     }
 
     private FormulaMetadata CreateMetadataFromNativeWordFormula(WordFormulaEntry entry)

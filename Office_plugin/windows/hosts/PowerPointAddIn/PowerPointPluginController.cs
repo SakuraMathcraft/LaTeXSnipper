@@ -154,8 +154,8 @@ public sealed partial class PowerPointPluginController : IDisposable
 
         PowerPointTextInsertionTarget? textTarget = _powerPointAdapter.CaptureTextInsertionTarget();
         FormulaMetadata metadata = CreateMetadata(latex, previous: null, textTarget?.FontSizePoints);
-        await ConvertAndInsertAsync(metadata, target: null, updateMode: false, cancellationToken: cancellationToken,
-            textTarget: textTarget);
+        string statusKey = await SaveFormulaAsync(metadata, null, textTarget, cancellationToken);
+        _statusSink.Post(PowerPointStatusKind.Success, PowerPointAddInText.Get(statusKey));
         await _powerPointAdapter.ActivateForEditingAsync(cancellationToken);
     }
 
@@ -185,26 +185,10 @@ public sealed partial class PowerPointPluginController : IDisposable
             return;
         }
 
-        await ConvertAndInsertAsync(
-            metadata,
-            target,
-            updateMode: accepted.UpdateMode,
-            cancellationToken: cancellationToken,
-            reportStatus: false,
-            textTarget: textTarget);
-
+        string statusKey = await SaveFormulaAsync(metadata, target, textTarget, cancellationToken);
         if (_editorSession.IsCurrent(accepted.SessionGeneration, accepted.InitialFormula.Identity))
         {
-            string statusKey = accepted.UpdateMode
-                ? "UpdatedStatus"
-                : textTarget != null
-                    ? "InsertedNativeEquationStatus"
-                : PowerPointPluginSettings.Load().InsertionBackend == FormulaInsertionBackend.Ole
-                    ? "InsertedFormulaStatus"
-                    : "InsertedImageStatus";
-            _statusSink.Post(
-                PowerPointStatusKind.Success,
-                PowerPointAddInText.Get(statusKey));
+            _statusSink.Post(PowerPointStatusKind.Success, PowerPointAddInText.Get(statusKey));
         }
 
         CompleteEditorSession(accepted.SessionGeneration, target);
@@ -212,90 +196,106 @@ public sealed partial class PowerPointPluginController : IDisposable
         await _powerPointAdapter.ActivateForEditingAsync(cancellationToken);
     }
 
-    private async Task ConvertAndInsertAsync(
+    private async Task<string> SaveFormulaAsync(
         FormulaMetadata metadata,
         PowerPointFormulaEditTarget? target,
-        bool updateMode,
-        CancellationToken cancellationToken,
-        bool reportStatus = true,
-        PowerPointTextInsertionTarget? textTarget = null)
+        PowerPointTextInsertionTarget? textTarget,
+        CancellationToken cancellationToken)
     {
-        if (!updateMode && textTarget != null)
+        FormulaInsertionBackend backend = target switch
+        {
+            null => PowerPointPluginSettings.Load().InsertionBackend,
+            { MathType: not null } => FormulaInsertionBackend.MathType,
+            { Metadata.RenderEngine: RenderEngineKind.MathJaxSvg } => FormulaInsertionBackend.Ole,
+            _ => FormulaInsertionBackend.PowerPointPng
+        };
+        if (target != null) PostFormulaProgress("UpdatingStatus");
+
+        if (backend == FormulaInsertionBackend.MathType)
+        {
+            if (target == null) PostFormulaProgress("MathTypeInsertingStatus");
+            byte[] compoundFile = await _mathJaxRenderer.CreateMathTypeCompoundFileAsync(metadata, cancellationToken);
+            OlePresentationResult presentation = await RenderOlePresentationAsync(metadata, cancellationToken);
+            if (target?.MathType is MathTypeFormulaTarget equation)
+            {
+                await _powerPointAdapter.UpdateMathTypeAsync(equation, compoundFile, presentation, cancellationToken);
+                return "UpdatedStatus";
+            }
+            await _powerPointAdapter.InsertMathTypeAsync(compoundFile, presentation, cancellationToken);
+            return "MathTypeInsertedStatus";
+        }
+
+        if (textTarget != null)
         {
             string mathMl = await _mathJaxRenderer.ConvertTypographyToMathMlAsync(
                 metadata.Latex, FormulaDisplayMode.Inline, metadata.Typography, cancellationToken);
             await _powerPointAdapter.InsertNativeEquationAsync(
                 textTarget, mathMl, metadata.Typography.FontSizePoints, cancellationToken);
-            if (reportStatus)
-            {
-                _statusSink.Post(PowerPointStatusKind.Success, PowerPointAddInText.Get("InsertedNativeEquationStatus"));
-            }
-            return;
+            return "InsertedNativeEquationStatus";
         }
 
-        PowerPointPluginSettings settings = PowerPointPluginSettings.Load();
-        if (settings.InsertionBackend == FormulaInsertionBackend.Ole)
+        if (backend == FormulaInsertionBackend.Ole)
         {
-            if (reportStatus)
-            {
-                _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("OleInsertingStatus"));
-            }
+            if (target == null) PostFormulaProgress("OleInsertingStatus");
             FormulaMetadata oleMetadata = WithRenderEngine(metadata, RenderEngineKind.MathJaxSvg);
             OlePresentationResult presentation = await RenderOlePresentationAsync(oleMetadata, cancellationToken);
-            if (updateMode)
+            if (target != null)
             {
-                await _powerPointAdapter.UpdateOleFormulaObjectAsync(
-                    target!,
-                    oleMetadata,
-                    presentation,
-                    cancellationToken);
+                await _powerPointAdapter.UpdateOleFormulaObjectAsync(target, oleMetadata, presentation, cancellationToken);
+                return "UpdatedStatus";
             }
-            else
-            {
-                await _powerPointAdapter.InsertOleFormulaObjectAsync(oleMetadata, presentation, cancellationToken);
-            }
-
-            if (reportStatus)
-            {
-                _statusSink.Post(
-                    PowerPointStatusKind.Success,
-                    PowerPointAddInText.Get(updateMode ? "UpdatedStatus" : "InsertedFormulaStatus"));
-            }
-            return;
+            await _powerPointAdapter.InsertOleFormulaObjectAsync(oleMetadata, presentation, cancellationToken);
+            return "InsertedFormulaStatus";
         }
 
-        if (reportStatus)
-        {
-            _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get("ConvertingStatus"));
-        }
+        if (target == null) PostFormulaProgress("ImageInsertingStatus");
         FormulaMetadata imageMetadata = WithRenderEngine(metadata, RenderEngineKind.Image);
         PowerPointRenderedImage image = await RenderImageAsync(imageMetadata, cancellationToken);
-
-        if (updateMode)
+        if (target != null)
         {
-            await _powerPointAdapter.UpdateFormulaImageAsync(
-                target!,
-                image,
-                imageMetadata,
-                cancellationToken);
+            await _powerPointAdapter.UpdateFormulaImageAsync(target, image, imageMetadata, cancellationToken);
+            return "UpdatedStatus";
         }
-        else
-        {
-            await _powerPointAdapter.InsertFormulaImageAsync(image, imageMetadata, cancellationToken);
-        }
-
-        if (reportStatus)
-        {
-            _statusSink.Post(
-                PowerPointStatusKind.Success,
-                PowerPointAddInText.Get(updateMode ? "UpdatedStatus" : "InsertedImageStatus"));
-        }
+        await _powerPointAdapter.InsertFormulaImageAsync(image, imageMetadata, cancellationToken);
+        return "InsertedImageStatus";
     }
+
+    private void PostFormulaProgress(string statusKey) =>
+        _statusSink.Post(PowerPointStatusKind.Info, PowerPointAddInText.Get(statusKey));
 
     public async Task LoadSelectedAsync(CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
+        if (CaptureMathTypeDoubleClick(null) is MathTypeFormulaTarget mathType)
+        {
+            await LoadMathTypeAsync(mathType, cancellationToken);
+            return;
+        }
         PowerPointFormulaEditTarget target = await _powerPointAdapter.LoadSelectedFormulaAsync(cancellationToken);
+        await OpenEditorForTargetAsync(target, cancellationToken);
+    }
+
+    internal MathTypeFormulaTarget? CaptureMathTypeDoubleClick(object? selection) =>
+        PowerPointPluginSettings.Load().InsertionBackend == FormulaInsertionBackend.MathType
+            ? _powerPointAdapter.CaptureMathTypeFormula(selection) : null;
+
+    internal MathTypeFormulaTarget? CaptureMathTypeDoubleClick(IntPtr window, int x, int y) =>
+        PowerPointPluginSettings.Load().InsertionBackend == FormulaInsertionBackend.MathType
+            ? _powerPointAdapter.CaptureMathTypeFormulaAtPoint(window, x, y) : null;
+
+    internal async Task LoadMathTypeAsync(MathTypeFormulaTarget target, CancellationToken cancellationToken)
+    {
+        MathTypeFormulaContent content = await _powerPointAdapter.ReadMathTypeAsync(target, cancellationToken);
+        FormulaTypography typography = content.OriginalTypography ?? FormulaTypography.Default.WithFontSize(content.FontSizePoints);
+        string latex = content.OriginalLatex ?? await _mathJaxRenderer.ConvertMathTypeToLatexAsync(content, typography, cancellationToken);
+        var metadata = new FormulaMetadata(new FormulaIdentity(target.DocumentId, Guid.NewGuid().ToString("N")),
+            latex, content.DisplayMode, NumberingMode.None, string.Empty, RenderEngineKind.MathJaxSvg,
+            FormulaMetadata.CurrentSchemaVersion, typography);
+        await OpenEditorForTargetAsync(new PowerPointFormulaEditTarget(metadata, target.Document, target), cancellationToken);
+    }
+
+    private async Task OpenEditorForTargetAsync(PowerPointFormulaEditTarget target, CancellationToken cancellationToken)
+    {
         if (_editorTarget != null)
         {
             _optionsProvider.ResetFormulaDraft();
@@ -433,7 +433,7 @@ public sealed partial class PowerPointPluginController : IDisposable
         return new FormulaMetadata(
             previous?.Identity ?? new FormulaIdentity(_powerPointAdapter.GetCurrentDocumentId(), Guid.NewGuid().ToString("N")),
             normalizedLatex,
-            FormulaDisplayMode.Display,
+            previous?.DisplayMode ?? FormulaDisplayMode.Display,
             NumberingMode.None,
             string.Empty,
             previous?.RenderEngine ?? RenderEngineKind.Image,
