@@ -41,6 +41,7 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
                 statusPaneHost.AttachCallbacks(ribbonCallbacks);
                 ribbonExtensibility?.AttachCallbacks(ribbonCallbacks);
                 Application.WindowActivate += OnWindowActivate;
+                Application.WindowBeforeDoubleClick += OnWindowBeforeDoubleClick;
                 InitializeActiveStatusPane();
                 _ = WarmUpControllerAsync(controller, statusPaneHost);
             }
@@ -51,10 +52,18 @@ namespace LaTeXSnipper.OfficePlugin.PowerPointVstoAddIn
             doubleClickListener?.Dispose();
             doubleClickListener = null;
             Application.WindowActivate -= OnWindowActivate;
+            Application.WindowBeforeDoubleClick -= OnWindowBeforeDoubleClick;
+            ribbonCallbacks?.Dispose();
+            ribbonCallbacks = null;
             controller?.Dispose();
             controller = null;
             statusPaneHost?.Dispose();
             statusPaneHost = null;
+        }
+
+        private void OnWindowBeforeDoubleClick(PowerPoint.Selection selection, ref bool cancel)
+        {
+            if (!cancel && ribbonCallbacks?.TryOpenMathTypeDoubleClick(selection) == true) cancel = true;
         }
 
         private void OnWindowActivate(PowerPoint.Presentation presentation, PowerPoint.DocumentWindow window)

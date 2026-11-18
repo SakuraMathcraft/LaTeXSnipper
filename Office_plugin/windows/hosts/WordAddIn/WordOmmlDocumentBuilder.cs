@@ -175,7 +175,7 @@ public static class WordOmmlDocumentBuilder
         return "<w:spacing w:before=\"0\" w:after=\"0\"/>";
     }
 
-    private static string WrapFlatOpc(string documentXml)
+    internal static string WrapFlatOpc(string documentXml)
     {
         return
             "<pkg:package xmlns:pkg=\"http://schemas.microsoft.com/office/2006/xmlPackage\">" +

@@ -31,4 +31,4 @@ export function comparableLatex(source) {
   return JSON.stringify(result);
 }
 
-export function isMathMl(source) { return /^\s*(?:<\?xml[^>]*>\s*)?<math(?:\s|>|:)/i.test(source); }
+export function isMathMl(source) { return /^\s*(?:<\?xml\s[^?]*\?>\s*)?<(?:[\w.-]+:)?math(?=[\s/>])/.test(source); }

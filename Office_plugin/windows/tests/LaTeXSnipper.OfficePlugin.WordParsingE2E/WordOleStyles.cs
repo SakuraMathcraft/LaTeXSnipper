@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using LaTeXSnipper.OfficePlugin.Abstractions;
 using LaTeXSnipper.OfficePlugin.Rendering;
 using LaTeXSnipper.OfficePlugin.WordAddIn;
@@ -11,6 +13,45 @@ namespace LaTeXSnipper.OfficePlugin.WordParsingE2E;
 
 internal static class WordOleStyles
 {
+    public static async Task VerifyFormattingColorAsync(object application, WordPluginSettings settings)
+    {
+        dynamic word = application;
+        dynamic document = word.Documents.Add();
+        using var adapter = new DynamicWordApplicationAdapter(application, settingsLoader: () => settings);
+        using var renderer = new MathJaxSvgRenderer(new WebView2MathJaxJavaScriptRuntime("WordOleFormatColor"));
+        using var controller = WordAddInFactory.CreateController(application, applicationAdapter: adapter,
+            settingsLoader: () => settings, mathJaxHostName: "WordColorController");
+        var token = CancellationToken.None;
+        try
+        {
+            const string body = @"\displaylines{a^2+b^2=c^2\\y=\textcolor{#00AA00}{\mathbf{x}}}";
+            var metadata = new FormulaMetadata(new FormulaIdentity(adapter.GetCurrentDocumentId(), Guid.NewGuid().ToString("N")),
+                @"\textcolor{#ED3507}{" + body + "}", FormulaDisplayMode.Display, NumberingMode.None, "",
+                RenderEngineKind.MathJaxSvg, FormulaMetadata.CurrentSchemaVersion, settings.Typography);
+            var svg = await renderer.RenderAsync(new RenderRequest(metadata.Latex, metadata.DisplayMode,
+                metadata.RenderEngine, metadata.Typography), token);
+            var emf = await new EnhancedMetafilePresentationRenderer().RenderPresentationAsync(
+                new OlePresentationRequest(svg, OlePresentationKind.EnhancedMetafile), token);
+            await adapter.InsertOleFormulaObjectAsync(metadata, emf, true, token);
+            document.InlineShapes.Item(1).Range.Select();
+            await controller.FormatSelectedAsync(token);
+            document.InlineShapes.Item(1).Range.Select();
+            var formatted = await adapter.LoadSelectedFormulaAsync(token);
+            E2EAssert.Equal(@"\textcolor{#000000}{" + body + "}", formatted.Latex, "Formatted source loaded from the OLE object");
+            E2EAssert.Equal(settings.Typography, formatted.Typography, "Formatted Word typography");
+            await controller.ConvertSelectedToOmmlAsync(token);
+            XNamespace w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+            XNamespace m = "http://schemas.openxmlformats.org/officeDocument/2006/math";
+            var xml = XDocument.Parse((string)document.Content.WordOpenXML);
+            string[] colors = xml.Descendants(m + "oMath").Descendants(w + "color")
+                .Select(node => ((string?)node.Attribute(w + "val") ?? "").ToUpperInvariant()).ToArray();
+            E2EAssert.True(colors.Contains("000000") && colors.Contains("00AA00") && !colors.Contains("ED3507"),
+                "OLE-to-OMML conversion changed formatted or local colors");
+            Console.WriteLine("PASS|Word format corrects stale whole-formula color and preserves local color through OLE-to-OMML");
+        }
+        finally { document.Close(0); }
+    }
+
     public static async Task VerifyAsync(object application, string outputPath)
     {
         dynamic word = application;

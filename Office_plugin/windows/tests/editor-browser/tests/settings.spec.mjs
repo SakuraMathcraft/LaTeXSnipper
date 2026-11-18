@@ -40,12 +40,41 @@ for (const host of ['Word', 'PowerPoint']) {
     const backend = page.locator('[data-backend]').first().locator('..');
     const slider = () => backend.evaluate(el => {
       const style = getComputedStyle(el, '::before');
-      return {transform: style.transform, duration: style.transitionDuration};
+      return {left: parseFloat(style.left), duration: style.transitionDuration};
     });
     expect((await slider()).duration).toBe('0.18s');
+    const buttons = page.locator('[data-backend]');
+    for (const width of [744, 380]) {
+      await page.setViewportSize({width, height: 632});
+      const boxes = await Promise.all([0, 1, 2].map(index => buttons.nth(index).boundingBox()));
+      expect(boxes.every(box => Math.abs(box.y - boxes[0].y) < 1)).toBe(true);
+      expect(boxes.every(box => Math.abs(box.width - boxes[0].width) < 1)).toBe(true);
+      expect(boxes[0].x + boxes[0].width).toBeLessThan(boxes[1].x);
+      expect(boxes[1].x + boxes[1].width).toBeLessThan(boxes[2].x);
+    }
+    await page.setViewportSize({width: 744, height: 632});
+    const initialLeft = (await slider()).left;
     await page.locator('[data-backend]').nth(1).click();
-    await expect.poll(async () => (await slider()).transform).not.toBe('none');
+    await expect.poll(async () => (await slider()).left).toBeGreaterThan(initialLeft);
     expect(await page.evaluate(() => window.posted.at(-1).insertionBackend)).toBe(host === 'Word' ? 'WordOmml' : 'PowerPointPng');
+    await page.locator('[data-backend="MathType"]').click();
+    await expect(page.locator('[data-backend="MathType"]')).toHaveClass(/\bactive\b/);
+    expect(await page.evaluate(() => window.posted.at(-1).insertionBackend)).toBe('MathType');
+    const alignment = await backend.evaluate(el => {
+      const track = el.getBoundingClientRect();
+      const active = el.querySelector('button.active').getBoundingClientRect();
+      const style = getComputedStyle(el, '::before');
+      return {buttonX: active.x - track.x - el.clientLeft, buttonWidth: active.width,
+        sliderX: parseFloat(style.left), sliderWidth: parseFloat(style.width)};
+    });
+    await expect.poll(async () => backend.evaluate(el => {
+      const active = el.querySelector('button.active').getBoundingClientRect();
+      const style = getComputedStyle(el, '::before');
+      const left = el.getBoundingClientRect().x + el.clientLeft + parseFloat(style.left);
+      return Math.abs(active.x - left);
+    })).toBeLessThan(1);
+    expect(Math.abs(alignment.buttonWidth - alignment.sliderWidth)).toBeLessThan(1);
+    await page.screenshot({path: join(tmpdir(), `latexsnipper-${host.toLowerCase()}-backend-settings.png`), fullPage: true});
     await page.emulateMedia({reducedMotion: 'reduce'});
     expect((await slider()).duration).toBe('0s');
     expect(await page.locator('html').evaluate(el => getComputedStyle(el).colorScheme)).toBe('light');

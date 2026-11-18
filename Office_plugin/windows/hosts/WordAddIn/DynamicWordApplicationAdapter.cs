@@ -24,6 +24,7 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
     private const string OleFormulaProgId = "LaTeXSnipper.Formula";
 
     private readonly dynamic _wordApplication;
+    private readonly Func<WordPluginSettings> _settingsLoader;
     private OmmlToMathMlConverter? _ommlToMathMlConverter;
     private int _undoRecordDepth;
     private readonly LaTeXSnipper.OfficePlugin.Rendering.OfficeStaDispatcher _officeThread = new();
@@ -113,22 +114,32 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
 
             _disposed = true;
             _owner._undoRecordDepth = Math.Max(0, _owner._undoRecordDepth - 1);
-            if (_started && _owner._undoRecordDepth == 0)
+            if (_owner._undoRecordDepth == 0)
             {
-                _owner.TryEndUndoRecord();
+                _owner.CloseOmmlScratchDocument();
+                if (_started)
+                {
+                    _owner.TryEndUndoRecord();
+                }
             }
         }
     }
 
-    public DynamicWordApplicationAdapter(object wordApplication, OmmlToMathMlConverter? ommlToMathMlConverter = null)
+    public DynamicWordApplicationAdapter(object wordApplication, OmmlToMathMlConverter? ommlToMathMlConverter = null,
+        Func<WordPluginSettings>? settingsLoader = null)
     {
         _wordApplication = wordApplication ?? throw new ArgumentNullException(nameof(wordApplication));
         _ommlToMathMlConverter = ommlToMathMlConverter;
+        _settingsLoader = settingsLoader ?? WordPluginSettings.Load;
     }
 
     public string InstallationDirectory => (string)_wordApplication.Path;
 
-    public void Dispose() => _officeThread.Dispose();
+    public void Dispose()
+    {
+        CloseOmmlScratchDocument();
+        _officeThread.Dispose();
+    }
 
     public double GetCurrentFontSizePoints()
     {
@@ -160,14 +171,5 @@ public sealed partial class DynamicWordApplicationAdapter : IWordApplicationAdap
     public string GetCurrentDocumentId()
     {
         return WordDocumentIdentityStore.GetOrCreate(CurrentDocument);
-    }
-
-    public Task ValidateCurrentInsertionTargetAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        dynamic selection = _wordApplication.Selection;
-        dynamic range = selection.Range;
-        ValidateInsertionTarget(range);
-        return Task.CompletedTask;
     }
 }

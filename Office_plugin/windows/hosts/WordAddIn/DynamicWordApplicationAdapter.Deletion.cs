@@ -10,7 +10,7 @@ public sealed partial class DynamicWordApplicationAdapter
         dynamic formula = selected.ContentControl;
         if (selected.Metadata.NumberingMode != NumberingMode.None)
         {
-            RemoveFormulaForReplacement(formula.Range, selected.Metadata.Identity.EquationId, display: false);
+            RemoveFormulaForReplacement(formula.Range, selected.Metadata, display: false);
         }
         else if (selected.IsOleInlineShape)
         {

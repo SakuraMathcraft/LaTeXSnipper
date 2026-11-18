@@ -9,7 +9,10 @@ const shortcuts = new Map([
   ['Subscript', 'l'], ['Subscript and superscript', 'j']
 ]);
 const byTemplate = new Map();
+const byCategory = new Map();
 for (const group of GROUPS) {
+  const entries = new Set();
+  const preferred = new Map(group.priority?.map(name => [name, null]));
   let section = '';
   for (const item of group.items) {
     if (item.section) { section = `${item.section} ${item.sectionEn || ''}`; continue; }
@@ -17,14 +20,16 @@ for (const group of GROUPS) {
     const template = /#[@0]/.test(rawTemplate) ? rawTemplate.replace(/#@/g, '#0') : rawTemplate.replace('#?', '#0');
     let entry = byTemplate.get(template);
     if (!entry) {
-      entry = {id: `symbol-${byTemplate.size}`, zh, en, nameZh, template, groups: [], aliases: [],
+      entry = {id: `symbol-${byTemplate.size}`, zh, en, nameZh, template, aliases: [],
         matrix: template.startsWith('matrix:') ? template.slice(7) : null,
         shortcut: shortcuts.get(en) || null};
       byTemplate.set(template, entry);
     }
-    entry.groups.push(group.id);
+    entries.add(entry);
+    if (preferred.has(en)) preferred.set(en, entry);
     entry.aliases.push(zh, en, nameZh, section);
   }
+  byCategory.set(group.id, [...new Set([...preferred.values(), ...entries])].filter(Boolean));
 }
 export const CATALOG = [...byTemplate.values()];
 for (const entry of CATALOG) {
@@ -39,7 +44,8 @@ export const CATEGORIES = [
 ];
 export function findEntries(category, query = '') {
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  return CATALOG.filter(entry => terms.length ? terms.every(term => entry.search.includes(term)) : entry.groups.includes(category));
+  if (terms.length) return CATALOG.filter(entry => terms.every(term => entry.search.includes(term)));
+  return [...(byCategory.get(category) ?? [])];
 }
 export function entryTemplate(entry, rows = 2, columns = 2) {
   return entry.matrix ? matrixTemplate(entry.matrix, rows, columns) : entry.template;
@@ -51,8 +57,14 @@ export function templateParts(template, selected = '') {
   const tokens = template.split(/(#[0-9?@])/g);
   const explicit = tokens.findIndex(token => token === '#0' || token === '#@');
   const selectionIndex = explicit < 0 ? tokens.findIndex(token => /^#[0-9?@]$/.test(token)) : explicit;
-  return tokens.map((text, index) => /^#[0-9?@]$/.test(text)
+  const parts = tokens.map((text, index) => /^#[0-9?@]$/.test(text)
     ? (selected && index === selectionIndex ? {text: selected} : {hole: true}) : {text});
+  for (let index = 1; index < parts.length; index += 2) {
+    const previous = parts[index - 1], field = parts[index], next = parts[index + 1];
+    if (/\\[a-zA-Z]+$/.test(previous.text) && (field.hole || /^[a-zA-Z]/.test(field.text))) previous.text += ' ';
+    if (/\\[a-zA-Z]+$/.test(field.text || '') && /^[a-zA-Z]/.test(next.text)) field.text += ' ';
+  }
+  return parts;
 }
 
 export const COMMANDS = [...new Set(CATALOG.flatMap(entry =>

@@ -108,8 +108,11 @@ export class SourceEditor {
   }
   get selectedText() { const {from, to} = this.view.state.selection.main; return this.view.state.sliceDoc(from, to); }
   insertTemplate(parts, range = this.view.state.selection.main) {
-    if (this.composing || this.view.state.readOnly) return;
-    this.view.dispatch({...templateTransaction(parts, range.from, range.to, this.view.state.sliceDoc(range.to, range.to + 1)),
+    const state = this.view.state;
+    if (this.composing || state.readOnly) return;
+    const preceding = state.sliceDoc(state.doc.lineAt(range.from).from, range.from);
+    const following = state.sliceDoc(range.to, range.to + 1);
+    this.view.dispatch({...templateTransaction(parts, range.from, range.to, {preceding, following}),
       annotations: [isolateHistory.of('full'), Transaction.userEvent.of('input.template')]});
     this.focus();
   }

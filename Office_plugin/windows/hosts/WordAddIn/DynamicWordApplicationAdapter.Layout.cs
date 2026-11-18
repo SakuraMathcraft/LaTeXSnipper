@@ -5,6 +5,8 @@ namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
 public sealed partial class DynamicWordApplicationAdapter
 {
+    private dynamic? _ommlScratchDocument;
+
     private void ReplaceFormulaContent(
         object contentControl,
         string ooxml,
@@ -17,7 +19,7 @@ public sealed partial class DynamicWordApplicationAdapter
             metadata.NumberText != currentMetadata.NumberText ||
             metadata.DisplayMode != currentMetadata.DisplayMode)
         {
-            ReplaceParagraphWithFormula(control, ooxml, metadata);
+            ReplaceParagraphWithFormula(control, ooxml, metadata, currentMetadata);
             return;
         }
 
@@ -26,11 +28,11 @@ public sealed partial class DynamicWordApplicationAdapter
         NormalizeManagedInlineEquationBaseline(metadata, control);
     }
 
-    private void ReplaceParagraphWithFormula(object contentControl, string ooxml, FormulaMetadata metadata)
+    private void ReplaceParagraphWithFormula(object contentControl, string ooxml, FormulaMetadata metadata, FormulaMetadata currentMetadata)
     {
         dynamic control = contentControl;
         using var bookmarks = new EquationBookmarkScope(CurrentDocument, control.Range, metadata.Identity.EquationId);
-        dynamic insertionRange = RemoveFormulaForReplacement(control.Range, metadata.Identity.EquationId, metadata.DisplayMode == FormulaDisplayMode.Display);
+        dynamic insertionRange = RemoveFormulaForReplacement(control.Range, currentMetadata, metadata.DisplayMode == FormulaDisplayMode.Display);
         insertionRange.InsertXML(ooxml);
         if (metadata.NumberingMode != NumberingMode.None)
             NormalizeNumberedFormulaLayout(metadata.Identity.EquationId);
@@ -68,33 +70,37 @@ public sealed partial class DynamicWordApplicationAdapter
 
     private void ReplaceOmmlRangeWithParsedFormula(dynamic targetEquationRange, string equationContentOoxml)
     {
-        dynamic? scratchDocument = null;
+        bool keepScratchDocument = false;
         try
         {
-            scratchDocument = _wordApplication.Documents.Add();
-            scratchDocument.Range(0, 0).InsertXML(equationContentOoxml);
+            dynamic scratchDocument = _ommlScratchDocument ??= _wordApplication.Documents.Add(Visible: false);
+            scratchDocument.Content.InsertXML(equationContentOoxml);
             dynamic scratchEquations = scratchDocument.OMaths;
-            if (Convert.ToInt32(scratchEquations.Count) == 0)
+            if (Convert.ToInt32(scratchEquations.Count) != 1)
             {
                 throw new InvalidOperationException(WordAddInText.Get("SelectedFormulaMetadataMissing"));
             }
 
             targetEquationRange.FormattedText = scratchEquations.Item(1).Range.FormattedText;
+            // Each write batch has its own undo scope.
+            keepScratchDocument = _undoRecordDepth > 0;
         }
         finally
         {
-            if (scratchDocument != null)
+            if (!keepScratchDocument)
             {
-                TryCom(() => scratchDocument.Close(false));
+                CloseOmmlScratchDocument();
             }
         }
     }
 
-    private void ValidateInsertionTarget(dynamic range)
+    private void CloseOmmlScratchDocument()
     {
-        if (RangeTouchesManagedFormula(range) || RangeIntersectsManagedFormula(range))
+        dynamic? scratchDocument = _ommlScratchDocument;
+        _ommlScratchDocument = null;
+        if (scratchDocument != null)
         {
-            throw new InvalidOperationException(WordAddInText.Get("InsertInsideFormulaError"));
+            TryCom(() => scratchDocument.Close(false));
         }
     }
 

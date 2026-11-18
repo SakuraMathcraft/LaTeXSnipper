@@ -2,18 +2,19 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Xml.Linq;
+using LaTeXSnipper.OfficePlugin.Abstractions;
 
 namespace LaTeXSnipper.OfficePlugin.Rendering;
 
 /// <summary>Encodes and reads current MathType MTEF v5 content without an equation server.</summary>
 public static class MathTypeNativeEquation
 {
-    public static byte[] Create(string mathMl, double fontSizePoints)
+    public static byte[] Create(string mathMl, double fontSizePoints, FormulaDisplayMode displayMode = FormulaDisplayMode.Display)
     {
         var math = XDocument.Parse(mathMl);
         var size = math.Descendants().Attributes("mathsize").FirstOrDefault(a => a.Value != "normal");
         if (size != null) throw new InvalidDataException("MathType encoding does not support local mathsize=" + size.Value + "; the original equation was retained.");
-        var result = MathTypeMtefCodec.CreateEquationNativeAtFontSize(mathMl, fontSizePoints);
+        var result = MathTypeMtefCodec.CreateEquationNativeAtFontSize(mathMl, fontSizePoints, displayMode);
         string decoded = ReadMathMl(result);
         if (MathTypeMtefCodec.SemanticSignature(mathMl) != MathTypeMtefCodec.SemanticSignature(decoded))
             throw new InvalidDataException("MathType MTEF semantic validation failed; the original equation was retained.");
@@ -25,4 +26,10 @@ public static class MathTypeNativeEquation
     public static string ReadMathMl(byte[] equationNative) => MathTypeMtefCodec.ReadEquationNativeMathMl(equationNative);
 
     public static double ReadFontSizePoints(byte[] equationNative) => MathTypeMtefCodec.ReadEquationNativeFullFontSize(equationNative);
+
+    public static FormulaDisplayMode ReadDisplayMode(byte[] equationNative) =>
+        MathTypeMtefCodec.IsInlineEquation(equationNative) ? FormulaDisplayMode.Inline : FormulaDisplayMode.Display;
+
+    public static MathTypeFormulaContent ReadContent(byte[] equationNative) =>
+        new(ReadMathMl(equationNative), ReadFontSizePoints(equationNative), ReadDisplayMode(equationNative));
 }

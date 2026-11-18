@@ -50,8 +50,9 @@ export const templateFields = [fields, Prec.highest(keymap.of([
   }}
 ]))];
 
-export function templateTransaction(parts, from, to, following = '') {
-  let insert = '';
+export function templateTransaction(parts, from, to, {preceding = '', following = ''} = {}) {
+  const first = parts.find(part => part.hole || part.text);
+  let insert = /\\[a-zA-Z]+$/.test(preceding) && (first?.hole || /^[a-zA-Z]/.test(first?.text || '')) ? ' ' : '';
   const ranges = [];
   for (const part of parts) {
     if (part.hole) ranges.push({from: from + insert.length, to: from + insert.length});

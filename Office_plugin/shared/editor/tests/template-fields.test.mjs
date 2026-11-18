@@ -17,9 +17,18 @@ test('source templates preserve literal TeX, multiline selections and snippet-li
 
 test('a symbol inserted before a variable keeps its command boundary', () => {
   let state = EditorState.create({doc: 'x', extensions: templateFields});
-  state = state.update(templateTransaction(templateParts('\\alpha'), 0, 0, 'x')).state;
+  state = state.update(templateTransaction(templateParts('\\alpha'), 0, 0, {following: 'x'})).state;
   assert.equal(state.doc.toString(), '\\alpha x');
   assert.equal(state.selection.main.from, '\\alpha '.length);
+});
+
+test('a template beginning with a letter or a field stays separate from the preceding control word', () => {
+  for (const template of ['x+1', '#0+1']) {
+    const state = EditorState.create({doc: '\\sin', extensions: templateFields});
+    let result = state.update(templateTransaction(templateParts(template), 4, 4, {preceding: '\\sin'})).state;
+    if (template.startsWith('#')) result = result.update(result.replaceSelection('x')).state;
+    assert.equal(result.doc.toString(), '\\sin x+1');
+  }
 });
 
 test('Tab and Shift-Tab track filled source fields and leave at the template end', () => {

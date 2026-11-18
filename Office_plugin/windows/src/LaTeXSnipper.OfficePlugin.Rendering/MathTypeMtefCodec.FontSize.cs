@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Globalization;
+using LaTeXSnipper.OfficePlugin.Abstractions;
 
 namespace LaTeXSnipper.OfficePlugin.Rendering;
 
@@ -12,8 +13,8 @@ internal static partial class MathTypeMtefCodec
     // dimensions. Full is element zero; the other sizes, spacing, fonts and
     // explicit SIZE records remain native MathType preferences.
     // https://docs.wiris.com/en_US/mathtype-mtef-v5-mathtype-40-and-later
-    internal static byte[] CreateEquationNativeAtFontSize(string mathMl, double fontSizePt)
-        => SetFullFontSize(CreateEquationNative(mathMl), fontSizePt);
+    internal static byte[] CreateEquationNativeAtFontSize(string mathMl, double fontSizePt, FormulaDisplayMode displayMode)
+        => SetFullFontSize(CreateEquationNative(mathMl, displayMode), fontSizePt);
 
     internal static double ReadEquationNativeFullFontSize(byte[] equationNative)
     {

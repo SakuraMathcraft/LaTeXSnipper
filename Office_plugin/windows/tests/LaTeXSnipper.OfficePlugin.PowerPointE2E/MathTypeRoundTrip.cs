@@ -106,8 +106,9 @@ internal static class MathTypeRoundTrip
             await Task.Run(() => controller.ConvertSelectedToOleAsync(token));
             var imported = await adapter.LoadFormulaEntriesAsync(true, token);
             Check(imported.Count == 2, "Mixed OLE/MathType import did not finish");
-            var edited = imported.Single(e => XDocument.Parse(e.Metadata.Latex).Root!.Value.Contains("新"));
-            Check(XDocument.Parse(edited.Metadata.Latex).Root!.Value.Contains("z"), "Import restored stale content instead of MathType edit");
+            var edited = imported.Single(e => e.Metadata.Latex.Contains("新"));
+            Check(edited.Metadata.Latex.Contains("z") && !edited.Metadata.Latex.StartsWith("<", StringComparison.Ordinal),
+                "Import must store current editable LaTeX");
             Check(Math.Abs(edited.Metadata.Typography.FontSizePoints - FormulaTypography.Default.FontSizePoints) < 0.001, "Import lost the native font size");
             presentation.SaveAs(Path.Combine(Path.GetDirectoryName(output)!, "powerpoint-mathtype-import.pptx"), 24);
             Console.WriteLine("PASS|PPT MathType to OLE: current edited content, mixed selection, first failure continues, worker thread");

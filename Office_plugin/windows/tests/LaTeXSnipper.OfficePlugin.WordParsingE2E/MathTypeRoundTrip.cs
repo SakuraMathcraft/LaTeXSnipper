@@ -31,10 +31,19 @@ internal static partial class MathTypeRoundTrip
             (Source: @"\begin{pmatrix}a&b\\c&d\end{pmatrix}", Element: "mtable"),
             (Source: @"\int_0^1 x\,dx", Element: "msubsup"),
             (Source: @"\textcolor{red}{x}+\mathbf{B}", Element: "mi"),
-            (Source: @"\textcolor{#d52020}{\mu(n)=\begin{cases}1,&n=1\\(-1)^k,&n=p_1\cdots p_k\\0,&p^2\mid n\end{cases}}", Element: "mtable")
+            (Source: @"\textcolor{#d52020}{\mu(n)=\begin{cases}1,&n=1\\(-1)^k,&n=p_1\cdots p_k\\0,&p^2\mid n\end{cases}}", Element: "mtable"),
+            (Source: @"\begin{aligned}(f\circ g)'(x)&=f'(g(x))g'(x)\\\|x\|&=\sqrt{x^2}\end{aligned}", Element: "mtable"),
+            (Source: @"\displaylines{(a+b)^n=\sum_{k=0}^n\binom nk a^{n-k}b^k\\a^2-b^2=(a-b)(a+b)}", Element: "mtable"),
+            (Source: @"\mathring{\frac{x}{y}}+\liminf_{n\to\infty}a_n", Element: "mover"),
+            (Source: @"\ce{HA + OH- -> A- + H2O}", Element: "msub"),
+            (Source: @"\ce{A ->[x][y] B}", Element: "munderover"),
+            (Source: @"\left\llbracket t+1\right\rrbracket+\prescript{14}{6}{C}", Element: "mmultiscripts"),
+            (Source: @"\Sampi+\sampi+\mapsfrom+\longmapsfrom+\circledS", Element: "mo"),
         };
         try
         {
+            await VerifyWordScenariosAsync(application, output, renderer);
+            document.Activate();
             if (editNative)
             {
                 dynamic reference = document.InlineShapes.AddOLEObject(ClassType: MathTypeOleBridge.ProgId, DisplayAsIcon: false, Range: document.Range(0, 0));
@@ -112,10 +121,13 @@ internal static partial class MathTypeRoundTrip
             await Task.Run(() => controller.ConvertSelectedToOleAsync(CancellationToken.None));
             var imported = await adapter.LoadFormulaEntriesAsync(true, CancellationToken.None);
             E2EAssert.Equal(examples.Length, imported.Count, "Mixed OLE/MathType selection did not finish importing");
+            foreach (var unchanged in examples.Skip(1))
+                E2EAssert.True(imported.Any(e => e.Metadata!.Latex == unchanged.Source), "Unchanged object lost its exact LaTeX: " + unchanged.Source);
             if (editNative)
             {
-                var edited = imported.Single(e => XDocument.Parse(e.Metadata!.Latex).Root!.Value.Contains("新"));
-                E2EAssert.True(XDocument.Parse(edited.Metadata!.Latex).Root!.Value.Contains("z"), "Import restored stale content instead of edited MathType content");
+                var edited = imported.Single(e => e.Metadata!.Latex.Contains("新"));
+                E2EAssert.True(edited.Metadata!.Latex.Contains("z") && !edited.Metadata.Latex.StartsWith("<", StringComparison.Ordinal),
+                    "Import must store current editable LaTeX");
             }
             document.SaveAs2(Path.Combine(Path.GetDirectoryName(output)!, "word-mathtype-import.docx"), 16);
             Console.WriteLine("PASS|Word MathType to OLE: current edited content, mixed selection, first failure continues, worker thread");
@@ -159,6 +171,21 @@ internal static partial class MathTypeRoundTrip
         if (element == "msubsup") E2EAssert.True(xml.Root!.Value.Contains("∫")
             && xml.Root.Value.Contains("0") && xml.Root.Value.Contains("1"), "MathType lost integral bounds");
         if (source.Contains("端")) E2EAssert.True(xml.Root!.Value.Contains("端"), "MathType lost Chinese text");
+        if (source.Contains(@"\mathring"))
+            E2EAssert.True(xml.Root!.Value.Contains("˚") && xml.Root.Value.Contains("liminf"), "MathType lost the ring or compound limit");
+        if (source.Contains(@"\ce"))
+            E2EAssert.True((xml.Root!.Value.Contains("⟶") || xml.Root.Value.Contains("→"))
+                && !xml.Root.Value.Contains("�"), "MathType lost the reaction arrow");
+        if (source.Contains(@"\llbracket"))
+            E2EAssert.True((xml.Root!.Value.Contains("⟦") && xml.Root.Value.Contains("⟧"))
+                || (xml.Root.Value.Contains("〚") && xml.Root.Value.Contains("〛"))
+                || xml.Descendants().Any(e => e.Name.LocalName == "mfenced"
+                    && ((string?)e.Attribute("open"), (string?)e.Attribute("close")) is ("⟦", "⟧") or ("〚", "〛")),
+                "MathType lost the white brackets");
+        if (source.Contains(@"\|"))
+            E2EAssert.True(!xml.Root!.Value.Contains("�"), "MathType lost the norm delimiters");
+        if (source.Contains(@"\Sampi"))
+            E2EAssert.True("Ϡϡ↤⟻Ⓢ".All(glyph => xml.Root!.Value.IndexOf(glyph) >= 0), "MathType lost supplementary glyphs");
         if (!nativeRead && source.Contains("textcolor")) E2EAssert.True(xml.Descendants().Attributes("mathcolor").Any(), "MathType native data lost color");
     }
 }

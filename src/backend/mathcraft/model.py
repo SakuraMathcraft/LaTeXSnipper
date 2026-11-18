@@ -18,6 +18,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 
 from backend.mathcraft.diagnostics import classify_mathcraft_failure
 from backend.mathcraft.process_environment import _failed_warmup_component_details
+from mathcraft_ocr.image_color import to_ocr_rgb
 from mathcraft_ocr.protocol import MODEL_FORMAT, WORKER_PROTOCOL, validate_response
 from runtime.exception_diagnostics import format_exception_diagnostics
 from runtime.installed_resources import (
@@ -538,7 +539,7 @@ class ModelWrapper(QObject):
 
         tmp_path = ""
         try:
-            image_rgb = pil_img.convert("RGB")
+            image_rgb = to_ocr_rgb(pil_img)
             if _looks_like_empty_ocr_input(image_rgb):
                 return _empty_recognition_result(model, mode, image_rgb, "empty_image")
             with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:

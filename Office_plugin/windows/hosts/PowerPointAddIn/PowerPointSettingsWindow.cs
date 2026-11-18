@@ -178,9 +178,12 @@ internal sealed class PowerPointSettingsWindow : Form
         string backend = message.TryGetValue("insertionBackend", out object rawBackend)
             ? Convert.ToString(rawBackend, CultureInfo.InvariantCulture) ?? string.Empty
             : string.Empty;
-        FormulaInsertionBackend insertionBackend = backend == FormulaInsertionBackend.PowerPointPng.ToString()
-            ? FormulaInsertionBackend.PowerPointPng
-            : FormulaInsertionBackend.Ole;
+        FormulaInsertionBackend insertionBackend = backend switch
+        {
+            nameof(FormulaInsertionBackend.PowerPointPng) => FormulaInsertionBackend.PowerPointPng,
+            nameof(FormulaInsertionBackend.MathType) => FormulaInsertionBackend.MathType,
+            _ => FormulaInsertionBackend.Ole
+        };
         string formulaColor = message.TryGetValue("formulaColor", out object rawColor)
             ? Convert.ToString(rawColor, CultureInfo.InvariantCulture) ?? "#000000"
             : "#000000";

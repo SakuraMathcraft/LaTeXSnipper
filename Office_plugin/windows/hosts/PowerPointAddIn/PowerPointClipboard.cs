@@ -94,8 +94,10 @@ internal static class PowerPointClipboard
             .Where(node => string.IsNullOrWhiteSpace(node.Value) && node.Parent?.Elements().Any() == true)
             .ToArray())
             whitespace.Remove();
-        // Encode non-ASCII text and attribute values as numeric references so
-        // PowerPoint's MathML paste parser accepts formulas containing Chinese.
+        foreach (XElement identifier in root.Descendants(root.Name.Namespace + "mi"))
+            if (identifier.Value.All(character => character >= '\u3400' && character <= '\u9fff'))
+                identifier.Name = root.Name.Namespace + "mtext";
+
         string compact = root.ToString(SaveOptions.DisableFormatting);
         var encoded = new StringBuilder(compact.Length);
         for (int index = 0; index < compact.Length; index++)

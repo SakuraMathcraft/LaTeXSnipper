@@ -53,7 +53,7 @@ internal static partial class MathTypeMtefCodec
                 sourceMtef,
                 alignedPrefixDefinitions);
             var alignedRoot = new List<byte>();
-            if (TryEmitAlignedPile(alignedTable, alignedRoot))
+            if (TryEmitAlignedPile(alignedTable, alignedRoot) || TryEmitDisplayPile(alignedTable, alignedRoot))
             {
                 prefixDefinitions = alignedPrefixDefinitions.ToArray();
                 // MathType 7's own multi-point aligned equations use PILE as the
@@ -169,6 +169,7 @@ internal static partial class MathTypeMtefCodec
         XElement[] elements,
         string? variant)
     {
+        elements = elements.SelectMany(TransparentSequence).ToArray();
         if (elements.Length == 0)
             return string.Empty;
         if (TryCanonicalizeSplitFencedScriptSequence(
@@ -191,6 +192,15 @@ internal static partial class MathTypeMtefCodec
                 child => CanonicalizeMathMl(
                     child,
                     variant)));
+    }
+
+    private static IEnumerable<XElement> TransparentSequence(XElement node)
+    {
+        if (node.Name.LocalName != "mrow" || node.Attribute("mathvariant") is not null
+            || TryGetMathJaxFenceRow(node, out _, out _, out _)
+            || TryCanonicalizeMathJaxFencedSuperscriptRow(node, null, out _))
+            return new[] { node };
+        return node.Elements().SelectMany(TransparentSequence);
     }
 
 
@@ -360,7 +370,7 @@ internal static partial class MathTypeMtefCodec
         var normalized =
             NormalizeFence(
                 fence);
-        if (normalized is "(" or "[" or "{" or "⟨" or "⌈" or "⌊")
+        if (normalized is "(" or "[" or "{" or "⟨" or "⌈" or "⌊" or "⟦")
             return true;
 
         if (normalized is "|" or "‖")
@@ -384,7 +394,7 @@ internal static partial class MathTypeMtefCodec
         var normalized =
             NormalizeFence(
                 fence);
-        if (normalized is ")" or "]" or "}" or "⟩" or "⌉" or "⌋")
+        if (normalized is ")" or "]" or "}" or "⟩" or "⌉" or "⌋" or "⟧")
             return true;
 
         if (normalized is "|" or "‖")
@@ -448,6 +458,7 @@ internal static partial class MathTypeMtefCodec
         {
             "(" => ")",
             "[" => "]",
+            "⟦" => "⟧",
             "{" => "}",
             "⟨" => "⟩",
             "⌈" => "⌉",
@@ -844,7 +855,7 @@ internal static partial class MathTypeMtefCodec
         if (token is null) return false;
         fence = NormalizeFence(token.Value.Trim());
         return fence is "(" or ")" or "[" or "]" or "{" or "}"
-            or "⟨" or "⟩" or "⌈" or "⌉" or "⌊" or "⌋" or "|" or "‖";
+            or "⟨" or "⟩" or "⌈" or "⌉" or "⌊" or "⌋" or "|" or "‖" or "⟦" or "⟧";
     }
 
 
@@ -853,6 +864,7 @@ internal static partial class MathTypeMtefCodec
         {
             ("(", ")") => true,
             ("[", "]") => true,
+            ("⟦", "⟧") => true,
             ("{", "}") => true,
             ("⟨", "⟩") => true,
             ("⌈", "⌉") => true,
@@ -1191,8 +1203,7 @@ internal static partial class MathTypeMtefCodec
                     EmitIntegralTemplate(integral, main: null, lower: null, upper: null, output);
                 else if (TryResolveNativeBigOperator(element, out var standaloneBigOperator))
                     EmitBigOperatorTemplate(standaloneBigOperator, main: null, lower: null, upper: null, output);
-                else if (IsNamedLimitOperator(element)
-                    || operatorValue.Length > 1 && operatorValue.All(char.IsLetter))
+                else if (NamedOperatorText(operatorValue) is { } function)
                     // MathJax emits alphabetic operators such as TeX `\bmod` as
                     // one upright <mo> token. Writing each ASCII letter through
                     // the Symbol typeface made the MTEF reader recover three
@@ -1200,7 +1211,7 @@ internal static partial class MathTypeMtefCodec
                     // strict standalone semantic gate. MathType's native
                     // function run is the matching MTEF representation for an
                     // upright alphabetic operator and round-trips as one run.
-                    EmitFunctionRun(operatorValue, output);
+                    EmitFunctionRun(function, output);
                 else
                     EmitOperator(element, output);
                 break;
@@ -1209,7 +1220,13 @@ internal static partial class MathTypeMtefCodec
                 EmitText(element.Value, TypefaceText, output);
                 break;
             case "mspace":
-                EmitCharacter(' ', TypefaceSpace, output);
+                var spaceScalar = (string?)element.Attribute("width") switch
+                {
+                    "0em" => 0xEF01, "0.167em" => 0xEF02, "0.222em" => 0xEF03,
+                    "0.278em" or "0.333em" => 0xEF04, "1em" => 0xEF05, "2em" => 0xEF06,
+                    _ => ' ',
+                };
+                EmitScalar(spaceScalar, TypefaceSpace, output);
                 break;
             case "mfrac":
                 EmitFraction(element, output);
@@ -1242,7 +1259,8 @@ internal static partial class MathTypeMtefCodec
                 EmitUnderOver(element, output);
                 break;
             case "mtable":
-                EmitMatrix(element, output);
+                if (!TryEmitAlignedPile(element, output) && !TryEmitDisplayPile(element, output))
+                    EmitMatrix(element, output);
                 break;
             case "mtr":
             case "mlabeledtr":
@@ -1565,7 +1583,7 @@ internal static partial class MathTypeMtefCodec
         // Preserve the whole composite base as one nested LINE object before
         // appending the script template. Atomic bases keep the old path so common
         // x^2 / a_i equations remain byte- and layout-compatible.
-        if (RequiresGroupedScriptBase(children[0]))
+        if (RequiresGroupedScriptBase(children[0]) || !children[0].HasElements && children[0].Value.Length == 0)
             EmitLine(children[0], output);
         else
             EmitNode(children[0], output);
@@ -1669,8 +1687,7 @@ internal static partial class MathTypeMtefCodec
                     output);
                 return;
         }
-        EmitNode(children[0], output);
-        EmitTrailingScript(children[1], isSubscript: false, output);
+        EmitAnnotation(children[0], null, children[1], output);
     }
 
 
@@ -1731,8 +1748,7 @@ internal static partial class MathTypeMtefCodec
                 output);
             return;
         }
-        EmitNode(children[0], output);
-        EmitTrailingScript(children[1], isSubscript: true, output);
+        EmitAnnotation(children[0], children[1], null, output);
     }
 
 
@@ -1772,10 +1788,26 @@ internal static partial class MathTypeMtefCodec
             EmitLimitTemplate(children[0], children[1], children[2], output);
             return;
         }
-        EmitNode(children[0], output);
-        output.AddRange(new byte[] { RecordTemplate, 0, TemplateSubSup, 0, 0, RecordSub });
-        EmitLine(children[1], output);
-        EmitLine(children[2], output);
+        EmitAnnotation(children[0], children[1], children[2], output);
+    }
+
+    private static void EmitAnnotation(XElement basis, XElement? lower, XElement? upper, List<byte> output)
+    {
+        var arrow = UnwrapRows(basis);
+        if (arrow.Name.LocalName == "mo" && arrow.Value is "←" or "→"
+            && new[] { lower, upper }.Any(label => label?.Name.LocalName == "mpadded"))
+        {
+            EmitRelationArrow(arrow.Value[0], arrow.Value == "←" ? ArrowLeft : ArrowRight, lower, upper, output);
+            return;
+        }
+        var variation = (lower is null ? 0 : StackedLower) | (upper is null ? 0 : StackedUpper);
+        EmitTemplateHeader(TemplateLimit, variation, output);
+        EmitLine(basis, output);
+        output.Add(RecordSub);
+        if (lower is null) output.AddRange(new byte[] { RecordLine, LineNull });
+        else EmitLine(lower, output);
+        if (upper is null) output.AddRange(new byte[] { RecordLine, LineNull });
+        else EmitLine(upper, output);
         output.Add(RecordEnd);
         output.Add(RecordFull);
     }
@@ -1966,7 +1998,7 @@ internal static partial class MathTypeMtefCodec
     {
         if (element.Name.LocalName is not ("mi" or "mo")) return false;
         var value = element.Value.Trim();
-        if (value.Length <= 1 || !value.All(char.IsLetter)) return false;
+        if (NamedOperatorText(value) is null) return false;
         var movableLimits = string.Equals(
             (string?)element.Attribute("movablelimits"),
             "true",
@@ -1979,6 +2011,12 @@ internal static partial class MathTypeMtefCodec
             || variant.IndexOf("upright", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
+    private static string? NamedOperatorText(string value) => value switch
+    {
+        "lim\u2006sup" => "limsup",
+        "lim\u2006inf" => "liminf",
+        _ => value.Length > 1 && value.All(char.IsLetter) ? value : null,
+    };
 
     private static void EmitLimitTemplate(
         XElement operatorElement,
@@ -1990,7 +2028,7 @@ internal static partial class MathTypeMtefCodec
         // as function-style CHAR records followed by the ordinary sub/sup
         // template. Writing selector 23 (tmLIM) here produced Equation Native
         // streams that our parser accepted but MathType could hang while opening.
-        var name = operatorElement.Value.Trim();
+        var name = NamedOperatorText(operatorElement.Value.Trim())!;
         EmitFunctionRun(name, output);
         if (lower is null && upper is null) return;
 
@@ -2035,35 +2073,6 @@ internal static partial class MathTypeMtefCodec
     }
 
 
-    private static void EmitTrailingScript(
-        XElement script,
-        bool isSubscript,
-        List<byte> output)
-    {
-        output.AddRange(new byte[]
-        {
-            RecordTemplate,
-            0,
-            isSubscript ? TemplateSub : TemplateSup,
-            0,
-            0,
-            RecordSub,
-        });
-        if (isSubscript)
-        {
-            EmitLine(script, output);
-            output.AddRange(new byte[] { RecordLine, LineNull });
-        }
-        else
-        {
-            output.AddRange(new byte[] { RecordLine, LineNull });
-            EmitLine(script, output);
-        }
-        output.Add(RecordEnd);
-        output.Add(RecordFull);
-    }
-
-
     private static void EmitSingleSlotTemplate(
         byte selector,
         int variation,
@@ -2074,6 +2083,20 @@ internal static partial class MathTypeMtefCodec
         EmitLine(body, output);
         output.Add(RecordEnd);
         output.Add(RecordFull);
+    }
+
+    private static void EmitRelationArrow(int glyph, int variation, XElement? lower, XElement? upper, List<byte> output)
+    {
+        variation |= (upper is null ? 0 : ArrowTop) | (lower is null ? 0 : ArrowBottom);
+        EmitTemplateHeader(TemplateArrow, variation, output);
+        output.Add(RecordSub);
+        if (upper is null) output.AddRange(new byte[] { RecordLine, LineNull });
+        else EmitLine(upper, output);
+        if (lower is null) output.AddRange(new byte[] { RecordLine, LineNull });
+        else EmitLine(lower, output);
+        output.Add(RecordFull);
+        EmitScalar(glyph, TypefaceExpand, output);
+        output.Add(RecordEnd);
     }
 
 
@@ -2094,7 +2117,7 @@ internal static partial class MathTypeMtefCodec
         EmitLine(body, output);
         EmitScalar(
             combiningArrow,
-            TypefaceFence,
+            TypefaceExpand,
             output,
             includeEncoded8: false);
         output.Add(RecordEnd);
@@ -2152,7 +2175,7 @@ internal static partial class MathTypeMtefCodec
         output.Add(RecordFull);
         EmitScalar(
             top ? 0xFE37 : 0xFE38,
-            TypefaceFence,
+            TypefaceExpand,
             output,
             includeEncoded8: false);
         output.Add(RecordEnd);
@@ -2344,6 +2367,23 @@ internal static partial class MathTypeMtefCodec
     }
 
 
+    private static bool TryEmitDisplayPile(XElement table, List<byte> output)
+    {
+        if ((string?)table.Attribute("displaystyle") != "true") return false;
+        var rows = table.Elements().Select(row => row.Elements().ToArray()).ToArray();
+        if (rows.Length == 0 || rows.Any(row => row.Length != 1 || row[0].Name.LocalName != "mtd"))
+            return false;
+        var alignment = (string?)table.Attribute("columnalign") switch
+        {
+            "left" => (byte)1, "right" => (byte)3, _ => (byte)2,
+        };
+        output.AddRange(new byte[] { RecordPile, 0, alignment, 1 });
+        foreach (var row in rows)
+            EmitMathTypeColoredLine(row[0], output, resetColorAfter: true);
+        output.Add(RecordEnd);
+        return true;
+    }
+
     private static void EmitMatrix(XElement element, List<byte> output)
     {
         var rows = element.Elements()
@@ -2428,59 +2468,33 @@ internal static partial class MathTypeMtefCodec
     {
         var children = element.Elements().ToArray();
         if (children.Length == 0) return;
+        var separator = Array.FindIndex(children, child => child.Name.LocalName == "mprescripts");
+        var rightEnd = separator < 0 ? children.Length : separator;
+        if (separator >= 0)
+        {
+            for (int index = children.Length - 2; index > separator; index -= 2)
+                EmitScriptPair(children[index], children[index + 1], left: true, output);
+        }
         if (RequiresGroupedScriptBase(children[0])) EmitLine(children[0], output);
         else EmitNode(children[0], output);
-        var index = 1;
-        while (index < children.Length
-            && children[index].Name.LocalName != "mprescripts")
-        {
-            var sub = children[index];
-            var sup = index + 1 < children.Length ? children[index + 1] : null;
-            if (sub.Name.LocalName == "none" && (sup is null || sup.Name.LocalName == "none"))
-            {
-                index += 2;
-                continue;
-            }
-            if (sub.Name.LocalName == "none" && sup is not null)
-                EmitTrailingScript(sup, isSubscript: false, output);
-            else if (sup is null || sup.Name.LocalName == "none")
-                EmitTrailingScript(sub, isSubscript: true, output);
-            else
-            {
-                output.AddRange(new byte[] { RecordTemplate, 0, TemplateSubSup, 0, 0, RecordSub });
-                EmitLine(sub, output);
-                EmitLine(sup, output);
-                output.Add(RecordEnd);
-                output.Add(RecordFull);
-            }
-            index += 2;
-        }
-        // MTEF v5 tvSU_PRECEDES=1 positions the script to the left of its base.
-        // The record still follows its base in the object list; both script slots
-        // are serialized, with LINE_NULL for a genuinely absent half.
-        if (index < children.Length && children[index].Name.LocalName == "mprescripts")
-        {
-            index++;
-            while (index < children.Length)
-            {
-                var sub = children[index];
-                var sup = index + 1 < children.Length ? children[index + 1] : null;
-                var hasSub = sub.Name.LocalName != "none";
-                var hasSup = sup is not null && sup.Name.LocalName != "none";
-                if (hasSub || hasSup)
-                {
-                    var selector = hasSub && hasSup ? TemplateSubSup : hasSub ? TemplateSub : TemplateSup;
-                    output.AddRange(new byte[] { RecordTemplate, 0, selector, 1, 0, RecordSub });
-                    if (hasSub) EmitLine(sub, output);
-                    else output.AddRange(new byte[] { RecordLine, LineNull });
-                    if (hasSup) EmitLine(sup!, output);
-                    else output.AddRange(new byte[] { RecordLine, LineNull });
-                    output.Add(RecordEnd);
-                    output.Add(RecordFull);
-                }
-                index += 2;
-            }
-        }
+        for (int index = 1; index + 1 < rightEnd; index += 2)
+            EmitScriptPair(children[index], children[index + 1], left: false, output);
+    }
+
+    private static void EmitScriptPair(XElement sub, XElement sup, bool left, List<byte> output)
+    {
+        bool hasSub = sub.Name.LocalName != "none";
+        bool hasSup = sup.Name.LocalName != "none";
+        if (!hasSub && !hasSup) return;
+        var selector = hasSub && hasSup ? TemplateSubSup : hasSub ? TemplateSub : TemplateSup;
+        EmitTemplateHeader(selector, left ? 1 : 0, output);
+        output.Add(RecordSub);
+        if (hasSub) EmitLine(sub, output);
+        else output.AddRange(new byte[] { RecordLine, LineNull });
+        if (hasSup) EmitLine(sup, output);
+        else output.AddRange(new byte[] { RecordLine, LineNull });
+        output.Add(RecordEnd);
+        output.Add(RecordFull);
     }
 
 
@@ -2556,9 +2570,11 @@ internal static partial class MathTypeMtefCodec
                 0x230B => 0xF8FB, // \rfloor
                 0x2308 => 0xF8EE, // \lceil
                 0x2309 => 0xF8F9, // \rceil
+                0x27E6 => 0x301A,
+                0x27E7 => 0x301B,
                 _ => scalar,
             };
-            EmitScalar(mtCode, TypefaceFence, output, includeEncoded8: false);
+            EmitScalar(mtCode, TypefaceExpand, output, includeEncoded8: false);
         }
     }
 
@@ -2568,6 +2584,8 @@ internal static partial class MathTypeMtefCodec
         "." => string.Empty,
         "〈" or "〈" or "⟨" => "⟨",
         "〉" or "〉" or "⟩" => "⟩",
+        "〚" => "⟦",
+        "〛" => "⟧",
         _ => value,
     };
 
@@ -2584,6 +2602,9 @@ internal static partial class MathTypeMtefCodec
         if ((open == "[" || string.IsNullOrEmpty(open))
             && (close == "]" || string.IsNullOrEmpty(close))
             && probe is "[" or "]") return TemplateBracket;
+        if ((open == "⟦" || string.IsNullOrEmpty(open))
+            && (close == "⟧" || string.IsNullOrEmpty(close))
+            && probe is "⟦" or "⟧") return TemplateWhiteBracket;
         if ((open == "{" || string.IsNullOrEmpty(open))
             && (close == "}" || string.IsNullOrEmpty(close))
             && probe is "{" or "}") return TemplateBrace;

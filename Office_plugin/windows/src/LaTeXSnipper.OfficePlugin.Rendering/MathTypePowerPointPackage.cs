@@ -79,7 +79,13 @@ public static class MathTypePowerPointPackage
         return buffer.ToArray();
     }
 
-    public static byte[] ReadNative(string presentationPath, int slideIndex, int shapeId)
+    public static byte[] ReadNative(string presentationPath, int slideIndex, int shapeId) =>
+        MathTypeCompoundFile.ReadNative(ReadCompoundFile(presentationPath, slideIndex, shapeId));
+
+    public static MathTypeFormulaContent ReadContent(string presentationPath, int slideIndex, int shapeId) =>
+        MathTypeCompoundFile.ReadContent(ReadCompoundFile(presentationPath, slideIndex, shapeId));
+
+    private static byte[] ReadCompoundFile(string presentationPath, int slideIndex, int shapeId)
     {
         using var file = File.OpenRead(presentationPath);
         using var zip = new ZipArchive(file, ZipArchiveMode.Read);
@@ -97,7 +103,7 @@ public static class MathTypePowerPointPackage
         if (ids.Length != 1 || string.IsNullOrEmpty(ids[0])) throw new InvalidDataException("MathType relationship is missing or ambiguous.");
         string id = ids[0]!;
         string nativePart = Resolve(zip, slidePart, id, "oleObject");
-        return MathTypeCompoundFile.ReadNative(ReadPart(zip, nativePart));
+        return ReadPart(zip, nativePart);
     }
 
     private static long Emu(double points) => checked((long)Math.Round(points * 12700d));

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using LaTeXSnipper.OfficePlugin.Abstractions;
 
 namespace LaTeXSnipper.OfficePlugin.WordAddIn;
 
@@ -11,7 +12,7 @@ public sealed partial class DynamicWordApplicationAdapter
         private readonly dynamic _document;
         private readonly List<(string Name, object Range, int Length, bool Before)> _bookmarks = new();
 
-        public EquationBookmarkScope(object document, object formulaRange, string equationId)
+        public EquationBookmarkScope(object document, object formulaRange, string? equationId = null, object? replacedNumber = null)
         {
             _document = document;
             dynamic formula = formulaRange;
@@ -20,15 +21,17 @@ public sealed partial class DynamicWordApplicationAdapter
             dynamic neighborhood = paragraph.Duplicate;
             neighborhood.MoveStart(4, -1); // wdParagraph
             neighborhood.MoveEnd(4, 1);
-            string owned = WordEquationNumbering.BuildBookmarkName(equationId);
-            if (Convert.ToBoolean(_document.Bookmarks.Exists(owned)))
+            string? owned = equationId != null ? WordEquationNumbering.BuildBookmarkName(equationId) : null;
+            if (owned != null && Convert.ToBoolean(_document.Bookmarks.Exists(owned)))
                 owned = Convert.ToString(_document.Bookmarks.Item(owned).Name);
             foreach (dynamic bookmark in neighborhood.Bookmarks)
             {
-                string name = Convert.ToString(bookmark.Name);
+                string name = Convert.ToString((object)bookmark.Name)!;
                 dynamic range = bookmark.Range;
                 int start = GetRangeStart(range), end = GetRangeEnd(range);
                 if (string.Equals(name, owned, StringComparison.OrdinalIgnoreCase) || start == end) continue;
+                if (replacedNumber != null && start >= GetRangeStart((dynamic)replacedNumber!) &&
+                    end <= GetRangeEnd((dynamic)replacedNumber!)) continue;
                 bool before = end <= GetRangeStart(formula);
                 if (before || start >= GetRangeEnd(formula))
                     _bookmarks.Add((name, (object)range.Duplicate, end - start, before));
@@ -84,21 +87,23 @@ public sealed partial class DynamicWordApplicationAdapter
         return width;
     }
 
-    private dynamic RemoveFormulaForReplacement(dynamic formulaRange, string? equationId, bool display)
+    private dynamic RemoveFormulaForReplacement(dynamic formulaRange, FormulaMetadata? metadata, bool display)
     {
         dynamic source = formulaRange.Duplicate;
         object? parent = TryGetParentContentControl(source) ?? TryGetFirstManagedContentControl(source);
+        string? equationId = metadata?.Identity.EquationId;
         bool numbered = false;
-        if (equationId != null && TryFindEquationNumberRangeById(equationId, out object? number))
+        if (metadata != null && metadata.NumberingMode != NumberingMode.None
+            && TryFindEquationNumberRangeById(metadata.Identity.EquationId, out object? number))
         {
-            numbered = true;
-            dynamic numberRange = number!;
-            CurrentDocument.Bookmarks.Item(WordEquationNumbering.BuildBookmarkName(equationId)).Delete();
-            // The number bookmark owns the number, not intervening user content.
-            if (GetRangeEnd(numberRange) > GetRangeStart(numberRange) &&
-                (GetRangeEnd(numberRange) <= GetRangeStart(source) ||
-                GetRangeStart(numberRange) >= GetRangeEnd(source)))
-                numberRange.Delete();
+            object? owned = FindOwnedNumberForRemoval(number!, (object)source, metadata);
+            CurrentDocument.Bookmarks.Item(WordEquationNumbering.BuildBookmarkName(metadata.Identity.EquationId)).Delete();
+            if (owned != null && (GetRangeEnd((dynamic)owned) <= GetRangeStart(source)
+                || GetRangeStart((dynamic)owned) >= GetRangeEnd(source)))
+            {
+                numbered = true;
+                ((dynamic)owned!).Delete();
+            }
         }
 
         if (parent != null && equationId != null && GetEquationId((dynamic)parent) == equationId)
@@ -140,5 +145,32 @@ public sealed partial class DynamicWordApplicationAdapter
             position += before ? 1 : 0;
         }
         return CreateDocumentRange(position, position);
+    }
+
+    private object? FindOwnedNumberForRemoval(object bookmarkRange, object formulaRange, FormulaMetadata metadata)
+    {
+        dynamic bookmark = bookmarkRange, formula = formulaRange;
+        if (metadata.NumberingMode == NumberingMode.Automatic)
+        {
+            object field = LaTeXSnipperNumberField(bookmarkRange);
+            return ReferenceEquals(field, bookmarkRange) ? null : field;
+        }
+
+        // Word may expand the bookmark to include text typed at an edge of the label.
+        string text = Convert.ToString((object?)bookmark.Text) ?? string.Empty;
+        if (metadata.NumberText.Length == 0) return null;
+        bool numberOnLeft = GetRangeEnd(bookmark) <= GetRangeStart(formula);
+        foreach (WordNumberEnclosure enclosure in Enum.GetValues(typeof(WordNumberEnclosure)))
+        {
+            string label = WordEquationNumbering.GetLeftEnclosure(enclosure) + metadata.NumberText
+                + WordEquationNumbering.GetRightEnclosure(enclosure);
+            int index = numberOnLeft ? text.LastIndexOf(label, StringComparison.Ordinal) : text.IndexOf(label, StringComparison.Ordinal);
+            if (index >= 0)
+            {
+                int start = GetRangeStart(bookmark) + index;
+                return (object)RangeInStory(bookmarkRange, start, start + label.Length);
+            }
+        }
+        return null;
     }
 }

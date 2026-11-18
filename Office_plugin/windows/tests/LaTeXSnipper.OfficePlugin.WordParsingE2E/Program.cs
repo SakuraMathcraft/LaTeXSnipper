@@ -76,6 +76,7 @@ internal sealed class E2EOptions
     public bool IncludeMathType { get; private set; }
     public bool MathTypeOnly { get; private set; }
     public bool MathTypeNativeEdit { get; private set; }
+    public string? MathTypeNumberFixture { get; private set; }
 
     public static E2EOptions Parse(string[] args)
     {
@@ -85,6 +86,7 @@ internal sealed class E2EOptions
         bool numberedLayoutOnly = false;
         bool includeMathType = false;
         bool mathTypeOnly = false, mathTypeNativeEdit = false;
+        string? mathTypeNumberFixture = null;
         for (int index = 0; index < args.Length; index++)
         {
             string argument = args[index];
@@ -101,6 +103,8 @@ internal sealed class E2EOptions
             else if (argument == "--mathtype") { includeMathType = true; }
             else if (argument == "--mathtype-only") { includeMathType = true; mathTypeOnly = true; }
             else if (argument == "--mathtype-native-edit") { includeMathType = true; mathTypeNativeEdit = true; }
+            else if (argument == "--mathtype-number-fixture")
+                mathTypeNumberFixture = Path.GetFullPath(ReadValue(args, ref index, argument));
             else
             {
                 throw new ArgumentException("Unknown argument: " + argument);
@@ -117,7 +121,9 @@ internal sealed class E2EOptions
             throw new ArgumentException("--output is required.");
         }
 
-        return new E2EOptions(backend.Value, outputPath) { NumberedLayoutOnly = numberedLayoutOnly, CopyOnly = copyOnly, IncludeMathType = includeMathType, MathTypeOnly = mathTypeOnly, MathTypeNativeEdit = mathTypeNativeEdit };
+        return new E2EOptions(backend.Value, outputPath) { NumberedLayoutOnly = numberedLayoutOnly, CopyOnly = copyOnly,
+            IncludeMathType = includeMathType, MathTypeOnly = mathTypeOnly, MathTypeNativeEdit = mathTypeNativeEdit,
+            MathTypeNumberFixture = mathTypeNumberFixture };
     }
 
     private static FormulaInsertionBackend ParseBackend(string value)

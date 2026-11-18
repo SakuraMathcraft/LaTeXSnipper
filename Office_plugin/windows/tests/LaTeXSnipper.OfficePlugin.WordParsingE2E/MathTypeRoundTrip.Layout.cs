@@ -28,6 +28,7 @@ internal static partial class MathTypeRoundTrip
             {
                 sourceRange.Copy();
                 document.Range(7 + i, 7 + i).Paste();
+                document.Activate();
                 document.InlineShapes.Item(i + 1).Range.Select();
                 _ = await adapter.LoadSelectedFormulaTargetAsync(CancellationToken.None);
             }
@@ -38,6 +39,7 @@ internal static partial class MathTypeRoundTrip
             {
                 sourceRange.Copy();
                 document.Range(start + i, start + i).PasteSpecial(DataType: 0, Placement: 0);
+                document.Activate();
                 document.InlineShapes.Item(i + 3).Range.Select();
                 _ = await adapter.LoadSelectedFormulaTargetAsync(CancellationToken.None);
             }

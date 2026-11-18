@@ -1,6 +1,10 @@
 using System;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using LaTeXSnipper.OfficePlugin.Abstractions;
+using LaTeXSnipper.OfficePlugin.Rendering;
 using LaTeXSnipper.OfficePlugin.WordAddIn;
 
 namespace LaTeXSnipper.OfficePlugin.MetadataSafety.Tests;
@@ -8,6 +12,42 @@ namespace LaTeXSnipper.OfficePlugin.MetadataSafety.Tests;
 [TestClass]
 public sealed class WordMetadataSafetyTests
 {
+    [STATestMethod]
+    public void DeferredOfficeCommandKeepsItsStaAcrossAsyncWork()
+    {
+        var previous = SynchronizationContext.Current;
+        int owner = Thread.CurrentThread.ManagedThreadId;
+        using var dispatcher = new OfficeStaDispatcher();
+        using var loop = new ApplicationContext();
+        using var timeout = new System.Windows.Forms.Timer { Interval = 5000 };
+        timeout.Tick += (_, _) => loop.ExitThread();
+        int startedOn = 0, resumedOn = 0;
+        bool autoInstall = WindowsFormsSynchronizationContext.AutoInstall;
+        try
+        {
+            // A COM event can enter without the host UI synchronization context.
+            WindowsFormsSynchronizationContext.AutoInstall = false;
+            SynchronizationContext.SetSynchronizationContext(new SynchronizationContext());
+            dispatcher.Post(async () =>
+            {
+                startedOn = Thread.CurrentThread.ManagedThreadId;
+                await Task.Yield();
+                resumedOn = Thread.CurrentThread.ManagedThreadId;
+                dispatcher.Post(loop.ExitThread);
+            });
+            Assert.AreEqual(0, startedOn, "Opening the editor must be deferred until the Office event returns.");
+            timeout.Start();
+            Application.Run(loop);
+            Assert.AreEqual(owner, startedOn);
+            Assert.AreEqual(owner, resumedOn);
+        }
+        finally
+        {
+            WindowsFormsSynchronizationContext.AutoInstall = autoInstall;
+            SynchronizationContext.SetSynchronizationContext(previous);
+        }
+    }
+
     [TestMethod]
     public void OmmlRoundTripPreservesMetadata()
     {

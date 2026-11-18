@@ -85,9 +85,25 @@ public sealed partial class MathJaxSvgRenderer
 #endif
     }
 
+    public async Task<string> ConvertMathTypeToLatexAsync(MathTypeFormulaContent content, FormulaTypography typography, CancellationToken cancellationToken)
+    {
+        string latex = MathTypeLatexConverter.Convert(content.MathMl);
+        string roundTrip = await ConvertTypographyToMathMlAsync(latex, content.DisplayMode, typography, cancellationToken).ConfigureAwait(false);
+        MathTypeLatexConverter.VerifyRoundTrip(content.MathMl, roundTrip, typography.Color);
+        return latex;
+    }
+
+    public async Task<byte[]> CreateMathTypeCompoundFileAsync(FormulaMetadata metadata, CancellationToken cancellationToken)
+    {
+        string mathMl = await ConvertTypographyToMathMlAsync(metadata.Latex, metadata.DisplayMode, metadata.Typography,
+            cancellationToken, measureMathTypeLayout: true);
+        byte[] native = MathTypeNativeEquation.Create(mathMl, metadata.Typography.FontSizePoints, metadata.DisplayMode);
+        return MathTypeCompoundFile.Create(native, metadata);
+    }
+
     /// <summary>Produces semantic MathML with the same source-local/default style cascade, without SVG outlines.</summary>
     public async Task<string> ConvertTypographyToMathMlAsync(string latex, FormulaDisplayMode displayMode,
-        FormulaTypography typography, CancellationToken cancellationToken)
+        FormulaTypography typography, CancellationToken cancellationToken, bool measureMathTypeLayout = false)
     {
         ThrowIfDisposed();
         if (string.IsNullOrWhiteSpace(latex)) throw new ArgumentException("公式源码不能为空。", nameof(latex));
@@ -101,7 +117,7 @@ public sealed partial class MathJaxSvgRenderer
         {
             await InitializeTypographyAsync(linked.Token).ConfigureAwait(false);
             var serializer = new JavaScriptSerializer { MaxJsonLength = 16 * 1024 * 1024 };
-            string input = SerializeTypographyInput(serializer, latex, displayMode, typography);
+            string input = SerializeTypographyInput(serializer, latex, displayMode, typography, measureMathTypeLayout);
             Dictionary<string, object> result = ParseTypographyResponse(serializer,
                 await _runtime.EvaluateAsync("LaTeXSnipperOfficeTypography.prepare(" + input + ")", linked.Token).ConfigureAwait(false));
             return (string)result["mathml"];
@@ -127,9 +143,9 @@ public sealed partial class MathJaxSvgRenderer
     }
 
     private static string SerializeTypographyInput(JavaScriptSerializer serializer, string latex,
-        FormulaDisplayMode displayMode, FormulaTypography typography) => serializer.Serialize(new
+        FormulaDisplayMode displayMode, FormulaTypography typography, bool measureMathTypeLayout = false) => serializer.Serialize(new
         {
-            latex, displayMode = displayMode.ToString(),
+            latex, displayMode = displayMode.ToString(), measureMathTypeLayout,
             typography = new { typography.SymbolFontId, typography.NumberFontFamily, typography.CjkFontFamily,
                 DefaultMathStyle = typography.DefaultMathStyle.ToString(), typography.FontSizePoints,
                 typography.Color, typography.TypographyVersion }

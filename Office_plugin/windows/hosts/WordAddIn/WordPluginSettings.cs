@@ -78,9 +78,12 @@ public sealed class WordPluginSettings
         using RegistryKey? key = Registry.CurrentUser.OpenSubKey(RegistryPath);
         string placementRaw = key?.GetValue(NumberPlacementValue) as string ?? string.Empty;
         string backendRaw = key?.GetValue(InsertionBackendValue) as string ?? string.Empty;
-        FormulaInsertionBackend backend = backendRaw == FormulaInsertionBackend.WordOmml.ToString()
-            ? FormulaInsertionBackend.WordOmml
-            : FormulaInsertionBackend.Ole;
+        FormulaInsertionBackend backend = backendRaw switch
+        {
+            nameof(FormulaInsertionBackend.WordOmml) => FormulaInsertionBackend.WordOmml,
+            nameof(FormulaInsertionBackend.MathType) => FormulaInsertionBackend.MathType,
+            _ => FormulaInsertionBackend.Ole
+        };
         FormulaTypographyDefaults preset = new TypographySettingsStore().Load("word");
         return new WordPluginSettings(
             placementRaw == "Left" ? WordNumberPlacement.Left : WordNumberPlacement.Right,

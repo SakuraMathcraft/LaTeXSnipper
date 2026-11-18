@@ -7,7 +7,7 @@ from pathlib import Path
 import PyQt6
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
-ROOT = Path(SPECPATH)
+ROOT = Path(SPECPATH).parents[1]
 sys.path.insert(0, str(ROOT / "scripts/release"))
 from qt_payload import prune_qt_payload
 

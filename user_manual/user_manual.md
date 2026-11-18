@@ -1,5 +1,4 @@
 <!-- LaTeXSnipper 用户手册 -->
-<!-- 版本: v3.3.0-LTS -->
 
 <div align="center">
 
@@ -375,7 +374,7 @@ CPU 发行固定使用 CPU；GPU 发行固定请求 CUDA，并在推理后核对
 - Debian/Ubuntu 兼容的 Linux x86_64（glibc 2.35 及以上）：CPU 或 NVIDIA GPU 离线安装归档，解包后运行 `sh install.sh`。
 - macOS 14.0 及以上的 Apple Silicon：CPU DMG，把应用复制到 Applications 后运行。
 
-发行携带 Python、推理依赖、模型和内置预览资源，无需自行安装 Python 或 CUDA Toolkit。Linux 包管理器负责 Qt 所需的系统图形库，缺少依赖时通过 apt 补齐。GPU 需要支持的显卡和系统驱动，3.3.0 的最低 NVIDIA 驱动版本为 Windows 570.65、Linux 570.26。扩展导出所需工具见[预览与导出](#预览与导出)。
+发行携带 Python、推理依赖、模型和内置预览资源，无需自行安装 Python 或 CUDA Toolkit。Linux 包管理器负责 Qt 所需的系统图形库，缺少依赖时通过 apt 补齐。GPU 版需要兼容的 NVIDIA 显卡和驱动。最低驱动版本见所选版本的[发布说明](https://github.com/SakuraMathcraft/LaTeXSnipper/releases)。扩展导出所需工具见[预览与导出](#预览与导出)。
 
 ### 安装资源与用户数据
 
@@ -640,17 +639,17 @@ LaTeXSnipper Office 加载项支持 Windows 和 macOS 的桌面版 Word 与 Powe
 
 ### 命令行静默安装
 
-安装包支持 Inno Setup 标准静默参数：
+在安装包所在目录的命令提示符中运行以下命令，将 `<版本>` 替换为文件名中的版本号。 自定义路径时，将 `<安装目录>` 换成目标路径。
 
 ```text
 :: 静默安装（显示进度条）
-LaTeXSnipperOffice_3.3.0_windows_x86_64.exe /silent
+"LaTeXSnipperOffice_<版本>_windows_x86_64.exe" /silent
 
 :: 完全静默（无界面）
-LaTeXSnipperOffice_3.3.0_windows_x86_64.exe /verysilent
+"LaTeXSnipperOffice_<版本>_windows_x86_64.exe" /verysilent
 
 :: 自定义安装目录
-LaTeXSnipperOffice_3.3.0_windows_x86_64.exe /dir="<安装目录>"
+"LaTeXSnipperOffice_<版本>_windows_x86_64.exe" /dir="<安装目录>"
 ```
 
 ---
@@ -673,9 +672,10 @@ LaTeXSnipperOffice_3.3.0_windows_x86_64.exe /dir="<安装目录>"
 
 ### 公式插入方式
 
-Word 支持插件 OLE 对象和 Word 原生 OMML（Office Math Markup Language）公式，在“设置 → 公式插入方式”中选择：
+在“设置 → 公式插入方式”中选择 Word 公式的存储格式。
 
 - **OLE 对象（默认）：** 本地渲染的矢量公式对象，双击或“加载所选”可打开插件编辑器。复制到另一份文档后仍可加载并独立编辑。
+- **MathType** 直接插入原生 MathType 公式。带编号公式使用 MathType 的 Word 域。
 - **Word 原生公式：** 可直接使用 Word 的公式工具编辑，也可通过插件加载、更新和转换。
 
 > [!NOTE]
@@ -730,13 +730,13 @@ Word 支持将未编号的 LaTeXSnipper 公式转换为自动编号公式，并�
 
 选中公式后，通过功能区转换组选择目标格式：
 
-- **转为 MathType：** 将普通插件 OLE 公式转为 MathType 原生对象；带编号公式暂不支持
+- **转为 MathType：** 将行内、行间和带编号的插件 OLE 公式转为 MathType 原生对象，保留显示方式、编号位置和已有交叉引用。支持手动和自动编号，编号仍由 Word 管理。
 - **转为 OLE：** 将插件 OMML、Word 原生 OMML 或 MathType 公式转为插件 OLE 对象
 - **转为 Word：** 将 OLE 公式转为 Word 原生 OMML 公式（可像 Word 公式一样直接编辑）
 
-MathType 双向转换无需安装 MathType；双击编辑 MathType 对象需要安装。转为 MathType 不保留原插件源码与字体快照，转回 OLE 根据对象当前内容生成。
+插入 MathType 公式和双向转换都无需安装 MathType。默认插入方式为 MathType 时，双击任意原生 MathType 公式或使用“加载所选”，会打开 LaTeXSnipper 编辑器。改用其他插入方式后，双击交由已安装的 MathType 处理。
 
-Word 原生 OMML 或 MathType 转为 OLE 后保存的是 MathML 源码，可加载、更新、格式化及继续转换，不会还原为原始 LaTeX。
+普通 Word 原生 OMML 转为 OLE 后以 MathML 保存公式源码，可加载、更新、格式化及继续转换。
 
 ### 格式重置
 
@@ -772,7 +772,7 @@ Word 原生 OMML 或 MathType 转为 OLE 后保存的是 MathML 源码，可加�
 
 转换、公式解析和格式化会分批执行并更新状态窗格；单项失败会报告具体错误，并继续处理其他项，结束后显示处理统计。重编号会跳过编号信息不完整的公式并计数。长公式或大量公式时，主要耗时仍来自 `r`（MathJax 渲染/图片生成）和 `ole/xml/png`（Office COM 插入与对象替换）。建议长文档批量处理时分段执行并保存文档。
 
-格式化保留公式源码，通过当前默认属性重新渲染；LaTeX 和 MathML 源码均可处理。原生行内公式由 Word 自己维护外层公式输入框，少数单选场景下外层占位框可能由 Word 保留；继续转为 LaTeXSnipper 管理的 OMML 后会由插件接管并清理为插件格式。
+格式化按当前默认属性重新渲染，并同步更新公式源码中的全局颜色。LaTeX 和 MathML 均保留数学内容与局部样式。原生行内公式由 Word 自己维护外层公式输入框，少数单选场景下外层占位框可能由 Word 保留；继续转为 LaTeXSnipper 管理的 OMML 后会由插件接管并清理为插件格式。
 
 ### 截图识别
 
@@ -796,9 +796,7 @@ PowerPoint 不包含编号组、引用组、边界组——这些是 Word 文档
 
 ### 插入公式
 
-光标位于文本框文字中时，点击“插入公式”生成随文字排版的 PowerPoint 原生公式，可用 PowerPoint 的公式工具编辑。
-
-其他位置按设置插入居中的独立 OLE 对象或高 DPI PNG 图片；OLE 支持双击编辑，PNG 可通过“加载所选”修改。
+选择 MathType 时，公式插入为幻灯片上的独立对象。选择 OLE 或 PNG 时，光标位于文本框文字中会插入随文字排版的 PowerPoint 原生公式。光标在文字之外时，插入所选格式的独立对象。
 
 > [!NOTE]
 > 加载、删除、转换和批量格式化面向插件插入的独立对象；文本内原生公式由 PowerPoint 管理。PowerPoint 不支持插件自动编号和重编号。
@@ -818,7 +816,7 @@ OLE 公式复制到另一份演示文稿后仍可加载并独立编辑。
 - **格式化所选：** 恢复所选插件公式的默认样式和自然大小
 - **格式化全文：** 恢复全文插件公式的默认样式和自然大小
 
-MathType 双向转换无需安装 MathType；双击编辑 MathType 对象需要安装。转为 MathType 不保留原插件源码与字体快照，转回 OLE 根据对象当前内容生成。
+编辑更新保留公式原有的 OLE、PNG 或 MathType 格式。默认插入方式为 MathType 时，可双击原生 MathType 公式或使用“加载所选”在 LaTeXSnipper 中编辑。插入 MathType 公式和双向转换都无需安装 MathType。
 
 > [!TIP]
 > 如果你在幻灯片上找不到公式图片，可以检查形状的替代文本（Alt Text）。所有 LaTeXSnipper 公式图片的替代文本均以 "LaTeXSnipper formula" 开头。
@@ -882,8 +880,8 @@ Word 侧边栏包含行间公式、自动编号、自定义编号输入框等 Wo
 
 **公式插入方式**
 
-- **Word：** OLE 对象（默认）或 Word 原生 OMML 公式
-- **PowerPoint：** OLE 对象（默认）或 PNG 图片；文本框内插入时使用 PowerPoint 原生公式
+- **Word** 支持 LaTeXSnipper OLE（默认）、Word 原生 OMML 和 MathType。
+- **PowerPoint** 支持 LaTeXSnipper OLE（默认）、PNG 和 MathType。
 
 **Word 带编号公式默认布局**
 

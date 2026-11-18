@@ -11,6 +11,7 @@ public sealed class OfficeStaDispatcher : IDisposable
 {
     private readonly int threadId = Thread.CurrentThread.ManagedThreadId;
     private readonly Control control;
+    private readonly WindowsFormsSynchronizationContext uiContext;
     private bool disposed;
 
     public OfficeStaDispatcher()
@@ -20,6 +21,22 @@ public sealed class OfficeStaDispatcher : IDisposable
         // Own a marshaling handle; Office's base SynchronizationContext can use the thread pool.
         control = new Control();
         _ = control.Handle;
+        uiContext = SynchronizationContext.Current as WindowsFormsSynchronizationContext
+            ?? new WindowsFormsSynchronizationContext();
+    }
+
+    public void Post(Action action)
+    {
+        if (disposed) throw new ObjectDisposedException(nameof(OfficeStaDispatcher));
+        control.BeginInvoke(new Action(() =>
+        {
+            if (disposed) return;
+            // Office COM callbacks can arrive without a WinForms synchronization context.
+            var previous = SynchronizationContext.Current;
+            SynchronizationContext.SetSynchronizationContext(uiContext);
+            try { action(); }
+            finally { SynchronizationContext.SetSynchronizationContext(previous); }
+        }));
     }
 
     public Task<T> InvokeAsync<T>(Func<T> action, CancellationToken cancellationToken)

@@ -14,8 +14,6 @@ public interface IWordApplicationAdapter
 
     bool TrySelectOleFormulaAtScreenPoint(int x, int y);
 
-    Task ValidateCurrentInsertionTargetAsync(CancellationToken cancellationToken);
-
     Task ActivateForEditingAsync(CancellationToken cancellationToken);
 
     IDisposable BeginUndoRecord();
@@ -60,9 +58,19 @@ public interface IWordApplicationAdapter
 
     Task ReplaceWithMathTypeAsync(WordFormulaEditTarget target, byte[] compoundFile, OlePresentationResult presentation, CancellationToken cancellationToken);
 
+    MathTypeFormulaTarget? CaptureMathTypeFormula(object? selection);
+
+    Task InsertMathTypeAsync(FormulaMetadata metadata, byte[] compoundFile, OlePresentationResult presentation, CancellationToken cancellationToken);
+
+    Task ReplaceParsedMathTypeAsync(WordLatexParseCandidate candidate, FormulaMetadata metadata, byte[] compoundFile,
+        OlePresentationResult presentation, CancellationToken cancellationToken);
+
+    Task UpdateMathTypeAsync(MathTypeFormulaTarget target, FormulaMetadata metadata, byte[] compoundFile, OlePresentationResult presentation, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<WordFormulaEntry>> LoadConversionEntriesAsync(bool includeMathType, CancellationToken cancellationToken);
 
-    Task<MathTypeFormulaContent> ReadMathTypeAsync(MathTypeFormulaTarget target, CancellationToken cancellationToken);
+    Task<(MathTypeFormulaContent Content, string? EquationId, NumberingMode NumberingMode, string NumberText)> ReadMathTypeAsync(
+        MathTypeFormulaTarget target, CancellationToken cancellationToken);
 
     Task ReplaceMathTypeWithOleAsync(MathTypeFormulaTarget target, FormulaMetadata metadata, OlePresentationResult presentation, CancellationToken cancellationToken);
 

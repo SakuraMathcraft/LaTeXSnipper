@@ -20,10 +20,68 @@ internal static partial class MathTypeMtefCodec
             ?? document.Root
             ?? throw new InvalidDataException("MathML has no root element.");
         var normalized = new XElement(math);
+        NormalizeMtefInput(normalized);
         NormalizeMathTypeExportedTabPiles(normalized);
         return CanonicalizeMathMl(normalized, inheritedMathVariant: null);
     }
 
+    private static void NormalizeMtefInput(XElement math)
+    {
+        foreach (var token in math.Descendants().Where(node => node.Name.LocalName is "mi" or "mo").ToArray())
+        {
+            if (token.Value.Length == 2 && token.Value[1] == '\u0338')
+            {
+                token.Value = token.Value.Substring(0, 1);
+                token.ReplaceWith(new XElement(token.Name.Namespace + "menclose",
+                    new XAttribute("notation", "updiagonalstrike"), token));
+            }
+            else if (token.Name.LocalName == "mo" && token.Value.Length == 1
+                && token.Value[0] is >= '\uE408' and <= '\uE42E'
+                && ((string?)token.Attribute("data-mjx-variant") == "-mhchem"
+                    || token.Ancestors().Attributes("data-latex").Any(attribute =>
+                        attribute.Value.StartsWith(@"\mhchemx", StringComparison.Ordinal))))
+            {
+                bool labelled = token.Parent?.Name.LocalName is "munder" or "mover" or "munderover";
+                token.Value = token.Value switch
+                {
+                    "\uE408" => "⇌",
+                    "\uE428" => labelled ? "←" : "⟵",
+                    "\uE429" => labelled ? "→" : "⟶",
+                    "\uE42A" => labelled ? "↔" : "⟷",
+                    "\uE42B" => "⇆",
+                    "\uE42C" => "←",
+                    "\uE42D" => "→",
+                    "\uE42E" => "↔",
+                    _ => token.Value,
+                };
+            }
+        }
+
+        foreach (var script in math.Descendants().Where(node => node.Name.LocalName is "msub" or "msup" or "msubsup").ToArray())
+        {
+            var basis = script.Elements().FirstOrDefault();
+            if (basis is null) continue;
+            var zeroWidth = UnwrapRows(basis);
+            var phantom = zeroWidth.Elements().FirstOrDefault();
+            if (zeroWidth.Name.LocalName != "mpadded" || (string?)zeroWidth.Attribute("width") != "0"
+                || phantom is null || phantom.Name.LocalName != "mphantom" || phantom.ElementsAfterSelf().Any())
+                continue;
+
+            // mhchem puts the visible element before a zero-width phantom carrying its scripts.
+            // Attach the scripts to the visible element in Equation Native.
+            var previous = script.ElementsBeforeSelf().LastOrDefault();
+            if (previous is null) continue;
+            previous.Remove();
+            basis.ReplaceWith(previous);
+        }
+    }
+
+    private static XElement UnwrapRows(XElement node)
+    {
+        while (node.Name.LocalName == "mrow" && node.Elements().Count() == 1)
+            node = node.Elements().First();
+        return node;
+    }
 
     private static void NormalizeMathTypeExportedTabPiles(XElement root)
     {
@@ -358,7 +416,7 @@ internal static partial class MathTypeMtefCodec
                     var normalizedOpen = NormalizeFence(open);
                     var normalizedClose = NormalizeFence(close);
                     var fencedChildrenSignature =
-                        string.Concat(fenceChildren.Select(child => CanonicalizeMathMl(child, variant)));
+                        CanonicalizeElementSequence(fenceChildren.ToArray(), variant);
                     return CanonicalFenceSignature(
                         normalizedOpen,
                         normalizedClose,
@@ -382,6 +440,7 @@ internal static partial class MathTypeMtefCodec
             {
                 var value = element.Value.Trim();
                 if (value.Length == 0) return string.Empty;
+                if (value is "#" or @"\") return "o(" + value + ")";
                 var primeSignature = CanonicalPrimeSignature(value);
                 if (primeSignature is not null) return primeSignature;
                 if (value == "ℓ")
@@ -415,14 +474,10 @@ internal static partial class MathTypeMtefCodec
                 if (value == "⁡") return string.Empty;
                 var primeSignature = CanonicalPrimeSignature(value);
                 if (primeSignature is not null) return primeSignature;
-                if (value.Length > 1 && value.All(char.IsLetter))
-                    return CanonicalToken("mi", value, "normal");
-                // MathJax keeps the TeX definition operator := in one <mo>,
-                // while MathType 7 serializes the same visible operator as two
-                // adjacent operator records ':' and '='. Treat only this known
-                // split as equivalent; other multi-character operators remain
-                // strict so the MTEF round-trip gate still catches real changes.
-                if (value == ":=") return "o(:)o(=)";
+                var named = NamedOperatorText(value);
+                if (named is not null) return CanonicalToken("mi", named, "normal");
+                if (value is ":=" or "=:" or "⌣:")
+                    return string.Concat(value.Select(character => "o(" + character + ")"));
                 // MathJax may coalesce adjacent non-ASCII mathematical symbols
                 // into one <mo> (for example \mapsto\parallel\sim), while MTEF
                 // persists one CHAR record per glyph. Normalize only a pure run
@@ -441,6 +496,7 @@ internal static partial class MathTypeMtefCodec
             case "mtext":
             {
                 var value = element.Value.Trim();
+                if (value == "£") return "o(£)";
                 // MathJax may serialize TeX spacing commands as whitespace-only
                 // <mtext> (commonly NBSP), while MathType normalizes the same
                 // presentation-only gap to <mspace> on MTEF read-back. Neither
@@ -605,6 +661,8 @@ internal static partial class MathTypeMtefCodec
         "″" => "o(′)o(′)",
         "‴" => "o(′)o(′)o(′)",
         "⁗" => "o(′)o(′)o(′)o(′)",
+        "‵" => "o(‵)",
+        "‶" => "o(‵)o(‵)",
         _ => null,
     };
 

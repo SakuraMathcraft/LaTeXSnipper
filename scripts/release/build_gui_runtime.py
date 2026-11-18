@@ -26,7 +26,7 @@ def build_gui_runtime(payload: Path, target: str) -> None:
             build / "frozen",
             "--workpath",
             build / "pyinstaller",
-            ROOT / "LaTeXSnipper.spec",
+            ROOT / "packaging/runtime/gui.spec",
         ]
     )
     (build / "frozen/LaTeXSnipper").rename(payload)

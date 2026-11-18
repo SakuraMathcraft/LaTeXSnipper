@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.Windows.Forms" />
     <ProjectReference Include="..\..\src\LaTeXSnipper.OfficePlugin.Automation\LaTeXSnipper.OfficePlugin.Automation.csproj" />
     <ProjectReference Include="..\..\hosts\PowerPointAddIn\LaTeXSnipper.OfficePlugin.PowerPointAddIn.csproj" />
     <ProjectReference Include="..\..\hosts\WordAddIn\LaTeXSnipper.OfficePlugin.WordAddIn.csproj" />

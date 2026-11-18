@@ -4,9 +4,10 @@ const TEXT = {
   zh: {
     title: "LaTeXSnipper Word 插件设置",
     backendTitle: "公式插入方式",
-    backendHint: "默认使用 OLE 公式对象；也可切换为 Word OMML。",
+    backendHint: "选择 MathType 时，双击原生 MathType 公式会打开 LaTeXSnipper 编辑器。",
     backendOle: "OLE 对象",
     backendOmml: "Word OMML",
+    backendMathType: "MathType",
     numberingTitle: "带编号公式默认布局",
     numberRight: "右编号",
     numberLeft: "左编号",
@@ -45,9 +46,10 @@ const TEXT = {
   en: {
     title: "LaTeXSnipper Word Plugin Settings",
     backendTitle: "Formula Insertion",
-    backendHint: "OLE formula objects are the default. Word OMML insertion is also available.",
+    backendHint: "Select MathType to open native MathType equations in LaTeXSnipper when double-clicked.",
     backendOle: "OLE Object",
     backendOmml: "Word OMML",
+    backendMathType: "MathType",
     numberingTitle: "Default Numbered Formula Layout",
     numberRight: "Number on the right",
     numberLeft: "Number on the left",
@@ -200,7 +202,9 @@ function init(payload) {
   locale = String(payload?.locale || navigator.language || "zh").toLowerCase();
   platform = payload?.platform || "word";
   numberPlacement = payload?.numberPlacement === "Left" ? "Left" : "Right";
-  insertionBackend = payload?.insertionBackend === "WordOmml" ? "WordOmml" : "Ole";
+  insertionBackend = ["WordOmml", "MathType"].includes(payload?.insertionBackend)
+    ? payload.insertionBackend
+    : "Ole";
   numberEnclosure = ["Parentheses", "SquareBrackets", "Braces", "None"].includes(payload?.numberEnclosure)
     ? payload.numberEnclosure
     : "Parentheses";

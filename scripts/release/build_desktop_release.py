@@ -185,7 +185,7 @@ def build_maintenance(payload: Path) -> None:
             build / "frozen",
             "--workpath",
             build / "pyinstaller",
-            ROOT / "scripts/release/build_maintenance.spec",
+            ROOT / "packaging/runtime/maintenance.spec",
         ]
     )
     payload.mkdir()

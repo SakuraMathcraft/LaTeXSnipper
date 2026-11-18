@@ -127,7 +127,6 @@ export class SymbolPanel {
       if (!tile) return;
       for (const button of el.symbolGrid.querySelectorAll('button')) button.tabIndex = button === tile ? 0 : -1;
     });
-    el.symbolGrid.addEventListener('focusout', () => queueMicrotask(() => this.packTiles()));
     el.libraryTabs.addEventListener('keydown', event => {
       const buttons = [...el.libraryTabs.children];
       const index = buttons.indexOf(event.target);
@@ -259,7 +258,7 @@ export class SymbolPanel {
     this.currentButtons = entries.map((entry, index) => {
       const button = document.createElement('button');
       button.type = 'button'; button.className = 'symbol-tile';
-      button.dataset.entry = entry.id; button.dataset.order = String(index); button.tabIndex = index === 0 ? 0 : -1;
+      button.dataset.entry = entry.id; button.tabIndex = index === 0 ? 0 : -1;
       button.classList.toggle('favorite', entry.literal || this.favorites.has(entry.template));
       button.setAttribute('aria-label', entry[this.locale]);
       button.title = `${entry.nameZh} / ${entry.en}\n${entryTemplate(entry)}${entry.shortcut ? `\nMathLive: Ctrl+${entry.shortcut.toUpperCase()}` : ''}`;
@@ -297,7 +296,6 @@ export class SymbolPanel {
       }
     }
     this.measureBatch(relabelled);
-    this.packTiles();
     if (!entries.length) {
       const empty = document.createElement('div'); empty.className = 'empty-library';
       empty.textContent = this.category === 'common' && !searching ? this.labels.commonEmpty : this.labels.empty;
@@ -323,13 +321,11 @@ export class SymbolPanel {
         this.renderPreview(button);
       }
       this.measureBatch(batch);
-      if (batch.length) this.packTiles();
       this.scheduleRender();
     });
   }
   remeasureRendered() {
     this.measureBatch(this.currentButtons.filter(button => button.querySelector('.tile-preview-content')));
-    this.packTiles();
   }
   renderPreview(button) {
     const entry = button.entry;
@@ -373,35 +369,6 @@ export class SymbolPanel {
       preview.dataset.tileWidth = button.style.width;
       preview.style.zoom = formulaWidth > width - 16 ? String((width - 16) / formulaWidth) : '1';
     }
-  }
-  packTiles() {
-    const grid = this.elements.symbolGrid;
-    if (grid.contains(document.activeElement) && document.activeElement.classList.contains('symbol-tile')) return;
-    const buttons = [...this.currentButtons];
-    if (!buttons.length) return;
-    const available = grid.clientWidth - 16;
-    const widths = new Map(buttons.map(button => [button, Math.min(available, parseFloat(button.style.width) || 56)]));
-    const ordered = [];
-    while (buttons.length) {
-      let remaining = available;
-      const first = buttons.shift();
-      ordered.push(first);
-      remaining -= widths.get(first);
-      while (buttons.length && remaining > 62) {
-        let best = -1;
-        for (let index = 0; index < Math.min(12, buttons.length); index++) {
-          const width = widths.get(buttons[index]) + 6;
-          if (width <= remaining && (best < 0 || width < widths.get(buttons[best]) + 6)) best = index;
-        }
-        if (best < 0) break;
-        const next = buttons.splice(best, 1)[0];
-        ordered.push(next);
-        remaining -= widths.get(next) + 6;
-      }
-    }
-    const scrollTop = grid.scrollTop;
-    if (ordered.some((button, index) => grid.children[index] !== button)) grid.append(...ordered);
-    grid.scrollTop = scrollTop;
   }
   navigateTiles(event) {
     if (event.isComposing) return;

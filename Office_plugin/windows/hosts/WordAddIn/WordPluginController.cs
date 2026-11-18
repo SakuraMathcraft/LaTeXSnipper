@@ -37,7 +37,8 @@ public sealed partial class WordPluginController : IDisposable
             OlePresentationResult? olePresentation,
             string? ooxml,
             string? equationOoxml,
-            string? equationContentOoxml)
+            string? equationContentOoxml,
+            byte[]? mathType = null)
         {
             Metadata = metadata;
             Display = display;
@@ -45,6 +46,7 @@ public sealed partial class WordPluginController : IDisposable
             Ooxml = ooxml;
             EquationOoxml = equationOoxml;
             EquationContentOoxml = equationContentOoxml;
+            MathType = mathType;
         }
 
         public FormulaMetadata Metadata { get; }
@@ -58,6 +60,8 @@ public sealed partial class WordPluginController : IDisposable
         public string? EquationOoxml { get; }
 
         public string? EquationContentOoxml { get; }
+
+        public byte[]? MathType { get; }
     }
 
     public WordPluginController(
@@ -230,9 +234,7 @@ public sealed partial class WordPluginController : IDisposable
         {
             string statusKey = accepted.UpdateMode
                 ? "UpdatedStatus"
-                : _settingsLoader().InsertionBackend == FormulaInsertionBackend.Ole
-                    ? "OleInsertedStatus"
-                    : "OmmlInsertedStatus";
+                : InsertionStatus(_settingsLoader().InsertionBackend);
             _statusSink.Post(
                 WordStatusKind.Success,
                 WordAddInText.Get(statusKey));
@@ -245,8 +247,30 @@ public sealed partial class WordPluginController : IDisposable
     public async Task LoadSelectedAsync(CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
+        if (CaptureMathTypeDoubleClick(null) is MathTypeFormulaTarget mathType)
+        {
+            await LoadMathTypeAsync(mathType, cancellationToken);
+            return;
+        }
         WordFormulaEditTarget target = await _wordAdapter.LoadSelectedFormulaTargetAsync(cancellationToken);
         await SwitchEditorTargetAsync(target, cancellationToken);
+    }
+
+    internal MathTypeFormulaTarget? CaptureMathTypeDoubleClick(object? selection) =>
+        _settingsLoader().InsertionBackend == FormulaInsertionBackend.MathType
+            ? _wordAdapter.CaptureMathTypeFormula(selection) : null;
+
+    internal async Task LoadMathTypeAsync(MathTypeFormulaTarget target, CancellationToken cancellationToken)
+    {
+        var (content, equationId, numberingMode, numberText) = await _wordAdapter.ReadMathTypeAsync(target, cancellationToken);
+        FormulaTypography typography = content.OriginalTypography ?? FormulaTypography.Default.WithFontSize(content.FontSizePoints);
+        string latex = content.OriginalLatex ?? await _mathJaxRenderer.ConvertMathTypeToLatexAsync(content, typography, cancellationToken);
+        FormulaDisplayMode displayMode = numberingMode == NumberingMode.None ? content.DisplayMode : FormulaDisplayMode.Display;
+        var metadata = new FormulaMetadata(new FormulaIdentity(target.DocumentId, equationId ?? Guid.NewGuid().ToString("N")),
+            latex, displayMode, numberingMode, numberText, RenderEngineKind.MathJaxSvg,
+            FormulaMetadata.CurrentSchemaVersion, typography);
+        await SwitchEditorTargetAsync(new WordFormulaEditTarget(target.Document, target.Anchor!, metadata, isOle: false, mathType: target),
+            cancellationToken);
     }
 
     public void CancelEditorFormula(long sessionGeneration)
@@ -414,6 +438,7 @@ public sealed partial class WordPluginController : IDisposable
             metadata,
             includeEquationOoxml: true,
             cancellationToken,
+            target?.MathType != null ? FormulaInsertionBackend.MathType : null,
             reportProgress: reportStatus);
         using (_wordAdapter.BeginUndoRecord())
         {
@@ -434,16 +459,20 @@ public sealed partial class WordPluginController : IDisposable
                 ? GetBackend(metadata.RenderEngine)
                 : settings.InsertionBackend);
         string renderedLatex = metadata.Latex;
-        if (backend == FormulaInsertionBackend.Ole)
+        if (backend is FormulaInsertionBackend.Ole or FormulaInsertionBackend.MathType)
         {
             if (reportProgress)
             {
-                _statusSink.Post(WordStatusKind.Info, WordAddInText.Get("OleInsertingStatus"));
+                _statusSink.Post(WordStatusKind.Info, WordAddInText.Get(backend == FormulaInsertionBackend.MathType
+                    ? "MathTypeInsertingStatus" : "OleInsertingStatus"));
             }
 
             FormulaMetadata oleMetadata = WithRenderEngine(metadata, RenderEngineKind.MathJaxSvg);
+            byte[]? mathType = backend == FormulaInsertionBackend.MathType
+                ? await _mathJaxRenderer.CreateMathTypeCompoundFileAsync(oleMetadata, cancellationToken)
+                : null;
             OlePresentationResult presentation = await RenderOlePresentationAsync(oleMetadata, renderedLatex, cancellationToken);
-            return new PreparedWordFormula(oleMetadata, IsDisplay(oleMetadata), presentation, null, null, null);
+            return new PreparedWordFormula(oleMetadata, IsDisplay(oleMetadata), presentation, null, null, null, mathType);
         }
 
         if (reportProgress)
@@ -467,10 +496,13 @@ public sealed partial class WordPluginController : IDisposable
     {
         if (prepared.OlePresentation != null)
         {
-            await _wordAdapter.InsertOleFormulaObjectAsync(prepared.Metadata, prepared.OlePresentation, prepared.Display, cancellationToken);
+            if (prepared.MathType == null)
+                await _wordAdapter.InsertOleFormulaObjectAsync(prepared.Metadata, prepared.OlePresentation, prepared.Display, cancellationToken);
+            else
+                await _wordAdapter.InsertMathTypeAsync(prepared.Metadata, prepared.MathType, prepared.OlePresentation, cancellationToken);
             if (reportStatus)
             {
-                _statusSink.Post(WordStatusKind.Success, WordAddInText.Get("OleInsertedStatus"));
+                _statusSink.Post(WordStatusKind.Success, WordAddInText.Get(prepared.MathType == null ? "OleInsertedStatus" : "MathTypeInsertedStatus"));
             }
             return;
         }
@@ -502,7 +534,11 @@ public sealed partial class WordPluginController : IDisposable
     {
         if (prepared.OlePresentation != null)
         {
-            if (target != null)
+            if (target?.MathType is MathTypeFormulaTarget mathType)
+            {
+                await _wordAdapter.UpdateMathTypeAsync(mathType, prepared.Metadata, prepared.MathType!, prepared.OlePresentation, cancellationToken);
+            }
+            else if (target != null)
             {
                 await _wordAdapter.UpdateOleFormulaObjectAsync(target, prepared.Metadata, prepared.OlePresentation, prepared.Display, cancellationToken);
             }
@@ -679,7 +715,6 @@ public sealed partial class WordPluginController : IDisposable
                 string.Empty);
         }
 
-        await _wordAdapter.ValidateCurrentInsertionTargetAsync(cancellationToken);
         PreparedWordFormula prepared = await PrepareRenderedFormulaAsync(
             metadata,
             includeEquationOoxml: false,
@@ -768,7 +803,7 @@ public sealed partial class WordPluginController : IDisposable
             displayMode,
             numberingMode,
             options.ManualNumber.Trim(),
-            settings.InsertionBackend == FormulaInsertionBackend.Ole ? RenderEngineKind.MathJaxSvg : RenderEngineKind.Omml,
+            settings.InsertionBackend == FormulaInsertionBackend.WordOmml ? RenderEngineKind.Omml : RenderEngineKind.MathJaxSvg,
             schemaVersion: FormulaMetadata.CurrentSchemaVersion,
             ResolveNewTypography(settings));
     }
@@ -831,6 +866,13 @@ public sealed partial class WordPluginController : IDisposable
             ? FormulaInsertionBackend.Ole
             : FormulaInsertionBackend.WordOmml;
     }
+
+    private static string InsertionStatus(FormulaInsertionBackend backend) => backend switch
+    {
+        FormulaInsertionBackend.MathType => "MathTypeInsertedStatus",
+        FormulaInsertionBackend.Ole => "OleInsertedStatus",
+        _ => "OmmlInsertedStatus"
+    };
 
     public void Dispose()
     {

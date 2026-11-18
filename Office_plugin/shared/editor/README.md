@@ -5,8 +5,8 @@
 - `source-editor.js` 封装 CodeMirror 6：文档、事务、撤销、选择、补全、光标处 Tab 插入与结构诊断；选中多行时仍可整体缩进。
 - `template-fields.js` 在源码事务中保存占位符位置，支持 Tab / Shift-Tab、选区包裹和独立撤销；用户源码不经过 snippet 字符串转义或模板重解析。
 - `EditorAssets/editor-layout.mjs` 与 `editor.css` 是两个宿主唯一的布局与样式入口；宿主 HTML 只加载共享资源。顶部工具栏、左侧符号库、公式 / 源码分隔线和提交栏共用实现。
-- `EditorAssets/symbol-library.mjs` 只保留公式模板，不包含用英文说明凑成的磁贴；`template-catalog.mjs` 统一分类、别名、快捷键、模板与补全目录。新增条目只修改目录数据；矩阵尺寸由 `matrix-templates.mjs` 生成。
-- `EditorAssets/symbol-panel.mjs` 提供一个跨分类搜索、纵向分类导航与磁贴滚动、键盘导航和折叠。“常用”初始为空，右键磁贴或工具栏星标可加入或移除，本地保存选择；在“常用”视图不显示矩阵行列控件。只渲染可见磁贴，按实际公式和标题宽度测量并重新排布，同一公式在各分类宽度一致。缓存上限 256 项，不创建额外 MathLive 编辑器。矩阵模板保留在“结构”组。
+- `EditorAssets/symbol-library.mjs` 存放可插入的公式和数学符号。各分类按常用程度排列，可用 `priority` 把跨小节的常用项放到分类开头。`template-catalog.mjs` 为跨分类条目复用同一模板，同时保留各分类的顺序、搜索别名和快捷键。矩阵尺寸由 `matrix-templates.mjs` 生成。
+- `EditorAssets/symbol-panel.mjs` 提供跨分类搜索、纵向分类导航、磁贴滚动和键盘导航。“常用”初始为空，右键磁贴或工具栏星标可加入或移除，本地保存选择；在“常用”视图不显示矩阵行列控件。磁贴按目录顺序换行，只渲染可见磁贴，按公式和标题的实际宽度设置尺寸。缓存上限 256 项，不创建额外 MathLive 编辑器。矩阵模板保留在“结构”组。
 - `EditorAssets/template-insertion.mjs` 记录活动编辑器与可视化选区，通过同一入口插入模板。源码补全、磁贴及 MathLive 原有 Ctrl+F/R/H/L/J 快捷键共用目录；源码区 Ctrl+F/H 继续用于查找 / 替换。
 - `EditorAssets/source-sync.mjs` 协调源码和 MathLive；源码是唯一文档状态。异步预览核对修订号，仅明确的可视化修改才回写，中文组合输入期间延迟同步。源码移除旧的多行容器时重建 MathLive 控件，避免旧结构滞留。可无损往返的公式打开时直接聚焦可视化区。
 - `EditorAssets/typography-panel.mjs` 使用原生宿主提供的字体目录与样式快照；全局设置和编辑器共用 17 项字形选项。数字字体显示全部系统字体，汉字字体使用从等线到幼圆的 23 项固定列表，以中文名称显示、不探测字形。下拉列表顺序固定，选择不会重排选项；列表外的当前字体显示选择提示，不作为可选字体追加。`font-size-picker.mjs` 从共享字号表生成可键盘操作的中文字号 / pt 菜单，并允许输入自定义 pt。`draft-preview.mjs` 用会话与修订筛选最终预览，处理合并、取消、组合输入和提交锁定。原生桥接复用 `IFormulaRenderer`，预览与提交使用当前草稿。
@@ -35,3 +35,5 @@ MathLive 与源码均可用 Escape 后再按 Tab 离开编辑器；预览往返�
 常用中的完整公式在空白编辑器中直接通过源码同步加载；外层全局颜色投影同样用于磁贴预览，避免 MathLive 将带颜色的多行环境插入为不可见的嵌套数组。
 
 MathLive 运行库、字体和许可证由 Office 的 `EditorAssets/vendor` 自己持有，随 `EditorSharedAssets` 打包；浏览器回归读取同一目录。
+
+内置的 MathLive 0.111.4 在序列化宏和中间分隔符时复用自身的 LaTeX 拼接函数，保留 `\pmod m` 的控制词边界和 `\middle|` 的直接分隔符语法。Office 的 MathJax 将未填字段 `\placeholder{}` 渲染为方框。
