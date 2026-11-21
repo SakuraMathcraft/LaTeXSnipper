@@ -153,7 +153,11 @@
   - #link(<sec-office-editor>)[Windows 版公式编辑器与侧边栏]
   - #link(<sec-office-settings>)[Windows 版设置与帮助]
   - #link(<sec-office-trouble>)[Windows 版常见问题排查]
-  - #link(<sec-office-macos>)[macOS 版安装与使用]
+  - #link(<sec-office-macos>)[macOS 版安装与注册]
+  - #link(<sec-office-macos-word>)[macOS 版 Word 功能详解]
+  - #link(<sec-office-macos-ppt>)[macOS 版 PowerPoint 功能详解]
+  - #link(<sec-office-macos-editor>)[macOS 版编辑器、截图识别与设置]
+  - #link(<sec-office-macos-trouble>)[macOS 版常见问题排查]
 
   #v(0.5em)
   #text(size: 10pt, weight: "bold")[第三卷 · 移动端使用指南]
@@ -796,7 +800,7 @@ LaTeXSnipper Office 加载项支持 Windows 和 macOS 的桌面版 Word 与 Powe
 在 #link("https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest")[GitHub Releases] 单独下载对应平台的 Office 插件安装包。
 
 - *Windows* 使用 `LaTeXSnipperOffice_<版本>_windows_x86_64.exe`。Word 支持 OLE 和 OMML，PowerPoint 支持 OLE 和 PNG。见 #link(<sec-office-install>)[Windows 版安装与注册]。
-- *macOS* 使用 `LaTeXSnipperOffice_<版本>_macos_arm64.dmg`。Word 使用 OMML，PowerPoint 默认使用 PNG，也可选 SVG。见 #link(<sec-office-macos>)[macOS 版安装与使用]。
+- *macOS* 使用 `LaTeXSnipperOffice_<版本>_macos_arm64.dmg`。Word 使用 OMML，PowerPoint 默认使用 PNG，也可选 SVG。见 #link(<sec-office-macos>)[macOS 版安装与注册]。
 
 == Windows 版系统要求
 
@@ -1368,42 +1372,309 @@ Word 插件从当前运行的 Word 安装目录读取 `MML2OMML.XSL` 和 `OMML2M
 
 #pagebreak()
 
-#heading(level: 1)[macOS 版安装与使用] <sec-office-macos>
+#heading(level: 1)[macOS 版安装与注册] <sec-office-macos>
 
-独立安装包适用于 Apple Silicon，声明的最低系统版本为 macOS 12.0。请使用支持 SharedRuntime 1.1 的 Word 或 PowerPoint for Mac。截图识别还须满足桌面端的系统要求。
+== macOS 版系统要求
 
-== 安装、修复与卸载
+- *系统与硬件：* Apple Silicon Mac，macOS 12.0 或更高版本
+- *Office 版本：* 支持 Office 加载项共享运行时（SharedRuntime 1.1）的 Word 和 PowerPoint for Mac。已在 16.115 版上验证
+- *截图识别（可选）：* 同一台 Mac 上运行 LaTeXSnipper 桌面端并开启 *自动化接口*；桌面端另有其系统要求，见#link(<sec-install>)[安装和环境问题]
 
-+ 打开 `LaTeXSnipperOffice_<版本>_macos_arm64.dmg`，把 *LaTeXSnipper Office* 拖到“应用程序”。
-+ 打开 *LaTeXSnipper Office*，点击 *安装 / 修复*。macOS 请求信任仅用于本机插件服务的 `localhost` 证书时，选择允许。
-+ 完全退出并重新打开 Word 或 PowerPoint，在 *开始 → 加载项 → 开发人员加载项* 中选择 *LaTeXSnipper*。
+Mac 版不依赖 LaTeXSnipper 桌面端。编辑、渲染、插入、编号、解析、格式化、设置和帮助都由插件自带的本机服务完成，只有截图识别需要桌面端。
 
-首次在 Word 中保存公式时，允许 LaTeXSnipper Office 控制 Microsoft Word。若此前拒绝，可在 *系统设置 → 隐私与安全性 → 自动化* 中开启该权限。
+== 安装流程
 
-卸载时，在 *LaTeXSnipper Office* 应用中点击 *卸载*，再将应用移出“应用程序”。
++ 在 #link("https://github.com/SakuraMathcraft/LaTeXSnipper/releases/latest")[GitHub Releases] 下载 `LaTeXSnipperOffice_<版本>_macos_arm64.dmg`。
++ 打开 DMG，把 *LaTeXSnipper Office* 拖到“应用程序”，再从“应用程序”打开它。
++ 在 *LaTeXSnipper Office* 窗口中点击 *安装 / 修复*。macOS 会请求信任一张仅用于 `localhost` 的证书，选择允许。窗口显示“插件已就绪”即安装完成。
++ 按 `⌘Q` 完全退出 Word 和 PowerPoint，再重新打开。
++ 在 *开始 → 加载项* 的“开发人员加载项”中点击 *LaTeXSnipper*。功能区出现 *LaTeXSnipper* 标签页，并提示“LaTeXSnipper 已就绪”。
 
-== 插入与编辑公式
+*安装 / 修复* 会完成三件事：
 
-状态窗格可编辑和预览新公式，点击 *插入* 即可使用当前草稿。公式编辑器提供可视化区、LaTeX 源码和符号模板。按 `Shift+Enter` 插入或更新公式。
+- 生成一张自签名、不能签发其他证书的本机证书，只对 `localhost` 和 `127.0.0.1` 有效，并在登录钥匙串中信任它。Office 只通过 HTTPS 加载插件页面。
+- 注册当前用户的登录项 `com.mathcraft.latexsnipper.office.host`。它在登录时启动本机服务 `https://localhost:28766`，服务异常退出后会自动重启。
+- 把插件清单 `latexsnipper-office-addin.xml` 写入 Word 和 PowerPoint 的加载项目录。
 
-- *Word* 统一插入原生 OMML 公式，支持行内、行间和带编号公式。用 *加载所选* 打开已有公式，修改后点击 *更新*。编号、引用和周围文字会保留。可用 *添加编号*、*重编号*、*插入引用*、*章分隔符*和*节分隔符*管理带编号公式。
-- 在 *Word* 中，用 *解析所选* 或 *解析全文* 将正文和表格中带定界符的 LaTeX 转为公式。行内用 `$…$` 或 `\(…\)`，行间用 `$$…$$` 或 `\[…\]`，用 `\tag{5}` 指定手动编号。
-- *PowerPoint* 默认插入 PNG 公式，可在设置中改为 SVG。功能区提供 *转为 PNG* 和 *转为 SVG*。更新或转换时保留位置、缩放和图层顺序。光标位于文本框中时，公式作为独立对象插入幻灯片。
-- Word 和 PowerPoint 都可以用 *格式化所选* 或 *格式化全文* 恢复公式的默认样式和自然大小。
+LaTeXSnipper Office 窗口同时显示插件服务和截图识别的状态。“截图识别：需要运行 LaTeXSnipper 桌面端并开启‘自动化接口’”只表示识别暂不可用，其他功能不受影响。
+
+== Word 控制权限
+
+Word 公式的源码和样式保存在文档变量中，与 Windows 版相同。Office 加载项接口只能读取文档变量，因此插件服务通过 Word 的 AppleScript 接口写入。第一次在 Word 中插入或修改公式时，macOS 会询问是否允许 LaTeXSnipper Office 控制 Microsoft Word，请选择允许。
+
+如果之前选择了不允许，打开 *系统设置 → 隐私与安全性 → 自动化*，在 LaTeXSnipper Office 下勾选 Microsoft Word，然后重试。PowerPoint 不需要这项权限。
+
+== 更新与修复
+
+新版 DMG 中的应用替换“应用程序”里的旧版后，打开它并点击 *安装 / 修复*，再完全退出并重新打开 Word 和 PowerPoint。插件服务无法启动、证书需要重新信任，或功能区没有更新时，也使用 *安装 / 修复*。它不会改动文档和公式默认属性。
+
+本机证书有效期为 800 天，到期前 30 天需要重新信任。这时登录后插件服务不会启动，Office 无法加载插件页面；打开 LaTeXSnipper Office 点击 *安装 / 修复* 即可。
+
+== 卸载
+
++ 如需保留公式默认属性，先在插件 *设置* 中 *导出 JSON*。
++ 打开 *LaTeXSnipper Office*，点击 *卸载*。窗口显示“已卸载，Office 中的插件和证书信任均已移除”。
++ 把 *LaTeXSnipper Office* 从“应用程序”移到废纸篓。
+
+卸载会停止并移除登录项，删除 Word 和 PowerPoint 中的插件清单，移除证书信任，并删除 `~/Library/Application Support/LaTeXSnipper Office/` 中的证书、设置和日志。它不会改动文档，也不会触及 LaTeXSnipper 桌面端的数据。
+
+也可以在终端中运行：
+
+```bash
+"/Applications/LaTeXSnipper Office.app/Contents/MacOS/LaTeXSnipper Office" --install
+"/Applications/LaTeXSnipper Office.app/Contents/MacOS/LaTeXSnipper Office" --uninstall
+```
+
+#pagebreak()
+
+#heading(level: 1)[macOS 版 Word 功能详解] <sec-office-macos-word>
+
+== 功能区概览
+
+LaTeXSnipper 标签页包含 8 个功能组：
+
+- *公式组：* 行内公式、行间公式、带编号公式、截图识别
+- *编辑组：* 加载所选、删除所选
+- *公式解析组：* 解析所选、解析全文
+- *交叉引用组：* 插入引用
+- *编号组：* 添加编号、重编号
+- *编号边界组：* 章分隔符、节分隔符
+- *公式样式组：* 格式化所选、格式化全文
+- *工具组：* 状态窗格、设置、帮助
+
+与 Windows 版相比没有转换组。Office for Mac 不能创建 OLE 对象，Mac 版只插入 Word 原生公式（OMML），因此也没有“公式插入方式”设置。
+
+#info-block("说明", [
+  插件为每个公式保存 LaTeX 源码、显示方式、编号和样式，格式与 Windows 版相同。公式本身是 Word 原生公式，卸载插件后仍可正常显示和编辑。没有插件元数据的普通 Word 公式不能用“加载所选”打开。
+])
+
+== 插入公式
+
++ 把光标放到插入位置。光标在已有公式内部时不能插入，编辑器会提示“请将光标移到公式外，再插入其他公式”。
++ 点击 *行内公式*、*行间公式* 或 *带编号公式*，在编辑器中输入公式。
++ 点击 *插入*，或按 `Shift+Enter`。
+
+- *行内公式：* 插在光标处，与前后文字同行
+- *行间公式：* 单独占一段并居中。光标所在段落有内容时，公式放到下一段
+- *带编号公式：* 居中显示，编号默认在右侧。状态窗格勾选“自动编号”或未填写编号时使用自动编号；填写了“自定义编号”时使用该编号
+
+也可以在状态窗格中编辑公式草稿后点击 *插入*。窗格中的“行间公式”“自动编号”“自定义编号”决定插入的公式类型。
+
+== 加载、更新和删除
+
+- *加载所选：* 点击公式或把光标放进公式后使用。编辑器以“更新”模式打开，状态窗格同时显示该公式
+- *更新：* 修改后点击 *更新*。只替换公式本身，编号、书签、交叉引用以及同一段落的其他文字和格式保持不变。公式未修改时提示“公式未更改”
+- *删除所选：* 删除选中的插件公式。带编号公式连同编号和对齐用的制表符一起删除，所在段落保留
+
+同一文档内复制出的公式第一次被加载时会获得新的标识，之后可独立编辑。
+
+== 添加编号与重编号
+
+- *添加编号：* 为选中的无编号行间公式添加自动编号。已有编号或行内公式时，状态栏会给出提示
+- *重编号：* 按文档顺序更新所有自动编号和指向它们的交叉引用；手动编号（例如 `\tag{5}` 产生的 `(5)`）不变。元数据缺失或编号字段不完整的公式会被跳过并计数
+- 修改编号位置、外框、章节编号或分隔符设置后，已有公式需要点击 *重编号* 才会使用新设置
+
+== 章/节分隔符与层级编号
+
++ 在设置中勾选“包含章编号”或“包含节编号”，选择层级分隔符。
++ 把光标放在新一章（或节）开始处，点击 *章分隔符* 或 *节分隔符*。插件会立即重编号。
+
+分隔符之前的公式属于第 1 章，之后的自动编号从新章重新计数，例如 `(2-1)`。分隔符在文档中显示为“章分隔符”“节分隔符”文字，可在设置中隐藏。删除分隔符后点击 *重编号* 即可恢复原来的编号。
+
+== 交叉引用
+
++ 在正文中选中要替换的文字，或只放置光标，点击 *插入引用*，此处出现占位符 `[请选择公式]`。
++ 单击一个带编号公式，或把光标放到它所在的段落，占位符变为该公式的编号，例如 `(1)`。
+
+引用是指向公式编号书签的 Word 域，编号变化后点击 *重编号* 会同时刷新引用。选中的公式没有编号时，占位符保持不变，可以继续选择其他公式。
+
+== 公式解析
+
+“解析全文”转换正文和表格中带定界符的完整 LaTeX；“解析所选”只转换完全位于选区内的公式。
+
+#table(
+  columns: (1.4fr, 2.6fr),
+  stroke: 0.5pt + rgb("#CCCCCC"),
+  inset: 6pt,
+  [*写法*], [*结果*],
+  [`$…$`、`\(…\)`], [行内公式],
+  [`$$…$$`、`\[…\]`], [行间公式，单独成段；前后文字各自保留为独立段落],
+  [行间公式中的 `\tag{5}`], [手动编号 `(5)`，`\tag` 本身不会保留在公式中],
+  [无 `\tag` 的行间公式], [按状态窗格的“自动编号”“自定义编号”选项编号；勾选自动编号时，解析完成后立即重编号],
+  [`\$100` 等转义符号], [保留原文，不解析],
+  [未闭合、为空、`\tag{}`、`\tag*` 或多个 `\tag`], [保留原文，计为失败，状态栏给出数量和首个原因],
+)
+
+表格中每个单元格单独解析，公式不会跨单元格匹配。已有公式、内容控件、域、超链接、批注、修订内容和代码样式段落不会被解析。段落中含有 OLE 或其他嵌入对象时，整段保持不变。
+
+== 格式重置
+
+- *格式化所选：* 恢复所选插件公式的默认样式和自然大小
+- *格式化全文：* 恢复全文插件公式的默认样式和自然大小
+
+两者使用设置中的公式默认属性，不改变公式内容、编号和引用；已是默认样式的公式会被跳过。
+
+== Windows OLE 公式
+
+Windows 版插件插入的 OLE 公式在 Mac 上正常显示，保存文档时原样保留，回到 Windows 后仍可编辑。Mac 版不会加载、修改、删除或格式化这些对象。单独选中时提示“所选内容是 Windows 插件创建的 OLE 公式，请在 Windows 版 LaTeXSnipper 插件中编辑”；混合选区和批量操作会跳过它们，并在结果中说明跳过的数量。
+
+#pagebreak()
+
+#heading(level: 1)[macOS 版 PowerPoint 功能详解] <sec-office-macos-ppt>
+
+== 功能区概览
+
+- *公式组：* 插入公式、截图识别
+- *编辑组：* 加载所选、删除所选
+- *转换组：* 转为 PNG、转为 SVG
+- *公式样式组：* 格式化所选、格式化全文
+- *工具组：* 状态窗格、设置、帮助
+
+PowerPoint 中的公式是带公式数据的图片：
+
+- *PNG（默认）：* 300 DPI 透明图片，与 Windows 版插件的 PNG 公式格式相同，两端都可继续编辑
+- *SVG：* 矢量图片，放大不失真。SVG 是 Mac 版专有格式，需要在 Windows 上继续编辑时请使用 PNG
+
+== 插入公式
+
+点击 *插入公式*，在编辑器中输入公式并点击 *插入*。公式按设置中的格式放在当前幻灯片中央（距左边至少 72 pt、距顶部至少 96 pt），之后可以自由拖动和缩放。在标题页上新公式可能与标题重叠，拖开即可。
+
+光标位于文本框中或选中了其他形状时，原有文字和形状保持不变，公式作为独立对象放在幻灯片上。Mac 版不支持在文本框中插入随文字排版的原生公式。
+
+== 加载与删除
+
+- *加载所选：* 选中公式图片后使用。修改后点击 *更新*，保留原图片的格式、位置、缩放比例和图层顺序
+- *删除所选：* 删除选中的插件公式；同时选中的其他形状不受影响
+
+== 公式转换与格式重置
+
+- *转为 PNG / 转为 SVG：* 在两种图片格式间转换，源码、样式、位置和缩放比例不变。转换后选中公式时，SVG 显示“图形格式”选项卡，PNG 显示“图片格式”选项卡
+- *格式化所选 / 格式化全文：* 恢复默认样式和自然大小，只在一个方向被拉伸过的公式也会恢复原比例
+
+Windows 版插入的 OLE 公式会被跳过并保留，处理方式与 Word 相同。
+
+#tip-block("提示", [
+  插件公式图片的替代文本以 “LaTeXSnipper formula” 开头，可在“选择窗格”或替代文本中找到它们。
+])
+
+#pagebreak()
+
+#heading(level: 1)[macOS 版编辑器、截图识别与设置] <sec-office-macos-editor>
+
+== 状态窗格与公式编辑器
+
+点击 *状态窗格* 打开右侧窗格。窗格顶部显示每个操作的结果；中部是新公式草稿，可视化区和 LaTeX 源码区同步；底部是 *截图识别* 和 *插入*。Word 窗格另有“行间公式”“自动编号”“自定义编号”选项。“连接”按钮用于测试与桌面端的连接。
+
+独立编辑器与 Windows 版相同，见#link(<sec-office-editor>)[独立公式编辑器]。在 Mac 上，模板快捷键使用 `Control`（例如 `Control+F` 插入分式），`Shift+Enter` 插入或更新公式。加载已有公式后，窗格临时显示该公式；更新或取消后恢复原来的草稿。
+
+== 截图识别
+
++ 在同一台 Mac 上打开 LaTeXSnipper 桌面端，并在其设置中开启 *自动化接口*。
++ 在 Word 或 PowerPoint 中点击 *截图识别*。按钮变为 *取消识别*，状态栏显示“正在等待截图识别”。
++ 用桌面端的截图快捷键（默认 `Command+F`）或其 *截图识别* 按钮框选公式。
++ 识别结果填入状态窗格的草稿，状态栏显示“截图识别结果已加载”。结果不会自动插入，确认后点击 *插入*。
+
+等待最长约 2 分钟，期间可点 *取消识别*。桌面端只把同一次识别结果复制一份发给插件，桌面端自身的识别流程不变。
+
+== 设置
+
+点击 *设置* 打开设置窗口，所有修改立即保存。
+
+- *Word 带编号公式默认布局：* 右编号或左编号、外框（`( )`、`[ ]`、`{ }`、无）、层级分隔符（`-`、`.`、`·`、`:`、`/`）、包含章编号、包含节编号、隐藏章分隔符、隐藏节分隔符。勾选隐藏后，文档中已有的分隔符立即隐藏
+- *PowerPoint 公式插入方式：* PNG 图片（默认）或 SVG 图片
+- *公式默认属性：* 字体颜色、符号字体（TeX / STIX2）、数字字体、汉字字体、默认字形、公式字号（支持“小四”等中文字号），以及“新建时跟随文字字号”
+- *全局公式预设：* 导入或导出 JSON。文件格式与 Windows 版相同，可互相导入；文件不能超过 64 KiB，使用的符号字体必须是插件自带的字体
+
+设置保存在 `~/Library/Application Support/LaTeXSnipper Office/settings.json`，Word 和 PowerPoint 各有一份公式默认属性。卸载会删除这个文件。
+
+== 帮助窗口
+
+点击 *帮助* 打开帮助页面，只显示当前宿主的说明，随 Office 界面语言显示中文或英文。
 
 == 与 Windows 交换文档
 
-Word 中保留了插件元数据的 OMML 公式，以及 PowerPoint 中保留了插件元数据的 PNG 公式，可以在两端用 *加载所选* 继续编辑。PowerPoint 文档需要在两端继续编辑时，优先选择 PNG。已有的 Windows OLE 公式会保留在文档中，Mac 版插件会跳过这些对象，需要编辑时请回到 Windows 版插件。
+- *Word：* Mac 插入或修改的 OMML 公式、编号、交叉引用和章节分隔符使用与 Windows 版相同的文档数据，两端都可以用 *加载所选* 继续编辑，也可以继续重编号。
+- *PowerPoint：* PNG 公式两端都可编辑。SVG 是 Mac 版专有格式，需要在两端继续编辑时请使用 PNG。
+- *OLE 公式：* 只能在 Windows 上编辑。Mac 保存文档时保留这些对象。
 
-== 截图识别与设置
+#pagebreak()
 
-- 在同一台 Mac 上启动 LaTeXSnipper 桌面端并开启 *自动化接口*。在 Office 中点 *截图识别*，再用桌面端快捷键或按钮发起截图。识别结果填入状态窗格的草稿，确认后点击 *插入*。等待期间可以点 *取消识别*。
-- *设置* 页面支持导入、导出公式默认属性的 JSON 预设，可与 Windows 版互换。Word 更改默认编号布局后，可用 *重编号* 应用到已有自动编号。
+#heading(level: 1)[macOS 版常见问题排查] <sec-office-macos-trouble>
 
-== 常见问题
+== 加载项菜单中没有 LaTeXSnipper
 
-- 功能区没有出现或服务没有运行时，打开 *LaTeXSnipper Office* 并点击 *安装 / 修复*，然后重新打开 Word 或 PowerPoint。服务日志位于 `~/Library/Application Support/LaTeXSnipper Office/host.log`。
-- 在 PowerPoint 中按两次 `⌘Z`，依次撤销图片设置和图片插入。
++ 打开 *LaTeXSnipper Office*，确认窗口显示“插件已就绪”。显示“尚未安装”或“插件服务未响应”时，点击 *安装 / 修复*。
++ 用 `⌘Q` 完全退出 Word 和 PowerPoint 后重新打开。只关闭文档窗口不会重新读取插件清单。
++ 在 *开始 → 加载项* 中查看“开发人员加载项”。
+
+更新插件后功能区按钮或图标没有变化时，同样执行 *安装 / 修复* 并完全退出 Office。
+
+== 插件页面无法加载，或提示“无法连接到 LaTeXSnipper Office 插件服务”
+
+本机插件服务没有运行时，Office 无法加载插件页面（状态窗格空白或提示加载项出错）；服务在使用中途停止时，状态栏提示“无法连接到 LaTeXSnipper Office 插件服务”。打开 *LaTeXSnipper Office* 点击 *安装 / 修复*。若仍然失败，LaTeXSnipper Office 窗口或日志中会显示原因：
+
+- *“Office 加载项证书需要重新信任”或“macOS 未信任 Office 加载项证书”：* 证书即将过期或信任被移除。点击 *安装 / 修复* 并在 macOS 提示时允许
+- *“无法监听 127.0.0.1:28766，端口可能已被占用”：* 另一个程序占用了该端口。可在终端运行 `lsof -nP -iTCP:28766 -sTCP:LISTEN` 查看占用的进程，关闭后重试
+
+== 点击功能区按钮没有反应
+
+Office 启动后，插件的后台运行时需要几秒钟加载。稍等片刻后再点一次。若一直没有反应，打开 *状态窗格* 查看提示，或点击窗格右上角的 *i → 重新载入*。
+
+== Word 提示“macOS 未允许 LaTeXSnipper Office 控制 Microsoft Word”
+
+打开 *系统设置 → 隐私与安全性 → 自动化*，在 LaTeXSnipper Office 下勾选 Microsoft Word，然后重试。插件在写入失败时不会留下不完整的公式数据。
+
+== Word 提示“Word 未及时响应”或“无法定位当前 Word 文档”
+
+Word 正在显示对话框或执行其他操作时，插件可能无法写入公式数据。关闭 Word 中打开的对话框（例如“另存为”“查找和替换”），确认文档窗口处于正常编辑状态后重试。
+
+== Word 提示“未找到 Microsoft Word 的 mathml2omml.xsl”
+
+插件使用 Word 自带的样式表生成原生公式。请确认 Microsoft Word 安装在“应用程序”或 `~/Applications` 中，且未被移动或改名；必要时重新安装 Office。
+
+== 选中公式后提示“请先选择一个 LaTeXSnipper 公式”
+
+选中的不是插件公式，例如 Word 自带的公式、MathType 对象或普通图片，或者公式的插件元数据已经丢失（例如从别的文档只粘贴了公式本身）。这类对象不能加载；可以重新插入公式。
+
+== 公式解析后部分公式没有转换
+
+状态栏会显示成功和失败的数量以及首个原因。常见原因：定界符未闭合、内容为空、`\tag{}` 为空、使用了 `\tag*` 或多个 `\tag`、行内公式中使用了 `\tag`。失败的内容保留为原文，修改后再次解析即可，已转换的公式不会被重复处理。位于域、超链接、批注、修订、代码样式段落或含嵌入对象段落中的内容不会被解析。
+
+== 编号或引用没有更新
+
+插入、删除公式或修改编号设置后，点击 *重编号*。重编号会更新所有自动编号和指向它们的引用，状态栏会报告跳过的公式数量。
+
+== 截图识别失败
+
+#table(
+  columns: (1.4fr, 2.6fr),
+  stroke: 0.5pt + rgb("#CCCCCC"),
+  inset: 6pt,
+  [*提示*], [*处理*],
+  [无法连接到 LaTeXSnipper 识别服务], [打开桌面端，在设置中开启“自动化接口”],
+  [LaTeXSnipper 连接信息无效 / 连接凭据已失效], [在桌面端关闭并重新开启“自动化接口”],
+  [已有客户端正在等待下一次识别结果 / 截图识别正忙], [同一时间只允许一个客户端等待。完成或取消另一个 Office 窗口中的识别后重试],
+  [等待识别结果超时], [点击 *截图识别* 后约 2 分钟内在桌面端完成截图],
+  [MathCraft 模型当前不可用], [在桌面端检查模型状态],
+)
+
+== PowerPoint 撤销插入需要按两次 `⌘Z`
+
+插入一个公式在 PowerPoint 中占两个撤销步骤。第一次只撤销尺寸和公式数据，图片仍在，按第二次才会移除图片。也可以直接用 *删除所选*。
+
+== 导入预设失败
+
+预设必须是 LaTeXSnipper 导出的 JSON 文件（Windows 和 Mac 版均可），大小不超过 64 KiB，使用的符号字体必须是插件自带的 TeX 或 STIX2。
+
+== 诊断与日志
+
+反馈问题时请提供 macOS、Word / PowerPoint 和 LaTeXSnipper Office 的版本、操作步骤、状态窗格中的提示文字，以及插件服务日志：
+
+```text
+~/Library/Application Support/LaTeXSnipper Office/host.log
+```
+
+如果问题与某份文档有关，请附上能复现问题的文档副本，并说明它在哪个平台上创建、在哪个平台上编辑过。
 
 #pagebreak()
 

@@ -2,7 +2,7 @@
 
 LaTeXSnipper Office for Mac is an Office.js add-in for Word and PowerPoint on Apple Silicon. The [DMG build](#build) produces the standalone **LaTeXSnipper Office.app** installer. The add-in uses the editor, task pane, and MathJax typography renderer from [`Office_plugin/shared`](../shared/).
 
-See the [user manual](../../user_manual/user_manual.md#macos-版安装与使用) for installation, formula workflows, and troubleshooting.
+See the [user manual](../../user_manual/user_manual.md#macos-版安装与注册) for installation, formula workflows, and troubleshooting.
 
 ## Independence from the desktop app
 
