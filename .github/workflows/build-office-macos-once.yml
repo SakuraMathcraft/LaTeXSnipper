@@ -1,0 +1,36 @@
+name: Build macOS Office installer
+
+on:
+  push:
+    branches: [codex/build-office-macos-3-4]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          architecture: arm64
+      - run: python -m pip install -r Office_plugin/macos/requirements-build.txt
+      - name: Build and verify the Office installer
+        run: |
+          version=$(cat VERSION)
+          python -X utf8 Office_plugin/macos/build.py --output "$RUNNER_TEMP/office-installer" --work "$RUNNER_TEMP/office-build"
+          bundle="$RUNNER_TEMP/office-build/dist/LaTeXSnipper Office.app"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$bundle/Contents/Info.plist")" = "$version"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$bundle/Contents/Info.plist")" = "$version"
+          lipo -verify_arch arm64 "$bundle/Contents/MacOS/LaTeXSnipper Office"
+          hdiutil verify "$RUNNER_TEMP/office-installer/LaTeXSnipperOffice_${version}_macos_arm64.dmg"
+          cd "$RUNNER_TEMP/office-installer"
+          shasum -a 256 -c "LaTeXSnipperOffice_${version}_macos_arm64.dmg.sha256"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: office-macos-installer
+          path: ${{ runner.temp }}/office-installer/*
+          if-no-files-found: error
+          retention-days: 3
