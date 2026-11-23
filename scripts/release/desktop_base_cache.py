@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import subprocess
 from pathlib import Path
 
 from runtime.distribution_manifest import ManifestError
+
+logger = logging.getLogger("latexsnipper.desktop_base_cache")
 
 
 def cache_tag(name: str, target: str, key: str) -> str:
@@ -54,7 +57,7 @@ def store(directory: Path, tag: str) -> None:
     archives = list(directory.glob("*.zip"))
     if len(archives) != 1:
         raise ManifestError("Fixed-resource cache needs exactly one archive")
-    subprocess.run(
+    result = subprocess.run(
         [
             "gh",
             "release",
@@ -70,5 +73,14 @@ def store(directory: Path, tag: str) -> None:
             str(directory / "stamp.json"),
             str(archives[0]),
         ],
-        check=True,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
     )
+    if result.returncode == 0:
+        return
+    error = result.stderr.strip()
+    if error.startswith("HTTP 403:") and error.endswith("/releases)"):
+        logger.warning("Could not store draft build cache %s: %s", tag, error)
+        return
+    raise ManifestError(f"Cannot write fixed-resource cache: {error}")
