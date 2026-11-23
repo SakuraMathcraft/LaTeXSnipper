@@ -22,6 +22,8 @@ concurrency:
 
 env:
   RELEASE_TAG: ${{ inputs.release_tag }}
+  # Version of the committed Office installers shipped with the desktop release.
+  OFFICE_INSTALLER_VERSION: "3.3.0"
   PYTHONUTF8: "1"
   PYTHONIOENCODING: utf-8
 
@@ -219,7 +221,11 @@ jobs:
       - name: Upload update catalog and check release assets
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python -X utf8 scripts/release/release_artifacts.py publish --release-id "${{ needs.prepare-release.outputs.release_id }}" --tag "$RELEASE_TAG" --version "$(cat VERSION)" --directory release-metadata
+        run: >-
+          python -X utf8 scripts/release/release_artifacts.py publish
+          --release-id "${{ needs.prepare-release.outputs.release_id }}"
+          --tag "$RELEASE_TAG" --version "$(cat VERSION)"
+          --office-installer-version "$OFFICE_INSTALLER_VERSION" --directory release-metadata
       - name: Remove obsolete build-cache drafts
         env:
           GH_TOKEN: ${{ github.token }}
@@ -311,11 +317,12 @@ jobs:
         id: installer
         shell: bash
         run: |
-          version="$(tr -d '[:space:]' < VERSION)"
-          installer="Office_plugin/${{ matrix.platform }}/release/LaTeXSnipperOffice_${version}_${{ matrix.suffix }}"
+          installer="Office_plugin/${{ matrix.platform }}/release/LaTeXSnipperOffice_${OFFICE_INSTALLER_VERSION}_${{ matrix.suffix }}"
           checksum="${installer}.sha256"
-          test -f "$installer"
-          test -f "$checksum"
+          if [[ ! -f "$installer" || ! -f "$checksum" ]]; then
+            echo "Missing Office installer or checksum: $installer" >&2
+            exit 1
+          fi
           expected="$(awk '{print tolower($1)}' "$checksum")"
           actual="$(sha256sum "$installer" | awk '{print $1}')"
           if [[ "$actual" != "$expected" ]]; then

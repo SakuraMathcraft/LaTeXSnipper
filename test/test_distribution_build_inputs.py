@@ -111,8 +111,8 @@ def test_release_preparation_requires_a_unique_target(monkeypatch, count):
     [
         None,
         "macos.dmg",
-        "LaTeXSnipperOffice_3.2.0_windows_x86_64.exe",
-        "LaTeXSnipperOffice_3.2.0_macos_arm64.dmg",
+        "LaTeXSnipperOffice_3.3.0_windows_x86_64.exe",
+        "LaTeXSnipperOffice_3.3.0_macos_arm64.dmg",
         "LaTeXSnipper_User_Manual.pdf",
     ],
 )
@@ -121,12 +121,12 @@ def test_release_completion_uses_id_and_requires_all_uploads(
 ):
     import release_artifacts as release
 
-    tag = "v3.2.0-LTS"
+    tag = "v3.4.0-LTS"
     names = {
         "application.zip",
         "macos.dmg",
-        "LaTeXSnipperOffice_3.2.0_windows_x86_64.exe",
-        "LaTeXSnipperOffice_3.2.0_macos_arm64.dmg",
+        "LaTeXSnipperOffice_3.3.0_windows_x86_64.exe",
+        "LaTeXSnipperOffice_3.3.0_macos_arm64.dmg",
         "LaTeXSnipper_User_Manual.pdf",
     }
     assets = [
@@ -155,6 +155,7 @@ def test_release_completion_uses_id_and_requires_all_uploads(
         return {}
 
     def catalog(directory, version, output):
+        assert version == "3.4.0"
         output.write_text("{}", encoding="utf-8")
         return SimpleNamespace(
             distributions=[
@@ -173,10 +174,14 @@ def test_release_completion_uses_id_and_requires_all_uploads(
     monkeypatch.setattr(release, "publish_catalog", catalog)
     if missing:
         with pytest.raises(ValueError, match="missing uploaded assets"):
-            release.publish_release(tmp_path, "3.2.0", tag, 40)
+            release.publish_release(
+                tmp_path, "3.4.0", tag, 40, office_installer_version="3.3.0"
+            )
         assert [method for method, _, _ in mutations] == ["POST"]
     else:
-        release.publish_release(tmp_path, "3.2.0", tag, 40)
+        release.publish_release(
+            tmp_path, "3.4.0", tag, 40, office_installer_version="3.3.0"
+        )
         assert [method for method, _, _ in mutations] == ["POST", "DELETE"]
         assert mutations[-1] == ("DELETE", f"{release.RELEASES}/assets/99", None)
 
