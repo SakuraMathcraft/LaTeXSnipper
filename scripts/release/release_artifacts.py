@@ -149,13 +149,20 @@ def publish_catalog(directory: Path, version: str, output: Path) -> ReleaseCatal
     return catalog
 
 
-def publish_release(directory: Path, version: str, tag: str, release_id: int) -> None:
+def publish_release(
+    directory: Path,
+    version: str,
+    tag: str,
+    release_id: int,
+    *,
+    office_installer_version: str,
+) -> None:
     catalog_path = directory / "desktop-release.json"
     catalog = publish_catalog(directory, version, catalog_path)
     names = {
         catalog_path.name,
-        f"LaTeXSnipperOffice_{version}_windows_x86_64.exe",
-        f"LaTeXSnipperOffice_{version}_macos_arm64.dmg",
+        f"LaTeXSnipperOffice_{office_installer_version}_windows_x86_64.exe",
+        f"LaTeXSnipperOffice_{office_installer_version}_macos_arm64.dmg",
         "LaTeXSnipper_User_Manual.pdf",
     }
     for distribution in catalog.distributions:
@@ -272,6 +279,7 @@ if __name__ == "__main__":
     publish = commands.add_parser("publish")
     publish.add_argument("--directory", type=Path, required=True)
     publish.add_argument("--version", required=True)
+    publish.add_argument("--office-installer-version", required=True)
     publish.add_argument("--tag", required=True)
     publish.add_argument("--release-id", type=int, required=True)
     prune = commands.add_parser("prune-cache")
@@ -289,5 +297,9 @@ if __name__ == "__main__":
         prune_build_cache(arguments.directory)
     else:
         publish_release(
-            arguments.directory, arguments.version, arguments.tag, arguments.release_id
+            arguments.directory,
+            arguments.version,
+            arguments.tag,
+            arguments.release_id,
+            office_installer_version=arguments.office_installer_version,
         )
