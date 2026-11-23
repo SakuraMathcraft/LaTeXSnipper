@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path[:0] = [str(ROOT / "scripts/release"), str(ROOT / "src")]
+sys.path[:0] = [str(ROOT), str(ROOT / "scripts/release"), str(ROOT / "src")]
 
 from desktop_distribution import build_component, write_json  # noqa: E402
 from runtime.component_inventory import file_sha256  # noqa: E402
