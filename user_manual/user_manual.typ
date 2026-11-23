@@ -759,7 +759,7 @@ python -m pip install -e '.[cpu]'
 python src/main.py
 ```
 
-源码 worker 使用启动应用的 Python 和平台默认模型缓存，并自动选择计算提供者，优先使用 CUDA。使用 CUDA 12.8 和 cuDNN 9 的环境可用 `python -m pip install -e '.[gpu-cu12]'` 安装 GPU 版，CPU 版和 GPU 版应分别装在不同环境。扩展导出所需工具见“预览与导出”。
+源码桌面端使用启动应用的 Python 环境，按 CUDA、DirectML、CoreML、OpenVINO、CPU 的顺序选择该环境中 ONNX Runtime 提供的第一个计算后端。公式权重随所选后端匹配，缓存缺失或校验失败时按需下载。使用 CUDA 12.8 和 cuDNN 9 的环境可用 `python -m pip install -e '.[gpu-cu12]'` 安装 GPU 版，CPU 版和 GPU 版应分别装在不同环境。扩展导出所需工具见“预览与导出”。
 
 == 检查与发行构建
 
@@ -2226,7 +2226,7 @@ MathCraft OCR 运行时版本为 `0.3.3`，桌面模型来自 #link("https://git
   - `mathcraft-text-rec` — 快速多语言文本识别（Text Recognition）
 ]
 
-独立库和 CLI 的公式及混合模式默认按实际选中的计算提供者选择公式权重。CPU 使用 INT8，CUDA 使用 FP16。可用的 TensorRT、DirectML、CoreML 和 OpenVINO 使用原始 FP32。CLI 可用 `--formula-variant fp32` 显式选择原始权重，Python API 对应 `MathCraftRuntime(formula_variant="fp32")`。
+源码桌面端、独立库和 CLI 的公式及混合模式默认按所选计算后端选择公式权重。CPU 使用 INT8，CUDA 使用 FP16，DirectML、CoreML 和 OpenVINO 使用原始 FP32。独立库和 CLI 也可显式选用 TensorRT，它同样使用 FP32。CLI 可用 `--formula-variant fp32` 显式选择原始权重，Python API 对应 `MathCraftRuntime(formula_variant="fp32")`。
 
 #info-block("识别流程", [
   混合模式采用 #text(weight: "bold")[先检测后识别] 的流水线架构：
