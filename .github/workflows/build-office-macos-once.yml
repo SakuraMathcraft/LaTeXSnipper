@@ -24,7 +24,7 @@ jobs:
           bundle="$RUNNER_TEMP/office-build/dist/LaTeXSnipper Office.app"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$bundle/Contents/Info.plist")" = "$version"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$bundle/Contents/Info.plist")" = "$version"
-          lipo -verify_arch arm64 "$bundle/Contents/MacOS/LaTeXSnipper Office"
+          lipo "$bundle/Contents/MacOS/LaTeXSnipper Office" -verify_arch arm64
           hdiutil verify "$RUNNER_TEMP/office-installer/LaTeXSnipperOffice_${version}_macos_arm64.dmg"
           cd "$RUNNER_TEMP/office-installer"
           shasum -a 256 -c "LaTeXSnipperOffice_${version}_macos_arm64.dmg.sha256"
