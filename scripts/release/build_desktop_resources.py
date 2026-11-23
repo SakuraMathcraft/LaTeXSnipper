@@ -12,15 +12,22 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT), str(ROOT / "scripts/release"), str(ROOT / "src")]
 
+from desktop_distribution import write_json  # noqa: E402
 from distribution_archives import download_artifact  # noqa: E402
 from distribution_inputs import load_resources  # noqa: E402
 from mathcraft_ocr.manifest import load_manifest  # noqa: E402
+from mathcraft_ocr.profiles import EDITION_PROVIDERS, edition_model_ids  # noqa: E402
+from mathcraft_ocr.protocol import MODEL_MANIFEST  # noqa: E402
 from runtime.component_archive import extract_archive  # noqa: E402
 from runtime.component_inventory import file_sha256, inventory_component  # noqa: E402
-from runtime.distribution_manifest import Artifact, ManifestError  # noqa: E402
+from runtime.distribution_manifest import (  # noqa: E402
+    Artifact,
+    ManifestError,
+    read_json,
+)
 
 
-def assemble_models(lock: dict, output: Path, cache: Path) -> None:
+def assemble_models(lock: dict, output: Path, cache: Path, edition: str) -> None:
     manifest_source = download_artifact(
         Artifact.from_dict(lock["model_manifest"]), cache
     )
@@ -30,8 +37,17 @@ def assemble_models(lock: dict, output: Path, cache: Path) -> None:
     ):
         raise ManifestError("Official model manifest does not match the resource lock")
     output.mkdir()
-    shutil.copy2(manifest_source, output / "models.v1.json")
-    for model_id, spec in manifest.models.items():
+    selected = edition_model_ids(edition)
+    raw = read_json(manifest_source)
+    write_json(
+        output / MODEL_MANIFEST,
+        {
+            "version": manifest.version,
+            "models": {name: raw["models"][name] for name in selected},
+        },
+    )
+    for model_id in selected:
+        spec = manifest.models[model_id]
         source = Artifact.from_dict(lock["models"][model_id])
         if spec.sources != (source.url,):
             raise ManifestError(
@@ -71,7 +87,7 @@ def assemble_models(lock: dict, output: Path, cache: Path) -> None:
             path.chmod(0o644)
 
 
-def assemble(output: Path, cache: Path, lock_path: Path) -> None:
+def assemble(output: Path, cache: Path, lock_path: Path, edition: str) -> None:
     lock = load_resources(lock_path)
     output = output.resolve()
     cache = cache.resolve()
@@ -89,13 +105,14 @@ def assemble(output: Path, cache: Path, lock_path: Path) -> None:
         prefix="desktop-resources-", dir=output.parent
     ) as temporary:
         staged = Path(temporary) / "payload"
-        assemble_models(lock, staged, cache)
+        assemble_models(lock, staged, cache, edition)
         files = inventory_component(staged)
         staged.rename(output)
     print(
         json.dumps(
             {
                 "resource": "models",
+                "edition": edition,
                 "file_count": len(files),
                 "uncompressed_bytes": sum(item.size for item in files),
             }
@@ -107,11 +124,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cache", type=Path, required=True)
+    parser.add_argument("--edition", choices=tuple(EDITION_PROVIDERS), required=True)
     parser.add_argument(
         "--lock", type=Path, default=ROOT / "packaging/runtime/resources.lock.json"
     )
     args = parser.parse_args()
-    assemble(args.output, args.cache, args.lock)
+    assemble(args.output, args.cache, args.lock, args.edition)
 
 
 if __name__ == "__main__":

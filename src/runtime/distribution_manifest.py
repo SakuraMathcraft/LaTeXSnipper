@@ -210,7 +210,7 @@ class Component:
         )
         variants = (
             frozenset({"cpu", "gpu"})
-            if self.name == "inference"
+            if self.name in {"inference", "models"}
             else frozenset({"common"})
         )
         _choice(self.variant, variants, "variant")

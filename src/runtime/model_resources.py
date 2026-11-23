@@ -8,6 +8,9 @@ from typing import TYPE_CHECKING
 
 from mathcraft_ocr.cache import default_user_models_dir
 from mathcraft_ocr.manifest import Manifest, load_manifest
+from mathcraft_ocr.profiles import edition_model_ids
+from mathcraft_ocr.protocol import MODEL_MANIFEST
+from runtime.distribution_manifest import ManifestError
 
 if TYPE_CHECKING:
     from runtime.installed_resources import InstalledResources
@@ -24,9 +27,14 @@ def desktop_model_resources(
     resources: InstalledResources | None,
 ) -> DesktopModelResources:
     if resources is not None:
-        manifest_path = resources.resource("models", "models.v1.json")
+        manifest_path = resources.resource("models", MODEL_MANIFEST)
+        manifest = load_manifest(manifest_path)
+        if set(manifest.models) != set(edition_model_ids(resources.manifest.edition)):
+            raise ManifestError(
+                "Installed model packs do not match the desktop edition"
+            )
         return DesktopModelResources(
-            load_manifest(manifest_path),
+            manifest,
             resources.directory("models"),
             manifest_path,
         )

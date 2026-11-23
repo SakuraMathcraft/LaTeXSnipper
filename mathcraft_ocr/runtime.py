@@ -4,6 +4,7 @@ import sys
 import traceback
 from collections.abc import Sequence
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -62,9 +63,11 @@ from .manifest import Manifest, load_manifest
 from .profiles import (
     FORMULA_DETECTOR_ID,
     FORMULA_RECOGNIZER_ID,
+    FORMULA_VARIANT_CHOICES,
     PROFILE_MODEL_IDS,
     TEXT_DETECTOR_ID,
     TEXT_RECOGNIZER_ID,
+    model_id_for_role,
 )
 from .providers import (
     ProviderInfo,
@@ -126,7 +129,11 @@ class MathCraftRuntime:
         manifest: Manifest | None = None,
         bundled_models_dir: str | Path | None = None,
         auto_download: bool = True,
+        formula_variant: str = "auto",
     ) -> None:
+        if formula_variant not in FORMULA_VARIANT_CHOICES:
+            raise ValueError(f"Unknown formula variant: {formula_variant}")
+        self._formula_variant = formula_variant
         self.cache_dir = resolve_user_models_dir(cache_dir)
         self.bundled_models_dir = (
             Path(bundled_models_dir) if bundled_models_dir else None
@@ -269,15 +276,9 @@ class MathCraftRuntime:
 
     def warmup(self, profile: str = "formula") -> WarmupPlan:
         profile_key = profile.strip().lower()
-        if profile_key == "formula":
-            model_ids = PROFILE_MODEL_IDS["formula"]
-        elif profile_key == "text":
-            model_ids = PROFILE_MODEL_IDS["text"]
-        elif profile_key == "mixed":
-            model_ids = PROFILE_MODEL_IDS["mixed"]
-        else:
+        if profile_key not in PROFILE_MODEL_IDS:
             raise ModelCacheError(f"unsupported warmup profile: {profile}")
-        return self._warmup_selected_models(profile_key, model_ids)
+        return self._warmup_selected_models(profile_key, PROFILE_MODEL_IDS[profile_key])
 
     def recognize_formula(
         self,
@@ -495,7 +496,8 @@ class MathCraftRuntime:
                 grouped_formula_results.append([[]])
                 formula_jobs.append((index, 0, crop))
 
-        formula_job_results = recognize_formula_images(
+        _, recognize_batch = self._formula_adapters()
+        formula_job_results = recognize_batch(
             [image for _index, _line_index, image in formula_jobs],
             plan.model_dirs[FORMULA_RECOGNIZER_ID],
             plan.provider_info,
@@ -560,6 +562,14 @@ class MathCraftRuntime:
             provider=plan.provider_info.active_provider,
         )
 
+    def _formula_adapters(self):
+        if self._formula_variant == "fp32":
+            return (
+                partial(recognize_formula_image, model_variant="fp32"),
+                partial(recognize_formula_images, model_variant="fp32"),
+            )
+        return recognize_formula_image, recognize_formula_images
+
     def _recognize_formula_rgb(
         self,
         rgb,
@@ -568,6 +578,7 @@ class MathCraftRuntime:
         model_dir: Path,
         max_new_tokens: int,
     ) -> tuple[str, float]:
+        recognize_image, recognize_batch = self._formula_adapters()
         rgb = normalize_formula_polarity(rgb)
         line_groups = split_formula_line_groups(rgb)
         if line_groups:
@@ -576,7 +587,7 @@ class MathCraftRuntime:
                 for line_group in line_groups
                 for segment in line_group.crops
             ]
-            flat_results = recognize_formula_images(
+            flat_results = recognize_batch(
                 flat_crops,
                 model_dir,
                 provider_info,
@@ -594,11 +605,12 @@ class MathCraftRuntime:
                 grouped_results,
                 model_dir,
                 provider_info,
+                recognize_image=recognize_image,
                 max_new_tokens=max_new_tokens,
             )
             merged_text, merged_score = _merge_formula_group_results(grouped_results)
             if has_severe_latex_quality_issue(merged_text):
-                fallback_text, fallback_score = recognize_formula_image(
+                fallback_text, fallback_score = recognize_image(
                     rgb,
                     model_dir,
                     provider_info,
@@ -612,7 +624,7 @@ class MathCraftRuntime:
                 ):
                     return fallback_text, fallback_score
             return merged_text, merged_score
-        return recognize_formula_image(
+        return recognize_image(
             rgb,
             model_dir,
             provider_info,
@@ -622,40 +634,47 @@ class MathCraftRuntime:
     def _warmup_selected_models(
         self,
         profile: str,
-        model_ids: tuple[str, ...],
+        roles: tuple[str, ...],
     ) -> WarmupPlan:
         cached = self._warmup_cache.get(profile)
-        if cached and cached.ready and cached.required_models == model_ids:
+        if cached and cached.ready:
             return cached
 
         # Validate before loading a profile, not on every inference using its
         # initialized sessions. Explicit model checks always inspect current bytes.
         self._cache_events = []
-        states = self._ensure_selected_models(model_ids)
-        model_dirs = {model_id: state.model_dir for model_id, state in states.items()}
         provider_info = detect_providers(
-            prefer=self.provider_preference, providers=self.providers
+            prefer=self.provider_preference,
+            providers=self.providers,
         )
+        selected = {
+            role: model_id_for_role(
+                role, provider_info.active_provider, self._formula_variant
+            )
+            for role in roles
+        }
+        model_ids = tuple(selected.values())
+        states = self._ensure_selected_models(model_ids)
+        model_dirs = {
+            role: states[model_id].model_dir
+            for role, model_id in selected.items()
+            if model_id in states
+        }
         missing: list[str] = []
         unsupported: list[str] = []
         component_statuses: list[WarmupComponentStatus] = []
-        for model_id in model_ids:
+        for role, model_id in selected.items():
             state = states.get(model_id)
             if state is None or not state.complete:
                 missing.append(model_id)
                 continue
-            spec = self.manifest.models[model_id]
-            if spec.runtime != "onnx":
-                unsupported.append(model_id)
-                component_statuses.append(
-                    WarmupComponentStatus(
-                        model_id=model_id,
-                        ready=False,
-                        detail=f"runtime '{spec.runtime}' is not supported in MathCraft ONNX v1",
-                    )
-                )
-                continue
-            handler = ONNX_WARMUP_HANDLERS.get(model_id)
+            handler = ONNX_WARMUP_HANDLERS.get(role)
+            if (
+                handler is not None
+                and role == FORMULA_RECOGNIZER_ID
+                and self._formula_variant == "fp32"
+            ):
+                handler = partial(handler, model_variant="fp32")
             if handler is None:
                 unsupported.append(model_id)
                 component_statuses.append(
@@ -676,7 +695,7 @@ class MathCraftRuntime:
                     try:
                         repaired_state = self._repair_model_cache(model_id)
                         handler(repaired_state.model_dir, provider_info)
-                        model_dirs[model_id] = repaired_state.model_dir
+                        model_dirs[role] = repaired_state.model_dir
                         component_statuses.append(
                             WarmupComponentStatus(
                                 model_id=model_id,
@@ -770,6 +789,7 @@ def _repair_uncertain_segmented_lines(
     model_dir: Path,
     provider_info: ProviderInfo,
     *,
+    recognize_image,
     max_new_tokens: int,
 ) -> list[list[tuple[str, float]]]:
     repaired = [list(line_results) for line_results in grouped_results]
@@ -784,7 +804,7 @@ def _repair_uncertain_segmented_lines(
         )
         if not has_low_confidence and not has_severe_latex_quality_issue(line_text):
             continue
-        fallback_text, fallback_score = recognize_formula_image(
+        fallback_text, fallback_score = recognize_image(
             _crop_formula_line_group(rgb, line_group),
             model_dir,
             provider_info,

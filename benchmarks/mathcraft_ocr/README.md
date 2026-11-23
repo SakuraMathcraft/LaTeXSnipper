@@ -222,18 +222,16 @@ the selected Python environment and local formula-recognition models:
 
 ```powershell
 python benchmarks/mathcraft_ocr/runners/benchmark_formula_inference.py `
-  --model-dir ./models/mathcraft-formula-rec `
+  --model-dir ./models/mathcraft-formula-rec-cuda-fp16 `
   --images-dir ./benchmark-data/formulas `
   --provider cuda --batch-size 4 --warmup 2 --repeats 5 `
   --output ./benchmark-data/runs/formula-inference.json
 ```
 
-Use `--provider cpu` for CPU measurements. `--native-dir` can preload a private
-CUDA/cuDNN library directory. `--reference` accepts a saved
-directory containing `formula_recognizer.py` and `formula_inference.py` for an
-alternating comparison in the same process; model weights and backend remain
-identical, and text and confidence are checked across implementations. Results include input hashes, per-run
-latency, medians and p95 estimates. Use more repetitions for tail-latency analysis.
+Use `--provider cpu` and `mathcraft-formula-rec-cpu-int8` for CPU measurements.
+`--native-dir` can preload a private CUDA/cuDNN library directory. Results
+include output checks, model and input hashes, per-run latency, P50, P95 and
+formulas per second. Use more repetitions for tail-latency analysis.
 These measurements cover formula inference, not the entire PDF or mixed-page pipeline.
 
 ## Portable benchmark environment

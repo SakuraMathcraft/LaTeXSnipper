@@ -67,19 +67,30 @@ def plan_build(args) -> dict:
     names = (
         ["base", "maintenance"]
         if target.startswith("macos-")
-        else ["runtime", "inference-cpu", "inference-gpu", "models", "maintenance"]
+        else [
+            "runtime",
+            "inference-cpu",
+            "inference-gpu",
+            "models-cpu",
+            "models-gpu",
+            "maintenance",
+        ]
     )
     available = {}
 
     def check(name):
         return name, exists(
-            cache_tag(name, "any-any" if name == "models" else target, keys[name])
+            cache_tag(
+                name, "any-any" if name.startswith("models-") else target, keys[name]
+            )
         )
 
     with ThreadPoolExecutor(max_workers=5) as probes:
         available.update(probes.map(check, names))
         if "base" in available and not available["base"]:
-            available.update(probes.map(check, ["runtime", "inference-cpu", "models"]))
+            available.update(
+                probes.map(check, ["runtime", "inference-cpu", "models-cpu"])
+            )
     plan = {"schema": 1, "target": target, "keys": keys, "available": available}
     write_json(args.plan, plan)
     missing = {name for name, cached in available.items() if not cached}
@@ -137,7 +148,7 @@ def cached_payload(work: Path, name: str, key: str) -> Path | None:
 def reuse_payload(args, name: str, key: str, build, *, available: bool) -> Path:
     from desktop_base_cache import cache_tag, restore, store
 
-    target = "-".join(current_target()) if name != "models" else "any-any"
+    target = "any-any" if name.startswith("models-") else "-".join(current_target())
     tag = cache_tag(name, target, key)
     directory = args.work.resolve() / name
     if not directory.exists() and available:
@@ -161,7 +172,9 @@ def reuse_payload(args, name: str, key: str, build, *, available: bool) -> Path:
         directory,
         name.split("-")[0],
         target,
-        name.split("-", 1)[1] if name.startswith("inference-") else "common",
+        name.split("-", 1)[1]
+        if name.startswith(("inference-", "models-"))
+        else "common",
         f"https://github.com/SakuraMathcraft/LaTeXSnipper/releases/download/{tag}",
     )
     write_json(
@@ -202,10 +215,12 @@ def build_maintenance(payload: Path) -> None:
         shutil.rmtree(build / name)
 
 
-def build_models(payload: Path, cache: Path) -> None:
+def build_models(payload: Path, cache: Path, edition: str) -> None:
     from build_desktop_resources import assemble as assemble_resources
 
-    assemble_resources(payload, cache, ROOT / "packaging/runtime/resources.lock.json")
+    assemble_resources(
+        payload, cache, ROOT / "packaging/runtime/resources.lock.json", edition
+    )
 
 
 def assemble(args) -> None:
@@ -242,12 +257,13 @@ def assemble(args) -> None:
         from build_macos_base import build_macos_base
 
         build_macos_base(
-            payload, parts["runtime"], parts["inference-cpu"], parts["models"]
+            payload, parts["runtime"], parts["inference-cpu"], parts["models-cpu"]
         )
 
     builders = {
         "runtime": build_runtime,
-        "models": lambda payload: build_models(payload, args.cache),
+        "models-cpu": lambda payload: build_models(payload, args.cache, "cpu"),
+        "models-gpu": lambda payload: build_models(payload, args.cache, "gpu"),
         "inference-cpu": lambda payload: build_inference(payload, "cpu"),
         "inference-gpu": lambda payload: build_inference(payload, "gpu"),
         "maintenance": build_maintenance,
@@ -255,7 +271,7 @@ def assemble(args) -> None:
     }
 
     def reuse(name):
-        owner = Namespace(work=args.models) if name == "models" else args
+        owner = Namespace(work=args.models) if name.startswith("models-") else args
         return name, reuse_payload(
             owner, name, keys[name], builders[name], available=available[name]
         )
@@ -387,9 +403,9 @@ def package(args) -> None:
     application = package_component(
         work / "application/payload", output, "application", target, "common", base_url
     )
-    models = args.models / "models/payload"
 
     def package_edition(edition: str) -> None:
+        models = args.models / f"models-{edition}" / "payload"
         if system == "macos":
             base_id = Component.from_dict(
                 read_json(work / "base/stamp.json")["component"]
@@ -406,7 +422,7 @@ def package(args) -> None:
                             read_json(source.parent / "stamp.json")["component"]
                         ).content_sha256,
                         "models": Component.from_dict(
-                            read_json(args.models / "models/stamp.json")["component"]
+                            read_json(models.parent / "stamp.json")["component"]
                         ).content_sha256,
                         "edition": edition,
                     },
@@ -513,19 +529,26 @@ def main() -> None:
     elif args.command in {"models", "models-plan"}:
         from desktop_base_cache import cache_tag, exists
 
-        key = model_input(ROOT)
-        available = exists(cache_tag("models", "any-any", key))
+        editions = ("cpu", "gpu")
+        keys = {edition: model_input(ROOT, edition) for edition in editions}
+        available = {
+            edition: exists(cache_tag(f"models-{edition}", "any-any", key))
+            for edition, key in keys.items()
+        }
         if args.command == "models-plan":
-            outputs({"models_missing": not available})
+            outputs({"models_missing": not all(available.values())})
         else:
             args.work = args.models
-            reuse_payload(
-                args,
-                "models",
-                key,
-                lambda payload: build_models(payload, args.cache),
-                available=available,
-            )
+            for edition in editions:
+                reuse_payload(
+                    args,
+                    f"models-{edition}",
+                    keys[edition],
+                    lambda payload, edition=edition: build_models(
+                        payload, args.cache, edition
+                    ),
+                    available=available[edition],
+                )
     elif args.command == "assemble":
         assemble(args)
     elif args.command == "package":

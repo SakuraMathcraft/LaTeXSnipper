@@ -1,7 +1,8 @@
 """Versioned desktop worker wire and model format contract."""
 
 WORKER_PROTOCOL = 1
-MODEL_FORMAT = 1
+MODEL_FORMAT = 2
+MODEL_MANIFEST = "models.v2.json"
 
 
 def validate_request(request: object) -> dict:

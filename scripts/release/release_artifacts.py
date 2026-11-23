@@ -194,19 +194,25 @@ def prune_build_cache(directory: Path) -> None:
         if plan["schema"] != 1 or target not in targets or target in seen:
             raise ManifestError("Invalid platform build-cache plan")
         seen.add(target)
-        required = {"runtime", "inference-cpu", "models", "maintenance"}
-        required |= {"base"} if target.startswith("macos-") else {"inference-gpu"}
+        required = {"runtime", "inference-cpu", "models-cpu", "maintenance"}
+        required |= (
+            {"base"} if target.startswith("macos-") else {"inference-gpu", "models-gpu"}
+        )
         if set(plan["keys"]) != required:
             raise ManifestError("Incomplete platform build-cache inputs")
         for name, key in plan["keys"].items():
             if not isinstance(key, str) or not re.fullmatch(r"[0-9a-f]{64}", key):
                 raise ManifestError("Invalid build-cache input identity")
-            keep.add(cache_tag(name, "any-any" if name == "models" else target, key))
+            keep.add(
+                cache_tag(
+                    name, "any-any" if name.startswith("models-") else target, key
+                )
+            )
     if seen != targets:
         raise ManifestError("Build-cache cleanup requires all three platform plans")
     pattern = re.compile(
         r"desktop-base-(?:windows-x86_64|linux-x86_64|macos-arm64|any-any)-"
-        r"(?:runtime|maintenance|models|inference-cpu|inference-gpu|base)-[0-9a-f]{64}"
+        r"(?:runtime|maintenance|models-cpu|models-gpu|inference-cpu|inference-gpu|base)-[0-9a-f]{64}"
     )
     for page in github_api(f"{RELEASES}?per_page=100", paginate=True):
         for release in page:

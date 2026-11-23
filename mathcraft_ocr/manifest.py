@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from .errors import ManifestError
+from .protocol import MODEL_FORMAT, MODEL_MANIFEST
 
 
 @dataclass(frozen=True)
@@ -46,7 +47,7 @@ class Manifest:
 
 
 def _manifest_path() -> Path:
-    return Path(__file__).with_name("manifests") / "models.v1.json"
+    return Path(__file__).with_name("manifests") / MODEL_MANIFEST
 
 
 def _require_dict(raw: Any, field_name: str) -> dict[str, Any]:
@@ -90,7 +91,7 @@ def load_manifest(path: str | Path | None = None) -> Manifest:
     if set(raw) != {"version", "models"}:
         raise ManifestError("unexpected model manifest fields")
     version = raw.get("version")
-    if type(version) is not int or version != 1:
+    if type(version) is not int or version != MODEL_FORMAT:
         raise ManifestError("unsupported model manifest format")
     raw_models = _require_dict(raw.get("models"), "models")
     if not raw_models:

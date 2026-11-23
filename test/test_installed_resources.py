@@ -15,7 +15,13 @@ import pytest
 import runtime.installed_resources as resources_module
 from mathcraft_ocr.cache import inspect_manifest_cache, inspect_model_roots
 from mathcraft_ocr.manifest import ModelFileSpec, ModelSpec, load_manifest
-from mathcraft_ocr.protocol import validate_request, validate_response
+from mathcraft_ocr.profiles import edition_model_ids
+from mathcraft_ocr.protocol import (
+    MODEL_FORMAT,
+    MODEL_MANIFEST,
+    validate_request,
+    validate_response,
+)
 from runtime.component_inventory import inventory_component
 from runtime.distribution_manifest import (
     Artifact,
@@ -40,6 +46,16 @@ def windows_resource_fixture(monkeypatch, tmp_path):
 
 
 def installed(tmp_path, monkeypatch, edition="cpu"):
+    catalog = json.loads(
+        (
+            Path(__file__).resolve().parents[1]
+            / "mathcraft_ocr/manifests"
+            / MODEL_MANIFEST
+        ).read_text(encoding="utf-8")
+    )
+    catalog["models"] = {
+        name: catalog["models"][name] for name in edition_model_ids(edition)
+    }
     payloads = {
         "runtime": {"LaTeXSnipper.exe": b"gui"},
         "application": {
@@ -55,16 +71,11 @@ def installed(tmp_path, monkeypatch, edition="cpu"):
                     "target": "windows-x86_64",
                     "edition": edition,
                     "worker_protocol": 1,
-                    "model_format": 1,
+                    "model_format": MODEL_FORMAT,
                 }
             ).encode(),
         },
-        "models": {
-            "models.v1.json": (
-                Path(__file__).resolve().parents[1]
-                / "mathcraft_ocr/manifests/models.v1.json"
-            ).read_bytes()
-        },
+        "models": {MODEL_MANIFEST: json.dumps(catalog).encode()},
     }
     components = []
     for name, files in payloads.items():
@@ -77,9 +88,9 @@ def installed(tmp_path, monkeypatch, edition="cpu"):
                 name,
                 "windows",
                 "x86_64",
-                edition if name == "inference" else "common",
+                edition if name in {"inference", "models"} else "common",
                 0 if name == "models" else 1,
-                1,
+                MODEL_FORMAT,
                 inventory_component(tmp_path / name),
                 Artifact("https://example.com/" + name + ".zip", "0" * 64, 1),
             )
@@ -133,6 +144,17 @@ def test_damaged_worker_cannot_launch_with_valid_interpreter(tmp_path, monkeypat
         worker_command(resources)
 
 
+def test_worker_rejects_model_catalog_for_the_wrong_edition(tmp_path, monkeypatch):
+    resources = installed(tmp_path, monkeypatch, "gpu")
+    path = tmp_path / "models" / MODEL_MANIFEST
+    catalog = json.loads(path.read_text(encoding="utf-8"))
+    name = "mathcraft-formula-rec-cuda-fp16"
+    catalog["models"]["mathcraft-formula-rec-cpu-int8"] = catalog["models"].pop(name)
+    path.write_text(json.dumps(catalog), encoding="utf-8")
+    with pytest.raises(ManifestError, match="do not match the desktop edition"):
+        worker_command(resources)
+
+
 def test_private_worker_environment_confines_dll_search(tmp_path, monkeypatch):
     resources = installed(tmp_path, monkeypatch, "gpu")
     monkeypatch.setenv("PATH", "external/cuda;external/python")
@@ -177,7 +199,11 @@ def test_installed_worker_reports_model_integrity_without_downloading(
     import mathcraft_ocr.worker as worker_module
     import runtime.model_resources as models_module
     from mathcraft_ocr.manifest import Manifest
-    from mathcraft_ocr.profiles import FORMULA_RECOGNIZER_ID
+    from mathcraft_ocr.profiles import (
+        CPU_PROVIDER,
+        FORMULA_RECOGNIZER_ID,
+        model_id_for_role,
+    )
     from mathcraft_ocr.providers import ProviderInfo
 
     monkeypatch.setattr(
@@ -191,12 +217,17 @@ def test_installed_worker_reports_model_integrity_without_downloading(
     resources = installed(tmp_path / "installation", monkeypatch)
     monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
     spec = ModelSpec(
-        FORMULA_RECOGNIZER_ID,
-        "1",
+        model_id_for_role(FORMULA_RECOGNIZER_ID, CPU_PROVIDER),
+        "2",
         (ModelFileSpec("weights.onnx", hashlib.sha256(b"current").hexdigest()),),
         (),
     )
-    manifest = Manifest(1, {spec.model_id: spec})
+    models_from_release = load_manifest().models
+    manifest = Manifest(
+        MODEL_FORMAT,
+        {name: models_from_release[name] for name in edition_model_ids("cpu")}
+        | {spec.model_id: spec},
+    )
     monkeypatch.setattr(models_module, "load_manifest", lambda _path: manifest)
     monkeypatch.setattr(worker_module, "load_manifest", lambda _path: manifest)
     models = models_module.desktop_model_resources(resources)
@@ -216,7 +247,7 @@ def test_installed_worker_reports_model_integrity_without_downloading(
     )
     monkeypatch.setitem(
         runtime_module.ONNX_WARMUP_HANDLERS,
-        spec.model_id,
+        FORMULA_RECOGNIZER_ID,
         lambda root, provider: warmed.append(root),
     )
     command = worker_command(resources)
@@ -369,10 +400,13 @@ def test_model_manifest_rejects_traversal_before_download(tmp_path):
     data = json.loads(
         (
             Path(__file__).resolve().parents[1]
-            / "mathcraft_ocr/manifests/models.v1.json"
+            / "mathcraft_ocr/manifests"
+            / MODEL_MANIFEST
         ).read_text()
     )
-    data["models"]["mathcraft-formula-det"]["files"][0]["path"] = "../outside.onnx"
+    data["models"]["mathcraft-formula-det-cpu-int8"]["files"][0]["path"] = (
+        "../outside.onnx"
+    )
     path = tmp_path / "manifest.json"
     path.write_text(json.dumps(data))
     from mathcraft_ocr.errors import ManifestError as ModelManifestError

@@ -43,6 +43,8 @@ English · [简体中文](README.zh-CN.md)
 
 Windows/Linux installers provide CPU and NVIDIA GPU editions. macOS 14.0 or later on Apple Silicon uses CPU. Installers include Python, inference dependencies and models, so local recognition needs no first-run dependency or model downloads. GPU builds carry private CUDA/cuDNN libraries and require a supported NVIDIA GPU and driver. Linux requires glibc 2.35 or newer, and apt may need network access to install missing system GUI libraries. See [installer requirements](docs/faq.md#which-installer-should-i-use).
 
+Each edition bundles the matching MathCraft v2 formula weights. CPU editions use INT8, and NVIDIA editions use CUDA FP16. Both include the shared text OCR models.
+
 Routine app updates download only application code and resources, retaining Python, Qt, inference dependencies and models. If an update requires a new base, or installed resources are missing or damaged, run the matching complete installer. Settings, history and other user data are preserved. See the [update and installation guide (Chinese)](user_manual/user_manual.md#应用更新与完整安装).
 
 > [!TIP]

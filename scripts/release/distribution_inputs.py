@@ -6,6 +6,8 @@ import re
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+from mathcraft_ocr.profiles import EDITION_PROVIDERS, edition_model_ids
+from mathcraft_ocr.protocol import MODEL_FORMAT, MODEL_MANIFEST
 from runtime.distribution_manifest import Artifact, ManifestError, read_json
 
 TARGETS = frozenset({"windows-x86_64", "linux-x86_64", "macos-arm64"})
@@ -211,7 +213,7 @@ def load_resources(path: Path) -> dict:
         type(lock["schema"]) is not int
         or lock["schema"] != 1
         or type(lock["model_format"]) is not int
-        or lock["model_format"] != 1
+        or lock["model_format"] != MODEL_FORMAT
     ):
         raise ManifestError("Unsupported resource lock schema or model format")
     prefix = "/SakuraMathcraft/MathCraft-Models/releases/download/"
@@ -219,13 +221,12 @@ def load_resources(path: Path) -> dict:
         lock["model_manifest"],
         host="github.com",
         prefix=prefix,
-        suffix="/models.v1.json",
+        suffix=f"/{MODEL_MANIFEST}",
     )
     model_ids = {
-        "mathcraft-formula-det",
-        "mathcraft-formula-rec",
-        "mathcraft-text-det",
-        "mathcraft-text-rec",
+        model_id
+        for edition in EDITION_PROVIDERS
+        for model_id in edition_model_ids(edition)
     }
     fields(lock["models"], model_ids)
     for model_id, source in lock["models"].items():

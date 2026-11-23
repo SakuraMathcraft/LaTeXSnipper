@@ -59,7 +59,7 @@ for the active transaction, not a retained history of application versions.
 ## Model Weights
 
 Packaged workers read only the installed model component and its
-`models.v1.json`, verifying model files against their declared digests. Automatic
+`models.v2.json`, verifying the edition's CPU INT8 or NVIDIA CUDA FP16 formula weights and shared text weights against their declared digests. Automatic
 model downloads are disabled. Missing or corrupt weights require rerunning
 the complete desktop installer; the worker never repairs installed files or
 uses an external model cache.
