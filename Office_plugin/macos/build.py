@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from hashlib import file_digest
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -174,6 +175,11 @@ def build_dmg(app: Path, output: Path) -> Path:
         "-format",
         "UDZO",
         dmg,
+    )
+    with dmg.open("rb") as image:
+        digest = file_digest(image, "sha256").hexdigest()
+    dmg.with_suffix(".dmg.sha256").write_text(
+        f"{digest}  {dmg.name}\n", encoding="ascii"
     )
     return dmg
 

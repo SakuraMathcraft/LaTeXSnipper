@@ -155,6 +155,7 @@ def publish_release(directory: Path, version: str, tag: str, release_id: int) ->
     names = {
         catalog_path.name,
         f"LaTeXSnipperOffice_{version}_windows_x86_64.exe",
+        f"LaTeXSnipperOffice_{version}_macos_arm64.dmg",
         "LaTeXSnipper_User_Manual.pdf",
     }
     for distribution in catalog.distributions:
@@ -175,9 +176,8 @@ def publish_release(directory: Path, version: str, tag: str, release_id: int) ->
         raise ManifestError(
             f"Release is missing uploaded assets: {', '.join(sorted(missing))}"
         )
-    retained_names = names | {f"LaTeXSnipperOffice_{version}_macos_arm64.dmg"}
     for asset in assets:
-        if asset["name"] not in retained_names:
+        if asset["name"] not in names:
             github_api(f"{RELEASES}/assets/{asset['id']}", method="DELETE")
 
 

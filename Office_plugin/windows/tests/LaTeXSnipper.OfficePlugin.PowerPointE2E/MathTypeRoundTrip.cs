@@ -67,14 +67,17 @@ internal static class MathTypeRoundTrip
                 && Math.Abs(Convert.ToSingle(converted.Height) - height) < 0.1
                 && Math.Abs(Convert.ToSingle(converted.Rotation)) < 0.1,
                 "MathType conversion changed instance geometry: " + width + "x" + height + " -> " + converted.Width + "x" + converted.Height);
-            await VerifyNativeAsync(adapter, (object)presentation, (object)converted, token);
-            await VerifyNativeAsync(adapter, (object)presentation, (object)presentation.Slides.Item(1).Shapes.Item(2), token);
+            dynamic secondConverted = presentation.Slides.Item(1).Shapes.Item(2);
+            secondConverted.Name = converted.Name;
+            await VerifyNativeAsync(adapter, (object)converted, metadata.Latex, token);
+            await VerifyNativeAsync(adapter, (object)secondConverted, second.Latex, token);
+            Console.WriteLine("PASS|PPT MathType editor resolves both formulas with the same shape name");
             string path = Path.Combine(Path.GetDirectoryName(output)!, "powerpoint-mathtype.pptx");
             presentation.SaveAs(path, 24);
             presentation.Close();
             presentation = app.Presentations.Open(path, 0, 0, -1);
-            await VerifyNativeAsync(adapter, (object)presentation, (object)presentation.Slides.Item(1).Shapes.Item(1), token);
-            await VerifyNativeAsync(adapter, (object)presentation, (object)presentation.Slides.Item(1).Shapes.Item(2), token);
+            await VerifyNativeAsync(adapter, (object)presentation.Slides.Item(1).Shapes.Item(1), metadata.Latex, token);
+            await VerifyNativeAsync(adapter, (object)presentation.Slides.Item(1).Shapes.Item(2), second.Latex, token);
             presentation.SaveAs(Path.ChangeExtension(path, ".pdf"), 32);
             string changed = await renderer.ConvertTypographyToMathMlAsync(@"z^2+\text{新}", FormulaDisplayMode.Display, FormulaTypography.Default, token);
             if (nativeEdit)
@@ -130,12 +133,15 @@ internal static class MathTypeRoundTrip
         }
     }
 
-    private static async Task VerifyNativeAsync(DynamicPowerPointApplicationAdapter adapter, object presentation, object shapeObject, CancellationToken token)
+    private static async Task VerifyNativeAsync(DynamicPowerPointApplicationAdapter adapter, object shapeObject, string expectedLatex, CancellationToken token)
     {
         dynamic shape = shapeObject;
         Check(Convert.ToString(shape.OLEFormat.ProgID) == MathTypeOleBridge.ProgId, "MathType class identity");
-        var content = await adapter.ReadMathTypeAsync(new MathTypeFormulaTarget(presentation, adapter.GetCurrentDocumentId(),
-            Convert.ToInt32(shape.Id), Convert.ToInt32(shape.Parent.SlideIndex)), token);
+        shape.Select();
+        var target = adapter.CaptureMathTypeFormula(null)
+            ?? throw new InvalidOperationException("Could not capture the selected MathType formula");
+        var content = await adapter.ReadMathTypeAsync(target, token);
+        Check(content.OriginalLatex == expectedLatex, "The MathType editor read a different formula");
         var xml = XDocument.Parse(content.MathMl);
         bool fraction = xml.Descendants().Any(e => e.Name.LocalName == "mfrac") && xml.Root!.Value.Contains("端");
         bool euler = xml.Descendants().Any(e => e.Name.LocalName == "msup") && xml.Root!.Value.Contains("e")
