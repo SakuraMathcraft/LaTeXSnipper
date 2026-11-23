@@ -101,7 +101,7 @@ python -m venv .venv-office
 .venv-office/bin/python -X utf8 Office_plugin/macos/build.py
 ```
 
-Output: `Office_plugin/macos/release/LaTeXSnipperOffice_<version>_macos_arm64.dmg`. The version comes from the repository `VERSION` file. The app carries its own copy of the MathJax `office` resource profile (the same subset the Windows installer ships) and depends only on `requirements.txt` here.
+The build writes `Office_plugin/macos/release/LaTeXSnipperOffice_<version>_macos_arm64.dmg` and its `.sha256` file. Commit both for a release. The workflow checks the SHA-256 before uploading the DMG to GitHub Releases. The version comes from the repository `VERSION` file. The app carries its own copy of the MathJax `office` resource profile (the same subset the Windows installer ships) and depends only on `requirements.txt` here.
 
 ## Tests
 

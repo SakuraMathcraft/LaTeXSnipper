@@ -73,15 +73,10 @@ public sealed partial class DynamicPowerPointApplicationAdapter
     private static dynamic FindMathTypeFormula(MathTypeFormulaTarget target)
     {
         dynamic document = target.Document;
-        if (target.Anchor != null)
-        {
-            dynamic captured = target.Anchor;
-            dynamic slide = document.Slides.FindBySlideID(Convert.ToInt32((object)captured.Parent.SlideID));
-            dynamic current = slide.Shapes.Item(Convert.ToString((object)captured.Name)!);
-            if (Convert.ToInt32((object)current.Id) == target.Location && MathTypeOleBridge.IsEquation((object)current)) return current;
-            throw new InvalidOperationException(PowerPointAddInText.Get("SelectedFormulaRequired"));
-        }
-        dynamic shapes = document.Slides.Item(target.ContainerIndex).Shapes;
+        dynamic slide = target.Anchor is object anchor
+            ? document.Slides.FindBySlideID(Convert.ToInt32((object)((dynamic)anchor).Parent.SlideID))
+            : document.Slides.Item(target.ContainerIndex);
+        dynamic shapes = slide.Shapes;
         for (int i = 1; i <= Convert.ToInt32(shapes.Count); i++)
         {
             dynamic shape = shapes.Item(i);

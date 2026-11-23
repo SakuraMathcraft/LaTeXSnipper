@@ -104,10 +104,18 @@ def test_release_preparation_requires_a_unique_target(monkeypatch, count):
     assert len(calls) == (2 if count == 0 else 1)
 
 
-@pytest.mark.parametrize("missing", [None, "macos.dmg", "office.exe", "manual.pdf"])
-@pytest.mark.parametrize("include_macos_addin", [False, True])
+@pytest.mark.parametrize(
+    "missing",
+    [
+        None,
+        "macos.dmg",
+        "LaTeXSnipperOffice_3.2.0_windows_x86_64.exe",
+        "LaTeXSnipperOffice_3.2.0_macos_arm64.dmg",
+        "LaTeXSnipper_User_Manual.pdf",
+    ],
+)
 def test_release_completion_uses_id_and_requires_all_uploads(
-    tmp_path, monkeypatch, missing, include_macos_addin
+    tmp_path, monkeypatch, missing
 ):
     import release_artifacts as release
 
@@ -116,24 +124,13 @@ def test_release_completion_uses_id_and_requires_all_uploads(
         "application.zip",
         "macos.dmg",
         "LaTeXSnipperOffice_3.2.0_windows_x86_64.exe",
+        "LaTeXSnipperOffice_3.2.0_macos_arm64.dmg",
         "LaTeXSnipper_User_Manual.pdf",
     }
-    omitted = {
-        "office.exe": "LaTeXSnipperOffice_3.2.0_windows_x86_64.exe",
-        "manual.pdf": "LaTeXSnipper_User_Manual.pdf",
-    }.get(missing, missing)
     assets = [
         {"name": name, "id": index, "state": "uploaded"}
-        for index, name in enumerate(sorted(names - {omitted}))
+        for index, name in enumerate(sorted(names - {missing}))
     ]
-    if include_macos_addin:
-        assets.append(
-            {
-                "name": "LaTeXSnipperOffice_3.2.0_macos_arm64.dmg",
-                "id": 98,
-                "state": "uploaded",
-            }
-        )
     assets.append({"name": "obsolete.zip", "id": 99, "state": "uploaded"})
     mutations = []
     upload_url = "https://uploads.github.com/repos/owner/repo/releases/40/assets"

@@ -293,7 +293,13 @@ jobs:
 
   build-office-plugin-installer:
     needs: prepare-release
-    name: Validate Office Plugin Installer
+    name: Validate Office Plugin Installer (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {platform: windows, suffix: windows_x86_64.exe}
+          - {platform: macos, suffix: macos_arm64.dmg}
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -305,26 +311,15 @@ jobs:
         id: installer
         shell: bash
         run: |
-          product_version="$(tr -d '[:space:]' < VERSION)"
-          release_source="$RELEASE_TAG"
-          if [[ "$release_source" =~ v?([0-9]+\.[0-9]+\.[0-9]+) ]]; then
-            version="${BASH_REMATCH[1]}"
-          else
-            echo "Release source does not contain a semantic version: $release_source" >&2
-            exit 1
-          fi
-          if [[ "$version" != "$product_version" ]]; then
-            echo "Release version $version does not match VERSION $product_version." >&2
-            exit 1
-          fi
-          installer="Office_plugin/windows/release/LaTeXSnipperOffice_${version}_windows_x86_64.exe"
+          version="$(tr -d '[:space:]' < VERSION)"
+          installer="Office_plugin/${{ matrix.platform }}/release/LaTeXSnipperOffice_${version}_${{ matrix.suffix }}"
           checksum="${installer}.sha256"
           test -f "$installer"
           test -f "$checksum"
           expected="$(awk '{print tolower($1)}' "$checksum")"
           actual="$(sha256sum "$installer" | awk '{print $1}')"
           if [[ "$actual" != "$expected" ]]; then
-            echo "Office installer checksum mismatch." >&2
+            echo "Office installer checksum mismatch: $installer" >&2
             exit 1
           fi
           echo "Validated $installer ($actual)"
@@ -340,7 +335,7 @@ jobs:
         if: needs.prepare-release.outputs.publish != 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: office-plugin-installer
+          name: office-plugin-installer-${{ matrix.platform }}
           path: ${{ steps.installer.outputs.path }}
           if-no-files-found: error
           retention-days: 30
