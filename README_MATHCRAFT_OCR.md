@@ -160,7 +160,7 @@ macOS: ~/Library/Application Support/LaTeXSnipper/MathCraft/models
 Linux: ${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper/MathCraft/models
 ```
 
-Model artifacts are downloaded from the MathCraft-Models release assets declared in `mathcraft_ocr/manifests/models.v1.json`.
+The standalone catalog in `mathcraft_ocr/manifests/models.v2.json` declares the optimized v2 model sets and the original FP32 formula weights. Formula and mixed profiles select CPU INT8, CUDA FP16, or FP32 according to the active Provider. Developer-controlled Providers such as TensorRT, DirectML, CoreML, and OpenVINO use FP32 formula models where available. Select FP32 explicitly with `--formula-variant fp32` in the CLI or `MathCraftRuntime(formula_variant="fp32")` in Python.
 
 Packaged desktop workers use only the installed model component and disable automatic model downloads. Application updates replace only the application layer; use the complete desktop installer to restore missing or damaged inference environments and models. Source desktop workers use the platform default cache; standalone library and CLI cache settings and automatic downloads remain independent. See the [user data map](https://github.com/SakuraMathcraft/LaTeXSnipper/blob/main/docs/user_data_storage.md).
 
@@ -179,8 +179,9 @@ Each profile verifies its model files before initialization and reuses the
 initialized sessions and verified paths for subsequent recognition requests.
 `check_models()` and `mathcraft models check` always verify current file contents.
 Restart the process after replacing model resources to load the updated files.
-Formula decoder sessions expose only the last token's logits through an in-memory
-graph transformation; model files and weights on disk remain unchanged.
+The optimized formula decoders run one output token per step and reuse the
+attention KV cache. The CUDA FP16 decoder keeps that cache on the GPU. The FP32
+decoder uses an in-memory graph transformation to return only the last token's logits.
 
 When a custom manifest omits a model required by the selected profile, `warmup()`
 reports its ID in `missing_models` and recognition raises `ModelCacheError`.

@@ -43,6 +43,8 @@
 
 Windows/Linux 安装包提供 CPU 与 NVIDIA GPU 发行，macOS 14.0 及以上的 Apple Silicon 设备使用 CPU。安装包自带 Python、推理依赖和模型，本地识别首次运行无需下载依赖或模型。GPU 发行自带私有 CUDA/cuDNN 库，要求支持的 NVIDIA 显卡与驱动。Linux 要求 glibc 2.35 及以上，缺少系统图形库时 apt 可能需要联网补齐。详见[安装要求](docs/faq.md#which-installer-should-i-use)。
 
+各发行版内置对应的 MathCraft v2 公式权重。CPU 版使用 INT8，NVIDIA 版使用 CUDA FP16，两版均包含共用的文字识别模型。
+
 日常应用更新只下载业务包，保留 Python、Qt、推理依赖和模型。若提示底座需要升级，或安装资源缺失、损坏，请运行对应的完整安装包。配置、历史和其他用户数据会保留。详见[应用更新与完整安装](user_manual/user_manual.md#应用更新与完整安装)。
 
 > [!TIP]

@@ -24,11 +24,13 @@ def test_cache_pruning_requires_all_platform_plans_and_preserves_owned_inputs(
     obsolete = []
     targets = ["windows-x86_64", "linux-x86_64", "macos-arm64"]
     for target in targets:
-        names = {"runtime", "inference-cpu", "models", "maintenance"}
-        names.add("base" if target.startswith("macos-") else "inference-gpu")
+        names = {"runtime", "inference-cpu", "models-cpu", "maintenance"}
+        names.update(
+            {"base"} if target.startswith("macos-") else {"inference-gpu", "models-gpu"}
+        )
         keys = {
             name: sha256(
-                (name if name == "models" else target + name).encode("utf-8")
+                (name if name.startswith("models-") else target + name).encode("utf-8")
             ).hexdigest()
             for name in names
         }
@@ -38,7 +40,7 @@ def test_cache_pruning_requires_all_platform_plans_and_preserves_owned_inputs(
                 {"schema": 1, "target": target, "keys": keys},
             )
         current.extend(
-            cache_tag(name, "any-any" if name == "models" else target, key)
+            cache_tag(name, "any-any" if name.startswith("models-") else target, key)
             for name, key in keys.items()
         )
         obsolete.append(cache_tag("maintenance", target, "0" * 64))
@@ -214,7 +216,6 @@ def inputs(tmp_path, monkeypatch):
         ("linux-x86_64", "requirements.txt", {"runtime"}),
         ("macos-arm64", "requirements.txt", {"runtime", "base"}),
         ("macos-arm64", "scripts/release/qt_payload.py", {"runtime", "base"}),
-        ("windows-x86_64", "mathcraft_ocr/vendor/LICENSE.onnx", set()),
         (
             "windows-x86_64",
             "scripts/release/payload_pruning.py",
@@ -250,11 +251,11 @@ def test_model_identity_depends_only_on_locked_model_bytes(inputs):
     before = build.build_inputs("windows-x86_64")
     path = inputs / "packaging/runtime/resources.lock.json"
     data = json.loads(path.read_text(encoding="utf-8"))
-    model = next(iter(data["models"].values()))
+    model = data["models"]["mathcraft-formula-det-cpu-int8"]
     model["sha256"] = "f" * 64
     path.write_text(json.dumps(data), encoding="utf-8")
     after = build.build_inputs("windows-x86_64")
-    assert {name for name in before if before[name] != after[name]} == {"models"}
+    assert {name for name in before if before[name] != after[name]} == {"models-cpu"}
 
 
 def test_gpu_library_change_preserves_cpu_and_gui_caches(inputs):
@@ -310,32 +311,53 @@ def test_maintenance_import_closure_covers_packages_relative_and_lazy_imports(tm
             "windows-x86_64",
             set(),
             (False, False, False),
-            {"runtime", "inference-cpu", "inference-gpu", "models", "maintenance"},
+            {
+                "runtime",
+                "inference-cpu",
+                "inference-gpu",
+                "models-cpu",
+                "models-gpu",
+                "maintenance",
+            },
         ),
         (
             "linux-x86_64",
             {"maintenance"},
             (False, True, False),
-            {"runtime", "inference-cpu", "inference-gpu", "models", "maintenance"},
+            {
+                "runtime",
+                "inference-cpu",
+                "inference-gpu",
+                "models-cpu",
+                "models-gpu",
+                "maintenance",
+            },
         ),
         (
             "linux-x86_64",
             {"runtime", "inference-gpu"},
             (True, False, True),
-            {"runtime", "inference-cpu", "inference-gpu", "models", "maintenance"},
+            {
+                "runtime",
+                "inference-cpu",
+                "inference-gpu",
+                "models-cpu",
+                "models-gpu",
+                "maintenance",
+            },
         ),
         ("macos-arm64", set(), (False, False, False), {"base", "maintenance"}),
         (
             "macos-arm64",
             {"base"},
             (False, False, False),
-            {"base", "maintenance", "runtime", "inference-cpu", "models"},
+            {"base", "maintenance", "runtime", "inference-cpu", "models-cpu"},
         ),
         (
             "macos-arm64",
             {"base", "runtime"},
             (True, False, True),
-            {"base", "maintenance", "runtime", "inference-cpu", "models"},
+            {"base", "maintenance", "runtime", "inference-cpu", "models-cpu"},
         ),
     ],
 )
@@ -830,11 +852,18 @@ def test_assembly_reuses_verified_caches_and_merges_maintenance(
     names = (
         ["base", "maintenance"]
         if target_parts[0] == "macos"
-        else ["runtime", "inference-cpu", "inference-gpu", "models", "maintenance"]
+        else [
+            "runtime",
+            "inference-cpu",
+            "inference-gpu",
+            "models-cpu",
+            "models-gpu",
+            "maintenance",
+        ]
     )
     keys = {name: "a" * 64 for name in names}
     for name in names:
-        directory = (args.models if name == "models" else args.work) / name
+        directory = (args.models if name.startswith("models-") else args.work) / name
         directory.mkdir(parents=True)
         source = tmp_path / f"source-{name}"
         source.mkdir()
@@ -848,8 +877,10 @@ def test_assembly_reuses_verified_caches_and_merges_maintenance(
             source,
             directory,
             name.split("-")[0],
-            "any-any" if name == "models" else target,
-            name.split("-", 1)[1] if name.startswith("inference-") else "common",
+            "any-any" if name.startswith("models-") else target,
+            name.split("-", 1)[1]
+            if name.startswith(("inference-", "models-"))
+            else "common",
             "https://github.com/SakuraMathcraft/LaTeXSnipper/releases/download/cache",
         )
         build.write_json(
@@ -877,7 +908,7 @@ def test_assembly_reuses_verified_caches_and_merges_maintenance(
     assert (payload / "updater").read_bytes() == b"updater"
     assert (payload / "bootstrap/launcher").read_bytes() == b"launcher"
     for name in set(names) - {"maintenance"}:
-        owner = args.models if name == "models" else args.work
+        owner = args.models if name.startswith("models-") else args.work
         assert (owner / name / "payload/data").read_bytes() == name.encode("utf-8")
 
 

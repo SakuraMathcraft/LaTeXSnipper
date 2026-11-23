@@ -103,7 +103,7 @@
   #v(0.3em)
   #text(size: 12pt)[用户手册]
   #v(0.4em)
-  #text(size: 9pt, fill: rgb("#888888"))[适用于 v3.3.0-LTS]
+  #text(size: 9pt, fill: rgb("#888888"))[适用于 v3.4.0-LTS]
   #v(0.6em)
   #line(length: 30%, stroke: 0.5pt + rgb("#CCCCCC"))
   #v(1em)
@@ -201,7 +201,7 @@
 
 桌面发行包含应用、独立推理 Python、锁定依赖和全部模型。安装后打开主窗口，在设置中选择内置模型和识别类型，再使用截图、图片、PDF 或手写入口。公式预览固定使用内置 MathJax，可离线运行。
 
-Windows/Linux 提供 CPU 与 NVIDIA GPU 两种发行，macOS Apple Silicon 使用 CPU。GPU 发行携带私有 CUDA/cuDNN 用户态库，系统只需支持的 NVIDIA 显卡与驱动。更换 CPU/GPU 发行使用对应安装器，日常应用更新保持当前发行类型。
+Windows/Linux 提供 CPU 与 NVIDIA GPU 两种发行，macOS Apple Silicon 使用 CPU。CPU 发行内置 INT8 公式权重，GPU 发行内置 FP16 公式权重及 CUDA/cuDNN 运行库。GPU 版需要兼容的 NVIDIA 显卡与驱动。更换 CPU/GPU 发行使用对应安装器，日常应用更新保持当前发行类型。
 
 
 == 资源异常时
@@ -759,7 +759,7 @@ python -m pip install -e '.[cpu]'
 python src/main.py
 ```
 
-源码 worker 使用启动应用的 Python 和平台默认模型缓存，并自动选择计算提供者，优先使用 CUDA。使用 CUDA 12.8 和 cuDNN 9 的环境可用 `python -m pip install -e '.[gpu-cu12]'` 安装 GPU 版，CPU 版和 GPU 版应分别装在不同环境。扩展导出所需工具见“预览与导出”。
+源码桌面端使用启动应用的 Python 环境，按 CUDA、DirectML、CoreML、OpenVINO、CPU 的顺序选择该环境中 ONNX Runtime 提供的第一个计算后端。公式权重随所选后端匹配，缓存缺失或校验失败时按需下载。使用 CUDA 12.8 和 cuDNN 9 的环境可用 `python -m pip install -e '.[gpu-cu12]'` 安装 GPU 版，CPU 版和 GPU 版应分别装在不同环境。扩展导出所需工具见“预览与导出”。
 
 == 检查与发行构建
 
@@ -2177,7 +2177,7 @@ MathCraft OCR 是 LaTeXSnipper 内置的本地公式、文本与混合文档识�
 
 *主要特点：*
 - *本地离线识别：* 模型安装完成后无需网络连接，识别在本地完成
-- *ONNX 运行时：* 基于 ONNX Runtime，支持 CPU 与 CUDA GPU 路径
+- *ONNX 运行时：* 桌面发行使用 CPU 或 CUDA，独立库和 CLI 可选择其他可用的计算提供者
 - *多任务识别：* 支持公式、纯文字、混合文档与 PDF 文档识别
 - *独立库 / CLI 自动缓存修复：* 按清单校验模型，缺失或损坏时复用有效缓存或按需下载修复
 
@@ -2208,11 +2208,11 @@ python -m mathcraft_ocr ocr formula.png --profile formula --provider auto --json
 python -m mathcraft_ocr ocr page.png --profile mixed --provider auto --output result.md
 ```
 
-*在 LaTeXSnipper 中使用：* 在设置页的"选择识别模型"中选择 #text(weight: "bold")[内置模型] 即可启用本地 MathCraft OCR；识别类型可选公式、混合（文字+公式）或纯文字。桌面端使用 CPU 安装器即可固定 CPU 推理；独立库的提供者配置见环境变量章节。
+*在 LaTeXSnipper 中使用：* 在设置中选择 #text(weight: "bold")[内置模型]，再按输入内容选择公式、混合（文字+公式）或纯文字。
 
 #heading(level: 1)[模型集与识别配置] <sec-mathcraft-models>
 
-独立的 `mathcraft-ocr` PyPI 包版本为 `0.3.2`，采用独立的版本号。模型权重使用 MathCraft Models `v1.0.0` 发布集，包含 #text(weight: "bold")[4 个 ONNX 模型]：
+MathCraft OCR 运行时版本为 `0.3.3`，桌面模型来自 #link("https://github.com/SakuraMathcraft/MathCraft-Models/releases/tag/v2.0.0")[MathCraft Models v2.0.0]。每种桌面发行版都包含以下模型组件，两版共用文字模型：
 
 #block(
   inset: 12pt,
@@ -2220,14 +2220,16 @@ python -m mathcraft_ocr ocr page.png --profile mixed --provider auto --output re
 )[
   #set par(spacing: 0.25em)
 
-  - `mathcraft-formula-det` — 数学公式区域检测（Formula Detection）
-  - `mathcraft-formula-rec` — 公式到 LaTeX 识别（Formula Recognition）
+  - 公式检测器 — 数学公式区域检测。
+  - 公式识别器 — 公式到 LaTeX 识别，由 encoder、cross-KV 和单步 decoder 三个 ONNX 图组成。
   - `mathcraft-text-det` — 快速多语言文本检测（Text Detection）
   - `mathcraft-text-rec` — 快速多语言文本识别（Text Recognition）
 ]
 
+源码桌面端、独立库和 CLI 的公式及混合模式默认按所选计算后端选择公式权重。CPU 使用 INT8，CUDA 使用 FP16，DirectML、CoreML 和 OpenVINO 使用原始 FP32。独立库和 CLI 也可显式选用 TensorRT，它同样使用 FP32。CLI 可用 `--formula-variant fp32` 显式选择原始权重，Python API 对应 `MathCraftRuntime(formula_variant="fp32")`。
+
 #info-block("识别流程", [
-  MathCraft 采用 #text(weight: "bold")[先检测后识别] 的流水线架构：
+  混合模式采用 #text(weight: "bold")[先检测后识别] 的流水线架构：
   图片输入 → 公式区域检测 → 公式识别 + 文本检测 → 文本识别 → 结构化输出。
   这种设计确保公式区域的识别优先级高于普通文本，避免公式被误判为正文。
 ])
@@ -2243,7 +2245,7 @@ python -m mathcraft_ocr ocr page.png --profile mixed --provider auto --output re
 )[
   #set par(spacing: 0.25em)
 
-  - #text(weight: "bold")[`formula`] — 公式截图 → LaTeX 公式文本
+  - #text(weight: "bold")[`formula`] — 直接用公式识别器将公式图片转换为 LaTeX
   - #text(weight: "bold")[`text`] — 纯文本 OCR → 文本
   - #text(weight: "bold")[`mixed`] — 文本+公式混合文档 → Markdown 结构化文本
 ]

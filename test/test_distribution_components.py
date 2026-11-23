@@ -37,7 +37,7 @@ def component(
         name,
         "any" if name == "models" else platform,
         "any" if name == "models" else architecture,
-        edition if name == "inference" else "common",
+        edition if name in {"inference", "models"} else "common",
         0 if name == "models" else protocol,
         1,
         (record,),
@@ -110,9 +110,10 @@ def test_update_cannot_silently_change_installed_target(target):
         plan_component_update(distribution(), target)
 
 
-def test_cache_identity_separates_cpu_and_gpu_payloads():
-    cpu = component("inference")
-    gpu = component("inference", edition="gpu")
+@pytest.mark.parametrize("name", ["inference", "models"])
+def test_cache_identity_separates_cpu_and_gpu_payloads(name):
+    cpu = component(name)
+    gpu = component(name, edition="gpu")
     assert cpu.cache_key != gpu.cache_key
 
 

@@ -278,7 +278,7 @@ Open System Settings -&gt; Privacy &amp; Security -&gt; Screen &amp; System Audi
       <translation>MathCraft Text Recognition</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="95" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="101" />
       <source>MathCraft 缓存</source>
       <translation>MathCraft cache</translation>
     </message>
@@ -578,7 +578,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Start here</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="88" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="94" />
       <source>使用安装目录中的模型；缺失或损坏时，请重新运行完整安装包。</source>
       <translation>Uses the installed models. If they are missing or damaged, rerun the complete installer.</translation>
     </message>
@@ -693,7 +693,8 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Formula Favorites</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="97" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="103" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="110" />
       <source>公式检测</source>
       <translation>Formula detection</translation>
     </message>
@@ -708,7 +709,8 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Formula rendering failed</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="98" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="104" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="113" />
       <source>公式识别</source>
       <translation>Formula recognition</translation>
     </message>
@@ -1125,7 +1127,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Secure tunnel (recommended)</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="90" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="96" />
       <source>安装模型</source>
       <translation>Installed models</translation>
     </message>
@@ -1718,7 +1720,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Open Main Window</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="42" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="48" />
       <location filename="../../../src/ui/runtime_log_dialog.py" line="50" />
       <source>打开目录</source>
       <translation>Open folder</translation>
@@ -1892,12 +1894,12 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Text</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="99" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="105" />
       <source>文字检测</source>
       <translation>Text detection</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="100" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="106" />
       <source>文字识别</source>
       <translation>Text recognition</translation>
     </message>
@@ -2157,7 +2159,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Model weight download failed</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="28" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="34" />
       <location filename="../../../src/ui/settings_layout_builder.py" line="279" />
       <source>模型资源</source>
       <translation>Model resources</translation>
@@ -2168,7 +2170,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Incomplete model resources</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="79" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="85" />
       <source>模型资源检查失败：{error}</source>
       <translation>Model resource verification failed: {error}</translation>
     </message>
@@ -2310,7 +2312,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Recognition is in progress. Please wait.</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="31" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="37" />
       <source>正在读取模型路径，请稍候。</source>
       <translation>Reading model locations. Please wait.</translation>
     </message>
@@ -2461,7 +2463,7 @@ Retry with the {hotkey} shortcut.</translation>
       <translation>Clear Preview</translation>
     </message>
     <message>
-      <location filename="../../../src/ui/model_resources_dialog.py" line="93" />
+      <location filename="../../../src/ui/model_resources_dialog.py" line="99" />
       <source>源码桌面端使用 MathCraft 默认缓存，加载前按模型清单校验。</source>
       <translation>The source desktop app uses the default MathCraft cache and verifies weights against the model manifest before loading.</translation>
     </message>

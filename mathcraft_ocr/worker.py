@@ -10,6 +10,7 @@ from typing import TextIO
 
 from .manifest import load_manifest
 from .native_libraries import audit_private_gpu_libraries
+from .profiles import FORMULA_VARIANT_CHOICES
 from .protocol import MODEL_FORMAT, WORKER_PROTOCOL, validate_request
 from .runtime import FORMULA_MAX_NEW_TOKENS, MathCraftRuntime
 from .serialization import (
@@ -121,6 +122,7 @@ def serve_jsonl(
     cache_dir: str | None = None,
     auto_download: bool = True,
     native_dir: str | None = None,
+    formula_variant: str = "auto",
     input_stream: TextIO | None = None,
     output_stream: TextIO | None = None,
     log_stream: TextIO | None = None,
@@ -144,6 +146,7 @@ def serve_jsonl(
         manifest=load_manifest(manifest_path),
         cache_dir=cache_dir,
         auto_download=auto_download,
+        formula_variant=formula_variant,
     )
     worker = MathCraftWorker(
         runtime=runtime, native_dir=Path(native_dir) if native_dir else None
@@ -179,12 +182,17 @@ def serve_jsonl(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="mathcraft-worker")
     parser.add_argument("--provider", default="auto", help=_PROVIDER_HELP)
+    parser.add_argument(
+        "--formula-variant", choices=FORMULA_VARIANT_CHOICES, default="auto"
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    return serve_jsonl(provider_preference=args.provider)
+    return serve_jsonl(
+        provider_preference=args.provider, formula_variant=args.formula_variant
+    )
 
 
 def _require_image(request: dict):

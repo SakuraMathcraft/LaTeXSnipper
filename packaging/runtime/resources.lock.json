@@ -1,31 +1,41 @@
 {
   "schema": 1,
-  "model_format": 1,
+  "model_format": 2,
   "model_manifest": {
-    "url": "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v1.0.0/models.v1.json",
-    "sha256": "4e714c89793c6fdec54f1cf08f17cd182f77e2810ddfe54dbc841521719d541b",
-    "size": 2872
+    "url": "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v2.0.0/models.v2.json",
+    "sha256": "0c98750696d463f21f6153fba5d85515b3dff0ee0606a0761baa6b690c5398c6",
+    "size": 5216
   },
   "models": {
-    "mathcraft-formula-det": {
-      "url": "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v1.0.0/mathcraft-formula-det.zip",
-      "sha256": "484c5f1a02d97cb8d4429960ab8b0c7129472e0258b60d5214483e00bb74e2fb",
-      "size": 67531517
+    "mathcraft-formula-det-cpu-int8": {
+      "url": "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v2.0.0/mathcraft-formula-det-cpu-int8.zip",
+      "sha256": "c5e2316d7d4145e48deee6dd54e19e76c73b4b3f6f048731ffab4551d224f8af",
+      "size": 20538211
     },
-    "mathcraft-formula-rec": {
-      "url": "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v1.0.0/mathcraft-formula-rec.zip",
-      "sha256": "807dd2d1ac40454424404b31a73d4242c37c76edf176ab544540028da20ec43f",
-      "size": 108795631
+    "mathcraft-formula-det-cuda-fp16": {
+      "url": "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v2.0.0/mathcraft-formula-det-cuda-fp16.zip",
+      "sha256": "95b36856fd0b7e3ea13313a149362408db6a7f9e9ef7690bc7616f3915cbbf0c",
+      "size": 37272604
+    },
+    "mathcraft-formula-rec-cpu-int8": {
+      "url": "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v2.0.0/mathcraft-formula-rec-cpu-int8.zip",
+      "sha256": "52d09f6a0fcbe6ec8c31beb5c341d05084a0c27374739316ecf21031ec0401ae",
+      "size": 24394927
+    },
+    "mathcraft-formula-rec-cuda-fp16": {
+      "url": "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v2.0.0/mathcraft-formula-rec-cuda-fp16.zip",
+      "sha256": "23ba965f590bf834f96a25ea72f1339e22185301290e10c0ca536da903619faf",
+      "size": 54130886
     },
     "mathcraft-text-det": {
-      "url": "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v1.0.0/mathcraft-text-det.zip",
-      "sha256": "e4fb2c8efa95716825469a6fc04aac3715045ce7ca8dc78fccf79b5e82db3f08",
-      "size": 4533780
+      "url": "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v2.0.0/mathcraft-text-det.zip",
+      "sha256": "c097264cb682b118f84e26925b6e5e07a80bdcd730b6a51eed9fd0bb503023a4",
+      "size": 4534574
     },
     "mathcraft-text-rec": {
-      "url": "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v1.0.0/mathcraft-text-rec.zip",
-      "sha256": "e39a42e2256b8d97e14cd662e41165eec7b657b310c0d03c29be6935f3ca42dd",
-      "size": 14102746
+      "url": "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v2.0.0/mathcraft-text-rec.zip",
+      "sha256": "f3020ee6fbc5ed892069257741adbd689baae2c7c5137e5c91c7f9df07cba307",
+      "size": 14103578
     }
   },
   "licenses": {

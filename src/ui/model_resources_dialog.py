@@ -12,6 +12,12 @@ from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 from qfluentwidgets import FluentIcon, PushButton
 
 from localization.manager import translate as tr
+from mathcraft_ocr.profiles import (
+    FORMULA_DETECTOR_ID,
+    FORMULA_RECOGNIZER_ID,
+    FORMULA_VARIANTS,
+    model_id_for_role,
+)
 from runtime.installed_resources import installed_resources
 from runtime.model_resources import desktop_model_resources
 
@@ -94,11 +100,18 @@ class ModelResourcesDialog(QDialog):
             )
             self._add_directory_row(tr("MathCraft 缓存"), resources.root)
         names = {
-            "mathcraft-formula-det": tr("公式检测"),
-            "mathcraft-formula-rec": tr("公式识别"),
+            FORMULA_DETECTOR_ID: f"{tr('公式检测')} · FP32",
+            FORMULA_RECOGNIZER_ID: f"{tr('公式识别')} · FP32",
             "mathcraft-text-det": tr("文字检测"),
             "mathcraft-text-rec": tr("文字识别"),
         }
+        for provider, variant in FORMULA_VARIANTS.items():
+            names[model_id_for_role(FORMULA_DETECTOR_ID, provider)] = (
+                f"{tr('公式检测')} · {variant.upper()}"
+            )
+            names[model_id_for_role(FORMULA_RECOGNIZER_ID, provider)] = (
+                f"{tr('公式识别')} · {variant.upper()}"
+            )
         for model_id in resources.manifest.models:
             self._add_directory_row(
                 names.get(model_id) or model_id, resources.root / model_id

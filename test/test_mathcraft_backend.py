@@ -29,7 +29,7 @@ class TestMathcraftBackend(unittest.TestCase):
         wrapper = ModelWrapper(auto_warmup=False)
         hello = {
             "worker_protocol": 1,
-            "model_format": 1,
+            "model_format": 2,
             "python_version": "3.11.17",
             "ort_version": "1.26.0",
         }
@@ -190,7 +190,7 @@ for line in sys.stdin:
         marker.write_text(action, encoding='utf-8')
         time.sleep(30)
     if action == 'hello':
-        result = {'worker_protocol': 1, 'model_format': 1}
+        result = {'worker_protocol': 1, 'model_format': 2}
     elif action == 'warmup':
         result = {'ready': True, 'provider_info': {'active_provider': 'CPUExecutionProvider'}}
     else:

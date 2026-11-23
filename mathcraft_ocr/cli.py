@@ -5,6 +5,7 @@ import json
 import sys
 from pathlib import Path
 
+from .profiles import FORMULA_VARIANT_CHOICES
 from .serialization import (
     cache_state_to_json,
     doctor_report_to_json,
@@ -64,6 +65,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     worker = sub.add_parser("worker")
     worker.add_argument("--provider", default="auto", help=_PROVIDER_HELP)
+    for command in (warmup, ocr, worker):
+        command.add_argument(
+            "--formula-variant",
+            choices=FORMULA_VARIANT_CHOICES,
+            default="auto",
+            help="Formula weights. Auto selects CPU INT8, CUDA FP16, or FP32.",
+        )
     return parser
 
 
@@ -97,7 +105,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "warmup":
         from .runtime import MathCraftRuntime
 
-        runtime = MathCraftRuntime(provider_preference=args.provider)
+        runtime = MathCraftRuntime(
+            provider_preference=args.provider, formula_variant=args.formula_variant
+        )
         plan = runtime.warmup(profile=args.profile)
         data = warmup_plan_to_json(plan)
         print(json.dumps(data, ensure_ascii=False, indent=2))
@@ -106,7 +116,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "ocr":
         from .runtime import MathCraftRuntime
 
-        runtime = MathCraftRuntime(provider_preference=args.provider)
+        runtime = MathCraftRuntime(
+            provider_preference=args.provider, formula_variant=args.formula_variant
+        )
         profile = str(args.profile).strip().lower()
         if profile == "formula":
             result = runtime.recognize_formula(args.image)
@@ -133,7 +145,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "worker":
         from .worker import serve_jsonl
 
-        return serve_jsonl(provider_preference=args.provider)
+        return serve_jsonl(
+            provider_preference=args.provider, formula_variant=args.formula_variant
+        )
 
     parser.error("unsupported command")
     return 2

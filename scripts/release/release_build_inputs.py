@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 from distribution_inputs import load_resources, load_sources
+from mathcraft_ocr.profiles import edition_model_ids
 from mathcraft_ocr.protocol import MODEL_FORMAT, WORKER_PROTOCOL
 from runtime.distribution_manifest import read_json
 
@@ -60,15 +61,18 @@ def fingerprint(root: Path, paths: list[Path], configuration: object) -> str:
     return digest.hexdigest()
 
 
-def model_input(root: Path) -> str:
+def model_input(root: Path, edition: str) -> str:
     resources = load_resources(root / "packaging/runtime/resources.lock.json")
     # The normalized model payload is completely specified by these locked bytes.
     return fingerprint(
         root,
         [],
         {
-            "layout": 1,
-            "models": resources["models"],
+            "layout": 2,
+            "edition": edition,
+            "models": {
+                name: resources["models"][name] for name in edition_model_ids(edition)
+            },
             "manifest": resources["model_manifest"],
             "format": resources["model_format"],
             "license": resources["licenses"]["models"],
@@ -98,17 +102,20 @@ def build_inputs(root: Path, target: str) -> dict[str, str]:
         runtime.append(root / "src/assets/icon.ico")
     if system == "linux":
         runtime.append(root / "scripts/release/linux_hotkey_packaging.py")
-    keys = {
-        "models": model_input(root),
-        "runtime": fingerprint(
-            root,
-            runtime,
-            {
-                "target": target,
-                "python": sources["python_version"],
-            },
-        ),
-    }
+    editions = ("cpu",) if system == "macos" else ("cpu", "gpu")
+    keys = {f"models-{edition}": model_input(root, edition) for edition in editions}
+    keys.update(
+        {
+            "runtime": fingerprint(
+                root,
+                runtime,
+                {
+                    "target": target,
+                    "python": sources["python_version"],
+                },
+            ),
+        }
+    )
     inference = [
         root / name
         for name in (
@@ -185,6 +192,6 @@ def build_inputs(root: Path, target: str) -> dict[str, str]:
                     "packaging/macos/launcher.c",
                 )
             ],
-            {name: keys[name] for name in ("runtime", "inference-cpu", "models")},
+            {name: keys[name] for name in ("runtime", "inference-cpu", "models-cpu")},
         )
     return keys

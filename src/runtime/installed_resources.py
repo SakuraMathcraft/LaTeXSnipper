@@ -8,7 +8,7 @@ import sys
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from mathcraft_ocr.protocol import MODEL_FORMAT, WORKER_PROTOCOL
+from mathcraft_ocr.protocol import MODEL_FORMAT, MODEL_MANIFEST, WORKER_PROTOCOL
 from runtime.component_inventory import verify_component
 from runtime.distribution_manifest import (
     DistributionManifest,
@@ -160,7 +160,7 @@ class InstalledResources:
             exact=False,
         ):
             raise ManifestError("Installed worker implementation is missing or corrupt")
-        self.resource("models", "models.v1.json")
+        self.resource("models", MODEL_MANIFEST)
 
 
 def installed_resources() -> InstalledResources | None:

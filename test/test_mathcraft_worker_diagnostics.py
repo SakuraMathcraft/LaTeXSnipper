@@ -231,7 +231,7 @@ def test_installed_handshake_uses_owned_runtime_and_checks_versions(
 import json, sys
 for line in sys.stdin:
     request = json.loads(line)
-    result = {'worker_protocol': 1, 'model_format': 1,
+    result = {'worker_protocol': 1, 'model_format': 2,
               'python_version': '3.11.0', 'ort_version': sys.argv[1]}
     if request['action'] != 'hello':
         result = {'ready': True}

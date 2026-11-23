@@ -32,7 +32,7 @@ def test_workspace_keeps_download_cache_outside_cleaned_stages(tmp_path):
 
 def test_local_environment_changes_invalidate_runtime_and_base(monkeypatch):
     keys = dict.fromkeys(
-        ("runtime", "maintenance", "inference-cpu", "models", "base"), "locked"
+        ("runtime", "maintenance", "inference-cpu", "models-cpu", "base"), "locked"
     )
     monkeypatch.setattr(build, "build_inputs", lambda *_: keys.copy())
     monkeypatch.setattr(build, "distributions", lambda: [])

@@ -160,6 +160,7 @@ def stage_inputs(build_target: str) -> dict[str, str]:
     keys["inference"] = fingerprint(
         ROOT, local_script, [keys[f"inference-{EDITION}"], sys.version]
     )
+    keys["models"] = keys.pop(f"models-{EDITION}")
     keys["base"] = fingerprint(
         ROOT,
         local_script,
@@ -214,7 +215,7 @@ def build_runtime(destination: Path, build_target: str) -> None:
 def build_models(destination: Path, cache: Path) -> None:
     from build_desktop_resources import assemble
 
-    assemble(destination, cache, RESOURCES)
+    assemble(destination, cache, RESOURCES, EDITION)
 
 
 def build_inference(destination: Path, build_target: str, cache: Path) -> None:
@@ -278,7 +279,7 @@ def component(name: str, source: Path, build_target: str) -> Component:
         name,
         system,
         architecture,
-        "common",
+        EDITION if name == "models" else "common",
         0 if name == "models" else WORKER_PROTOCOL,
         MODEL_FORMAT,
         inventory_component(source),

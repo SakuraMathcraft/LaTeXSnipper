@@ -11,7 +11,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path[:0] = [str(ROOT / "scripts/release"), str(ROOT / "src")]
+sys.path[:0] = [str(ROOT), str(ROOT / "scripts/release"), str(ROOT / "src")]
 
 from distribution_inputs import (  # noqa: E402
     load_dependencies,
