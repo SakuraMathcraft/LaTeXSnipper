@@ -10,6 +10,8 @@ from typing import Any
 
 from PIL import Image
 
+from mathcraft_ocr.pdf_text import PdfTextLine
+
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -37,6 +39,7 @@ class JobSource(StrEnum):
 class RecognitionItemInput:
     image: Image.Image
     filename: str | None = None
+    pdf_text_lines: list[PdfTextLine] | None = None
 
     @property
     def memory_bytes(self) -> int:
@@ -52,6 +55,7 @@ class RecognitionItem:
     text: str | None = None
     elapsed_ms: int | None = None
     error: dict[str, str] | None = None
+    document: dict[str, Any] | None = None
 
     def snapshot(self) -> dict[str, Any]:
         result: dict[str, Any] = {"index": self.index, "state": self.state}
@@ -63,6 +67,8 @@ class RecognitionItem:
             result["elapsed_ms"] = self.elapsed_ms
         if self.error is not None:
             result["error"] = dict(self.error)
+        if self.document is not None:
+            result["document"] = dict(self.document)
         return result
 
 

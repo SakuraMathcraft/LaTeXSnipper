@@ -448,7 +448,7 @@ class RecognitionJobCoordinator:
                     return
             started = self._clock()
             try:
-                text = self._predict(item_input.image, job).strip()
+                text, document = self._predict(item_input, job)
                 if not text:
                     raise RuntimeError("识别结果为空。")
             except Exception as exc:
@@ -480,6 +480,7 @@ class RecognitionJobCoordinator:
                 item = job.items[index]
                 item.state = "completed"
                 item.text = text
+                item.document = document
                 item.elapsed_ms = round((self._clock() - started) * 1000)
 
         with self._lock:
@@ -505,14 +506,17 @@ class RecognitionJobCoordinator:
             else:
                 self._finish_locked(job, JobState.COMPLETED)
 
-    def _predict(self, image: Any, job: RecognitionJob) -> str:
+    def _predict(
+        self, item: RecognitionItemInput, job: RecognitionJob
+    ) -> tuple[str, dict[str, Any] | None]:
+        image = item.image
         if job.backend == "external":
             assert job.backend_config is not None
             text = self._external_executor.predict(image, job.backend_config).strip()
             if not text:
                 code, message = _EMPTY_RESULT_ERRORS[job.mode]
                 raise RecognitionJobError(code, message)
-            return text
+            return text, None
         image = optimize_mathcraft_input_image(image)
         predictor = self._predictor
         if callable(predictor) and not hasattr(predictor, "predict_result"):
@@ -520,14 +524,24 @@ class RecognitionJobCoordinator:
             if not text:
                 code, message = _EMPTY_RESULT_ERRORS[job.mode]
                 raise RecognitionJobError(code, message)
-            return text
+            return text, None
         model_name = _MODE_TO_MODEL[job.mode]
-        result = predictor.predict_result(image, model_name=model_name)
+        result = predictor.predict_result(
+            image,
+            model_name=model_name,
+            **({"pdf_text_lines": item.pdf_text_lines} if item.pdf_text_lines else {}),
+        )
         text = str(result.get("text", "") or "").strip()
         if result.get("empty_reason") or not text:
             code, message = _EMPTY_RESULT_ERRORS[job.mode]
             raise RecognitionJobError(code, message)
-        return text
+        document = None
+        if job.source is JobSource.PDF:
+            document = {
+                "blocks": result.get("blocks"),
+                "image_size": result.get("image_size") or image.size,
+            }
+        return text, document
 
     def _log_execution_failure(
         self,
@@ -602,6 +616,7 @@ class RecognitionJobCoordinator:
         if code in {"timeout", "canceled"}:
             for item in job.items:
                 item.text = None
+                item.document = None
                 if item.state not in {"failed"}:
                     item.state = "canceled" if code == "canceled" else "failed"
                     item.error = {

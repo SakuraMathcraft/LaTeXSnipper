@@ -176,7 +176,6 @@
   - #link(<sec-mathcraft-intro>)[MathCraft OCR 项目介绍]
   - #link(<sec-mathcraft-models>)[模型集与识别配置]
   - #link(<sec-mathcraft-showcase>)[识别效果展示]
-  - #link(<sec-mathcraft-performance>)[性能参考]
   - #link(<sec-envvar>)[环境变量设置指南]
 ]
 
@@ -265,6 +264,7 @@ Windows/Linux 提供 CPU 与 NVIDIA GPU 两种发行，macOS Apple Silicon 使�
 - MinerU Local 会走文档解析模式，输出固定为 Markdown；其他模型会先询问输出 Markdown 还是 LaTeX。
 - 程序会询问识别页码或连续范围，例如 `5`、`3-7`；默认先填入 `1-5`，避免大 PDF 一次性耗时过长。
 - 内置模型及 OpenAI-compatible / Ollama 会询问 PDF 渲染 DPI，范围为 90-300；OpenAI-compatible / Ollama 默认 150 DPI，内置模型默认 200 DPI。MinerU Local 直接解析原 PDF，不显示 DPI 选择。
+- 内置模型优先读取可信的 PDF 文字层，并识别页面中的公式。扫描页或文字层异常的页面使用整页 OCR。双栏内容按阅读顺序输出，标题层级、作者行和原有加粗会在可识别时保留。
 - 识别结果会打开独立的 PDF 结果窗口，可编辑、复制或保存。Markdown 文档保存时，如果结构化结果包含图片资源，程序会尽量把相关 assets 一起复制到保存目录。
 
 // ═══════════════════════════════════════════
@@ -2277,28 +2277,6 @@ MathCraft OCR 运行时版本为 `0.3.3`，桌面模型来自 #link("https://git
 稀疏的标题/封面式页面，用于验证版面分析稳定性。
 
 #image("mathcraft_limits_series.png", width: 100%)
-
-#heading(level: 1)[性能参考] <sec-mathcraft-performance>
-
-以下为本地 `block_layout_regression_v4` 基准测试数据（CUDA 环境）：
-
-#block(
-  fill: rgb("#F5F5F5"),
-  inset: 12pt,
-  radius: 4pt,
-  stroke: 0.8pt + rgb("#BDBDBD"),
-  width: 100%,
-)[
-  #set par(spacing: 0.25em)
-
-  - 测试页数：10
-  - 总块数：495
-  - 总字符数：21,417
-  - Markdown 行数：304
-  - #text(weight: "bold")[平均每页耗时：8.34 秒]
-  - 最快页面：1.33 秒
-  - 最慢页面：18.53 秒
-]
 
 #info-block("稳定性保障", [
   MathCraft OCR 的设计原则：

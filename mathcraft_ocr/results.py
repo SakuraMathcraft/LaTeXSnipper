@@ -40,6 +40,8 @@ class MathCraftBlock:
     column: int | None = None
     paragraph_id: int | None = None
     confidence_flags: tuple[str, ...] = ()
+    heading_level: int | None = None
+    markdown_text: str = ""
 
 
 @dataclass(frozen=True)

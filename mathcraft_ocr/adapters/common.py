@@ -6,6 +6,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from ..hardware import cpu_inference_threads
+from ..profiles import CPU_PROVIDER
 from ..providers import ACCELERATOR_PROVIDER_NAMES, ProviderInfo
 
 ProviderOptions = tuple[tuple[str, str], ...]
@@ -82,6 +84,8 @@ def _session_options(ort, providers: tuple[ProviderConfig, ...]):
         return None
     session_options: Any = create_options()
     session_options.log_severity_level = 4
+    if providers and providers[0][0] == CPU_PROVIDER:
+        session_options.intra_op_num_threads = cpu_inference_threads()
     names = {name for name, _options in providers}
     if "DmlExecutionProvider" not in names:
         return session_options

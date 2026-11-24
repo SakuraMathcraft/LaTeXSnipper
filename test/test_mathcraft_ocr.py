@@ -9,6 +9,7 @@ import tempfile
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -2397,6 +2398,26 @@ def test_hardware_memory_status_combines_posix_total_with_macos_free(
     monkeypatch.setattr(hardware_mod, "_posix_memory_status", lambda: (8192, 0))
     monkeypatch.setattr(hardware_mod, "_macos_vm_stat_memory_status", lambda: (0, 4096))
     assert hardware_mod._memory_status() == (8192, 4096)
+
+
+@pytest.mark.parametrize(
+    ("physical", "visible", "expected"), [(8, 12, 4), (16, 6, 3), (None, 1, 1)]
+)
+def test_cpu_thread_budget_uses_visible_cpu_topology(
+    monkeypatch, physical, visible, expected
+) -> None:
+    monkeypatch.setattr(hardware_mod, "sys", SimpleNamespace(platform="linux"))
+    monkeypatch.setattr(
+        os, "sched_getaffinity", lambda _: range(visible), raising=False
+    )
+    monkeypatch.setitem(
+        sys.modules, "psutil", SimpleNamespace(cpu_count=lambda **_: physical)
+    )
+    hardware_mod.cpu_inference_threads.cache_clear()
+    try:
+        assert hardware_mod.cpu_inference_threads() == expected
+    finally:
+        hardware_mod.cpu_inference_threads.cache_clear()
 
 
 def test_hardware_batch_policy_keeps_cpu_batches_moderate() -> None:

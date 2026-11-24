@@ -60,6 +60,7 @@ from .layout import (
     split_text_box_around_formulas,
 )
 from .manifest import Manifest, load_manifest
+from .pdf_text import PdfTextLine, has_native_columns, native_text_blocks
 from .profiles import (
     FORMULA_DETECTOR_ID,
     FORMULA_RECOGNIZER_ID,
@@ -370,6 +371,7 @@ class MathCraftRuntime:
         image,
         *,
         min_text_score: float = 0.45,
+        pdf_text_lines: list[PdfTextLine] | None = None,
         max_formula_new_tokens: int = FORMULA_MAX_NEW_TOKENS,
     ) -> MixedRecognitionResult:
         plan = self._warmup_selected_models(
@@ -381,7 +383,6 @@ class MathCraftRuntime:
                 f"mixed runtime is not ready: missing={plan.missing_models}, unsupported={plan.unsupported_models}"
             )
         rgb = normalize_formula_polarity(load_image_rgb(image))
-        bgr = rgb_to_bgr(rgb)
         formula_boxes = detect_formula_boxes(
             rgb,
             plan.model_dirs[FORMULA_DETECTOR_ID],
@@ -401,8 +402,7 @@ class MathCraftRuntime:
             )
         )
         height, width = rgb.shape[:2]
-        formula_block_boxes = tuple(item.box for item in formula_boxes)
-        if _is_formula_dominant_image(rgb, formula_boxes):
+        if not pdf_text_lines and _is_formula_dominant_image(rgb, formula_boxes):
             formula_text, formula_score = self._recognize_formula_rgb(
                 rgb,
                 plan.provider_info,
@@ -427,57 +427,7 @@ class MathCraftRuntime:
                 blocks=ordered_blocks,
                 provider=plan.provider_info.active_provider,
             )
-        masked_bgr = rgb_to_bgr(
-            mask_boxes(
-                rgb, formula_block_boxes, margin=_formula_mask_margin(width, height)
-            )
-        )
-
-        detected_text_boxes, _scores = detect_text_boxes(
-            bgr,
-            plan.model_dirs[TEXT_DETECTOR_ID],
-            plan.provider_info,
-        )
-        text_regions: list[OCRRegion] = []
         blocks: list[MathCraftBlock] = []
-        text_segments = []
-        for detected_box in detected_text_boxes:
-            text_box = points_to_box(detected_box)
-            if not is_informative_ocr_box(bgr, text_box):
-                continue
-            text_segments.extend(
-                segment
-                for segment in split_text_box_around_formulas(
-                    text_box, formula_block_boxes
-                )
-                if is_informative_ocr_box(masked_bgr, segment.box)
-            )
-        if text_segments:
-            crops = [
-                get_rotate_crop_image(masked_bgr, box_to_points(segment.box))
-                for segment in text_segments
-            ]
-            rec_results = recognize_pp_text_lines(
-                crops,
-                plan.model_dirs[TEXT_RECOGNIZER_ID],
-                plan.provider_info,
-                rec_batch_num=self._rec_batch_num(plan.provider_info),
-            )
-            for segment, (text, score) in zip(text_segments, rec_results, strict=False):
-                cleaned_text = text.strip()
-                if not cleaned_text or score < min_text_score:
-                    continue
-                region = OCRRegion(box=segment.box, text=cleaned_text, score=score)
-                text_regions.append(region)
-                blocks.append(
-                    MathCraftBlock(
-                        kind="text",
-                        box=segment.box,
-                        text=cleaned_text,
-                        score=score,
-                        source="text_rec",
-                    )
-                )
         formula_jobs: list[tuple[int, int, np.ndarray]] = []
         formula_line_groups: list[tuple[FormulaLineGroup, ...]] = []
         grouped_formula_results: list[list[list[tuple[str, float]]]] = []
@@ -532,6 +482,21 @@ class MathCraftRuntime:
                     confidence_flags=latex_quality_flags(formula_text),
                 )
             )
+        native = (
+            native_text_blocks(pdf_text_lines, blocks, (width, height))
+            if pdf_text_lines
+            else None
+        )
+        if native is None:
+            text_blocks, text_regions = self._mixed_text_ocr(
+                rgb, tuple(item.box for item in formula_boxes), plan, min_text_score
+            )
+            blocks = text_blocks + blocks
+        else:
+            text_regions = [
+                OCRRegion(block.box, block.text, block.score) for block in native
+            ]
+            blocks = native + blocks
         if not blocks:
             formula_text, formula_score = self._recognize_formula_rgb(
                 rgb,
@@ -552,7 +517,13 @@ class MathCraftRuntime:
         blocks = list(
             resolve_formula_text_conflicts(blocks, image_size=(int(width), int(height)))
         )
-        ordered_blocks = annotate_blocks(blocks, image_size=(int(width), int(height)))
+        ordered_blocks = annotate_blocks(
+            blocks,
+            image_size=(int(width), int(height)),
+            native_two_columns=has_native_columns(pdf_text_lines)
+            if native and pdf_text_lines
+            else None,
+        )
         regions = tuple(text_regions)
         merged = merge_blocks_text(ordered_blocks)
         return MixedRecognitionResult(
@@ -561,6 +532,68 @@ class MathCraftRuntime:
             blocks=ordered_blocks,
             provider=plan.provider_info.active_provider,
         )
+
+    def _mixed_text_ocr(
+        self,
+        rgb,
+        formula_block_boxes: tuple[Box4P, ...],
+        plan: WarmupPlan,
+        min_text_score: float,
+    ) -> tuple[list[MathCraftBlock], list[OCRRegion]]:
+        height, width = rgb.shape[:2]
+        bgr = rgb_to_bgr(rgb)
+        masked_bgr = rgb_to_bgr(
+            mask_boxes(
+                rgb, formula_block_boxes, margin=_formula_mask_margin(width, height)
+            )
+        )
+
+        detected_text_boxes, _scores = detect_text_boxes(
+            bgr,
+            plan.model_dirs[TEXT_DETECTOR_ID],
+            plan.provider_info,
+        )
+        text_regions: list[OCRRegion] = []
+        blocks: list[MathCraftBlock] = []
+        text_segments = []
+        for detected_box in detected_text_boxes:
+            text_box = points_to_box(detected_box)
+            if not is_informative_ocr_box(bgr, text_box):
+                continue
+            text_segments.extend(
+                segment
+                for segment in split_text_box_around_formulas(
+                    text_box, formula_block_boxes
+                )
+                if is_informative_ocr_box(masked_bgr, segment.box)
+            )
+        if text_segments:
+            crops = [
+                get_rotate_crop_image(masked_bgr, box_to_points(segment.box))
+                for segment in text_segments
+            ]
+            rec_results = recognize_pp_text_lines(
+                crops,
+                plan.model_dirs[TEXT_RECOGNIZER_ID],
+                plan.provider_info,
+                rec_batch_num=self._rec_batch_num(plan.provider_info),
+            )
+            for segment, (text, score) in zip(text_segments, rec_results, strict=False):
+                cleaned_text = text.strip()
+                if not cleaned_text or score < min_text_score:
+                    continue
+                region = OCRRegion(box=segment.box, text=cleaned_text, score=score)
+                text_regions.append(region)
+                blocks.append(
+                    MathCraftBlock(
+                        kind="text",
+                        box=segment.box,
+                        text=cleaned_text,
+                        score=score,
+                        source="text_rec",
+                    )
+                )
+        return blocks, text_regions
 
     def _formula_adapters(self):
         if self._formula_variant == "fp32":

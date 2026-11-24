@@ -37,9 +37,7 @@ Office_plugin/windows/release/InstallerAssets/
 *.log
 
 # Local OCR/PDF regression outputs
-test_pdf/outputs/**
-!test_pdf/outputs/
-!test_pdf/outputs/README.md
+test_pdf/outputs/
 test_pdf/*.pdf
 test_samples/
 release_assets/

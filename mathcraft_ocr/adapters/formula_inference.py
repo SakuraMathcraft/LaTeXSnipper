@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import logging
+from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
 
@@ -13,7 +14,9 @@ from ..providers import ProviderInfo
 from .common import create_session
 
 if TYPE_CHECKING:
-    from onnxruntime import OrtValue
+    from onnxruntime import InferenceSession, OrtValue
+
+logger = logging.getLogger(f"latexsnipper.{__name__}")
 
 
 def load_formula_sessions(root: Path, provider: ProviderInfo, variant: str) -> tuple:
@@ -31,8 +34,7 @@ def load_formula_sessions(root: Path, provider: ProviderInfo, variant: str) -> t
 
 
 class TokenDecoder(Protocol):
-    @property
-    def compact(self) -> Callable[[np.ndarray], None] | None: ...
+    def compact(self, rows: np.ndarray) -> bool: ...
 
     def step(self, ids: np.ndarray, position: int) -> tuple[np.ndarray, np.ndarray]: ...
 
@@ -85,7 +87,7 @@ class Fp32Decoder:
             logits = self.binding.get_outputs()[0].numpy()
         return _greedy_tokens(logits)
 
-    def compact(self, rows: np.ndarray) -> None:
+    def compact(self, rows: np.ndarray) -> bool:
         self.prefix = self.prefix[rows]
         if self.binding is None:
             self.hidden = cast(np.ndarray, self.hidden)[rows]
@@ -98,6 +100,7 @@ class Fp32Decoder:
                 values, "cuda", self.device_id
             )
             self.binding.bind_ortvalue_input(self.hidden_name, self.hidden)
+        return True
 
 
 class CpuDecoder:
@@ -129,17 +132,37 @@ class CpuDecoder:
         self.cache.update(zip(self.past_names, present, strict=True))
         return _greedy_tokens(logits)
 
-    def compact(self, rows: np.ndarray) -> None:
+    def compact(self, rows: np.ndarray) -> bool:
         self.cache = {name: value[rows] for name, value in self.cache.items()}
+        return True
+
+
+@lru_cache(maxsize=8)
+def _cuda_cache_row_session(
+    device_id: int, cross_count: int, self_count: int
+) -> InferenceSession:
+    import onnxruntime as ort
+
+    from .formula_model import cache_row_selection_model
+
+    options = ort.SessionOptions()
+    options.add_session_config_entry("session.disable_cpu_ep_fallback", "1")
+    session = ort.InferenceSession(
+        cache_row_selection_model(cross_count, self_count),
+        sess_options=options,
+        providers=[(CUDA_PROVIDER, {"device_id": device_id})],
+        enable_fallback=False,
+    )
+    session.disable_fallback()
+    return session
 
 
 class CudaDecoder:
-    compact = None
-
     def __init__(self, sessions: tuple, pixels: np.ndarray, device_id: int) -> None:
         import onnxruntime as ort
 
         encoder, projection, self.session = sessions
+        self.device_id = device_id
         encoder_io = encoder.io_binding()
         encoder_io.bind_cpu_input(encoder.get_inputs()[0].name, pixels)
         encoder_io.bind_output(encoder.get_outputs()[0].name, "cuda", device_id)
@@ -149,26 +172,29 @@ class CudaDecoder:
         projection_io.bind_ortvalue_input(
             projection.get_inputs()[0].name, encoder_io.get_outputs()[0]
         )
-        cross_names = [output.name for output in projection.get_outputs()]
-        for name in cross_names:
+        self.cross_names = [output.name for output in projection.get_outputs()]
+        for name in self.cross_names:
             projection_io.bind_output(name, "cuda", device_id)
         projection.run_with_iobinding(projection_io)
 
-        self.binding = self.session.io_binding()
         self.cross_cache = projection_io.get_outputs()
-        for name, value in zip(cross_names, self.cross_cache, strict=True):
-            self.binding.bind_ortvalue_input(name, value)
+        initial_cache = np.zeros((2, len(pixels), 8, 512, 32), dtype=np.float16)
+        self.self_cache = [
+            ort.OrtValue.ortvalue_from_numpy(initial_cache, "cuda", device_id)
+            for _ in range(6)
+        ]
+        self.position = np.zeros(1, dtype=np.int32)
+        self.next_compaction = 16
+        self.compaction_disabled = False
+        self._bind_cache(len(pixels))
 
-        batch = len(pixels)
-        initial_cache = np.zeros((2, batch, 8, 512, 32), dtype=np.float16)
-        self.self_cache = []
-        for layer in range(6):
-            value = ort.OrtValue.ortvalue_from_numpy(initial_cache, "cuda", device_id)
-            self.self_cache.append(value)
+    def _bind_cache(self, batch: int) -> None:
+        self.binding = self.session.io_binding()
+        for name, value in zip(self.cross_names, self.cross_cache, strict=True):
+            self.binding.bind_ortvalue_input(name, value)
+        for layer, value in enumerate(self.self_cache):
             self.binding.bind_ortvalue_input(f"past_self.{layer}", value)
             self.binding.bind_ortvalue_output(f"present_self.{layer}", value)
-
-        self.position = np.zeros(1, dtype=np.int32)
         self.tokens = np.empty((batch, 1), dtype=np.int64)
         self.confidence = np.empty(batch, dtype=np.float32)
         for name, buffer in (
@@ -185,6 +211,48 @@ class CudaDecoder:
         self.binding.bind_cpu_input("past_sequence_length", self.position)
         self.session.run_with_iobinding(self.binding)
         return self.tokens[:, 0], self.confidence
+
+    def compact(self, rows: np.ndarray) -> bool:
+        position = int(self.position[0])
+        if (
+            self.compaction_disabled
+            or position < self.next_compaction
+            or len(rows) * 4 > len(self.tokens) * 3
+        ):
+            return False
+        cross_count = len(self.cross_cache)
+        gather = _cuda_cache_row_session(
+            self.device_id, cross_count, len(self.self_cache)
+        )
+        binding = gather.io_binding()
+        binding.bind_cpu_input("rows", rows)
+        for index, value in enumerate((*self.cross_cache, *self.self_cache)):
+            binding.bind_ortvalue_input(f"cache_{index}", value)
+            binding.bind_output(f"selected_{index}", "cuda", self.device_id)
+        try:
+            gather.run_with_iobinding(binding)
+        except Exception as exc:
+            error = str(exc).lower()
+            if not any(
+                message in error
+                for message in (
+                    "out of memory",
+                    "out_of_memory",
+                    "failed to allocate memory",
+                )
+            ):
+                raise
+            logger.debug("Leaving finished formula rows in the batch: %s", exc)
+            self.compaction_disabled = True
+            return False
+        selected = binding.get_outputs()
+        self.cross_cache, self.self_cache = (
+            selected[:cross_count],
+            selected[cross_count:],
+        )
+        self.next_compaction = position + 12
+        self._bind_cache(len(rows))
+        return True
 
 
 def formula_decoder(

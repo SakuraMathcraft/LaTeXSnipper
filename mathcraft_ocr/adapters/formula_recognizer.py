@@ -184,14 +184,14 @@ def _generate_formula_tokens(
                 finished[result_row] = True
         if finished.all():
             break
-        compact = decoder.compact
-        if compact is not None and finished[active_indices].any():
-            keep = np.flatnonzero(~finished[active_indices])
-            compact(keep)
-            active_indices = active_indices[keep]
-            input_ids = next_tokens[keep, None]
-        else:
-            input_ids[:, 0] = next_tokens
+        active_finished = finished[active_indices]
+        if active_finished.any():
+            keep = np.flatnonzero(~active_finished)
+            if decoder.compact(keep):
+                active_indices = active_indices[keep]
+                input_ids = next_tokens[keep, None]
+                continue
+        input_ids[:, 0] = next_tokens
 
     return token_ids, token_scores, stopped_for_repetition
 
