@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TypeAlias
 
+import cv2
 import numpy as np
 from PIL import Image
 
@@ -15,6 +16,12 @@ def normalize_formula_polarity(rgb: np.ndarray) -> np.ndarray:
     """Invert light ink on a mostly uniform dark background without changing geometry."""
     if rgb.size == 0:
         return rgb
+    if rgb.dtype == np.uint8:
+        # A strict majority above the threshold in every channel proves the
+        # median RGB mean is also above it, without computing the full mean.
+        bright = cv2.inRange(rgb, (100, 100, 100), (255, 255, 255))
+        if cv2.countNonZero(bright) * 2 > bright.size:
+            return rgb
     gray = rgb.astype(np.float32).mean(axis=2)
     background = float(np.median(gray))
     if background >= 100:

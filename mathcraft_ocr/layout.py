@@ -220,7 +220,12 @@ def resolve_formula_text_conflicts(
 
     resolved: list[MathCraftBlock] = []
     for block in blocks:
-        if block in formula_blocks or block.kind != "text":
+        if (
+            block in formula_blocks
+            or block.kind != "text"
+            or block.heading_level is not None
+            or block.role == "author"
+        ):
             resolved.append(block)
             continue
 
@@ -244,6 +249,7 @@ def group_blocks_into_lines(
     y_overlap_threshold: float = 0.45,
     image_size: tuple[int, int] | None = None,
     two_column_layout: bool | None = None,
+    strict_columns: bool = False,
 ) -> tuple[tuple[MathCraftBlock, ...], ...]:
     if two_column_layout is None:
         two_column_layout = _is_two_column_layout(blocks, image_size=image_size)
@@ -257,7 +263,11 @@ def group_blocks_into_lines(
         for line in lines:
             line_box = _union_box([item.box for item in line])
             if not _same_layout_region(
-                line[0], block, line_box, two_column_layout=two_column_layout
+                line[0],
+                block,
+                line_box,
+                two_column_layout=two_column_layout,
+                strict_columns=strict_columns,
             ):
                 continue
             overlap = y_overlap_ratio(line_box, block.box)
@@ -281,6 +291,7 @@ def annotate_blocks(
     *,
     image_size: tuple[int, int] | None = None,
     page_index: int | None = None,
+    native_two_columns: bool | None = None,
 ) -> tuple[MathCraftBlock, ...]:
     seeded = tuple(
         replace(
@@ -290,11 +301,16 @@ def annotate_blocks(
         )
         for block in blocks
     )
-    two_column_layout = _is_two_column_layout(seeded, image_size=image_size)
+    two_column_layout = (
+        _is_two_column_layout(seeded, image_size=image_size)
+        if native_two_columns is None
+        else native_two_columns
+    )
     lines = group_blocks_into_lines(
         seeded,
         image_size=image_size,
         two_column_layout=two_column_layout,
+        strict_columns=native_two_columns is True,
     )
     line_infos = _annotate_lines(
         lines, image_size=image_size, two_column_layout=two_column_layout
@@ -635,15 +651,30 @@ def _same_layout_region(
     line_box: Box4P,
     *,
     two_column_layout: bool,
+    strict_columns: bool = False,
 ) -> bool:
     if (first.page_index or 0) != (second.page_index or 0):
+        return False
+    if any(
+        block.heading_level is not None or block.role == "author"
+        for block in (first, second)
+    ):
         return False
     if not two_column_layout:
         if _is_display_formula_like(first) or _is_display_formula_like(second):
             return False
         return True
+    if strict_columns and (
+        _is_display_formula_like(first) or _is_display_formula_like(second)
+    ):
+        return _block_column(first) == _block_column(second) and any(
+            item.kind == "text" and _is_formula_label_text(item.text.strip())
+            for item in (first, second)
+        )
     if _block_column(first) == _block_column(second):
         return True
+    if strict_columns:
+        return False
     if _is_inline_formula_like(first) or _is_inline_formula_like(second):
         size = first.image_size or second.image_size
         if not size or size[0] <= 0:

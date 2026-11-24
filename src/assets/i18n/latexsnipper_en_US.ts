@@ -326,7 +326,7 @@ Check App diagnostics. For an installed app, rerun the complete installer. When 
     </message>
     <message>
       <location filename="../../../src/recognition/external_pdf_worker.py" line="135" />
-      <location filename="../../../src/recognition/workers.py" line="154" />
+      <location filename="../../../src/recognition/workers.py" line="161" />
       <location filename="../../../src/ui/controllers/pdf.py" line="143" />
       <source>PDF 打开失败: {error}</source>
       <translation>Failed to open PDF: {error}</translation>
@@ -2657,7 +2657,7 @@ Retry with the {hotkey} shortcut.</translation>
     </message>
     <message>
       <location filename="../../../src/recognition/external_pdf_worker.py" line="119" />
-      <location filename="../../../src/recognition/workers.py" line="147" />
+      <location filename="../../../src/recognition/workers.py" line="154" />
       <source>缺少 PyMuPDF 依赖: {error}</source>
       <translation>Missing PyMuPDF dependency: {error}</translation>
     </message>

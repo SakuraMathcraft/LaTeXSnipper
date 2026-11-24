@@ -38,6 +38,10 @@ def block_to_json(block: MathCraftBlock) -> dict:
         payload["column"] = block.column
     if block.paragraph_id is not None:
         payload["paragraph_id"] = block.paragraph_id
+    if block.heading_level is not None:
+        payload["heading_level"] = block.heading_level
+    if block.markdown_text:
+        payload["markdown_text"] = block.markdown_text
     if block.confidence_flags:
         payload["confidence_flags"] = list(block.confidence_flags)
     return payload

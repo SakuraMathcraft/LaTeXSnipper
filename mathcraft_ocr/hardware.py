@@ -23,6 +23,34 @@ class HardwareInfo:
     gpu_driver_version: str = ""
 
 
+@lru_cache(maxsize=1)
+def cpu_inference_threads() -> int:
+    """Budget threads per session so resident ORT pools can share the CPU."""
+    logical = os.cpu_count() or 1
+    affinity = getattr(os, "sched_getaffinity", None)
+    physical = None
+    if affinity is not None:
+        try:
+            logical = len(affinity(0)) or logical
+        except OSError:
+            pass
+    try:
+        import psutil  # type: ignore[import-not-found]
+    except ImportError:
+        psutil = None
+    if psutil is not None:
+        physical = psutil.cpu_count(logical=False)
+        if sys.platform == "win32":
+            try:
+                logical = len(psutil.Process().cpu_affinity()) or logical
+            except (psutil.Error, OSError):
+                pass
+    if physical:
+        return max(1, (min(logical, physical) + 1) // 2)
+    # Without physical topology, leave room for sibling threads and other sessions.
+    return max(1, (logical + 1) // 3)
+
+
 @lru_cache(maxsize=8)
 def detect_hardware_info(provider_info: ProviderInfo | None = None) -> HardwareInfo:
     total_mb, free_mb = _memory_status()

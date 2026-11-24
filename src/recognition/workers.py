@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import logging
 import queue
 import threading
 import time
+from collections import defaultdict
 from typing import cast
 
 from PIL import Image
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from localization.manager import translate as tr
+from mathcraft_ocr.pdf_text import PdfTextLine
 from recognition.error_messages import (
     CANCELED_WORKER_MESSAGE,
     EMPTY_RESULT_MESSAGE,
@@ -18,6 +21,10 @@ from recognition.error_messages import (
 )
 from recognition.image_input import validated_rgb_image
 from recognition.jobs import JobSource, RecognitionItemInput, RecognitionJobCoordinator
+from recognition.pdf_text import visible_pdf_text
+from recognition.postprocessing.mathcraft_document import MathCraftMarkdownDocument
+
+logger = logging.getLogger("latexsnipper.recognition.workers")
 
 
 class PredictionWorker(QObject):
@@ -172,7 +179,7 @@ class PdfPredictWorker(QObject):
         )
         render_thread.start()
 
-        page_results = []
+        document = MathCraftMarkdownDocument()
         try:
             while True:
                 if self._cancel_requested():
@@ -187,16 +194,15 @@ class PdfPredictWorker(QObject):
                     break
                 if isinstance(item, Exception):
                     raise item
-                progress_index, page_index, img, image_size = item
-                result = self._predict_page(img)
+                progress_index, page_index, img, pdf_text_lines = item
+                result = self._predict_page(img, pdf_text_lines)
                 if self._cancel_requested():
                     _set_elapsed()
                     self.failed.emit(CANCELED_WORKER_MESSAGE)
                     return
-                if isinstance(result, dict):
-                    result["page_index"] = page_index + 1
-                    result.setdefault("image_size", image_size)
-                    page_results.append(result)
+                result["page_index"] = page_index + 1
+                result.setdefault("image_size", img.size)
+                document.append(result)
                 self.progress.emit(progress_index + 1, total)
         except Exception as exc:
             _set_elapsed()
@@ -206,17 +212,7 @@ class PdfPredictWorker(QObject):
             self.failed.emit(str(exc))
             return
 
-        from recognition.postprocessing.mathcraft_document import (
-            compose_mathcraft_markdown_pages,
-        )
-
-        clean_results = [
-            page
-            for page in page_results
-            if isinstance(page, dict)
-            and (str(page.get("text") or "").strip() or page.get("blocks"))
-        ]
-        content = compose_mathcraft_markdown_pages(clean_results)
+        content = document.render()
         if not content.strip():
             _set_elapsed()
             self.failed.emit(EMPTY_RESULT_MESSAGE)
@@ -242,15 +238,40 @@ class PdfPredictWorker(QObject):
         render_doc = None
         try:
             render_doc = fitz.open(self.pdf_path)
+            outlines: dict[int, list[tuple[int, str]]] = defaultdict(list)
+            use_native_text = self.model_name == "mathcraft_mixed"
+            if use_native_text:
+                try:
+                    for level, title, page_number in render_doc.get_toc():
+                        outlines[page_number - 1].append((level, title))
+                except (RuntimeError, ValueError) as exc:
+                    logger.debug("Could not read PDF outline: %s", exc)
+            text_flags = fitz.TEXTFLAGS_RAWDICT & ~(
+                fitz.TEXT_PRESERVE_IMAGES
+                | fitz.TEXT_CID_FOR_UNKNOWN_UNICODE
+                | fitz.TEXT_PRESERVE_LIGATURES
+            )
             for progress_index, page_index in enumerate(page_indices):
                 if self._cancelled:
                     break
                 page = render_doc.load_page(page_index)
+                pdf_text_lines = None
+                if use_native_text:
+                    try:
+                        pdf_text_lines = visible_pdf_text(
+                            page, text_flags=text_flags, outline=outlines[page_index]
+                        )
+                    except (RuntimeError, ValueError) as exc:
+                        logger.debug(
+                            "Could not read text on PDF page %d: %s",
+                            page_index + 1,
+                            exc,
+                        )
                 pix = page.get_pixmap(dpi=self.dpi, alpha=False)
                 img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
                 if not self._put_render_item(
                     render_queue,
-                    (progress_index, page_index, img, [pix.width, pix.height]),
+                    (progress_index, page_index, img, pdf_text_lines),
                 ):
                     return
             self._put_render_item(render_queue, None)
@@ -263,14 +284,20 @@ class PdfPredictWorker(QObject):
             except Exception:
                 pass
 
-    def _predict_page(self, img: Image.Image) -> dict:
+    def _predict_page(
+        self, img: Image.Image, pdf_text_lines: list[PdfTextLine] | None
+    ) -> dict:
         mode = {
             "mathcraft": "formula",
             "mathcraft_text": "text",
             "mathcraft_mixed": "mixed",
         }.get(self.model_name, "mixed")
         job = self.coordinator.submit(
-            [RecognitionItemInput(image=validated_rgb_image(img))],
+            [
+                RecognitionItemInput(
+                    image=validated_rgb_image(img), pdf_text_lines=pdf_text_lines
+                )
+            ],
             principal_id="desktop-pdf",
             source=JobSource.PDF,
             mode=mode,
@@ -290,4 +317,4 @@ class PdfPredictWorker(QObject):
             raise RuntimeError(
                 recognition_error_code_message(error.get("code"), "mathcraft")
             )
-        return {"text": item["text"], "mode": mode}
+        return {"text": item["text"], "mode": mode, **(item.get("document") or {})}

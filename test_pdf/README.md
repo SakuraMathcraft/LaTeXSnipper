@@ -16,7 +16,7 @@ Keep these files as fixed test inputs:
 
 ## Output Policy
 
-Generated outputs belong under `outputs/` and are ignored by git except for `outputs/README.md`.
+Write generated results to the git-ignored `outputs/` directory when running a local regression. Compare the rendered source pages with the exported heading levels, author line, column order, emphasis, and formulas. Include a raster-only page to exercise OCR fallback.
 
 Use versioned folders for comparable baselines:
 

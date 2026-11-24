@@ -99,6 +99,9 @@ class MathCraftWorker:
         if action == "recognize_mixed":
             image = _require_image(request)
             min_text_score = float(request.get("min_text_score", 0.45))
+            pdf_text_lines = request.get("pdf_text_lines")
+            if pdf_text_lines is not None and not isinstance(pdf_text_lines, list):
+                raise ValueError("pdf_text_lines must be a list")
             max_formula_new_tokens = int(
                 request.get("max_formula_new_tokens", FORMULA_MAX_NEW_TOKENS)
             )
@@ -107,6 +110,7 @@ class MathCraftWorker:
                     image,
                     min_text_score=min_text_score,
                     max_formula_new_tokens=max_formula_new_tokens,
+                    **({"pdf_text_lines": pdf_text_lines} if pdf_text_lines else {}),
                 )
             )
         if action == "shutdown":

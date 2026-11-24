@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from bisect import bisect_left
 from dataclasses import dataclass
 from typing import Any
 
@@ -24,6 +25,11 @@ _DISPLAY_MATH_TEXT_RE = re.compile(
     r"\\begin\s*\{\s*(?:aligned|align|array|matrix|pmatrix|bmatrix|vmatrix|cases|split|gathered)\s*\}"
     r"|\\left\s*\("
 )
+_EQUATION_NUMBER_RE = re.compile(r"^\(\d+(?:\.\d+)*[a-z]?\)$", re.I)
+_NATIVE_ENVIRONMENT_RE = re.compile(
+    r"^(?:Theorem|Lemma|Corollary|Proposition|Definition|Proof|Remark|Example)"
+    r"(?:\s+\d+(?:\.\d+)*)?(?:\s*\([^)]+\))?[.:](?=\s|[A-Z]|$)"
+)
 
 
 @dataclass(slots=True)
@@ -31,6 +37,7 @@ class _Block:
     kind: str
     text: str
     page_index: int
+    heading_level: int | None = None
 
 
 @dataclass(slots=True)
@@ -50,18 +57,41 @@ class _StructuredBlock:
     column: int | None = None
     paragraph_id: int | None = None
     confidence_flags: tuple[str, ...] = ()
+    heading_level: int | None = None
+    markdown_text: str = ""
+
+
+class MathCraftMarkdownDocument:
+    """Keep document text and roles after each page's layout has been resolved."""
+
+    def __init__(self) -> None:
+        self._blocks: list[_Block] = []
+        self._ordinal = 0
+
+    def append(self, page: dict[str, Any]) -> None:
+        self._ordinal += 1
+        page_index = _safe_int(page.get("page_index")) or self._ordinal
+        structured = _extract_structured_blocks(page, page_index)
+        if any(block.source == "pdf_text" for block in structured):
+            self._blocks.extend(_native_page_blocks(structured, page_index))
+        else:
+            page_text = _structured_page_to_text(structured) or str(
+                page.get("text") or ""
+            )
+            self._blocks.extend(_page_text_to_blocks(page_text, page_index))
+
+    def render(self) -> str:
+        return _finish_document(self._blocks)
 
 
 def compose_mathcraft_markdown_pages(
     page_results: list[dict[str, Any]] | tuple[dict[str, Any], ...],
 ) -> str:
     """Compose page-level structured MathCraft OCR results into Markdown."""
-    page_texts: list[str] = []
-    for page_index, page in enumerate(page_results, start=1):
-        page_text = _structured_page_to_text(page, page_index)
-        if page_text.strip():
-            page_texts.append(page_text)
-    return compose_mathcraft_markdown_document(page_texts)
+    document = MathCraftMarkdownDocument()
+    for page in page_results:
+        document.append(page)
+    return document.render()
 
 
 def compose_mathcraft_markdown_document(
@@ -76,9 +106,13 @@ def compose_mathcraft_markdown_document(
     blocks: list[_Block] = []
     for page_index, page in enumerate(pages, start=1):
         blocks.extend(_page_text_to_blocks(page, page_index))
-    blocks = _promote_document_headings(blocks)
-    blocks = _merge_cross_page_continuations(blocks)
-    return _render_blocks(blocks)
+    return _finish_document(blocks)
+
+
+def _finish_document(blocks: list[_Block]) -> str:
+    return _render_blocks(
+        _merge_cross_page_continuations(_promote_document_headings(blocks))
+    )
 
 
 def _page_text_to_blocks(text: str, page_index: int) -> list[_Block]:
@@ -274,7 +308,12 @@ def _promote_document_headings(blocks: list[_Block]) -> list[_Block]:
                 first_text_seen = True
             continue
         text = block.text.strip()
-        if has_numbered_section and not first_text_seen and _looks_like_title(text):
+        if (
+            block.page_index == 1
+            and has_numbered_section
+            and not first_text_seen
+            and _looks_like_title(text)
+        ):
             promoted.append(_Block("title", text, block.page_index))
             first_text_seen = True
             continue
@@ -318,7 +357,13 @@ def _render_blocks(blocks: list[_Block]) -> str:
         if block.kind == "title":
             chunks.append(f"# {text}")
         elif block.kind == "heading":
-            chunks.append(_render_section_heading(text))
+            chunks.append(
+                f"{'#' * block.heading_level} {text}"
+                if block.heading_level
+                else _render_section_heading(text)
+            )
+        elif block.kind == "author":
+            chunks.append(f"*{text}*")
         elif block.kind == "formula":
             chunks.append(_normalize_display_math(text))
         elif block.kind == "list_item":
@@ -329,12 +374,117 @@ def _render_blocks(blocks: list[_Block]) -> str:
     return "\n\n".join(chunk for chunk in chunks if chunk.strip()).strip()
 
 
-def _structured_page_to_text(page: dict[str, Any], page_index: int) -> str:
-    if not isinstance(page, dict):
-        return str(page or "").strip()
-    blocks = _extract_structured_blocks(page, page_index)
-    if not blocks:
-        return str(page.get("text") or "").strip()
+def _native_page_blocks(
+    blocks: list[_StructuredBlock], page_index: int
+) -> list[_Block]:
+    result: list[_Block] = []
+    paragraph: list[str] = []
+    previous_group = None
+
+    def flush() -> None:
+        if paragraph:
+            text = _join_text_lines(paragraph)
+            text = re.sub(r"(?<=\S)\*\*\s+\*\*(?=\S)", " ", text)
+            result.append(_Block("paragraph", text, page_index))
+            paragraph.clear()
+
+    for line in _ordered_native_lines(_group_structured_blocks_into_lines(blocks)):
+        level = next(
+            (block.heading_level for block in line if block.heading_level), None
+        )
+        author = any(block.role == "author" for block in line)
+        group = _structured_line_group_key(line)
+        if level or author:
+            flush()
+            text = _render_structured_line(line)
+            if (
+                level
+                and result
+                and result[-1].heading_level == level
+                and (
+                    level == 1
+                    or group == previous_group
+                    or _SINGLE_CHAPTER_RE.fullmatch(result[-1].text)
+                )
+            ):
+                result[-1].text = _join_text_lines([result[-1].text, text])
+            else:
+                kind = "author" if author else "title" if level == 1 else "heading"
+                result.append(_Block(kind, text, page_index, level))
+        elif group[0] == "formula":
+            flush()
+            result.extend(
+                _page_text_to_blocks(_render_structured_line(line), page_index)
+            )
+        elif group[0] == "list":
+            flush()
+            result.append(
+                _Block("list_item", _render_structured_line(line)[2:], page_index)
+            )
+        else:
+            plain = _render_structured_line(line)
+            environment = _NATIVE_ENVIRONMENT_RE.match(plain)
+            text = _render_structured_line(line, native_markup=True)
+            if (
+                group[1] is not None
+                and previous_group == ("list", *group[1:])
+                and result[-1].kind == "list_item"
+            ):
+                result[-1].text = _join_text_lines([result[-1].text, text])
+                continue
+            if environment:
+                if text.startswith(environment[0]):
+                    text = (
+                        f"{environment[0]} {text[environment.end() :].lstrip()}".strip()
+                    )
+                else:
+                    text = re.sub(r"^(\*\*[^*]+[.:]\*\*)(?=\w)", r"\1 ", text)
+            if paragraph and (group != previous_group or environment):
+                flush()
+            paragraph.append(text)
+        previous_group = group
+    flush()
+    return result
+
+
+def _ordered_native_lines(
+    lines: list[list[_StructuredBlock]],
+) -> list[list[_StructuredBlock]]:
+    if not any(_structured_column(line[0]) == 1 for line in lines):
+        return lines
+    spans: list[float] = []
+    numbered = []
+    for line in lines:
+        x0, top, x1, bottom = _structured_union_box(line)
+        width = line[0].page_width
+        middle = (top + bottom) / 2
+        spanning = any(
+            block.heading_level == 1 or block.role == "author" for block in line
+        ) or (
+            width > 0
+            and x0 < width * 0.45
+            and x1 > width * 0.55
+            and x1 - x0 >= width * 0.48
+        )
+        if spanning:
+            spans.append(middle)
+        numbered.append((middle, x0, spanning, line))
+    spans.sort()
+    return [
+        item[3]
+        for item in sorted(
+            numbered,
+            key=lambda item: (
+                2 * bisect_left(spans, item[0]) + int(item[2]),
+                _structured_column(item[3][0]),
+                item[0],
+                item[1],
+            ),
+        )
+    ]
+
+
+def _structured_page_to_text(blocks: list[_StructuredBlock]) -> str:
     lines = _group_structured_blocks_into_lines(blocks)
     rendered: list[str] = []
     previous_group: tuple[str, int | None, int] | None = None
@@ -394,6 +544,8 @@ def _extract_structured_blocks(
             column=_safe_int(raw.get("column")),
             paragraph_id=_safe_int(raw.get("paragraph_id")),
             confidence_flags=_structured_flags(raw.get("confidence_flags")),
+            heading_level=_safe_int(raw.get("heading_level")),
+            markdown_text=str(raw.get("markdown_text") or "").strip(),
         )
         if not _is_structured_noise(block):
             blocks.append(block)
@@ -583,8 +735,9 @@ def _structured_line_group_key(
         return "heading", line[0].paragraph_id, column
     if "list" in roles:
         return "list", line[0].paragraph_id, column
+    text_blocks = [block for block in line if block.kind == "text"]
     paragraph_ids = {
-        block.paragraph_id for block in line if block.paragraph_id is not None
+        block.paragraph_id for block in text_blocks if block.paragraph_id is not None
     }
     return (
         "paragraph",
@@ -690,7 +843,9 @@ def _structured_y_overlap(
     return overlap / height
 
 
-def _render_structured_line(line: list[_StructuredBlock]) -> str:
+def _render_structured_line(
+    line: list[_StructuredBlock], *, native_markup: bool = False
+) -> str:
     if not line:
         return ""
     if _is_structured_display_formula_line(line):
@@ -702,13 +857,14 @@ def _render_structured_line(line: list[_StructuredBlock]) -> str:
         labels = [
             block.text.strip()
             for block in line
-            if block.role == "formula_label" and block.text.strip()
+            if _is_equation_label(block) and block.text.strip()
         ]
         formula_text = " ".join(
             block.text.strip()
             for block in line
             if block.text.strip()
-            and block.role not in {"formula_anchor", "formula_label"}
+            and block.role != "formula_anchor"
+            and not _is_equation_label(block)
         )
         chunks: list[str] = []
         if anchors:
@@ -733,11 +889,24 @@ def _render_structured_line(line: list[_StructuredBlock]) -> str:
         elif block.kind in {"embedding", "formula", "inline_formula"}:
             parts.append(f"${text}$")
         else:
-            parts.append(text)
+            parts.append(
+                block.markdown_text if native_markup and block.markdown_text else text
+            )
     return _join_text_lines(parts)
 
 
+def _is_equation_label(block: _StructuredBlock) -> bool:
+    return block.role == "formula_label" or (
+        block.source == "pdf_text"
+        and bool(_EQUATION_NUMBER_RE.fullmatch(block.text.strip()))
+    )
+
+
 def _is_structured_display_formula_line(line: list[_StructuredBlock]) -> bool:
+    if any(block.kind == "isolated" for block in line) and all(
+        block.kind == "isolated" or _is_equation_label(block) for block in line
+    ):
+        return True
     if any(block.is_display is True for block in line):
         return all(
             block.is_display is True

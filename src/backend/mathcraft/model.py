@@ -530,7 +530,11 @@ class ModelWrapper(QObject):
         return "model not loaded"
 
     def predict_result(
-        self, pil_img: Image.Image, model_name: str = "mathcraft"
+        self,
+        pil_img: Image.Image,
+        model_name: str = "mathcraft",
+        *,
+        pdf_text_lines: list | None = None,
     ) -> dict[str, Any]:
         model = self._normalize_model_name(model_name)
         mode = self._mode_for_model(model)
@@ -568,6 +572,9 @@ class ModelWrapper(QObject):
                         "action": "recognize_mixed",
                         "image": tmp_path,
                         "max_formula_new_tokens": FORMULA_RECOGNITION_MAX_NEW_TOKENS,
+                        **(
+                            {"pdf_text_lines": pdf_text_lines} if pdf_text_lines else {}
+                        ),
                     },
                     timeout_sec=600.0,
                 )
