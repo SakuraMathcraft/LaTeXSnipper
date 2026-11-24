@@ -6,7 +6,7 @@ import re
 from collections import Counter
 from typing import TYPE_CHECKING, Any, cast
 
-from mathcraft_ocr.pdf_text import PdfGlyph, PdfTextLine, unreliable_pdf_character
+from mathcraft_ocr.protocol import PdfGlyph, PdfTextLine, unreliable_pdf_character
 
 if TYPE_CHECKING:
     from fitz import Page

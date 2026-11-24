@@ -34,6 +34,9 @@ from release_installers import (  # noqa: E402
     run,
     windows_installer,
 )
+from runtime.application_validation import (  # noqa: E402
+    run_frozen_application_validation,
+)
 from runtime.component_archive import extract_archive  # noqa: E402
 from runtime.distribution_manifest import (  # noqa: E402
     Component,
@@ -42,7 +45,7 @@ from runtime.distribution_manifest import (  # noqa: E402
     read_json,
 )
 from runtime.installation_layout import macos_bundle  # noqa: E402
-from runtime.installed_resources import current_target  # noqa: E402
+from runtime.installed_resources import InstalledResources, current_target  # noqa: E402
 
 
 def build_inputs(target: str) -> dict[str, str]:
@@ -474,6 +477,10 @@ def package(args) -> None:
         if system == "macos":
             layout = (
                 create_macos_bundle(layout, manifest) / "Contents/Resources/desktop"
+            )
+        if edition == "cpu":
+            run_frozen_application_validation(
+                InstalledResources.load(layout), work / "application-validation.json"
             )
         if system == "windows":
             carrier = windows_installer(layout, output, manifest)

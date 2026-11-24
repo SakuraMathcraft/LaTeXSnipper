@@ -3,24 +3,10 @@
 from __future__ import annotations
 
 from itertools import groupby
-from typing import TypedDict
-from unicodedata import category
 
 from .layout import box_to_xyxy, overlap_ratio
+from .protocol import PdfGlyph, PdfTextLine, unreliable_pdf_character
 from .results import MathCraftBlock
-
-PdfGlyph = tuple[str, float, float, float, float, bool]
-
-
-class PdfTextLine(TypedDict):
-    glyphs: list[PdfGlyph]
-    heading_level: int | None
-    paragraph: int
-    role: str
-
-
-def unreliable_pdf_character(character: str) -> bool:
-    return character == "\ufffd" or category(character) in {"Co", "Cc", "Cs"}
 
 
 def has_native_columns(lines: list[PdfTextLine]) -> bool:

@@ -61,7 +61,6 @@ from .layout import (
 )
 from .manifest import Manifest, load_manifest
 from .pdf_text import (
-    PdfTextLine,
     has_native_columns,
     merge_pdf_structure,
     native_text_blocks,
@@ -75,6 +74,7 @@ from .profiles import (
     TEXT_RECOGNIZER_ID,
     model_id_for_role,
 )
+from .protocol import PdfTextLine
 from .providers import (
     ProviderInfo,
     ProviderRequest,

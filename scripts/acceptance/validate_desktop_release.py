@@ -15,6 +15,9 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT), str(ROOT / "src")]
 
 from mathcraft_ocr.protocol import validate_response  # noqa: E402
+from runtime.application_validation import (  # noqa: E402
+    run_frozen_application_validation,
+)
 from runtime.component_archive import extract_archive  # noqa: E402
 from runtime.distribution_manifest import (  # noqa: E402
     DistributionManifest,
@@ -219,32 +222,9 @@ def native_acceptance(
                 raise ManifestError("Business update changed the inference runtime")
             report: dict = {"first_install": True, "business_update": True}
             if target.edition == "cpu":
-                executable = (
-                    "LaTeXSnipper.exe"
-                    if target.platform == "windows"
-                    else "LaTeXSnipper"
+                report["application"] = run_frozen_application_validation(
+                    resources, work / "application-validation.json"
                 )
-                validation = work / "application-validation.json"
-                environment = {
-                    **os.environ,
-                    "QTWEBENGINE_CHROMIUM_FLAGS": "--disable-gpu --no-sandbox",
-                }
-                if target.platform == "linux":
-                    environment["QT_QPA_PLATFORM"] = "offscreen"
-                subprocess.run(
-                    [
-                        str(resources.directory("runtime") / executable),
-                        "--validate-application",
-                        str(validation),
-                    ],
-                    check=True,
-                    env=environment,
-                    timeout=180,
-                )
-                report["application"] = json.loads(
-                    validation.read_text(encoding="utf-8")
-                )
-            if target.edition == "cpu":
                 report["recognition"] = validate_recognition(root, target, work)
             reports[target.edition] = report
     finally:
