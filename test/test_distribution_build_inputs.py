@@ -621,6 +621,35 @@ def test_linux_application_package_owns_its_launchers_and_dependencies(
     assert inspected == [True]
 
 
+def test_linux_installer_archives_private_copies_of_shared_components(
+    tmp_path, monkeypatch
+):
+    import release_installers
+
+    layout = tmp_path / "layout"
+    for component in ("application", "runtime", "inference", "models"):
+        (layout / component).mkdir(parents=True)
+        (layout / component / "data.bin").write_bytes(component.encode("utf-8"))
+    (layout / "distribution.json").write_text("{}", encoding="utf-8")
+    output = tmp_path / "dist"
+    output.mkdir()
+
+    def create_archive(arguments, **kwargs):
+        payload = Path(arguments[-2]) / arguments[-1] / "payload"
+        for component in ("application", "runtime"):
+            source = layout / component / "data.bin"
+            copied = payload / component / "data.bin"
+            assert copied.read_bytes() == source.read_bytes()
+            assert not copied.samefile(source)
+        Path(arguments[2]).touch()
+
+    monkeypatch.setattr(release_installers, "run", create_archive)
+    archive = release_installers.linux_installer(
+        layout, output, SimpleNamespace(version="3.4.0", edition="gpu")
+    )
+    assert archive.is_file()
+
+
 def test_first_install_package_cleanup_preserves_the_active_transaction(
     tmp_path, monkeypatch
 ):

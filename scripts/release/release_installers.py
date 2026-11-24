@@ -51,11 +51,13 @@ def linux_installer(layout: Path, output: Path, manifest: DistributionManifest) 
     payload = carrier / "payload"
     payload.mkdir()
     for name in ("application", "runtime", "inference", "models"):
+        # Tar 1.34 treats ctime changes from another edition's hard links as file changes.
+        copy = shutil.copy2 if name in {"application", "runtime"} else link_or_copy
         shutil.copytree(
             layout / name,
             payload / name,
             symlinks=True,
-            copy_function=link_or_copy,
+            copy_function=copy,
         )
     shutil.copy2(layout / "distribution.json", payload / "distribution.json")
     script = carrier / "install.sh"
