@@ -6,7 +6,7 @@ from itertools import groupby
 from typing import TypedDict
 from unicodedata import category
 
-from .layout import box_to_xyxy
+from .layout import box_to_xyxy, overlap_ratio
 from .results import MathCraftBlock
 
 PdfGlyph = tuple[str, float, float, float, float, bool]
@@ -119,6 +119,43 @@ def native_text_blocks(
                 )
             )
     return blocks or None
+
+
+def merge_pdf_structure(
+    lines: list[PdfTextLine],
+    ocr_blocks: list[MathCraftBlock],
+    image_size: tuple[int, int],
+) -> list[MathCraftBlock]:
+    """Keep readable headings and bylines when the body requires raster OCR."""
+    structure = native_text_blocks(
+        [
+            line
+            for line in lines
+            if (line["heading_level"] is not None or line["role"] == "author")
+            and not any(
+                unreliable_pdf_character(char)
+                for glyph in line["glyphs"]
+                for char in glyph[0]
+            )
+        ],
+        [],
+        image_size,
+    )
+    if not structure:
+        return ocr_blocks
+    return structure + [
+        block
+        for block in ocr_blocks
+        if not any(
+            overlap_ratio(block.box, item.box) >= 0.55
+            or (
+                overlap_ratio(item.box, block.box) >= 0.8
+                and "".join(block.text.casefold().split())
+                == "".join(item.text.casefold().split())
+            )
+            for item in structure
+        )
+    ]
 
 
 def _bold_glyph_runs(glyphs: list[PdfGlyph]) -> str:

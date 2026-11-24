@@ -380,6 +380,12 @@ def _native_page_blocks(
     result: list[_Block] = []
     paragraph: list[str] = []
     previous_group = None
+    native_paragraphs = any(
+        block.source == "pdf_text"
+        and block.heading_level is None
+        and block.role != "author"
+        for block in blocks
+    )
 
     def flush() -> None:
         if paragraph:
@@ -439,8 +445,15 @@ def _native_page_blocks(
                     )
                 else:
                     text = re.sub(r"^(\*\*[^*]+[.:]\*\*)(?=\w)", r"\1 ", text)
-            if paragraph and (group != previous_group or environment):
-                flush()
+            if paragraph and previous_group is not None:
+                new_paragraph = (
+                    group != previous_group
+                    if native_paragraphs
+                    else _should_break_between_structured_groups(previous_group, group)
+                    or _should_start_new_paragraph_after_current(paragraph, text)
+                )
+                if environment or new_paragraph:
+                    flush()
             paragraph.append(text)
         previous_group = group
     flush()
