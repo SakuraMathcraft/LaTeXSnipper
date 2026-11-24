@@ -4,7 +4,12 @@ import fitz
 from PIL import Image
 
 from mathcraft_ocr.layout import annotate_blocks
-from mathcraft_ocr.pdf_text import has_native_columns, native_text_blocks
+from mathcraft_ocr.pdf_text import (
+    PdfTextLine,
+    has_native_columns,
+    merge_pdf_structure,
+    native_text_blocks,
+)
 from mathcraft_ocr.results import MathCraftBlock
 from mathcraft_ocr.serialization import block_to_json
 from recognition.jobs import RecognitionJobCoordinator
@@ -162,6 +167,76 @@ def test_native_text_replaces_formula_glyphs_and_keeps_adjacent_prose():
     blocks = native_text_blocks([line], [formula], (1000, 1000))
     assert blocks is not None
     assert [block.text for block in blocks] == ["Let", "be fixed."]
+
+
+def test_pdf_ocr_fallback_preserves_readable_headings_and_author():
+    def native_line(
+        text: str, row: int, level: int | None = None, role: str = ""
+    ) -> PdfTextLine:
+        top = row / 10
+        bottom = top + 0.04
+        if role == "author":
+            top, bottom = top + 0.012, top + 0.025
+        return {
+            "glyphs": [(text, 0.21, top, 0.79, bottom, False)],
+            "heading_level": level,
+            "paragraph": row,
+            "role": role,
+        }
+
+    def ocr_block(text: str, row: int) -> MathCraftBlock:
+        top = row * 100 + 4
+        return MathCraftBlock(
+            "text",
+            ((206, top), (794, top), (794, top + 30), (206, top + 30)),
+            text,
+            0.9,
+        )
+
+    size = (1000, 1000)
+    lines = [
+        native_line("Accurate Title", 1, 1),
+        native_line("Ada Lovelace", 2, role="author"),
+        native_line("Introduction", 3, 2),
+        native_line("A sentence with an unmapped glyph \ufffd.", 4),
+        native_line("An unmapped heading \ufffd", 5, 3),
+    ]
+    assert native_text_blocks(lines, [], size) is None
+    blocks = merge_pdf_structure(
+        lines,
+        [
+            ocr_block(text, row)
+            for row, text in enumerate(
+                [
+                    "Inaccurate title",
+                    "Ada Lovelace",
+                    "lntroduction",
+                    "Readable OCR body.",
+                    "OCR only heading text",
+                ],
+                start=1,
+            )
+        ],
+        size,
+    )
+    result = compose_mathcraft_markdown_pages(
+        [
+            {
+                "image_size": size,
+                "blocks": [
+                    block_to_json(block)
+                    for block in annotate_blocks(blocks, image_size=size)
+                ],
+            }
+        ]
+    )
+    assert result.startswith(
+        "# Accurate Title\n\n*Ada Lovelace*\n\n## Introduction\n\n"
+    )
+    assert "Readable OCR body." in result
+    assert "OCR only heading text" in result
+    assert "Inaccurate title" not in result
+    assert result.count("Ada Lovelace") == 1
 
 
 def test_pdf_job_passes_the_native_layer_and_returns_the_structured_result():

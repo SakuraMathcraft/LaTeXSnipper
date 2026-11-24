@@ -60,7 +60,12 @@ from .layout import (
     split_text_box_around_formulas,
 )
 from .manifest import Manifest, load_manifest
-from .pdf_text import PdfTextLine, has_native_columns, native_text_blocks
+from .pdf_text import (
+    PdfTextLine,
+    has_native_columns,
+    merge_pdf_structure,
+    native_text_blocks,
+)
 from .profiles import (
     FORMULA_DETECTOR_ID,
     FORMULA_RECOGNIZER_ID,
@@ -487,16 +492,16 @@ class MathCraftRuntime:
             if pdf_text_lines
             else None
         )
-        if native is None:
-            text_blocks, text_regions = self._mixed_text_ocr(
+        text_blocks = native
+        if text_blocks is None:
+            text_blocks = self._mixed_text_ocr(
                 rgb, tuple(item.box for item in formula_boxes), plan, min_text_score
             )
-            blocks = text_blocks + blocks
-        else:
-            text_regions = [
-                OCRRegion(block.box, block.text, block.score) for block in native
-            ]
-            blocks = native + blocks
+            if pdf_text_lines:
+                text_blocks = merge_pdf_structure(
+                    pdf_text_lines, text_blocks, (width, height)
+                )
+        blocks = text_blocks + blocks
         if not blocks:
             formula_text, formula_score = self._recognize_formula_rgb(
                 rgb,
@@ -524,7 +529,9 @@ class MathCraftRuntime:
             if native and pdf_text_lines
             else None,
         )
-        regions = tuple(text_regions)
+        regions = tuple(
+            OCRRegion(block.box, block.text, block.score) for block in text_blocks
+        )
         merged = merge_blocks_text(ordered_blocks)
         return MixedRecognitionResult(
             text=merged,
@@ -539,7 +546,7 @@ class MathCraftRuntime:
         formula_block_boxes: tuple[Box4P, ...],
         plan: WarmupPlan,
         min_text_score: float,
-    ) -> tuple[list[MathCraftBlock], list[OCRRegion]]:
+    ) -> list[MathCraftBlock]:
         height, width = rgb.shape[:2]
         bgr = rgb_to_bgr(rgb)
         masked_bgr = rgb_to_bgr(
@@ -553,7 +560,6 @@ class MathCraftRuntime:
             plan.model_dirs[TEXT_DETECTOR_ID],
             plan.provider_info,
         )
-        text_regions: list[OCRRegion] = []
         blocks: list[MathCraftBlock] = []
         text_segments = []
         for detected_box in detected_text_boxes:
@@ -582,8 +588,6 @@ class MathCraftRuntime:
                 cleaned_text = text.strip()
                 if not cleaned_text or score < min_text_score:
                     continue
-                region = OCRRegion(box=segment.box, text=cleaned_text, score=score)
-                text_regions.append(region)
                 blocks.append(
                     MathCraftBlock(
                         kind="text",
@@ -593,7 +597,7 @@ class MathCraftRuntime:
                         source="text_rec",
                     )
                 )
-        return blocks, text_regions
+        return blocks
 
     def _formula_adapters(self):
         if self._formula_variant == "fp32":
