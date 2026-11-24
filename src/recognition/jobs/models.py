@@ -10,7 +10,7 @@ from typing import Any
 
 from PIL import Image
 
-from mathcraft_ocr.pdf_text import PdfTextLine
+from mathcraft_ocr.protocol import PdfTextLine
 
 
 def utc_now_iso() -> str:

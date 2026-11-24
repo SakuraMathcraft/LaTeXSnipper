@@ -5,11 +5,11 @@ from PIL import Image
 
 from mathcraft_ocr.layout import annotate_blocks
 from mathcraft_ocr.pdf_text import (
-    PdfTextLine,
     has_native_columns,
     merge_pdf_structure,
     native_text_blocks,
 )
+from mathcraft_ocr.protocol import PdfTextLine
 from mathcraft_ocr.results import MathCraftBlock
 from mathcraft_ocr.serialization import block_to_json
 from recognition.jobs import RecognitionJobCoordinator

@@ -13,7 +13,7 @@ from PIL import Image
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from localization.manager import translate as tr
-from mathcraft_ocr.pdf_text import PdfTextLine
+from mathcraft_ocr.protocol import PdfTextLine
 from recognition.error_messages import (
     CANCELED_WORKER_MESSAGE,
     EMPTY_RESULT_MESSAGE,

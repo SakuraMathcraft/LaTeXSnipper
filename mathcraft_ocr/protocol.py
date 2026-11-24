@@ -1,8 +1,24 @@
 """Versioned desktop worker wire and model format contract."""
 
+from typing import TypedDict
+from unicodedata import category
+
 WORKER_PROTOCOL = 1
 MODEL_FORMAT = 2
 MODEL_MANIFEST = "models.v2.json"
+
+PdfGlyph = tuple[str, float, float, float, float, bool]
+
+
+class PdfTextLine(TypedDict):
+    glyphs: list[PdfGlyph]
+    heading_level: int | None
+    paragraph: int
+    role: str
+
+
+def unreliable_pdf_character(character: str) -> bool:
+    return character == "\ufffd" or category(character) in {"Co", "Cc", "Cs"}
 
 
 def validate_request(request: object) -> dict:

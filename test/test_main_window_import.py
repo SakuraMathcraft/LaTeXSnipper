@@ -68,7 +68,7 @@ def controller_app():
     return QApplication.instance() or QApplication([])
 
 
-def test_main_window_imports_without_test_stubs():
+def test_gui_imports_without_inference_dependencies():
     root = Path(__file__).resolve().parents[1]
     env = os.environ.copy()
     env["QT_QPA_PLATFORM"] = "offscreen"
@@ -76,7 +76,12 @@ def test_main_window_imports_without_test_stubs():
         [
             sys.executable,
             "-c",
-            "import sys; sys.path[:0] = sys.argv[1:]; from ui.main_window import MainWindow; assert callable(MainWindow)",
+            "import sys; "
+            "sys.modules.update(dict.fromkeys(('numpy', 'cv2', 'onnxruntime', "
+            "'rapidocr', 'transformers', 'tokenizers'))); "
+            "sys.path[:0] = sys.argv[1:]; "
+            "import runtime.model_resources, ui.model_resources_dialog; "
+            "from ui.main_window import MainWindow; assert callable(MainWindow)",
             str(root / "src"),
             str(root),
         ],
