@@ -34,7 +34,9 @@ def last_token_decoder(model_path: Path) -> bytes:
     return model.SerializeToString()
 
 
-def cache_row_selection_model(cross_count: int, self_count: int) -> bytes:
+def cache_row_selection_model(
+    cross_count: int, self_count: int, *, dynamic_fp32: bool = False
+) -> bytes:
     """Build the GPU gather graph for the active rows of all KV tensors."""
     model = onnx.ModelProto(ir_version=10)
     model.opset_import.add(version=17)
@@ -50,20 +52,14 @@ def cache_row_selection_model(cross_count: int, self_count: int) -> bytes:
                 dim.dim_param = dimension
 
     tensor(graph.input, "rows", onnx.TensorProto.INT64, ("remaining",))
+    dtype = onnx.TensorProto.FLOAT if dynamic_fp32 else onnx.TensorProto.FLOAT16
     for index in range(cross_count + self_count):
-        axis = 0 if index < cross_count else 1
+        axis = 0 if dynamic_fp32 or index < cross_count else 1
         outer = () if axis == 0 else (None,)
         trailing = (None, None, None)
         source, result = f"cache_{index}", f"selected_{index}"
-        tensor(
-            graph.input, source, onnx.TensorProto.FLOAT16, (*outer, "batch", *trailing)
-        )
-        tensor(
-            graph.output,
-            result,
-            onnx.TensorProto.FLOAT16,
-            (*outer, "remaining", *trailing),
-        )
+        tensor(graph.input, source, dtype, (*outer, "batch", *trailing))
+        tensor(graph.output, result, dtype, (*outer, "remaining", *trailing))
         gather = graph.node.add(
             op_type="Gather", input=[source, "rows"], output=[result]
         )

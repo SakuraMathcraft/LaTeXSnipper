@@ -600,10 +600,10 @@ class MathCraftRuntime:
         return blocks
 
     def _formula_adapters(self):
-        if self._formula_variant == "fp32":
+        if self._formula_variant != "auto":
             return (
-                partial(recognize_formula_image, model_variant="fp32"),
-                partial(recognize_formula_images, model_variant="fp32"),
+                partial(recognize_formula_image, model_variant=self._formula_variant),
+                partial(recognize_formula_images, model_variant=self._formula_variant),
             )
         return recognize_formula_image, recognize_formula_images
 
@@ -709,9 +709,9 @@ class MathCraftRuntime:
             if (
                 handler is not None
                 and role == FORMULA_RECOGNIZER_ID
-                and self._formula_variant == "fp32"
+                and self._formula_variant != "auto"
             ):
-                handler = partial(handler, model_variant="fp32")
+                handler = partial(handler, model_variant=self._formula_variant)
             if handler is None:
                 unsupported.append(model_id)
                 component_statuses.append(

@@ -70,7 +70,10 @@ def build_parser() -> argparse.ArgumentParser:
             "--formula-variant",
             choices=FORMULA_VARIANT_CHOICES,
             default="auto",
-            help="Formula weights. Auto selects CPU INT8, CUDA FP16, or FP32.",
+            help=(
+                "Formula weights. Auto selects CPU INT8, CUDA FP16, or original FP32. "
+                "fp32-v2 selects the incremental FP32 recognizer."
+            ),
         )
     return parser
 

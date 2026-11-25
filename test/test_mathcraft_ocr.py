@@ -156,7 +156,7 @@ def test_manifest_loads_expected_models() -> None:
     expected = (
         set(edition_model_ids("cpu"))
         | set(edition_model_ids("gpu"))
-        | {FORMULA_DETECTOR_ID, FORMULA_RECOGNIZER_ID}
+        | {FORMULA_DETECTOR_ID, FORMULA_RECOGNIZER_ID, "mathcraft-formula-rec-fp32-v2"}
     )
     assert set(manifest.models) == expected
 
