@@ -103,7 +103,8 @@ def test_cpu_feeds_next_cache_and_compacts_cross_and_self_attention():
     assert decoder.cache["past_self_key.0"].shape == (1, 8, 2, 32)
 
 
-def test_cache_row_selection_preserves_each_cache_layout():
+@pytest.mark.parametrize("dynamic_fp32", [False, True])
+def test_cache_row_selection_preserves_each_cache_layout(dynamic_fp32):
     if importlib.util.find_spec("onnxruntime") is None:
         pytest.skip("ONNX Runtime is unavailable")
     # Load the native runtime in its own process, like the desktop OCR worker.
@@ -115,19 +116,27 @@ def test_cache_row_selection_preserves_each_cache_layout():
         sys.path.insert(0, sys.argv[1])
         from mathcraft_ocr.adapters.formula_model import cache_row_selection_model
 
+        dynamic_fp32 = sys.argv[2] == "True"
+        dtype = np.float32 if dynamic_fp32 else np.float16
         session = ort.InferenceSession(
-            cache_row_selection_model(2, 1), providers=["CPUExecutionProvider"]
+            cache_row_selection_model(2, 1, dynamic_fp32=dynamic_fp32),
+            providers=["CPUExecutionProvider"]
         )
-        cross_key = np.arange(24, dtype=np.float16).reshape(3, 2, 2, 2)
+        cross_key = np.arange(24, dtype=dtype).reshape(3, 2, 2, 2)
         cross_value = cross_key + 100
-        self_cache = np.arange(48, dtype=np.float16).reshape(2, 3, 2, 2, 2)
+        self_cache = (
+            cross_key + 200 if dynamic_fp32
+            else np.arange(48, dtype=dtype).reshape(2, 3, 2, 2, 2)
+        )
         rows = np.array([0, 2], dtype=np.int64)
         selected = session.run(None, {
             "rows": rows, "cache_0": cross_key, "cache_1": cross_value, "cache_2": self_cache,
         })
         np.testing.assert_array_equal(selected[0], cross_key[rows])
         np.testing.assert_array_equal(selected[1], cross_value[rows])
-        np.testing.assert_array_equal(selected[2], self_cache[:, rows])
+        np.testing.assert_array_equal(
+            selected[2], self_cache[rows] if dynamic_fp32 else self_cache[:, rows]
+        )
         """)
     result = subprocess.run(
         [
@@ -138,6 +147,7 @@ def test_cache_row_selection_preserves_each_cache_layout():
             "-c",
             code,
             str(Path(__file__).parents[1]),
+            str(dynamic_fp32),
         ],
         capture_output=True,
         encoding="utf-8",

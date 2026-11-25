@@ -20,6 +20,12 @@ The package is developed for LaTeXSnipper but is usable as a standalone Python l
 
 These commands install the standalone library into your selected Python environment. LaTeXSnipper desktop installers already include their inference Python, dependencies and models.
 
+The `fp32-v2` variant requires MathCraft OCR 0.3.4 or later. If PyPI offers an older version, install from a local checkout of [MathCraft-Models](https://github.com/SakuraMathcraft/MathCraft-Models). Choose one backend extra for your environment. For CPU, run the following from the repository root.
+
++```powershell
+python -m pip install ".[cpu]"
+```
+
 CPU backend:
 
 ```powershell
@@ -160,7 +166,9 @@ macOS: ~/Library/Application Support/LaTeXSnipper/MathCraft/models
 Linux: ${XDG_DATA_HOME:-~/.local/share}/LaTeXSnipper/MathCraft/models
 ```
 
-The standalone catalog in `mathcraft_ocr/manifests/models.v2.json` declares the optimized v2 model sets and the original FP32 formula weights. Formula and mixed profiles select CPU INT8, CUDA FP16, or FP32 according to the active Provider. Developer-controlled Providers such as TensorRT, DirectML, CoreML, and OpenVINO use FP32 formula models where available. Select FP32 explicitly with `--formula-variant fp32` in the CLI or `MathCraftRuntime(formula_variant="fp32")` in Python.
+The standalone catalog in `mathcraft_ocr/manifests/models.v2.json` includes CPU INT8, CUDA FP16, incremental FP32, and the original FP32 formula weights. Automatic selection uses CPU INT8 on CPU, CUDA FP16 on CUDA, and original FP32 for the other supported Providers. Select original FP32 explicitly with `--formula-variant fp32` or `MathCraftRuntime(formula_variant="fp32")`.
+
+MathCraft OCR 0.3.4 adds the opt-in `fp32-v2` variant for CPU, CUDA, TensorRT, DirectML, CoreML, and OpenVINO. Use `--formula-variant fp32-v2` with `mathcraft ocr`, `warmup`, or `worker`, or pass `formula_variant="fp32-v2"` to `MathCraftRuntime`. The mixed profile reuses the original FP32 formula detector and common text models. CoreML execution and acceleration have not been verified on a Mac.
 
 Packaged desktop workers use only the installed model component and disable automatic model downloads. Application updates replace only the application layer; use the complete desktop installer to restore missing or damaged inference environments and models. Source desktop workers use the platform default cache; standalone library and CLI cache settings and automatic downloads remain independent. See the [user data map](https://github.com/SakuraMathcraft/LaTeXSnipper/blob/main/docs/user_data_storage.md).
 
@@ -179,9 +187,11 @@ Each profile verifies its model files before initialization and reuses the
 initialized sessions and verified paths for subsequent recognition requests.
 `check_models()` and `mathcraft models check` always verify current file contents.
 Restart the process after replacing model resources to load the updated files.
-The optimized formula decoders run one output token per step and reuse the
-attention KV cache. The CUDA FP16 decoder keeps that cache on the GPU. The FP32
-decoder uses an in-memory graph transformation to return only the last token's logits.
+The v2 formula decoders generate one token per step and reuse attention KV
+caches. CUDA FP16 keeps its KV cache on the GPU. The incremental FP32 decoder
+also keeps KV on the GPU when the session chain includes CUDA and the active
+Provider is CUDA or TensorRT. The original FP32 decoder uses an in-memory graph
+transformation to return only the last token's logits.
 
 When a custom manifest omits a model required by the selected profile, `warmup()`
 reports its ID in `missing_models` and recognition raises `ModelCacheError`.

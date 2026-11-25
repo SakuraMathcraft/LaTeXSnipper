@@ -761,6 +761,8 @@ python src/main.py
 
 源码桌面端使用启动应用的 Python 环境，按 CUDA、DirectML、CoreML、OpenVINO、CPU 的顺序选择该环境中 ONNX Runtime 提供的第一个计算后端。公式权重随所选后端匹配，缓存缺失或校验失败时按需下载。使用 CUDA 12.8 和 cuDNN 9 的环境可用 `python -m pip install -e '.[gpu-cu12]'` 安装 GPU 版，CPU 版和 GPU 版应分别装在不同环境。扩展导出所需工具见“预览与导出”。
 
+在 CLI 中用 `--formula-variant fp32-v2`，或在 Python SDK 中传入 `formula_variant="fp32-v2"`，可为 CPU、CUDA、TensorRT、DirectML、CoreML 或 OpenVINO 显式选择增量 FP32 公式识别权重。CoreML 尚待 Mac 真机验证。
+
 == 检查与发行构建
 
 在选定环境中安装检查工具后执行：
@@ -2212,7 +2214,7 @@ python -m mathcraft_ocr ocr page.png --profile mixed --provider auto --output re
 
 #heading(level: 1)[模型集与识别配置] <sec-mathcraft-models>
 
-MathCraft OCR 运行时版本为 `0.3.3`，桌面模型来自 #link("https://github.com/SakuraMathcraft/MathCraft-Models/releases/tag/v2.0.0")[MathCraft Models v2.0.0]。每种桌面发行版都包含以下模型组件，两版共用文字模型：
+MathCraft OCR 运行时版本为 `0.3.4`，桌面模型来自 #link("https://github.com/SakuraMathcraft/MathCraft-Models/releases/tag/v2.0.0")[MathCraft Models v2.0.0]。每种桌面发行版都包含以下模型组件，两版共用文字模型：
 
 #block(
   inset: 12pt,

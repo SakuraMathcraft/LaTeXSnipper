@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Protocol, cast
 
 import numpy as np
 
-from ..profiles import CUDA_PROVIDER, resolve_formula_variant
+from ..profiles import CUDA_PROVIDER, FP32_V2, resolve_formula_variant
 from ..providers import ProviderInfo
 from .common import create_session
 
@@ -139,7 +139,7 @@ class CpuDecoder:
 
 @lru_cache(maxsize=8)
 def _cuda_cache_row_session(
-    device_id: int, cross_count: int, self_count: int
+    device_id: int, cross_count: int, self_count: int, *, dynamic_fp32: bool = False
 ) -> InferenceSession:
     import onnxruntime as ort
 
@@ -148,7 +148,7 @@ def _cuda_cache_row_session(
     options = ort.SessionOptions()
     options.add_session_config_entry("session.disable_cpu_ep_fallback", "1")
     session = ort.InferenceSession(
-        cache_row_selection_model(cross_count, self_count),
+        cache_row_selection_model(cross_count, self_count, dynamic_fp32=dynamic_fp32),
         sess_options=options,
         providers=[(CUDA_PROVIDER, {"device_id": device_id})],
         enable_fallback=False,
@@ -157,27 +157,103 @@ def _cuda_cache_row_session(
     return session
 
 
+def _project_cuda_cache(encoder, projection, pixels: np.ndarray, device_id: int):
+    encoder_io = encoder.io_binding()
+    encoder_io.bind_cpu_input(encoder.get_inputs()[0].name, pixels)
+    encoder_io.bind_output(encoder.get_outputs()[0].name, "cuda", device_id)
+    encoder.run_with_iobinding(encoder_io)
+
+    projection_io = projection.io_binding()
+    projection_io.bind_ortvalue_input(
+        projection.get_inputs()[0].name, encoder_io.get_outputs()[0]
+    )
+    names = [output.name for output in projection.get_outputs()]
+    for name in names:
+        projection_io.bind_output(name, "cuda", device_id)
+    projection.run_with_iobinding(projection_io)
+    return names, projection_io.get_outputs()
+
+
+def _select_cuda_cache_rows(
+    gather, device_id: int, rows: np.ndarray, caches: tuple[OrtValue, ...]
+):
+    binding = gather.io_binding()
+    binding.bind_cpu_input("rows", rows)
+    for index, value in enumerate(caches):
+        binding.bind_ortvalue_input(f"cache_{index}", value)
+        binding.bind_output(f"selected_{index}", "cuda", device_id)
+    gather.run_with_iobinding(binding)
+    return binding.get_outputs()
+
+
+class CudaFp32Decoder:
+    def __init__(self, sessions: tuple, pixels: np.ndarray, device_id: int) -> None:
+        encoder, projection, self.session = sessions
+        self.device_id = device_id
+        self.cross_names, self.cross_cache = _project_cuda_cache(
+            encoder, projection, pixels, device_id
+        )
+        self.past_names = [
+            value.name
+            for value in self.session.get_inputs()
+            if value.name.startswith("past_self_")
+        ]
+        self.present_names = [
+            name.replace("past_", "present_", 1) for name in self.past_names
+        ]
+        self.empty = np.empty((len(pixels), 8, 0, 32), dtype=np.float32)
+        self.self_cache: list[OrtValue] = []
+
+    def step(self, ids: np.ndarray, position: int) -> tuple[np.ndarray, np.ndarray]:
+        import onnxruntime as ort
+
+        binding = self.session.io_binding()
+        binding.bind_cpu_input("input_ids", ids)
+        for name, value in zip(self.cross_names, self.cross_cache, strict=True):
+            binding.bind_ortvalue_input(name, value)
+        if position == 0:
+            for name in self.past_names:
+                binding.bind_cpu_input(name, self.empty)
+        else:
+            for name, value in zip(self.past_names, self.self_cache, strict=True):
+                binding.bind_ortvalue_input(name, value)
+        binding.bind_output("logits", "cpu")
+        shape = [len(ids), 8, position + 1, 32]
+        present = [
+            ort.OrtValue.ortvalue_from_shape_and_type(
+                shape, np.float32, "cuda", self.device_id
+            )
+            for _ in self.present_names
+        ]
+        for name, value in zip(self.present_names, present, strict=True):
+            binding.bind_ortvalue_output(name, value)
+        self.session.run_with_iobinding(binding)
+        self.self_cache = present
+        return _greedy_tokens(binding.get_outputs()[0].numpy())
+
+    def compact(self, rows: np.ndarray) -> bool:
+        cross_count = len(self.cross_cache)
+        caches = (*self.cross_cache, *self.self_cache)
+        gather = _cuda_cache_row_session(
+            self.device_id, cross_count, len(self.self_cache), dynamic_fp32=True
+        )
+        selected = _select_cuda_cache_rows(gather, self.device_id, rows, caches)
+        self.cross_cache, self.self_cache = (
+            selected[:cross_count],
+            selected[cross_count:],
+        )
+        return True
+
+
 class CudaDecoder:
     def __init__(self, sessions: tuple, pixels: np.ndarray, device_id: int) -> None:
         import onnxruntime as ort
 
         encoder, projection, self.session = sessions
         self.device_id = device_id
-        encoder_io = encoder.io_binding()
-        encoder_io.bind_cpu_input(encoder.get_inputs()[0].name, pixels)
-        encoder_io.bind_output(encoder.get_outputs()[0].name, "cuda", device_id)
-        encoder.run_with_iobinding(encoder_io)
-
-        projection_io = projection.io_binding()
-        projection_io.bind_ortvalue_input(
-            projection.get_inputs()[0].name, encoder_io.get_outputs()[0]
+        self.cross_names, self.cross_cache = _project_cuda_cache(
+            encoder, projection, pixels, device_id
         )
-        self.cross_names = [output.name for output in projection.get_outputs()]
-        for name in self.cross_names:
-            projection_io.bind_output(name, "cuda", device_id)
-        projection.run_with_iobinding(projection_io)
-
-        self.cross_cache = projection_io.get_outputs()
         initial_cache = np.zeros((2, len(pixels), 8, 512, 32), dtype=np.float16)
         self.self_cache = [
             ort.OrtValue.ortvalue_from_numpy(initial_cache, "cuda", device_id)
@@ -224,13 +300,10 @@ class CudaDecoder:
         gather = _cuda_cache_row_session(
             self.device_id, cross_count, len(self.self_cache)
         )
-        binding = gather.io_binding()
-        binding.bind_cpu_input("rows", rows)
-        for index, value in enumerate((*self.cross_cache, *self.self_cache)):
-            binding.bind_ortvalue_input(f"cache_{index}", value)
-            binding.bind_output(f"selected_{index}", "cuda", self.device_id)
         try:
-            gather.run_with_iobinding(binding)
+            selected = _select_cuda_cache_rows(
+                gather, self.device_id, rows, (*self.cross_cache, *self.self_cache)
+            )
         except Exception as exc:
             error = str(exc).lower()
             if not any(
@@ -245,7 +318,6 @@ class CudaDecoder:
             logger.debug("Leaving finished formula rows in the batch: %s", exc)
             self.compaction_disabled = True
             return False
-        selected = binding.get_outputs()
         self.cross_cache, self.self_cache = (
             selected[:cross_count],
             selected[cross_count:],
@@ -271,4 +343,10 @@ def formula_decoder(
     pixels = np.ascontiguousarray(pixel_values, dtype=np.float32)
     if variant == "fp32":
         return Fp32Decoder(sessions, pixels, device_id)
+    if (
+        variant == FP32_V2
+        and provider.use_cuda
+        and all(CUDA_PROVIDER in session.get_providers() for session in sessions)
+    ):
+        return CudaFp32Decoder(sessions, pixels, int(provider.device_id or 0))
     return CpuDecoder(sessions, pixels)

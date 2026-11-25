@@ -202,6 +202,52 @@
         "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v1.0.0/mathcraft-formula-rec.zip"
       ],
       "optional": true
+    },
+    "mathcraft-formula-rec-fp32-v2": {
+      "version": "2",
+      "runtime": "onnx",
+      "files": [
+        {
+          "path": "config.json",
+          "sha256": "cc60b5e3fa221c49086147e82583b3bf62a62917bddf38decfccf7ccfdb1e53b"
+        },
+        {
+          "path": "decoder_cross_kv_model.onnx",
+          "sha256": "8ccc5d1f5b887df9e2050f4f38ea5f3d553f3968c12a6574023cd2999a287b8c"
+        },
+        {
+          "path": "decoder_with_past_model.onnx",
+          "sha256": "54c819e00cf8b3dba3b0136c96811220893ba2901418ee6dcfc89a7524e32fe4"
+        },
+        {
+          "path": "encoder_model.onnx",
+          "sha256": "bd8d5c322792e9ec45793af5569e9748f82a3d728a9e00213dbfc56c1486f37d"
+        },
+        {
+          "path": "generation_config.json",
+          "sha256": "cbea88288d5576a9655ad04e2456768544be22273a1c5ca160e0d16384639b4f"
+        },
+        {
+          "path": "preprocessor_config.json",
+          "sha256": "36a945a7cc645688b9ef64dabae16979cf5f7c1c448569cc306694edc0598b9b"
+        },
+        {
+          "path": "special_tokens_map.json",
+          "sha256": "8c785abebea9ae3257b61681b4e6fd8365ceafde980c21970d001e834cf10835"
+        },
+        {
+          "path": "tokenizer.json",
+          "sha256": "3e2ab757277d22639bec28c9d7972e352d3d1dba223051fa674002dc5ab64df3"
+        },
+        {
+          "path": "tokenizer_config.json",
+          "sha256": "7ffff31747c73b1a462b766abfc128e03f669e5b8452fe6e175b1430a078ac8d"
+        }
+      ],
+      "sources": [
+        "https://github.com/SakuraMathcraft/MathCraft-Models/releases/download/v2.0.0/mathcraft-formula-rec-fp32-v2.zip"
+      ],
+      "optional": true
     }
   }
 }
