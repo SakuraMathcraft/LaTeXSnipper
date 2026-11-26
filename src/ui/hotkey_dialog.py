@@ -6,6 +6,7 @@ import sys
 from collections.abc import Callable
 
 from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QKeyEvent
 from PyQt6.QtWidgets import QDialog, QLabel, QLineEdit, QSizePolicy, QVBoxLayout
 from qfluentwidgets import FluentIcon, PushButton
 
@@ -23,6 +24,61 @@ _HOTKEY_HELP_TRANSLATION_SOURCES = (
 
 def localized_hotkey_help_text(platform: str | None = None) -> str:
     return tr(hotkey_help_text(platform))
+
+
+class _HotkeyEdit(QLineEdit):
+    def __init__(self, dialog: QDialog):
+        super().__init__(dialog)
+        self._dialog = dialog
+
+    def keyPressEvent(self, a0: QKeyEvent | None) -> None:
+        if a0 is None:
+            return
+        if a0.key() == Qt.Key.Key_Escape:
+            self._dialog.reject()
+            return
+        k = a0.key()
+        mods = a0.modifiers()
+        has_shift = bool(mods & Qt.KeyboardModifier.ShiftModifier)
+        if sys.platform == "darwin":
+            has_command = bool(mods & Qt.KeyboardModifier.MetaModifier)
+            has_extra = bool(
+                mods
+                & (
+                    Qt.KeyboardModifier.ControlModifier
+                    | Qt.KeyboardModifier.GroupSwitchModifier
+                )
+            )
+            if has_command and not has_extra and Qt.Key.Key_A <= k <= Qt.Key.Key_Z:
+                modifiers = ["Meta"]
+                if mods & Qt.KeyboardModifier.AltModifier:
+                    modifiers.append("Alt")
+                if has_shift:
+                    modifiers.append("Shift")
+                self.setText("+".join([*modifiers, chr(k)]))
+                self.setFocus()
+                self.selectAll()
+            else:
+                self.setText("")
+                self.setFocus()
+            return
+
+        has_ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
+        has_extra = bool(
+            mods
+            & (
+                Qt.KeyboardModifier.AltModifier
+                | Qt.KeyboardModifier.MetaModifier
+                | Qt.KeyboardModifier.GroupSwitchModifier
+            )
+        )
+        if has_ctrl and not has_extra and Qt.Key.Key_A <= k <= Qt.Key.Key_Z:
+            self.setText(f"Ctrl+Shift+{chr(k)}" if has_shift else f"Ctrl+{chr(k)}")
+            self.setFocus()
+            self.selectAll()
+        else:
+            self.setText("")
+            self.setFocus()
 
 
 def create_hotkey_dialog(
@@ -56,7 +112,7 @@ def create_hotkey_dialog(
     lay.addWidget(current_label)
     lay.addWidget(hint_label)
 
-    edit = QLineEdit(dlg)
+    edit = _HotkeyEdit(dlg)
     edit.setReadOnly(True)
     edit.setFixedHeight(34)
     edit.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -77,54 +133,6 @@ QLineEdit:focus {{
 """
     )
 
-    def keyPressEvent(ev):
-        if ev.key() == Qt.Key.Key_Escape:
-            dlg.reject()
-            return
-        k = ev.key()
-        mods = ev.modifiers()
-        has_shift = bool(mods & Qt.KeyboardModifier.ShiftModifier)
-        if sys.platform == "darwin":
-            has_command = bool(mods & Qt.KeyboardModifier.MetaModifier)
-            has_extra = bool(
-                mods
-                & (
-                    Qt.KeyboardModifier.ControlModifier
-                    | Qt.KeyboardModifier.GroupSwitchModifier
-                )
-            )
-            if has_command and not has_extra and Qt.Key.Key_A <= k <= Qt.Key.Key_Z:
-                modifiers = ["Meta"]
-                if mods & Qt.KeyboardModifier.AltModifier:
-                    modifiers.append("Alt")
-                if has_shift:
-                    modifiers.append("Shift")
-                edit.setText("+".join([*modifiers, chr(k)]))
-                edit.setFocus()
-                edit.selectAll()
-            else:
-                edit.setText("")
-                edit.setFocus()
-            return
-
-        has_ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
-        has_extra = bool(
-            mods
-            & (
-                Qt.KeyboardModifier.AltModifier
-                | Qt.KeyboardModifier.MetaModifier
-                | Qt.KeyboardModifier.GroupSwitchModifier
-            )
-        )
-        if has_ctrl and not has_extra and Qt.Key.Key_A <= k <= Qt.Key.Key_Z:
-            edit.setText(f"Ctrl+Shift+{chr(k)}" if has_shift else f"Ctrl+{chr(k)}")
-            edit.setFocus()
-            edit.selectAll()
-        else:
-            edit.setText("")
-            edit.setFocus()
-
-    edit.keyPressEvent = keyPressEvent
     lay.addWidget(edit)
     lay.addSpacing(8)
 

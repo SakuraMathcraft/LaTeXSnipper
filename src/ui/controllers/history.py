@@ -26,6 +26,7 @@ from runtime.history_store import load_history_store, save_history_store
 from ui.edit_formula_dialog import EditFormulaDialog
 from ui.formula_export_menu import populate_formula_export_menu
 from ui.history_panel import (
+    HistoryRow,
     clear_history_rows,
     history_display_entries,
     refresh_history_order_button,
@@ -68,7 +69,7 @@ class HistoryController(QObject):
         self._formula_names = {}
         self._formula_types = {}
 
-    def _show_history_context_menu(self, row: QWidget, global_pos):
+    def _show_history_context_menu(self, row: HistoryRow, global_pos):
         if not self._row_is_alive(row):
             return
         latex = self._safe_row_text(row)
@@ -102,7 +103,9 @@ class HistoryController(QObject):
         if not ok:
             return
         self.set_label(latex, new_name)
-        self.windows.favorites_window.set_label(latex, new_name)
+        favorites = self.windows.favorites_window
+        if favorites is not None:
+            favorites.set_label(latex, new_name)
 
     def _history_row_index(self, row: QWidget):
         actual_index = getattr(row, "_history_index", None)
@@ -116,7 +119,7 @@ class HistoryController(QObject):
                 return i
         return None
 
-    def _edit_history_row(self, row: QWidget):
+    def _edit_history_row(self, row: HistoryRow):
         old_latex = getattr(row, "_latex_text", "")
         dlg = EditFormulaDialog(
             old_latex, self.view, content_type=self._formula_types[old_latex]
@@ -194,7 +197,10 @@ class HistoryController(QObject):
             self.status.show_action_status(tr("内容不存在"), level="warning")
             return
         try:
-            QApplication.clipboard().setText(txt)
+            clipboard = QApplication.clipboard()
+            if clipboard is None:
+                raise RuntimeError("Qt clipboard is unavailable")
+            clipboard.setText(txt)
             self.status.set_action_status(tr("已复制"))
         except Exception:
             try:
@@ -208,9 +214,11 @@ class HistoryController(QObject):
         if not txt:
             self.status.show_action_status(tr("内容不存在"), level="warning")
             return
-        self.windows.favorites_window.add_favorite(
-            txt, content_type=normalize_content_type(self._formula_types[txt])
-        )
+        favorites = self.windows.favorites_window
+        if favorites is not None:
+            favorites.add_favorite(
+                txt, content_type=normalize_content_type(self._formula_types[txt])
+            )
 
     def _do_delete_row(self, row):
         txt = self._safe_row_text(row)

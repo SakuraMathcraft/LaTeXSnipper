@@ -116,12 +116,14 @@ class FavoritesWindow(QMainWindow):
         self._esc_shortcut.activated.connect(self.close)
         self.apply_theme_styles(force=True)
 
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Escape:
-            self.close()
-            event.accept()
+    def keyPressEvent(self, a0):
+        if a0 is None:
             return
-        super().keyPressEvent(event)
+        if a0.key() == Qt.Key.Key_Escape:
+            self.close()
+            a0.accept()
+            return
+        super().keyPressEvent(a0)
 
     def _favorites_list_qss(self) -> str:
         t = preview_theme_tokens()
@@ -147,10 +149,12 @@ class FavoritesWindow(QMainWindow):
         except Exception:
             pass
 
-    def event(self, e):
-        result = super().event(e)
+    def event(self, event):
+        if event is None:
+            return False
+        result = super().event(event)
         try:
-            if e.type() in (
+            if event.type() in (
                 QEvent.Type.StyleChange,
                 QEvent.Type.PaletteChange,
                 QEvent.Type.ApplicationPaletteChange,

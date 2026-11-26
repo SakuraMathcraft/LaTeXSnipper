@@ -98,7 +98,10 @@ class RuntimeLogDialog(QDialog):
 
     def _copy_all(self):
         try:
-            QApplication.clipboard().setText(self.txt.toPlainText())
+            clipboard = QApplication.clipboard()
+            if clipboard is None:
+                raise RuntimeError("Qt clipboard is unavailable")
+            clipboard.setText(self.txt.toPlainText())
             try:
                 from qfluentwidgets import InfoBar, InfoBarPosition
 
@@ -142,23 +145,28 @@ class RuntimeLogDialog(QDialog):
                 self.txt.moveCursor(QTextCursor.MoveOperation.End)
                 self.txt.insertPlainText(chunk)
                 sb = self.txt.verticalScrollBar()
-                sb.setValue(sb.maximum())
+                if sb is not None:
+                    sb.setValue(sb.maximum())
         except Exception:
             pass
 
-    def closeEvent(self, ev):
+    def closeEvent(self, a0):
+        if a0 is None:
+            return
         try:
-            ev.ignore()
+            a0.ignore()
             self.hide()
             return
         except Exception:
             pass
-        return super().closeEvent(ev)
+        return super().closeEvent(a0)
 
-    def event(self, e):
-        result = super().event(e)
+    def event(self, a0):
+        if a0 is None:
+            return False
+        result = super().event(a0)
         try:
-            if e.type() in (
+            if a0.type() in (
                 QEvent.Type.StyleChange,
                 QEvent.Type.PaletteChange,
                 QEvent.Type.ApplicationPaletteChange,
@@ -168,8 +176,8 @@ class RuntimeLogDialog(QDialog):
             pass
         return result
 
-    def showEvent(self, event):
-        super().showEvent(event)
+    def showEvent(self, a0):
+        super().showEvent(a0)
         try:
             self._apply_theme_styles(force=True)
         except Exception:

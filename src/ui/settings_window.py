@@ -1,30 +1,479 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtWidgets import QDialog
+from typing import TYPE_CHECKING
 
+from PyQt6.QtCore import QEvent, Qt, pyqtSignal
+from PyQt6.QtWidgets import (
+    QDialog,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
+from qfluentwidgets import ComboBox, FluentIcon, PrimaryPushButton, PushButton
+
+from backend.external_model import PRESET_ITEMS
+from localization.manager import translate as tr
 from ui.settings_external_model_mixin import SettingsExternalModelMixin
-from ui.settings_layout_builder import SettingsLayoutMixin
 from ui.settings_mathcraft_mixin import SettingsMathCraftMixin
 from ui.settings_resources_mixin import SettingsResourcesMixin
 from ui.settings_theme_mixin import SettingsThemeMixin
+from update.update_dialog import check_update_dialog
+
+if TYPE_CHECKING:
+    from runtime.background_task import BackgroundTask
+    from ui.settings_context import SettingsContext
+    from ui.settings_external_help import ExternalModelHelpWindow
 
 
 class SettingsWindow(
-    SettingsLayoutMixin,
     SettingsThemeMixin,
     SettingsMathCraftMixin,
     SettingsResourcesMixin,
     SettingsExternalModelMixin,
     QDialog,
 ):
-    def __init__(self, parent, *, context):
-        self.context = context
-        super().__init__(parent)
+    """Settings window."""
 
-    "Settings window."
     model_changed = pyqtSignal(str)
 
-    def shutdown(self):
+    def __init__(self, parent: QWidget | None, *, context: SettingsContext) -> None:
+        self.context = context
+        super().__init__(parent)
+        self._model_selection_syncing = False
+        self._external_test_task: BackgroundTask | None = None
+        self._external_help_window: ExternalModelHelpWindow | None = None
+        self._compute_mode_state = "unknown"
+        self._theme_is_dark_cached: bool | None = None
+        self.setWindowFlags(
+            (
+                self.windowFlags()
+                | Qt.WindowType.CustomizeWindowHint
+                | Qt.WindowType.WindowTitleHint
+                | Qt.WindowType.WindowSystemMenuHint
+                | Qt.WindowType.WindowCloseButtonHint
+                | Qt.WindowType.WindowMaximizeButtonHint
+            )
+            & ~Qt.WindowType.WindowMinimizeButtonHint
+            & ~Qt.WindowType.WindowContextHelpButtonHint
+            & ~Qt.WindowType.WindowMinMaxButtonsHint
+        )
+        self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
+        self.setWindowTitle(tr("设置"))
+        self.resize(420, 460)
+        self.setMinimumWidth(420)
+        self.setMinimumHeight(460)
+        root = QVBoxLayout(self)
+        root.setSpacing(0)
+        root.setContentsMargins(0, 0, 0, 0)
+        self.scroll_area = QScrollArea(self)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
+        self.content_widget = QWidget(self)
+        lay = QVBoxLayout(self.content_widget)
+        lay.setSpacing(8)
+        lay.setContentsMargins(16, 16, 16, 16)
+        lay.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.scroll_area.setWidget(self.content_widget)
+        root.addWidget(self.scroll_area)
+        self._theme_mode_values = ["auto", "light", "dark"]
+        self._ui_language_values = ["auto", "zh_CN", "en_US"]
+        lay.addWidget(QLabel(tr("识别后端:")))
+        self.model_combo = ComboBox()
+        self.model_combo.setFixedHeight(36)
+        self._model_options = [
+            ("mathcraft", tr("内置模型")),
+            ("external_model", tr("外部模型")),
+        ]
+        for key, label in self._model_options:
+            self.model_combo.addItem(label, userData=key)
+        lay.addWidget(self.model_combo)
+        self.lbl_model_desc = QLabel()
+        self.lbl_model_desc.setStyleSheet("color: #666; font-size: 11px; padding: 4px;")
+        self.lbl_model_desc.setWordWrap(True)
+        lay.addWidget(self.lbl_model_desc)
+        self.mathcraft_mode_widget = QWidget()
+        mathcraft_mode_layout = QHBoxLayout(self.mathcraft_mode_widget)
+        mathcraft_mode_layout.setContentsMargins(0, 0, 0, 0)
+        mathcraft_mode_layout.setSpacing(6)
+        mathcraft_mode_layout.addWidget(QLabel(tr("MathCraft 识别类型:")))
+        self.mathcraft_mode_combo = ComboBox()
+        self.mathcraft_mode_combo.setFixedHeight(30)
+        self.mathcraft_mode_combo.addItem(tr("公式"), userData="formula")
+        self.mathcraft_mode_combo.addItem(tr("混合"), userData="mixed")
+        self.mathcraft_mode_combo.addItem(tr("纯文字"), userData="text")
+        self.mathcraft_mode_combo.currentIndexChanged.connect(
+            self._on_mathcraft_mode_changed
+        )
+        mathcraft_mode_layout.addWidget(self.mathcraft_mode_combo)
+        lay.addWidget(self.mathcraft_mode_widget)
+        self.external_model_widget = QWidget()
+        external_layout = QVBoxLayout(self.external_model_widget)
+        external_layout.setContentsMargins(0, 6, 0, 0)
+        external_layout.setSpacing(6)
+        preset_row = QHBoxLayout()
+        preset_row.setContentsMargins(0, 0, 0, 0)
+        preset_row.setSpacing(6)
+        preset_row.addWidget(QLabel(tr("推荐预设:")))
+        self.external_preset_combo = ComboBox()
+        self.external_preset_combo.setFixedHeight(30)
+        self.external_preset_combo.addItem(tr("不使用预设"), userData="")
+        for key, label in PRESET_ITEMS:
+            self.external_preset_combo.addItem(label, userData=key)
+        preset_row.addWidget(self.external_preset_combo, 1)
+        self.external_apply_preset_btn = PushButton(FluentIcon.ROTATE, tr("应用预设"))
+        self.external_apply_preset_btn.setFixedHeight(30)
+        preset_row.addWidget(self.external_apply_preset_btn)
+        external_layout.addLayout(preset_row)
+        protocol_row = QHBoxLayout()
+        protocol_row.setContentsMargins(0, 0, 0, 0)
+        protocol_row.setSpacing(6)
+        protocol_row.addWidget(QLabel(tr("协议:")))
+        self.external_provider_combo = ComboBox()
+        self.external_provider_combo.setFixedHeight(30)
+        self.external_provider_combo.addItem(
+            "OpenAI-compatible", userData="openai_compatible"
+        )
+        self.external_provider_combo.addItem("Ollama", userData="ollama")
+        self.external_provider_combo.addItem("MinerU Local", userData="mineru")
+        protocol_row.addWidget(self.external_provider_combo, 1)
+        external_layout.addLayout(protocol_row)
+        self.external_base_url_input = QLineEdit()
+        self.external_base_url_input.setPlaceholderText(
+            tr(
+                "必填：Base URL，例如本地 http://127.0.0.1:11434 或线上 https://api.example.com"
+            )
+        )
+        self.external_base_url_input.setFixedHeight(32)
+        external_layout.addWidget(self.external_base_url_input)
+        self.external_model_name_input = QLineEdit()
+        self.external_model_name_input.setPlaceholderText(
+            tr("必填：模型名，例如 qwen2.5vl:7b；必须与服务中的真实名称一致")
+        )
+        self.external_model_name_input.setFixedHeight(32)
+        external_layout.addWidget(self.external_model_name_input)
+        self.external_api_key_input = QLineEdit()
+        self.external_api_key_input.setPlaceholderText(
+            tr("选填：API Key。本地加密保存，线上接口通常必填")
+        )
+        self.external_api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.external_api_key_input.setFixedHeight(32)
+        external_layout.addWidget(self.external_api_key_input)
+        self.external_mineru_endpoint_input = QLineEdit()
+        self.external_mineru_endpoint_input.setPlaceholderText(
+            tr("MinerU Local 解析接口路径（例如 /file_parse）")
+        )
+        self.external_mineru_endpoint_input.setFixedHeight(32)
+        external_layout.addWidget(self.external_mineru_endpoint_input)
+        self.external_mineru_test_endpoint_input = QLineEdit()
+        self.external_mineru_test_endpoint_input.setPlaceholderText(
+            tr("MinerU Local 健康检查路径（例如 /health）")
+        )
+        self.external_mineru_test_endpoint_input.setFixedHeight(32)
+        external_layout.addWidget(self.external_mineru_test_endpoint_input)
+        output_row = QHBoxLayout()
+        output_row.setContentsMargins(0, 0, 0, 0)
+        output_row.setSpacing(6)
+        self.external_prompt_label = QLabel(tr("提示词模板:"))
+        output_row.addWidget(self.external_prompt_label)
+        self.external_prompt_combo = ComboBox()
+        self.external_prompt_combo.setFixedHeight(30)
+        self.external_prompt_combo.addItem(tr("公式 OCR"), userData="ocr_formula_v1")
+        self.external_prompt_combo.addItem("Markdown OCR", userData="ocr_markdown_v1")
+        self.external_prompt_combo.addItem(tr("纯文本 OCR"), userData="ocr_text_v1")
+        output_row.addWidget(self.external_prompt_combo, 1)
+        output_row.addWidget(QLabel(tr("超时(秒):")))
+        self.external_timeout_input = QLineEdit()
+        self.external_timeout_input.setPlaceholderText("60")
+        self.external_timeout_input.setFixedHeight(30)
+        self.external_timeout_input.setMaximumWidth(90)
+        output_row.addWidget(self.external_timeout_input)
+        external_layout.addLayout(output_row)
+        self.external_custom_prompt_input = QLineEdit()
+        self.external_custom_prompt_input.setPlaceholderText(
+            tr("自定义提示词（覆盖图片、截图、手写及 OpenAI/Ollama PDF 模板）")
+        )
+        self.external_custom_prompt_input.setFixedHeight(32)
+        external_layout.addWidget(self.external_custom_prompt_input)
+        external_btn_row = QHBoxLayout()
+        external_btn_row.setContentsMargins(0, 0, 0, 0)
+        external_btn_row.setSpacing(6)
+        self.external_test_btn = PrimaryPushButton(
+            FluentIcon.SPEED_HIGH, tr("测试连接")
+        )
+        self.external_test_btn.setFixedHeight(32)
+        external_btn_row.addWidget(self.external_test_btn)
+        self.external_help_btn = PushButton(FluentIcon.INFO, tr("查看说明"))
+        self.external_help_btn.setFixedHeight(32)
+        external_btn_row.addWidget(self.external_help_btn)
+        external_layout.addLayout(external_btn_row)
+        lay.addWidget(self.external_model_widget)
+        self.lbl_compute_mode = QLabel()
+        self.lbl_compute_mode.setStyleSheet(
+            "color: #666; font-size: 11px; padding: 4px;"
+        )
+        lay.addWidget(self.lbl_compute_mode)
+        self._update_compute_mode_label()
+        lay.addSpacing(12)
+        appearance_row = QWidget()
+        appearance_layout = QGridLayout(appearance_row)
+        appearance_layout.setContentsMargins(0, 0, 0, 0)
+        appearance_layout.setHorizontalSpacing(8)
+        appearance_layout.setVerticalSpacing(4)
+        appearance_layout.setColumnStretch(0, 1)
+        appearance_layout.setColumnStretch(1, 1)
+        appearance_layout.addWidget(QLabel(tr("外观主题:")), 0, 0)
+        self.theme_mode_combo = ComboBox()
+        self.theme_mode_combo.setFixedHeight(36)
+        self.theme_mode_combo.addItem(tr("跟随系统"), userData="auto")
+        self.theme_mode_combo.addItem(tr("浅色"), userData="light")
+        self.theme_mode_combo.addItem(tr("深色"), userData="dark")
+        appearance_layout.addWidget(self.theme_mode_combo, 1, 0)
+        appearance_layout.addWidget(QLabel(tr("界面语言:")), 0, 1)
+        self.ui_language_combo = ComboBox()
+        self.ui_language_combo.setFixedHeight(36)
+        self.ui_language_combo.addItem(tr("跟随系统"), userData="auto")
+        self.ui_language_combo.addItem(tr("简体中文"), userData="zh_CN")
+        self.ui_language_combo.addItem("English", userData="en_US")
+        appearance_layout.addWidget(self.ui_language_combo, 1, 1)
+        lay.addWidget(appearance_row)
+        lay.addWidget(QLabel(tr("启动行为:")))
+        startup_row = QWidget()
+        startup_layout = QHBoxLayout(startup_row)
+        startup_layout.setContentsMargins(0, 0, 0, 0)
+        startup_layout.setSpacing(6)
+        self.runtime_log_button = PushButton(FluentIcon.DOCUMENT, tr("运行日志"))
+        self.runtime_log_button.setFixedHeight(36)
+        self.runtime_log_button.setCheckable(True)
+        runtime_log_pref = False
+        try:
+            runtime_log_pref = self.context.cfg.get("show_runtime_log", False)
+        except Exception:
+            runtime_log_pref = False
+        self.runtime_log_button.setChecked(self._to_bool(runtime_log_pref))
+        self.runtime_log_button.setToolTip(tr("启动后显示运行日志窗口"))
+        startup_layout.addWidget(self.runtime_log_button, 1)
+        self.automation_api_button = PushButton(
+            FluentIcon.APPLICATION, tr("自动化接口")
+        )
+        self.automation_api_button.setFixedHeight(36)
+        self.automation_api_button.setCheckable(True)
+        automation_api_pref = False
+        try:
+            automation_api_pref = self.context.cfg.get("automation_api_enabled", False)
+        except Exception:
+            automation_api_pref = False
+        self.automation_api_button.setChecked(self._to_bool(automation_api_pref))
+        self.automation_api_button.setToolTip(
+            tr("允许 Office 插件、本机自动化工具及已授权远程设备调用 LaTeXSnipper")
+        )
+        startup_layout.addWidget(self.automation_api_button, 1)
+        lay.addWidget(startup_row)
+        self._sync_startup_action_buttons()
+        lay.addSpacing(8)
+        lay.addWidget(QLabel(tr("高级设置:")))
+        advanced_row = QWidget()
+        advanced_layout = QHBoxLayout(advanced_row)
+        advanced_layout.setContentsMargins(0, 0, 0, 0)
+        advanced_layout.setSpacing(6)
+        self.access_scope_button = PushButton(FluentIcon.GLOBE, tr("访问范围"))
+        self.access_scope_button.setFixedHeight(36)
+        self.access_scope_button.setToolTip(
+            tr("配置 Automation API 的本机或远程访问范围")
+        )
+        advanced_layout.addWidget(self.access_scope_button, 1)
+        self.btn_update = PushButton(FluentIcon.UPDATE, tr("应用更新"))
+        self.btn_update.setFixedHeight(36)
+        advanced_layout.addWidget(self.btn_update, 1)
+        lay.addWidget(advanced_row)
+        resources_row = QWidget()
+        resources_layout = QHBoxLayout(resources_row)
+        resources_layout.setContentsMargins(0, 0, 0, 0)
+        resources_layout.setSpacing(6)
+        self.resources_button = PushButton(FluentIcon.DEVELOPER_TOOLS, tr("应用诊断"))
+        self.resources_button.setFixedHeight(36)
+        resources_layout.addWidget(self.resources_button, 1)
+        self.model_resources_button = PushButton(FluentIcon.FOLDER, tr("模型资源"))
+        self.model_resources_button.setFixedHeight(36)
+        self.model_resources_button.setToolTip(tr("查看桌面端实际使用的模型权重目录"))
+        resources_layout.addWidget(self.model_resources_button, 1)
+        lay.addWidget(resources_row)
+        lay.addStretch()
+        self.model_combo.currentIndexChanged.connect(self._on_model_combo_changed)
+        self.context.models.status_changed.connect(self._update_compute_mode_label)
+        self._update_compute_mode_label()
+        self.btn_update.clicked.connect(lambda: check_update_dialog(self))
+        self.access_scope_button.clicked.connect(self._open_automation_access_dialog)
+        self.resources_button.clicked.connect(self._show_resource_diagnostics)
+        self.model_resources_button.clicked.connect(self._show_model_resources)
+        self.runtime_log_button.clicked.connect(self._on_runtime_log_button_clicked)
+        self.automation_api_button.clicked.connect(
+            self._on_automation_api_button_clicked
+        )
+        self.theme_mode_combo.currentIndexChanged.connect(self._on_theme_mode_changed)
+        self.ui_language_combo.currentIndexChanged.connect(self._on_ui_language_changed)
+        self.external_apply_preset_btn.clicked.connect(self._apply_external_preset)
+        self.external_test_btn.clicked.connect(self._test_external_model_connection)
+        self.external_help_btn.clicked.connect(self._show_external_model_help)
+        self.external_preset_combo.currentIndexChanged.connect(
+            self._on_external_preset_changed
+        )
+        self.external_provider_combo.currentIndexChanged.connect(
+            self._on_external_config_changed
+        )
+        self.external_provider_combo.currentIndexChanged.connect(
+            self._on_external_provider_changed
+        )
+        self.external_prompt_combo.currentIndexChanged.connect(
+            self._on_external_config_changed
+        )
+        self.external_base_url_input.textChanged.connect(
+            self._on_external_config_changed
+        )
+        self.external_model_name_input.textChanged.connect(
+            self._on_external_config_changed
+        )
+        self.external_api_key_input.textChanged.connect(
+            self._on_external_config_changed
+        )
+        self.external_mineru_endpoint_input.textChanged.connect(
+            self._on_external_config_changed
+        )
+        self.external_mineru_test_endpoint_input.textChanged.connect(
+            self._on_external_config_changed
+        )
+        self.external_timeout_input.textChanged.connect(
+            self._on_external_config_changed
+        )
+        self.external_custom_prompt_input.textChanged.connect(
+            self._on_external_config_changed
+        )
+        self._init_model_combo()
+        self._update_model_desc()
+        self._init_theme_mode_combo()
+        self._init_ui_language_combo()
+        self.apply_theme_styles(force=True)
+
+    def _to_bool(self, value) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return bool(value)
+        if isinstance(value, str):
+            return value.strip().lower() in ("1", "true", "yes", "on")
+        return False
+
+    def _sync_startup_action_buttons(self):
+        if hasattr(self, "runtime_log_button") and self.runtime_log_button is not None:
+            enabled = bool(self.runtime_log_button.isChecked())
+            self.runtime_log_button.setText(
+                tr("运行日志: 开") if enabled else tr("运行日志: 关")
+            )
+        if (
+            hasattr(self, "automation_api_button")
+            and self.automation_api_button is not None
+        ):
+            enabled = bool(self.automation_api_button.isChecked())
+            self.automation_api_button.setText(
+                tr("自动化接口: 开") if enabled else tr("自动化接口: 关")
+            )
+
+    def _on_runtime_log_button_clicked(self, _checked: bool):
+        enabled = bool(self.runtime_log_button.isChecked())
+        self._sync_startup_action_buttons()
+        try:
+            self.context.cfg.set("show_runtime_log", enabled)
+        except Exception:
+            pass
+        try:
+            self.context.lifecycle.apply_runtime_log_window_preference(enabled)
+        except Exception:
+            pass
+        self._show_info(tr("设置已保存"), tr("运行日志显示偏好已更新"), "success")
+
+    def _on_automation_api_button_clicked(self, _checked: bool):
+        enabled = bool(self.automation_api_button.isChecked())
+        self.automation_api_button.setEnabled(False)
+        self._sync_startup_action_buttons()
+
+        def _done(ok: bool, message: str):
+            self.automation_api_button.setEnabled(True)
+            if not ok:
+                self.automation_api_button.setChecked(False)
+                self._sync_startup_action_buttons()
+                self._show_info(
+                    tr("自动化接口"),
+                    tr("启用失败: {message}").format(message=message),
+                    "error",
+                )
+                return
+            self._sync_startup_action_buttons()
+            self._show_info(tr("自动化接口"), message or tr("设置已更新"), "success")
+
+        try:
+            controller = (
+                getattr(self.context, "automation_api", None) if self.context else None
+            )
+            if controller is not None:
+                controller.set_automation_api_enabled_async(enabled, _done)
+                return
+            raise RuntimeError(tr("自动化接口控制器不可用"))
+        except Exception as exc:
+            _done(False, str(exc))
+
+    def _open_automation_access_dialog(self):
+        from ui.automation_access_dialog import AutomationAccessDialog
+
+        parent = self.context
+        if parent is None:
+            return
+        AutomationAccessDialog(
+            self.context.cfg,
+            self.context.automation_api,
+            self,
+            on_saved=self._show_info,
+        ).exec()
+
+    def _update_model_desc(self):
+        index = self.model_combo.currentIndex()
+        if index < 0:
+            return
+        key, _ = self._model_options[index]
+        descriptions = {
+            "mathcraft": tr(
+                "内置 MathCraft OCR，支持公式、混合、文字与 PDF 文档识别。"
+            ),
+            "external_model": tr(
+                "连接多模态 OCR / VLM 接口，支持本地服务和部分线上服务。"
+            ),
+        }
+        self.lbl_model_desc.setText(descriptions.get(key, ""))
+
+    def event(self, a0):
+        if a0 is None:
+            return False
+        result = super().event(a0)
+        try:
+            if a0.type() in (
+                QEvent.Type.StyleChange,
+                QEvent.Type.PaletteChange,
+                QEvent.Type.ApplicationPaletteChange,
+            ):
+                self.apply_theme_styles()
+        except Exception:
+            pass
+        return result
+
+    def select_model(self, model_name: str) -> None:
+        self.model_changed.emit(model_name)
+        self._update_compute_mode_label()
+
+    def shutdown(self) -> None:
         if self._external_test_task is not None:
             self._external_test_task.shutdown()

@@ -157,36 +157,46 @@ class ImageRecognitionController(QObject):
         self.recognize_image(img)
 
     def _on_external_predict_ok(self, result):
-        output_mode = self.tasks.worker.config.resolved_output_mode()
+        worker = self.tasks.worker
+        if worker is None:
+            return
+        output_mode = worker.config.resolved_output_mode()
         text = result.best_text(output_mode)
         model_name = self.models.external_display_name(result=result)
         self.results.show_result(
             text,
             content_type_for_external_output(output_mode),
             model_name,
-            self.tasks.worker.elapsed,
+            worker.elapsed,
         )
 
     def _on_internal_predict_ok(self, text: str) -> None:
-        model_name = self.tasks.worker.model_name
+        worker = self.tasks.worker
+        if worker is None:
+            return
+        model_name = worker.model_name
         self.results.show_result(
             text,
             content_type_for_mathcraft(model_name),
             model_name,
-            self.tasks.worker.elapsed,
+            worker.elapsed,
         )
 
     def _on_external_predict_fail(self, msg: str):
-        model_name = self.models.external_display_name(config=self.tasks.worker.config)
-        self.results.show_failure(
-            msg, model_name, self.tasks.worker.elapsed, external_model=True
-        )
+        worker = self.tasks.worker
+        if worker is None:
+            return
+        model_name = self.models.external_display_name(config=worker.config)
+        self.results.show_failure(msg, model_name, worker.elapsed, external_model=True)
 
     def _on_internal_predict_fail(self, msg: str) -> None:
+        worker = self.tasks.worker
+        if worker is None:
+            return
         self.results.show_failure(
             msg,
-            self.tasks.worker.model_name,
-            self.tasks.worker.elapsed,
+            worker.model_name,
+            worker.elapsed,
             external_model=False,
         )
 

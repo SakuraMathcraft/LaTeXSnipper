@@ -1,7 +1,7 @@
 {
     "pythonVersion": "3.11",
     "pythonPlatform": "All",
-    "typeCheckingMode": "basic",
+    "typeCheckingMode": "standard",
     "include": [
         "src",
         "mathcraft_ocr",
@@ -20,15 +20,6 @@
         ".venv"
     ],
     "executionEnvironments": [
-        {
-            "root": "src/ui",
-            "reportAttributeAccessIssue": "none",
-            "reportOptionalMemberAccess": "none"
-        },
-        {
-            "root": "src/handwriting",
-            "reportOptionalMemberAccess": "none"
-        },
         {
             "root": "src",
             "extraPaths": [

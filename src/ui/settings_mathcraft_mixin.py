@@ -1,8 +1,15 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from localization.manager import translate as tr
+
+if TYPE_CHECKING:
+    from ui.settings_context import SettingsView
 
 
 class SettingsMathCraftMixin:
-    def _init_model_combo(self):
+    def _init_model_combo(self: SettingsView):
         current_key = self.context.models.recognition_backend
         for i, (key, _) in enumerate(self._model_options):
             if key == current_key:
@@ -12,7 +19,7 @@ class SettingsMathCraftMixin:
         self._init_external_model_config()
         self._update_mathcraft_visibility()
 
-    def _on_model_combo_changed(self, index: int):
+    def _on_model_combo_changed(self: SettingsView, index: int):
         if getattr(self, "_model_selection_syncing", False):
             return
         if index < 0 or index >= len(self._model_options):
@@ -26,7 +33,7 @@ class SettingsMathCraftMixin:
         self._update_model_desc()
         self._update_mathcraft_visibility()
 
-    def _init_mathcraft_mode(self):
+    def _init_mathcraft_mode(self: SettingsView):
         mode = "formula"
         mode = self.context.cfg.get("mathcraft_mode", "formula")
         if mode not in {"formula", "mixed", "text"}:
@@ -38,15 +45,15 @@ class SettingsMathCraftMixin:
                 self.mathcraft_mode_combo.blockSignals(prev)
                 break
 
-    def _mathcraft_mode_to_model(self, mode_key: str) -> str:
+    def _mathcraft_mode_to_model(self, mode_key: str | None) -> str:
         mapping = {
             "formula": "mathcraft",
             "mixed": "mathcraft_mixed",
             "text": "mathcraft_text",
         }
-        return mapping.get(mode_key, "mathcraft")
+        return mapping.get(mode_key or "", "mathcraft")
 
-    def _get_mathcraft_mode_key(self) -> str:
+    def _get_mathcraft_mode_key(self: SettingsView) -> str:
         idx = self.mathcraft_mode_combo.currentIndex()
         if idx >= 0:
             key = self.mathcraft_mode_combo.itemData(idx)
@@ -54,21 +61,14 @@ class SettingsMathCraftMixin:
                 return key
         return "formula"
 
-    def _is_mathcraft_selected(self) -> bool:
+    def _is_mathcraft_selected(self: SettingsView) -> bool:
         idx = self.model_combo.currentIndex()
         if idx >= 0 and idx < len(self._model_options):
             key, _ = self._model_options[idx]
             return key == "mathcraft"
         return False
 
-    def _is_external_model_selected(self) -> bool:
-        idx = self.model_combo.currentIndex()
-        if idx >= 0 and idx < len(self._model_options):
-            key, _ = self._model_options[idx]
-            return key == "external_model"
-        return False
-
-    def _on_mathcraft_mode_changed(self, index: int):
+    def _on_mathcraft_mode_changed(self: SettingsView, index: int):
         if index < 0:
             return
         mode_key = self.mathcraft_mode_combo.itemData(index)
@@ -77,7 +77,7 @@ class SettingsMathCraftMixin:
             return
         self.select_model(self._mathcraft_mode_to_model(mode_key))
 
-    def _update_mathcraft_visibility(self):
+    def _update_mathcraft_visibility(self: SettingsView):
         key = None
         idx = self.model_combo.currentIndex()
         if idx >= 0 and idx < len(self._model_options):
@@ -91,16 +91,12 @@ class SettingsMathCraftMixin:
         except Exception:
             pass
 
-    def select_model(self, model_name: str):
-        self.model_changed.emit(model_name)
-        self._update_compute_mode_label()
-
-    def _set_compute_mode_text(self, text: str, state: str) -> None:
+    def _set_compute_mode_text(self: SettingsView, text: str, state: str) -> None:
         self.lbl_compute_mode.setText(text)
         self._compute_mode_state = state
         self.apply_theme_styles(force=True)
 
-    def _apply_compute_mode_from_info(self, info: dict) -> bool:
+    def _apply_compute_mode_from_info(self: SettingsView, info: dict) -> bool:
         if not isinstance(info, dict) or not info:
             return False
         if not info.get("present"):
@@ -128,7 +124,7 @@ class SettingsMathCraftMixin:
             self._set_compute_mode_text(tr("🟡 CPU 模式"), "cpu")
         return True
 
-    def _active_mathcraft_provider_info(self) -> dict:
+    def _active_mathcraft_provider_info(self: SettingsView) -> dict:
         try:
             model = getattr(self.context.models, "model", None)
             info = getattr(model, "provider_info", None)
@@ -138,12 +134,12 @@ class SettingsMathCraftMixin:
             pass
         return {}
 
-    def _update_compute_mode_label(self, *_args):
+    def _update_compute_mode_label(self: SettingsView, *_args):
         info = self._active_mathcraft_provider_info()
         if not self._apply_compute_mode_from_info(info):
             self._set_compute_mode_text(tr("⚪ 计算模式未知"), "unknown")
 
-    def update_model_selection(self):
+    def update_model_selection(self: SettingsView):
         if getattr(self, "_model_selection_syncing", False):
             return
         target = self.context.models.recognition_backend

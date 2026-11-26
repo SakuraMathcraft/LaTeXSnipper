@@ -178,7 +178,10 @@ def export_formula_to_clipboard(
     format_name = tr(format_name)
 
     try:
-        QApplication.clipboard().setText(result)
+        clipboard = QApplication.clipboard()
+        if clipboard is None:
+            raise RuntimeError("Qt clipboard is unavailable")
+        clipboard.setText(result)
         return True, tr("已复制 {format} 格式").format(format=format_name)
     except Exception:
         try:
@@ -241,7 +244,7 @@ def show_formula_export_menu(
     parent,
     menu_cls,
     anchor_widget,
-    text_source,
+    text_source: str | Callable[[], str | None] | None,
     status_callback: StatusCallback,
     export_callback: Callable[[str, str], None],
     empty_hint: str | None = None,

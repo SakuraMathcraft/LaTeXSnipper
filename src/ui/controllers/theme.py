@@ -173,7 +173,7 @@ class ThemeController(QObject):
             dark_by_palette = False
             try:
                 app = QApplication.instance()
-                if app is not None:
+                if isinstance(app, QApplication):
                     c = app.palette().window().color()
                     dark_by_palette = (c.red() + c.green() + c.blue()) / 3.0 < 128
             except Exception:

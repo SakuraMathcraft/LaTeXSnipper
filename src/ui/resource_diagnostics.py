@@ -95,7 +95,7 @@ class ResourceDiagnosticsDialog(QDialog):
             json.dumps({**self._report, **runtime}, ensure_ascii=False, indent=2)
         )
 
-    def showEvent(self, event) -> None:
+    def showEvent(self, a0) -> None:
         self._render_report()
         self._inspect_resources()
-        super().showEvent(event)
+        super().showEvent(a0)

@@ -98,10 +98,10 @@ class EditFormulaDialog(QDialog):
             return build_mixed_content_html(text), get_mathjax_base_url()
         return build_math_html(text, center_viewport=True), get_mathjax_base_url()
 
-    def event(self, event):
-        result = super().event(event)
+    def a0(self, a0):
+        result = super().event(a0)
         try:
-            if event.type() in (
+            if a0.type() in (
                 QEvent.Type.StyleChange,
                 QEvent.Type.PaletteChange,
                 QEvent.Type.ApplicationPaletteChange,
@@ -132,13 +132,13 @@ class EditFormulaDialog(QDialog):
         except Exception as exc:
             logger.warning("编辑内容预览渲染失败: %s", exc)
 
-    def closeEvent(self, event):
+    def closeEvent(self, a0):
         try:
             if hasattr(self, "_render_timer") and self._render_timer:
                 self._render_timer.stop()
         except Exception:
             pass
-        return super().closeEvent(event)
+        return super().closeEvent(a0)
 
     def value(self) -> str:
         return self.editor.toPlainText().strip()

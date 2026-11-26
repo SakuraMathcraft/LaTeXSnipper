@@ -1,6 +1,9 @@
 """Construct main-window widgets without initializing application state."""
 
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QScrollArea, QVBoxLayout, QWidget
@@ -11,12 +14,16 @@ from preview.math_preview import build_math_html, get_mathjax_base_url
 from runtime.webengine_runtime import ensure_webengine_loaded, get_webengine_view_class
 from ui.controllers.file_drop import image_extensions
 
+if TYPE_CHECKING:
+    from runtime.config_manager import ConfigManager
+    from ui.main_window import MainWindow
+
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 DEFAULT_MAIN_WINDOW_SIZE = (1160, 700)
 EDITOR_TOOLBAR_RIGHT_MARGIN = 8
 
 
-def build_main_window_layout(view, cfg):
+def build_main_window_layout(view: MainWindow, cfg: ConfigManager) -> None:
     view.status_label = QLabel()
     left_panel = QWidget()
     left_layout = QVBoxLayout(left_panel)
@@ -113,22 +120,23 @@ def build_main_window_layout(view, cfg):
     right_layout.addLayout(preview_header)
     view.preview_fallback_label = None
     view.preview_view = None
-    view._pending_latex = ""
     webengine_view_cls = (
         get_webengine_view_class() if ensure_webengine_loaded() else None
     )
     if webengine_view_cls is not None:
-        view.preview_view = webengine_view_cls()
+        preview = view.preview_view = webengine_view_cls()
         try:
             from PyQt6.QtWebEngineCore import QWebEngineSettings
 
-            settings = view.preview_view.settings()
-            settings.setAttribute(
-                QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
-            )
-            settings.setAttribute(
-                QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True
-            )
+            settings = preview.settings()
+            if settings is not None:
+                settings.setAttribute(
+                    QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls,
+                    True,
+                )
+                settings.setAttribute(
+                    QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True
+                )
         except Exception:
             pass
         view.preview_view.setMinimumHeight(200)
@@ -139,12 +147,13 @@ def build_main_window_layout(view, cfg):
         except Exception:
             pass
         try:
-            pg = view.preview_view.page()
-            pg.renderProcessTerminated.connect(
-                lambda status, code: logger.warning(
-                    "WebEngine 渲染进程终止 status=%s code=%s", status, code
+            pg = preview.page()
+            if pg is not None:
+                pg.renderProcessTerminated.connect(
+                    lambda status, code: logger.warning(
+                        "WebEngine 渲染进程终止 status=%s code=%s", status, code
+                    )
                 )
-            )
         except Exception:
             pass
         html = build_math_html("")
@@ -154,7 +163,6 @@ def build_main_window_layout(view, cfg):
         except Exception:
             pass
         right_layout.addWidget(view.preview_view, 1)
-        pass
     else:
         view.preview_fallback_label = QLabel(
             tr("WebEngine 未加载，无法渲染公式预览。\n请确保已安装 PyQtWebEngine。")
@@ -194,7 +202,7 @@ def build_main_window_layout(view, cfg):
     )
 
 
-def adjust_main_window_size(view):
+def adjust_main_window_size(view: MainWindow) -> None:
     left_layout, editor_header, preview_header, right_layout, left_panel, splitter = (
         view.size_layouts
     )

@@ -118,7 +118,7 @@ class PdfResultWindow(QMainWindow):
     def event(self, event):
         result = super().event(event)
         try:
-            if event.type() in (
+            if event is not None and event.type() in (
                 QEvent.Type.StyleChange,
                 QEvent.Type.PaletteChange,
                 QEvent.Type.ApplicationPaletteChange,
@@ -324,12 +324,13 @@ class PdfResultWindow(QMainWindow):
         except Exception:
             return False
 
-    def closeEvent(self, event):
+    def closeEvent(self, a0):
         try:
             doc = self.editor.document()
-            doc.setUndoRedoEnabled(False)
-            doc.clearUndoRedoStacks()
+            if doc is not None:
+                doc.setUndoRedoEnabled(False)
+                doc.clearUndoRedoStacks()
             self.editor.blockSignals(True)
         except Exception:
             pass
-        return super().closeEvent(event)
+        return super().closeEvent(a0)

@@ -1,7 +1,19 @@
 """Settings actions for installation diagnostics and desktop model resources."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, cast
+
+from PyQt6.QtWidgets import QWidget
+
+if TYPE_CHECKING:
+    from ui.resource_diagnostics import ResourceDiagnosticsDialog
+    from ui.settings_context import SettingsView
+
 
 class SettingsResourcesMixin:
+    _resource_diagnostics_dialog: ResourceDiagnosticsDialog | None
+
     def _show_model_resources(self):
         from ui.model_resources_dialog import ModelResourcesDialog
         from ui.window_helpers import show_normal_window
@@ -14,12 +26,12 @@ class SettingsResourcesMixin:
             self._model_resources_dialog = dialog
         show_normal_window(dialog)
 
-    def _show_resource_diagnostics(self):
+    def _show_resource_diagnostics(self: SettingsView):
         from ui.resource_diagnostics import ResourceDiagnosticsDialog
 
         dialog = getattr(self, "_resource_diagnostics_dialog", None)
         if dialog is None:
-            dialog = ResourceDiagnosticsDialog(self.context.models, self)
+            dialog = ResourceDiagnosticsDialog(self.context.models, cast(QWidget, self))
             self._resource_diagnostics_dialog = dialog
         dialog.show()
         dialog.raise_()

@@ -94,15 +94,27 @@ class DeploymentTransaction(ABC):
                     stream.write(b"\0")
                     stream.flush()
                 stream.seek(0)
+
+                def acquire() -> None:
+                    msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+
+                def release() -> None:
+                    stream.seek(0)
+                    msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+
+            else:
+                import fcntl
+
+                def acquire() -> None:
+                    fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+                def release() -> None:
+                    fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+
             deadline = time.monotonic() + timeout
             while True:
                 try:
-                    if os.name == "nt":
-                        msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
-                    else:
-                        import fcntl
-
-                        fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    acquire()
                     break
                 except (BlockingIOError, PermissionError):
                     if time.monotonic() >= deadline:
@@ -111,11 +123,7 @@ class DeploymentTransaction(ABC):
             try:
                 yield
             finally:
-                if os.name == "nt":
-                    stream.seek(0)
-                    msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
-                else:
-                    fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+                release()
 
     def _remove(self, path: Path) -> None:
         if not path.exists() and not path.is_symlink():

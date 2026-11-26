@@ -13,7 +13,7 @@ def is_dark_ui() -> bool:
     except Exception:
         pass
     app = QApplication.instance()
-    if app is None:
+    if not isinstance(app, QApplication):
         return False
     c = app.palette().window().color()
     return ((c.red() + c.green() + c.blue()) / 3.0) < 128

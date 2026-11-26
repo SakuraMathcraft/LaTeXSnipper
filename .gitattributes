@@ -31,3 +31,5 @@ Office_plugin/shared/EditorAssets/vendor/mathlive.LICENSE.txt -whitespace
 src/assets/MathJax/** -text -whitespace
 scripts/mathjax/liteDOM.js -text -whitespace
 scripts/mathjax/office.props -text
+
+src/assets/i18n/latexsnipper_en_US.ts text eol=lf

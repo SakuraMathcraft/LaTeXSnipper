@@ -157,7 +157,14 @@ class HandwritingWindow(QWidget):
         self.canvas_scroll.setWidgetResizable(False)
         self.canvas_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         self.canvas_scroll.setWidget(self.canvas)
-        self.canvas_scroll.viewport().installEventFilter(self)
+        viewport = self.canvas_scroll.viewport()
+        hbar = self.canvas_scroll.horizontalScrollBar()
+        vbar = self.canvas_scroll.verticalScrollBar()
+        assert viewport is not None and hbar is not None and vbar is not None
+        self._canvas_viewport = viewport
+        self._canvas_hbar = hbar
+        self._canvas_vbar = vbar
+        viewport.installEventFilter(self)
         left_layout.addWidget(self.canvas_scroll, 1)
         self.splitter.addWidget(left)
         right = QWidget()
@@ -201,14 +208,15 @@ class HandwritingWindow(QWidget):
             if QWebEngineSettings is not None:
                 try:
                     settings = self.preview_view.settings()
-                    settings.setAttribute(
-                        QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls,
-                        True,
-                    )
-                    settings.setAttribute(
-                        QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls,
-                        True,
-                    )
+                    if settings is not None:
+                        settings.setAttribute(
+                            QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls,
+                            True,
+                        )
+                        settings.setAttribute(
+                            QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls,
+                            True,
+                        )
                 except Exception:
                     pass
             self.preview_view.setMinimumHeight(280)
@@ -263,8 +271,8 @@ class HandwritingWindow(QWidget):
         self.result_editor.textChanged.connect(self._on_result_editor_changed)
         self.recognize_timer.timeout.connect(self._run_recognition)
 
-    def showEvent(self, event) -> None:
-        super().showEvent(event)
+    def showEvent(self, a0) -> None:
+        super().showEvent(a0)
         self._center_on_owner_screen_once()
         if self._ui_ready:
             self.apply_theme_styles(force=True)
@@ -275,8 +283,9 @@ class HandwritingWindow(QWidget):
         self._centered_once = True
         try:
             screen = None
-            if self.owner is not None and self.owner.windowHandle() is not None:
-                screen = self.owner.windowHandle().screen()
+            handle = self.owner.windowHandle() if self.owner is not None else None
+            if handle is not None:
+                screen = handle.screen()
             if screen is None:
                 screen = QGuiApplication.primaryScreen()
             if screen is None:
@@ -287,34 +296,34 @@ class HandwritingWindow(QWidget):
         except Exception:
             pass
 
-    def changeEvent(self, event) -> None:
-        super().changeEvent(event)
+    def changeEvent(self, a0) -> None:
+        super().changeEvent(a0)
         if self._ui_ready:
             self.apply_theme_styles()
 
-    def eventFilter(self, obj, event):
+    def eventFilter(self, a0, a1):
         if (
             self._ui_ready
-            and obj in (self.canvas, self.canvas_scroll.viewport())
-            and (event.type() == QEvent.Type.Wheel)
-            and isinstance(event, QWheelEvent)
-            and event.modifiers() & Qt.KeyboardModifier.ControlModifier
+            and isinstance(a1, QWheelEvent)
+            and a0 in (self.canvas, self._canvas_viewport)
+            and (a1.type() == QEvent.Type.Wheel)
+            and a1.modifiers() & Qt.KeyboardModifier.ControlModifier
         ):
-            self._zoom_canvas_at_pointer(obj, event)
-            event.accept()
+            self._zoom_canvas_at_pointer(a0, a1)
+            a1.accept()
             return True
-        return super().eventFilter(obj, event)
+        return super().eventFilter(a0, a1)
 
     def _zoom_canvas_at_pointer(self, source, event: QWheelEvent) -> bool:
         delta = event.angleDelta().y()
         if not delta:
             return False
         old_zoom = max(0.01, self.canvas.zoom_factor())
-        viewport = self.canvas_scroll.viewport()
-        hbar = self.canvas_scroll.horizontalScrollBar()
-        vbar = self.canvas_scroll.verticalScrollBar()
+        viewport = self._canvas_viewport
+        hbar = self._canvas_hbar
+        vbar = self._canvas_vbar
         local_pos = event.position().toPoint()
-        if source is self.canvas_scroll.viewport():
+        if source is viewport:
             viewport_pos = local_pos
         elif source is self.canvas:
             viewport_pos = self.canvas.mapTo(viewport, local_pos)
@@ -347,8 +356,8 @@ class HandwritingWindow(QWidget):
         if abs(max(0.01, self.canvas.zoom_factor()) - zoom) > 1e-06:
             return
         self._active_zoom_anchor = (scene_x, scene_y, viewport_x, viewport_y, zoom)
-        hbar = self.canvas_scroll.horizontalScrollBar()
-        vbar = self.canvas_scroll.verticalScrollBar()
+        hbar = self._canvas_hbar
+        vbar = self._canvas_vbar
         target_x = int(round(scene_x * zoom - viewport_x))
         target_y = int(round(scene_y * zoom - viewport_y))
         hbar.setValue(max(hbar.minimum(), min(target_x, hbar.maximum())))
@@ -363,8 +372,8 @@ class HandwritingWindow(QWidget):
         scene_x, scene_y, viewport_x, viewport_y, zoom = payload
         if abs(max(0.01, self.canvas.zoom_factor()) - zoom) > 1e-06:
             return
-        hbar = self.canvas_scroll.horizontalScrollBar()
-        vbar = self.canvas_scroll.verticalScrollBar()
+        hbar = self._canvas_hbar
+        vbar = self._canvas_vbar
         actual_scene_x = (hbar.value() + viewport_x) / zoom
         actual_scene_y = (vbar.value() + viewport_y) / zoom
         dx = int(round((scene_x - actual_scene_x) * zoom))
@@ -586,8 +595,8 @@ class HandwritingWindow(QWidget):
         self._refresh_preview_from_text(self.result_editor.toPlainText().strip())
 
     def _pan_canvas_view(self, dx: int, dy: int) -> None:
-        hbar = self.canvas_scroll.horizontalScrollBar()
-        vbar = self.canvas_scroll.verticalScrollBar()
+        hbar = self._canvas_hbar
+        vbar = self._canvas_vbar
         hbar.setValue(max(hbar.minimum(), min(hbar.value() + dx, hbar.maximum())))
         vbar.setValue(max(vbar.minimum(), min(vbar.value() + dy, vbar.maximum())))
 
@@ -671,7 +680,10 @@ class HandwritingWindow(QWidget):
                 tr("当前无内容"), tr("请先识别或手动编辑 LaTeX 后再复制。")
             )
             return
-        QApplication.clipboard().setText(text)
+        clipboard = QApplication.clipboard()
+        if clipboard is None:
+            return
+        clipboard.setText(text)
         self.status_label.setText(tr("已复制 LaTeX"))
         self._show_info(tr("已复制"), tr("LaTeX 已复制到剪贴板。"))
 
@@ -721,9 +733,9 @@ class HandwritingWindow(QWidget):
             parent=self,
         )
 
-    def closeEvent(self, event) -> None:
+    def closeEvent(self, a0) -> None:
         self.shutdown()
-        super().closeEvent(event)
+        super().closeEvent(a0)
 
     def shutdown(self):
         if self._closing:

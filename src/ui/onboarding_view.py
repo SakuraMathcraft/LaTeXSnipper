@@ -68,9 +68,9 @@ class TourSurface(QWidget):
         self.ring.setFixedSize(28, 28)
         layout.addWidget(self.ring)
         self.actions_widget = QWidget(self.card)
-        self.actions = QVBoxLayout(self.actions_widget)
-        self.actions.setContentsMargins(0, 0, 0, 0)
-        self.actions.setSpacing(8)
+        self.actions_layout = QVBoxLayout(self.actions_widget)
+        self.actions_layout.setContentsMargins(0, 0, 0, 0)
+        self.actions_layout.setSpacing(8)
         layout.addWidget(self.actions_widget)
         footer = QHBoxLayout()
         self.back = PushButton(tr("上一步"), self.card)
@@ -103,15 +103,18 @@ class TourSurface(QWidget):
             if index == 0
             else tr("下一步")
         )
-        while self.actions.count():
-            self.actions.takeAt(0).widget().deleteLater()
+        while self.actions_layout.count():
+            item = self.actions_layout.takeAt(0)
+            widget = item.widget() if item is not None else None
+            if widget is not None:
+                widget.deleteLater()
         for key, label in actions:
             button = PushButton(label, self.actions_widget)
             button.setFixedHeight(36)
             button.clicked.connect(
                 lambda checked=False, key=key: self.actionRequested.emit(key)
             )
-            self.actions.addWidget(button)
+            self.actions_layout.addWidget(button)
         self.actions_widget.setMinimumHeight(
             len(actions) * 36 + max(0, len(actions) - 1) * 8
         )
@@ -155,7 +158,10 @@ class TourSurface(QWidget):
         ]
 
     def reposition(self):
-        self.setGeometry(self.parentWidget().rect())
+        parent = self.parentWidget()
+        if parent is None:
+            return
+        self.setGeometry(parent.rect())
         self.card.setFixedWidth(min(500, max(280, self.width() - 40)))
         self.card.adjustSize()
         x = (self.width() - self.card.width()) // 2
@@ -174,7 +180,7 @@ class TourSurface(QWidget):
         self.card.move(x, max(20, y))
         self.update()
 
-    def paintEvent(self, event):
+    def paintEvent(self, a0):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         mask = QPainterPath()
@@ -188,16 +194,16 @@ class TourSurface(QWidget):
         for rect in self.target_rects():
             painter.drawRoundedRect(rect, 8, 8)
 
-    def focusNextPrevChild(self, forward):
+    def focusNextPrevChild(self, next):
         current = QApplication.focusWidget() or self.next
         candidate = current
         while True:
             candidate = (
                 candidate.nextInFocusChain()
-                if forward
+                if next
                 else candidate.previousInFocusChain()
             )
-            if candidate is current:
+            if candidate is None or candidate is current:
                 return True
             if (
                 self.card.isAncestorOf(candidate)
@@ -207,13 +213,15 @@ class TourSurface(QWidget):
             ):
                 candidate.setFocus(
                     Qt.FocusReason.TabFocusReason
-                    if forward
+                    if next
                     else Qt.FocusReason.BacktabFocusReason
                 )
                 return True
 
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Escape:
+    def keyPressEvent(self, a0):
+        if a0 is None:
+            return
+        if a0.key() == Qt.Key.Key_Escape:
             self.exitRequested.emit()
         else:
-            super().keyPressEvent(event)
+            super().keyPressEvent(a0)

@@ -6,7 +6,7 @@ import weakref
 from collections.abc import Callable
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QMouseEvent
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import FluentIcon, PushButton
 
@@ -46,6 +46,24 @@ def clear_history_rows(history_layout) -> None:
             w.deleteLater()
 
 
+class HistoryRow(QWidget):
+    _latex_text: str
+    _index: int
+    _history_index: int | None
+    _deleted: bool
+    _index_label: QLabel | None
+    _name_label: QLabel | None
+    _content_label: QLabel
+
+
+class _HistoryTextLabel(QLabel):
+    on_press: Callable[[QMouseEvent], None]
+
+    def mousePressEvent(self, ev: QMouseEvent | None) -> None:
+        if ev is not None:
+            self.on_press(ev)
+
+
 def create_history_row(
     *,
     parent,
@@ -58,9 +76,9 @@ def create_history_row(
     row_is_alive: Callable[[QWidget | None], bool],
     on_load_to_editor: Callable[[QWidget], None],
     on_copy: Callable[[QWidget], None],
-    on_context_menu: Callable[[QWidget, object], None],
-) -> QWidget:
-    row = QWidget(history_container)
+    on_context_menu: Callable[[HistoryRow, object], None],
+) -> HistoryRow:
+    row = HistoryRow(history_container)
     row._latex_text = text
     row._index = index
     row._history_index = history_index
@@ -94,7 +112,7 @@ def create_history_row(
     else:
         row._name_label = None
 
-    lbl = QLabel(text)
+    lbl = _HistoryTextLabel(text)
     lbl.setWordWrap(True)
     lbl.setMinimumWidth(0)
     lbl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
@@ -117,7 +135,7 @@ def create_history_row(
             return
         on_load_to_editor(r)
 
-    lbl.mousePressEvent = _load_to_editor
+    lbl.on_press = _load_to_editor
 
     def add_btn(text_value, tip, handler, icon):
         b = PushButton(icon, text_value)

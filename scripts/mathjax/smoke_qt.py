@@ -68,6 +68,7 @@ def main() -> None:
             timeout_ms=15000,
         )
         deadline = time.monotonic() + 15
+        state = None
         while time.monotonic() < deadline:
             state = converter._run_javascript(
                 "JSON.stringify({error:window.LaTeXSnipperMathJax?.error,"

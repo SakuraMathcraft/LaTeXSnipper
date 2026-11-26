@@ -111,7 +111,6 @@ def create_startup_splash(app):
             pm,
             Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint,
         )
-        splash._lsn_status = ""
         try:
             screen = app.primaryScreen()
             if screen is not None:
@@ -136,8 +135,7 @@ def update_startup_splash(splash, message: str):
     try:
         app = QApplication.instance()
         if app is not None:
-            splash._lsn_status = str(message or "")
-            splash.setPixmap(build_startup_splash_pixmap(app, splash._lsn_status))
+            splash.setPixmap(build_startup_splash_pixmap(app, str(message or "")))
             app.processEvents()
     except Exception:
         pass

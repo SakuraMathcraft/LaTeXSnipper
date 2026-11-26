@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sys
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QIcon
@@ -40,8 +40,48 @@ from ui.main_window_layout import (
 )
 from ui.settings_context import SettingsContext
 
+if TYPE_CHECKING:
+    from PyQt6.QtWebEngineWidgets import QWebEngineView
+    from PyQt6.QtWidgets import (
+        QHBoxLayout,
+        QLabel,
+        QScrollArea,
+        QSplitter,
+        QVBoxLayout,
+        QWidget,
+    )
+    from qfluentwidgets import PlainTextEdit, PushButton
+
 
 class MainWindow(QMainWindow):
+    status_label: QLabel
+    capture_button: PushButton
+    onboarding_button: PushButton
+    history_title_label: QLabel
+    history_order_button: PushButton
+    history_scroll: QScrollArea
+    history_container: QWidget
+    history_layout: QVBoxLayout
+    clear_history_button: PushButton
+    change_key_button: PushButton
+    show_fav_button: PushButton
+    settings_button: PushButton
+    editor_title_label: QLabel
+    upload_image_btn: PushButton
+    upload_pdf_btn: PushButton
+    copy_editor_btn: PushButton
+    export_btn: PushButton
+    handwriting_btn: PushButton
+    latex_editor: PlainTextEdit
+    preview_title_label: QLabel
+    clear_preview_btn: PushButton
+    preview_fallback_label: QLabel | None
+    preview_view: QWebEngineView | None
+    size_layouts: tuple[
+        QVBoxLayout, QHBoxLayout, QHBoxLayout, QVBoxLayout, QWidget, QSplitter
+    ]
+    drop_targets: tuple[QWidget | None, ...]
+
     def __init__(self, startup_progress=None):
         super().__init__()
         self.lifecycle = None
@@ -153,7 +193,7 @@ class MainWindow(QMainWindow):
             self.status,
             providers.system,
             self.windows,
-            quit_application=lambda: self.lifecycle.truly_exit(),
+            quit_application=self._quit_from_tray,
         )
         self.automation_api = AutomationApiController(self.cfg, self.coordinator, self)
         self.lifecycle = AppLifecycleController(
@@ -198,7 +238,13 @@ class MainWindow(QMainWindow):
         self.lifecycle.install_platform_lifecycle_hooks()
         from PyQt6.QtWidgets import QApplication
 
-        QApplication.instance().aboutToQuit.connect(self.lifecycle.shutdown)
+        app = QApplication.instance()
+        if app is not None:
+            app.aboutToQuit.connect(self.lifecycle.shutdown)
+
+    def _quit_from_tray(self):
+        if self.lifecycle is not None:
+            self.lifecycle.truly_exit()
 
     def _connect_controllers(self, providers):
         self.models.status_changed.connect(self.status.set_model_status)
@@ -250,8 +296,8 @@ class MainWindow(QMainWindow):
             0, self.automation_api.apply_automation_api_startup_preference
         )
 
-    def showEvent(self, event):
-        super().showEvent(event)
+    def showEvent(self, a0):
+        super().showEvent(a0)
         if not self._startup_centered_once:
             self._startup_centered_once = True
             screen = self.screen()
@@ -261,12 +307,13 @@ class MainWindow(QMainWindow):
                 self.move(frame.topLeft())
 
     def event(self, event):
-        if getattr(self, "theme", None) is not None:
-            self.theme.handle_event(event)
+        theme = getattr(self, "theme", None)
+        if theme is not None:
+            theme.handle_event(event)
         return super().event(event)
 
-    def closeEvent(self, event):
+    def closeEvent(self, a0):
         if self.lifecycle is not None:
-            self.lifecycle.closeEvent(event)
+            self.lifecycle.closeEvent(a0)
         else:
-            super().closeEvent(event)
+            super().closeEvent(a0)

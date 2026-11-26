@@ -356,7 +356,10 @@ class AutomationAccessDialog(QDialog):
                 tr("没有可复制的密钥"), tr("请先生成远程访问密钥。"), "warning"
             )
             return
-        QApplication.clipboard().setText(value)
+        clipboard = QApplication.clipboard()
+        if clipboard is None:
+            return
+        clipboard.setText(value)
         self._show_info(tr("已复制"), tr("远程访问密钥已复制到剪贴板。"), "success")
 
     def _regenerate_key(self) -> None:

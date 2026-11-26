@@ -407,10 +407,18 @@ class _BoundedHTTPServer(ThreadingMixIn, HTTPServer):
 
 
 class _AutomationRequestHandler(BaseHTTPRequestHandler):
-    server: _BoundedHTTPServer
     protocol_version = "HTTP/1.1"
 
-    def log_message(self, _format: str, *_args) -> None:
+    def __init__(
+        self,
+        request: socket.socket,
+        client_address: tuple[str, int],
+        server: _BoundedHTTPServer,
+    ) -> None:
+        self._server = server
+        super().__init__(request, client_address, server)
+
+    def log_message(self, format: str, *_args) -> None:
         return
 
     def do_GET(self) -> None:
@@ -427,41 +435,41 @@ class _AutomationRequestHandler(BaseHTTPRequestHandler):
 
     def _dispatch(self, method: str) -> None:
         current_request_id = request_id()
-        self.connection.settimeout(self.server.api.limits.request_read_timeout_seconds)
+        self.connection.settimeout(self._server.api.limits.request_read_timeout_seconds)
         try:
             path = urlsplit(self.path).path
-            if not self.server.api.allowed_host(self.headers.get("Host")):
+            if not self._server.api.allowed_host(self.headers.get("Host")):
                 raise AutomationApiError(400, "invalid_request", "Host 请求头无效。")
             if method == "OPTIONS":
                 self._handle_options()
                 return
             if method == "GET" and path == f"{API_PREFIX}/health":
-                self._send_json(HTTPStatus.OK, self.server.api.minimal_health())
+                self._send_json(HTTPStatus.OK, self._server.api.minimal_health())
                 return
-            principal = self.server.api.authenticate(self)
+            principal = self._server.api.authenticate(self)
             if method == "GET" and path == f"{API_PREFIX}/config":
                 self._send_json(
-                    HTTPStatus.OK, self.server.api.authenticated_config(principal)
+                    HTTPStatus.OK, self._server.api.authenticated_config(principal)
                 )
                 return
             if method == "POST" and path == f"{API_PREFIX}/recognition/jobs":
-                self.server.api.check_rate_limit(
+                self._server.api.check_rate_limit(
                     principal, self.client_address[0], query=False
                 )
                 self._create_job(principal)
                 return
             match = _JOB_PATH.fullmatch(path)
             if match and method in {"GET", "DELETE"}:
-                self.server.api.check_rate_limit(
+                self._server.api.check_rate_limit(
                     principal, self.client_address[0], query=True
                 )
                 job_id = match.group(1)
                 if method == "DELETE":
-                    job = self.server.api.coordinator.cancel(
+                    job = self._server.api.coordinator.cancel(
                         job_id, principal_id=principal.id
                     )
                 else:
-                    job = self.server.api.coordinator.get(
+                    job = self._server.api.coordinator.get(
                         job_id, principal_id=principal.id
                     )
                 self._send_json(HTTPStatus.OK, {"job": job})
@@ -483,7 +491,7 @@ class _AutomationRequestHandler(BaseHTTPRequestHandler):
         finally:
             try:
                 self.connection.settimeout(
-                    self.server.api.limits.keep_alive_timeout_seconds
+                    self._server.api.limits.keep_alive_timeout_seconds
                 )
             except OSError:
                 self.close_connection = True
@@ -510,7 +518,7 @@ class _AutomationRequestHandler(BaseHTTPRequestHandler):
             timeout = validate_timeout(payload.get("timeout"))
 
             def create_waiter():
-                return self.server.api.coordinator.create_next_result_job(
+                return self._server.api.coordinator.create_next_result_job(
                     principal_id=principal.id,
                     source=source,
                     timeout_seconds=timeout,
@@ -518,7 +526,7 @@ class _AutomationRequestHandler(BaseHTTPRequestHandler):
 
             idempotency_key = self._idempotency_key()
             job = (
-                self.server.api.submit_idempotent(
+                self._server.api.submit_idempotent(
                     principal.id, idempotency_key, create_waiter
                 )
                 if idempotency_key
@@ -535,7 +543,7 @@ class _AutomationRequestHandler(BaseHTTPRequestHandler):
 
         wait_seconds = self._prefer_wait_seconds()
         if wait_seconds > 0:
-            job = self.server.api.coordinator.wait(
+            job = self._server.api.coordinator.wait(
                 job["id"], principal_id=principal.id, timeout=wait_seconds
             )
         status = (
@@ -566,16 +574,16 @@ class _AutomationRequestHandler(BaseHTTPRequestHandler):
             cast(BinaryIO, self.rfile),
             content_length=length,
             boundary=str(boundary),
-            image_limit=self.server.api.limits.max_encoded_image_bytes,
-            max_items=self.server.api.limits.max_batch_items,
+            image_limit=self._server.api.limits.max_encoded_image_bytes,
+            max_items=self._server.api.limits.max_batch_items,
         )
         fields: dict[str, str] = {}
         inputs: list[RecognitionItemInput] = []
         total_pixels = 0
         decode_acquired = False
         try:
-            decode_acquired = self.server._decode_slot.acquire(
-                timeout=self.server.api.limits.request_read_timeout_seconds
+            decode_acquired = self._server._decode_slot.acquire(
+                timeout=self._server.api.limits.request_read_timeout_seconds
             )
             if not decode_acquired:
                 raise AutomationApiError(
@@ -585,11 +593,14 @@ class _AutomationRequestHandler(BaseHTTPRequestHandler):
                 if part.name == "images":
                     image = image_from_stream(
                         part.stream,
-                        max_encoded_bytes=self.server.api.limits.max_encoded_image_bytes,
-                        max_pixels=self.server.api.limits.max_decoded_image_pixels,
+                        max_encoded_bytes=self._server.api.limits.max_encoded_image_bytes,
+                        max_pixels=self._server.api.limits.max_decoded_image_pixels,
                     )
                     total_pixels += image.width * image.height
-                    if total_pixels > self.server.api.limits.max_request_decoded_pixels:
+                    if (
+                        total_pixels
+                        > self._server.api.limits.max_request_decoded_pixels
+                    ):
                         raise AutomationApiError(
                             413, "image_too_large", "批量图片解码后的总像素超过限制。"
                         )
@@ -614,7 +625,7 @@ class _AutomationRequestHandler(BaseHTTPRequestHandler):
             ) from exc
         finally:
             if decode_acquired:
-                self.server._decode_slot.release()
+                self._server._decode_slot.release()
             for part in parts:
                 part.close()
         if not inputs:
@@ -629,7 +640,7 @@ class _AutomationRequestHandler(BaseHTTPRequestHandler):
         idempotency_key = self._idempotency_key()
 
         def submit():
-            return self.server.api.coordinator.submit(
+            return self._server.api.coordinator.submit(
                 inputs,
                 principal_id=principal.id,
                 source=source,
@@ -639,7 +650,7 @@ class _AutomationRequestHandler(BaseHTTPRequestHandler):
             )
 
         return (
-            self.server.api.submit_idempotent(principal.id, idempotency_key, submit)
+            self._server.api.submit_idempotent(principal.id, idempotency_key, submit)
             if idempotency_key
             else submit()
         )
@@ -695,7 +706,7 @@ class _AutomationRequestHandler(BaseHTTPRequestHandler):
             ) from exc
         if length <= 0:
             raise AutomationApiError(400, "invalid_request", "请求体为空。")
-        if length > self.server.api.limits.max_request_body_bytes:
+        if length > self._server.api.limits.max_request_body_bytes:
             raise AutomationApiError(413, "payload_too_large", "请求体超过大小限制。")
         return length
 
@@ -707,12 +718,12 @@ class _AutomationRequestHandler(BaseHTTPRequestHandler):
         if not match:
             return 0.0
         return min(
-            float(match.group(1)), self.server.api.limits.max_prefer_wait_seconds
+            float(match.group(1)), self._server.api.limits.max_prefer_wait_seconds
         )
 
     def _handle_options(self) -> None:
         origin = self.headers.get("Origin")
-        if origin not in self.server.api.settings.allowed_origins:
+        if origin not in self._server.api.settings.allowed_origins:
             raise AutomationApiError(403, "forbidden", "该 Origin 不在允许列表中。")
         self._send_json(
             HTTPStatus.NO_CONTENT,
@@ -746,7 +757,7 @@ class _AutomationRequestHandler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
             origin = self.headers.get("Origin")
-            if origin and origin in self.server.api.settings.allowed_origins:
+            if origin and origin in self._server.api.settings.allowed_origins:
                 self.send_header("Access-Control-Allow-Origin", origin)
                 self.send_header("Vary", "Origin")
             for key, value in (extra_headers or {}).items():

@@ -75,44 +75,41 @@ class ExternalModelClient:
         resp = getattr(e, "response", None)
         if resp is not None:
             code = int(getattr(resp, "status_code", 0) or 0)
+            detail = ""
             if code == 401:
                 message = "接口认证失败，请检查 API Key。"
                 user_code = "authentication_failed"
-            if code == 403:
+            elif code == 403:
                 message = "接口访问被拒绝，请检查权限或鉴权配置。"
                 user_code = "access_denied"
-            if code == 404:
+            elif code == 404:
                 message = f"接口路径不存在：{endpoint}，请检查 Base URL 或协议类型。"
                 user_code = "endpoint_not_found"
-            if code == 429:
+            elif code == 429:
                 message = "请求过于频繁，请稍后重试。"
                 user_code = "rate_limited"
-            if 500 <= code < 600:
+            elif 500 <= code < 600:
                 message = f"服务端返回 {code}，请稍后重试或检查服务日志。"
                 user_code = "server_error"
-            if code not in {401, 403, 404, 429} and not 500 <= code < 600:
-                detail = self._response_error_detail(resp)
             else:
-                detail = ""
-            if code == 400:
-                if self._is_image_input_rejected(detail):
-                    suffix = (
-                        "该接口或模型不支持图片输入，请换用支持视觉输入的模型或服务。"
-                    )
-                    user_code = "image_input_unsupported"
+                detail = self._response_error_detail(resp)
+                if code == 400:
+                    if self._is_image_input_rejected(detail):
+                        suffix = "该接口或模型不支持图片输入，请换用支持视觉输入的模型或服务。"
+                        user_code = "image_input_unsupported"
+                    else:
+                        suffix = (
+                            f"服务端信息：{detail}"
+                            if detail
+                            else "请检查模型是否支持图片输入、模型名和请求协议。"
+                        )
+                        user_code = "bad_request"
+                    message = f"{action}失败，接口返回 400。{suffix}"
                 else:
-                    suffix = (
-                        f"服务端信息：{detail}"
-                        if detail
-                        else "请检查模型是否支持图片输入、模型名和请求协议。"
+                    message = f"{action}失败，接口返回 {code}。" + (
+                        f"服务端信息：{detail}" if detail else ""
                     )
-                    user_code = "bad_request"
-                message = f"{action}失败，接口返回 400。{suffix}"
-            elif code not in {401, 403, 404, 429} and not 500 <= code < 600:
-                message = f"{action}失败，接口返回 {code}。" + (
-                    f"服务端信息：{detail}" if detail else ""
-                )
-                user_code = "http_error"
+                    user_code = "http_error"
             return ExternalModelConnectionError(
                 message,
                 user_code=user_code,
@@ -175,6 +172,7 @@ class ExternalModelClient:
         timeout = self.config.normalized_timeout()
         if provider == "mineru":
             return MineruClient(self.config).test_connection()
+        url = base_url
         try:
             if provider == "ollama":
                 url = f"{base_url}/api/tags"
@@ -189,9 +187,7 @@ class ExternalModelClient:
                 raw = resp.json()
                 names = self._extract_openai_model_names(raw)
         except requests.RequestException as e:
-            raise self._build_request_error(
-                e, "测试连接", locals().get("url", base_url)
-            ) from e
+            raise self._build_request_error(e, "测试连接", url) from e
         except ValueError as e:
             raise ExternalModelResponseError(
                 f"接口返回的不是有效 JSON: {e}",
@@ -242,6 +238,7 @@ class ExternalModelClient:
                 }
             ],
         }
+        url = ""
         try:
             url = f"{self._openai_api_base_url()}/chat/completions"
             resp = requests.post(
@@ -274,8 +271,8 @@ class ExternalModelClient:
                 }
             ],
         }
+        url = f"{base_url}/api/chat"
         try:
-            url = f"{base_url}/api/chat"
             resp = requests.post(
                 url,
                 headers=self._headers(),

@@ -110,15 +110,17 @@ class InkCanvas(QWidget):
     def zoom_out(self) -> bool:
         return self.set_zoom(round(self._zoom - self._zoom_step, 2))
 
-    def wheelEvent(self, event: QWheelEvent) -> None:
-        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            delta = event.angleDelta().y()
+    def wheelEvent(self, a0: QWheelEvent | None) -> None:
+        if a0 is None:
+            return
+        if a0.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            delta = a0.angleDelta().y()
             if delta:
                 changed = self.zoom_in() if delta > 0 else self.zoom_out()
                 if changed:
-                    event.accept()
+                    a0.accept()
                     return
-        super().wheelEvent(event)
+        super().wheelEvent(a0)
 
     def clear_canvas(self) -> bool:
         changed = self.store.clear()
@@ -175,67 +177,75 @@ class InkCanvas(QWidget):
         painter.end()
         return CanvasExportResult(image=image, bounds=padded, is_empty=False)
 
-    def mousePressEvent(self, event: QMouseEvent) -> None:
+    def mousePressEvent(self, a0: QMouseEvent | None) -> None:
+        if a0 is None:
+            return
         if self._tablet_active:
-            event.accept()
+            a0.accept()
             return
-        if event.button() == Qt.MouseButton.RightButton:
-            self._start_pan(event)
+        if a0.button() == Qt.MouseButton.RightButton:
+            self._start_pan(a0)
             return
-        pos = self._to_scene_point(event.position())
-        if event.button() != Qt.MouseButton.LeftButton:
-            return super().mousePressEvent(event)
+        pos = self._to_scene_point(a0.position())
+        if a0.button() != Qt.MouseButton.LeftButton:
+            return super().mousePressEvent(a0)
         self._begin_interaction(pos, pressure=None)
         self.update()
 
-    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+    def mouseMoveEvent(self, a0: QMouseEvent | None) -> None:
+        if a0 is None:
+            return
         if self._tablet_active:
-            event.accept()
+            a0.accept()
             return
         if self._is_panning:
-            self._continue_pan(event)
+            self._continue_pan(a0)
             return
-        pos = self._to_scene_point(event.position())
+        pos = self._to_scene_point(a0.position())
         if not self._is_dragging:
-            return super().mouseMoveEvent(event)
+            return super().mouseMoveEvent(a0)
         self._continue_interaction(pos, pressure=None)
 
-    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:
+        if a0 is None:
+            return
         if self._tablet_active:
-            event.accept()
+            a0.accept()
             return
-        if event.button() == Qt.MouseButton.RightButton and self._is_panning:
+        if a0.button() == Qt.MouseButton.RightButton and self._is_panning:
             self._stop_pan()
-            event.accept()
+            a0.accept()
             return
-        if event.button() != Qt.MouseButton.LeftButton:
-            return super().mouseReleaseEvent(event)
+        if a0.button() != Qt.MouseButton.LeftButton:
+            return super().mouseReleaseEvent(a0)
         self._finish_interaction()
         self.update()
 
-    def tabletEvent(self, event):  # pragma: no cover - hardware-dependent
-        if QTabletEvent is None:
-            return super().tabletEvent(event)
-        pos = self._to_scene_point(event.position())
-        pressure = max(0.05, float(event.pressure() or 0.0))
-        self._tablet_active = event.type() != QTabletEvent.Type.TabletRelease
-        if event.type() == QTabletEvent.Type.TabletPress:
-            self._begin_interaction(pos, pressure=pressure)
-            event.accept()
+    def tabletEvent(self, a0):  # pragma: no cover - hardware-dependent
+        if a0 is None:
             return
-        if event.type() == QTabletEvent.Type.TabletMove:
+        if QTabletEvent is None:
+            return super().tabletEvent(a0)
+        pos = self._to_scene_point(a0.position())
+        pressure = max(0.05, float(a0.pressure() or 0.0))
+        self._tablet_active = a0.type() != QTabletEvent.Type.TabletRelease
+        if a0.type() == QTabletEvent.Type.TabletPress:
+            self._begin_interaction(pos, pressure=pressure)
+            a0.accept()
+            return
+        if a0.type() == QTabletEvent.Type.TabletMove:
             if self._is_dragging:
                 self._continue_interaction(pos, pressure=pressure)
-            event.accept()
+            a0.accept()
             return
-        if event.type() == QTabletEvent.Type.TabletRelease:
+        if a0.type() == QTabletEvent.Type.TabletRelease:
             self._finish_interaction()
             self._tablet_active = False
-            event.accept()
+            a0.accept()
             return
-        super().tabletEvent(event)
+        super().tabletEvent(a0)
 
-    def paintEvent(self, event: QPaintEvent) -> None:
+    def paintEvent(self, a0: QPaintEvent | None) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.fillRect(self.rect(), QColor(self._ui_tokens["canvas_bg"]))

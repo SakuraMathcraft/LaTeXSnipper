@@ -67,17 +67,17 @@ class AppLifecycleController(QObject):
         self._platform_hooks_installed = True
         self._install_macos_application_menu()
 
-    def eventFilter(self, obj, event):
-        if sys.platform == "darwin":
-            if event.type() == QEvent.Type.Quit:
+    def eventFilter(self, a0, a1):
+        if sys.platform == "darwin" and a1 is not None:
+            if a1.type() == QEvent.Type.Quit:
                 self._force_exit = True
                 self.shutdown()
             elif (
-                event.type() == QEvent.Type.ApplicationActivate
+                a1.type() == QEvent.Type.ApplicationActivate
                 and not self.capture.is_capturing()
             ):
                 QTimer.singleShot(0, self._reactivate_from_dock)
-        return super().eventFilter(obj, event)
+        return super().eventFilter(a0, a1)
 
     def _install_macos_application_menu(self):
         if sys.platform != "darwin":
@@ -125,7 +125,7 @@ class AppLifecycleController(QObject):
 
     def _close_active_window(self):
         app = QApplication.instance()
-        active = app.activeWindow() if app is not None else None
+        active = app.activeWindow() if isinstance(app, QApplication) else None
         if active is not None and active is not self.view:
             try:
                 active.close()
@@ -272,7 +272,9 @@ class AppLifecycleController(QObject):
             except Exception:
                 logger.exception("退出清理失败: %s", action.__qualname__)
         if self._platform_hooks_installed:
-            QCoreApplication.instance().removeEventFilter(self)
+            app = QCoreApplication.instance()
+            if app is not None:
+                app.removeEventFilter(self)
             self._platform_hooks_installed = False
         logger.info("LaTeXSnipper 已退出")
         cleanup_runtime_log_session()
