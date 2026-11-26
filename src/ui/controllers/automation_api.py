@@ -332,7 +332,9 @@ class AutomationApiController(QObject):
             else None,
         )
 
-        def done(ok: bool, message: str, result_server: object) -> None:
+        def done(
+            ok: bool, message: str, result_server: AutomationApiServer | None
+        ) -> None:
             if bool(getattr(self, "_automation_api_shutting_down", False)):
                 if result_server is not None:
                     result_server.stop()

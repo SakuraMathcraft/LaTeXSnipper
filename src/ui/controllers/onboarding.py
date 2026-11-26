@@ -161,21 +161,24 @@ class OnboardingController(QObject):
             self.surface.detail.show()
             self.surface.reposition()
 
-    def eventFilter(self, watched, event):
+    def eventFilter(self, a0, a1):
         if sip.isdeleted(self.window) or sip.isdeleted(self.surface):
             self.active = False
             return False
-        if watched is self.auxiliary and event.type() in (
+        if a0 is None or a1 is None:
+            return False
+        event_type = a1.type()
+        if a0 is self.auxiliary and event_type in (
             QEvent.Type.Hide,
             QEvent.Type.Close,
         ):
-            watched.removeEventFilter(self)
+            a0.removeEventFilter(self)
             self.auxiliary = None
             if self.active:
                 QTimer.singleShot(0, self.render)
-        elif watched is self.central_widget and event.type() == QEvent.Type.Resize:
+        elif a0 is self.central_widget and event_type == QEvent.Type.Resize:
             self.surface.reposition()
-        elif watched is self.window and event.type() == QEvent.Type.Close:
+        elif a0 is self.window and event_type == QEvent.Type.Close:
             self.active = False
             self.surface.hide()
         return False

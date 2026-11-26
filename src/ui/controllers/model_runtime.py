@@ -53,7 +53,6 @@ class ModelRuntimeController(QObject):
         self.tasks = tasks
         self.notice = notice
         self.notification_parent = notification_parent
-        self.model = None
         self._model_warmup_in_progress = False
         self._model_warmup_cancelled = False
         self._model_warmup_notice_shown = False

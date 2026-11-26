@@ -76,8 +76,9 @@ class ModelResourcesDialog(QDialog):
         self._checking = False
         while self.rows_layout.count():
             item = self.rows_layout.takeAt(0)
-            if item.widget() is not None:
-                item.widget().deleteLater()
+            widget = item.widget() if item is not None else None
+            if widget is not None:
+                widget.deleteLater()
         if error:
             self._directory = None
             self.open_directory.setEnabled(False)
@@ -86,9 +87,10 @@ class ModelResourcesDialog(QDialog):
             )
             return
         resources = result
-        self._directory = resources.root
-        self.open_directory.setEnabled(self._directory.is_dir())
-        self.open_directory.setToolTip(str(self._directory))
+        directory = resources.root
+        self._directory = directory
+        self.open_directory.setEnabled(directory.is_dir())
+        self.open_directory.setToolTip(str(directory))
         if resources.manifest_path is not None:
             self.description.setText(
                 tr("使用安装目录中的模型；缺失或损坏时，请重新运行完整安装包。")
@@ -117,9 +119,9 @@ class ModelResourcesDialog(QDialog):
                 names.get(model_id) or model_id, resources.root / model_id
             )
 
-    def showEvent(self, event):
+    def showEvent(self, a0):
         self._inspect_resources()
-        super().showEvent(event)
+        super().showEvent(a0)
 
     def _open_directory(self):
         if self._directory is not None:

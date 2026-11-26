@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import QRect, Qt, QTimer
 from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QTextEdit, QVBoxLayout
 from qfluentwidgets import (
     BodyLabel,
@@ -21,6 +21,16 @@ from ui.theme_tokens import dialog_theme_tokens
 from ui.window_helpers import apply_no_minimize_window_flags
 
 
+class PredictResultDialog(QDialog):
+    _predict_result_mode: str
+    _predict_result_pinned: bool
+    _pin_restore_geometry: QRect
+    _predict_result_info_label: BodyLabel
+    _predict_result_editor: QTextEdit
+    _quick_export_format: str
+    _refresh_quick_export_button: Callable[[str, str], None]
+
+
 def show_predict_result_dialog(
     *,
     parent,
@@ -33,14 +43,14 @@ def show_predict_result_dialog(
     show_export_menu_for_source: Callable,
     accept_result: Callable[[QDialog, QTextEdit], None],
     set_pin_button_style: Callable[[object, bool], None],
-    set_pinned: Callable[[QDialog, object, bool], None],
+    set_pinned: Callable[[PredictResultDialog, object, bool], None],
     move_to_screen: Callable[[QDialog, int | None], None],
     clear_dialog_ref: Callable[[QDialog], None],
     default_export_format: str = "",
     default_export_label: str = "",
     quick_export: Callable[[str, str, QDialog], None] | None = None,
-) -> QDialog:
-    dlg = QDialog(parent)
+) -> PredictResultDialog:
+    dlg = PredictResultDialog(parent)
     apply_no_minimize_window_flags(dlg)
     dlg.setWindowTitle(tr("识别结果"))
     dlg.resize(700, 500)
@@ -148,7 +158,6 @@ def show_predict_result_dialog(
     quick_export_btn = PushButton(FluentIcon.SAVE, "")
     quick_export_btn.setFixedHeight(32)
     quick_export_btn.setVisible(False)
-    dlg._quick_export_btn = quick_export_btn
     dlg._quick_export_format = ""
 
     def _quick_label(label: str) -> str:

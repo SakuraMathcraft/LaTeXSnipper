@@ -1,7 +1,9 @@
-from typing import cast
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, cast
 
 from PyQt6.QtCore import QObject
-from PyQt6.QtWidgets import QLineEdit
+from PyQt6.QtWidgets import QLineEdit, QWidget
 from qfluentwidgets import ComboBox
 
 from backend.external_model import get_preset, load_config_from_mapping
@@ -11,6 +13,9 @@ from recognition.external_workers import ExternalModelConnectionWorker
 from runtime.background_task import BackgroundTask
 from ui.settings_external_help import ExternalModelHelpWindow
 from ui.window_helpers import show_normal_window
+
+if TYPE_CHECKING:
+    from ui.settings_context import SettingsView
 
 
 class SettingsExternalModelMixin:
@@ -35,7 +40,7 @@ class SettingsExternalModelMixin:
                 return str(value)
         return default
 
-    def _init_external_model_config(self):
+    def _init_external_model_config(self: SettingsView):
         cfg = None
         try:
             cfg = self.context.cfg
@@ -74,7 +79,7 @@ class SettingsExternalModelMixin:
         )
         self._update_external_provider_visibility()
 
-    def _collect_external_model_config(self):
+    def _collect_external_model_config(self: SettingsView):
         config = load_config_from_mapping({})
         config.provider = self._get_external_combo_value(
             self.external_provider_combo, "ollama"
@@ -99,7 +104,7 @@ class SettingsExternalModelMixin:
             config.timeout_sec = 60
         return config
 
-    def _update_external_provider_visibility(self):
+    def _update_external_provider_visibility(self: SettingsView):
         config = self._collect_external_model_config()
         is_mineru = config.normalized_provider() == "mineru"
         self.external_mineru_endpoint_input.setVisible(is_mineru)
@@ -116,10 +121,10 @@ class SettingsExternalModelMixin:
                 tr("必填：模型名，例如 qwen2.5vl:7b；必须与服务中的真实名称一致")
             )
 
-    def _on_external_provider_changed(self, *_args):
+    def _on_external_provider_changed(self: SettingsView, *_args):
         self._update_external_provider_visibility()
 
-    def _notify_parent_external_status_changed(self):
+    def _notify_parent_external_status_changed(self: SettingsView):
         parent = self.context
         if parent is None:
             return
@@ -129,7 +134,7 @@ class SettingsExternalModelMixin:
         except Exception:
             pass
 
-    def _save_external_model_config(self):
+    def _save_external_model_config(self: SettingsView):
         config = self._collect_external_model_config()
         try:
             parent_cfg = getattr(self.context, "cfg", None)
@@ -145,13 +150,13 @@ class SettingsExternalModelMixin:
         self._update_external_provider_visibility()
         self._notify_parent_external_status_changed()
 
-    def _on_external_config_changed(self, *_args):
+    def _on_external_config_changed(self: SettingsView, *_args):
         self._save_external_model_config()
 
-    def _on_external_preset_changed(self, *_args):
+    def _on_external_preset_changed(self: SettingsView, *_args):
         self._save_external_model_config()
 
-    def _apply_external_preset(self):
+    def _apply_external_preset(self: SettingsView):
         preset = get_preset(
             self._get_external_combo_value(self.external_preset_combo, "")
         )
@@ -188,7 +193,7 @@ class SettingsExternalModelMixin:
             "success",
         )
 
-    def _test_external_model_connection(self):
+    def _test_external_model_connection(self: SettingsView):
         if self._external_test_task and self._external_test_task.busy:
             self._show_info(
                 tr("测试进行中"), tr("当前已有一个测试连接任务在后台运行。"), "warning"
@@ -239,9 +244,9 @@ class SettingsExternalModelMixin:
     def _format_external_test_error(self, error: object) -> str:
         return external_model_test_error_user_message(error)
 
-    def _show_external_model_help(self):
+    def _show_external_model_help(self: SettingsView):
         if self._external_help_window is None:
-            self._external_help_window = ExternalModelHelpWindow(self)
+            self._external_help_window = ExternalModelHelpWindow(cast(QWidget, self))
             self._external_help_window.destroyed.connect(
                 lambda: setattr(self, "_external_help_window", None)
             )

@@ -1,8 +1,8 @@
 import ctypes
 import ctypes.wintypes
 import logging
-from typing import Any, cast
 
+from PyQt6 import sip
 from PyQt6.QtCore import (
     QAbstractEventDispatcher,
     QAbstractNativeEventFilter,
@@ -21,6 +21,8 @@ MOD_CONTROL = 0x0002
 MOD_SHIFT = 0x0004
 MOD_WIN = 0x0008
 WM_HOTKEY = 0x0312
+_UNHANDLED = (False, sip.voidptr(0))
+_HANDLED = (True, sip.voidptr(0))
 
 
 class WinHotkeyFilter(QAbstractNativeEventFilter):
@@ -29,22 +31,24 @@ class WinHotkeyFilter(QAbstractNativeEventFilter):
         self._owner_getter = owner_getter  # lambda: GlobalHotkey
 
     def nativeEventFilter(self, eventType, message):
-        if eventType != b"windows_generic_MSG":
-            return False, 0
+        if eventType != b"windows_generic_MSG" or message is None:
+            return _UNHANDLED
         try:
             try:
-                addr = int(cast(Any, message))
+                addr = int(message)
             except Exception:
-                return False, 0
+                return _UNHANDLED
+            if not addr:
+                return _UNHANDLED
             msg = ctypes.wintypes.MSG.from_address(addr)
             if msg.message == WM_HOTKEY:
                 owner = self._owner_getter()
                 if owner and owner._id is not None and msg.wParam == owner._id:
                     owner.activated.emit()
-                    return True, 0
+                    return _HANDLED
         except Exception as e:
             logger.warning("全局快捷键事件处理失败: %s", e)
-        return False, 0
+        return _UNHANDLED
 
 
 class GlobalHotkey(QObject):

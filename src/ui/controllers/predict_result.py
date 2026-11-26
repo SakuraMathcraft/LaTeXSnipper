@@ -46,7 +46,7 @@ from runtime.content_types import (
 from runtime.hotkey_config import display_hotkey, normalize_hotkey_or_default
 from runtime.webengine_runtime import ensure_webengine_loaded
 from ui.notifications import show_user_notice
-from ui.predict_result_dialog import show_predict_result_dialog
+from ui.predict_result_dialog import PredictResultDialog, show_predict_result_dialog
 from ui.theme_tokens import dialog_theme_tokens, is_dark_ui
 from ui.window_helpers import show_normal_window
 
@@ -79,7 +79,7 @@ class RecognitionResultController(QObject):
         self.tasks = tasks
         self.coordinator = coordinator
         self.tray_icon = tray_icon
-        self._predict_result_dialog = None
+        self._predict_result_dialog: PredictResultDialog | None = None
         self._next_predict_result_screen_index = None
         self._last_recognition_failure_toast_ts = 0.0
         self._last_recognition_cancel_notice_at = 0.0
@@ -242,7 +242,9 @@ class RecognitionResultController(QObject):
         except Exception:
             pass
 
-    def _set_predict_result_pinned(self, dlg: QDialog, pin_btn, pinned: bool):
+    def _set_predict_result_pinned(
+        self, dlg: PredictResultDialog, pin_btn, pinned: bool
+    ):
         dlg._predict_result_pinned = bool(pinned)
         try:
             if pinned and (not dlg.isMaximized()):
@@ -481,7 +483,10 @@ class RecognitionResultController(QObject):
             try:
                 pyperclip.copy(t)
             except Exception:
-                QApplication.clipboard().setText(t)
+                clipboard = QApplication.clipboard()
+                if clipboard is None:
+                    raise RuntimeError("Qt clipboard is unavailable") from None
+                clipboard.setText(t)
         except Exception as e:
             self.status.show_action_status(
                 tr("复制失败：{error}").format(error=e), level="error", parent=dialog

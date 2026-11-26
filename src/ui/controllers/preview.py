@@ -56,12 +56,13 @@ class PreviewController(QObject):
             return
         if self._render_timer:
             self._render_timer.stop()
+        editor = self.view.latex_editor
+        was_blocked = editor.blockSignals(True)
         try:
-            was_blocked = self.view.latex_editor.blockSignals(True)
-            self.view.latex_editor.setPlainText(text)
+            editor.setPlainText(text)
         finally:
             try:
-                self.view.latex_editor.blockSignals(was_blocked)
+                editor.blockSignals(was_blocked)
             except Exception:
                 pass
 

@@ -329,15 +329,18 @@ class PdfRecognitionController(QObject):
         self._pdf_result_window.activateWindow()
 
     def _on_pdf_predict_ok(self, content: str):
+        worker = self.tasks.worker
+        if worker is None:
+            return
         self.tasks.clear_cancellation()
-        if isinstance(self.tasks.worker, ExternalModelPdfWorker):
-            used = self.models.external_display_name(config=self.tasks.worker.config)
+        if isinstance(worker, ExternalModelPdfWorker):
+            used = self.models.external_display_name(config=worker.config)
         else:
-            used = self.tasks.worker.model_name
+            used = worker.model_name
         self.status.set_model_status(tr("完成"))
         self.status.set_action_status(tr("PDF 识别完成"), auto_clear_ms=3500)
         self._release_pdf_progress()
-        elapsed = self.tasks.worker.elapsed
+        elapsed = worker.elapsed
         if elapsed is not None:
             logger.info("PDF 识别完成 model=%s time=%ss", used, f"{elapsed:.2f}")
         else:
@@ -362,6 +365,9 @@ class PdfRecognitionController(QObject):
         )
 
     def _on_pdf_predict_fail(self, msg: str):
+        worker = self.tasks.worker
+        if worker is None:
+            return
         self._release_pdf_progress()
         if self.results._is_user_cancelled_recognition_error(msg):
             try:
@@ -371,11 +377,11 @@ class PdfRecognitionController(QObject):
             self.results.show_cancelled()
             return
         self.status.set_model_status(tr("失败"))
-        if isinstance(self.tasks.worker, ExternalModelPdfWorker):
-            used = self.models.external_display_name(config=self.tasks.worker.config)
+        if isinstance(worker, ExternalModelPdfWorker):
+            used = self.models.external_display_name(config=worker.config)
         else:
-            used = self.tasks.worker.model_name
-        elapsed = self.tasks.worker.elapsed
+            used = worker.model_name
+        elapsed = worker.elapsed
         if elapsed is not None:
             logger.error(
                 "PDF 识别失败 model=%s time=%ss err=%s", used, f"{elapsed:.2f}", msg
@@ -383,7 +389,7 @@ class PdfRecognitionController(QObject):
         else:
             logger.error("PDF 识别失败 model=%s err=%s", used, msg)
         content = self.results.failure_content(
-            msg, external_model=isinstance(self.tasks.worker, ExternalModelPdfWorker)
+            msg, external_model=isinstance(worker, ExternalModelPdfWorker)
         )
         self.results._show_recognition_failure_notice(content)
 

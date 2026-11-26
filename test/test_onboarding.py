@@ -233,8 +233,9 @@ def test_combined_support_opens_readme_for_current_ui_language(
     tour.start()
     for _ in range(4):
         tour.advance()
-    assert tour.surface.actions.count() == 3
-    tour.surface.actions.itemAt(2).widget().click()
+    actions = tour.surface.actions_layout
+    assert actions.count() == 3
+    actions.itemAt(2).widget().click()
     assert len(opened) == 1
     assert opened[0].path().endswith("/" + page)
     assert opened[0].fragment() == fragment

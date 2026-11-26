@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 import logging
 
 from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
+from PyQt6.QtGui import QKeyEvent
 from qfluentwidgets import InfoBar, InfoBarPosition
 
 from localization.manager import translate as tr
@@ -152,21 +153,24 @@ class CaptureController(QObject):
         finally:
             self._capture_start_pending = False
 
-    def eventFilter(self, obj, event):
-        if self.file_input.eventFilter(obj, event):
+    def eventFilter(self, a0, a1):
+        if self.file_input.eventFilter(a0, a1):
             return True
+        overlay = getattr(self, "overlay", None)
         if (
-            obj is getattr(self, "overlay", None)
-            and event.type() == QEvent.Type.KeyPress
+            overlay is not None
+            and a0 is overlay
+            and isinstance(a1, QKeyEvent)
+            and a1.type() == QEvent.Type.KeyPress
         ):
-            if event.key() == Qt.Key.Key_Escape:
+            if a1.key() == Qt.Key.Key_Escape:
                 restore_main_window = self._restore_main_window_on_cancel
                 try:
-                    cancel = getattr(obj, "cancel_capture", None)
+                    cancel = getattr(overlay, "cancel_capture", None)
                     if callable(cancel):
                         cancel()
                     else:
-                        obj.close()
+                        overlay.close()
                 except Exception:
                     pass
                 self._capture_start_pending = False

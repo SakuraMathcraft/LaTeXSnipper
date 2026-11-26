@@ -68,7 +68,7 @@ class HotkeyController(QObject):
 
     def _blocking_window(self):
         app = QApplication.instance()
-        if app is None:
+        if not isinstance(app, QApplication):
             return None
         try:
             modal = app.activeModalWidget()

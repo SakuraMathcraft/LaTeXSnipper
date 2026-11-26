@@ -20,7 +20,7 @@ def apply_app_window_icon(win, icon_path: str | os.PathLike[str] | None) -> None
         return
     icon = QIcon(str(path))
     app = QApplication.instance()
-    if app is not None:
+    if isinstance(app, QApplication):
         app.setWindowIcon(icon)
     if win is not None:
         win.setWindowIcon(icon)

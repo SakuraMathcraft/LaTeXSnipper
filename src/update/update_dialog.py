@@ -181,9 +181,11 @@ class ComponentUpdateDialog(QDialog):
         self._lifecycle.prepare_restart()
         QCoreApplication.quit()
 
-    def closeEvent(self, event) -> None:
+    def closeEvent(self, a0) -> None:
+        if a0 is None:
+            return
         if self._state == "handoff-ready":
-            event.accept() if self._exiting_for_install else event.ignore()
+            a0.accept() if self._exiting_for_install else a0.ignore()
             return
         if self._state == "downloading":
             answer = exec_close_only_message_box(
@@ -195,18 +197,20 @@ class ComponentUpdateDialog(QDialog):
                 QMessageBox.StandardButton.No,
             )
             if answer != QMessageBox.StandardButton.Yes:
-                event.ignore()
+                a0.ignore()
                 return
         self.controller.close()
         _clear_dialog(self)
-        super().closeEvent(event)
+        super().closeEvent(a0)
 
-    def keyPressEvent(self, event) -> None:
-        if event.key() == Qt.Key.Key_Escape:
+    def keyPressEvent(self, a0) -> None:
+        if a0 is None:
+            return
+        if a0.key() == Qt.Key.Key_Escape:
             self.close()
-            event.accept()
+            a0.accept()
         else:
-            super().keyPressEvent(event)
+            super().keyPressEvent(a0)
 
 
 def _clear_dialog(owner) -> None:

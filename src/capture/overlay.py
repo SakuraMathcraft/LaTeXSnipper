@@ -654,7 +654,7 @@ class ScreenCaptureOverlay(QWidget):
         painter.drawRoundedRect(border_rect, _MAGNIFIER_RADIUS, _MAGNIFIER_RADIUS)
         painter.restore()
 
-    def paintEvent(self, event):
+    def paintEvent(self, a0):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
@@ -745,20 +745,24 @@ class ScreenCaptureOverlay(QWidget):
 
         self._draw_magnifier(painter)
 
-    def mousePressEvent(self, event):
-        self.current_pos = event.position().toPoint()
-        self.current_global_pos = event.globalPosition().toPoint()
+    def mousePressEvent(self, a0):
+        if a0 is None:
+            return
+        self.current_pos = a0.position().toPoint()
+        self.current_global_pos = a0.globalPosition().toPoint()
         self.start_pos = self.current_pos
         self.end_pos = self.start_pos
         self.start_global_pos = self.current_global_pos
         self.end_global_pos = self.start_global_pos
         self.update()
 
-    def mouseMoveEvent(self, event):
+    def mouseMoveEvent(self, a0):
+        if a0 is None:
+            return
         previous_visual_region = self._cursor_visual_region()
         previous_selection = self._selection_rect()
-        self.current_pos = event.position().toPoint()
-        self.current_global_pos = event.globalPosition().toPoint()
+        self.current_pos = a0.position().toPoint()
+        self.current_global_pos = a0.globalPosition().toPoint()
         if self.start_pos is not None:
             self.end_pos = self.current_pos
             self.end_global_pos = self.current_global_pos
@@ -778,32 +782,36 @@ class ScreenCaptureOverlay(QWidget):
             return
         self.update(previous_visual_region.united(self._cursor_visual_region()))
 
-    def mouseReleaseEvent(self, event):
-        self.current_pos = event.position().toPoint()
-        self.current_global_pos = event.globalPosition().toPoint()
+    def mouseReleaseEvent(self, a0):
+        if a0 is None:
+            return
+        self.current_pos = a0.position().toPoint()
+        self.current_global_pos = a0.globalPosition().toPoint()
         self.end_pos = self.current_pos
         self.end_global_pos = self.current_global_pos
         self.update()
         self.capture_selection()
 
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_C:
-            if not event.isAutoRepeat():
-                self._copy_current_color_value()
-            event.accept()
+    def keyPressEvent(self, a0):
+        if a0 is None:
             return
-        if event.key() == Qt.Key.Key_Shift:
-            if not event.isAutoRepeat():
+        if a0.key() == Qt.Key.Key_C:
+            if not a0.isAutoRepeat():
+                self._copy_current_color_value()
+            a0.accept()
+            return
+        if a0.key() == Qt.Key.Key_Shift:
+            if not a0.isAutoRepeat():
                 self.color_display_mode = (
                     "hex" if self.color_display_mode == "rgb" else "rgb"
                 )
                 self.update()
-            event.accept()
+            a0.accept()
             return
-        if event.key() == Qt.Key.Key_Escape:
+        if a0.key() == Qt.Key.Key_Escape:
             self.cancel_capture()
             return
-        super().keyPressEvent(event)
+        super().keyPressEvent(a0)
 
     def _show_without_activation(self) -> bool:
         """Report whether the overlay must appear without activating the application."""
@@ -822,8 +830,8 @@ class ScreenCaptureOverlay(QWidget):
             return False
         return macos_make_nonactivating_panel(self)
 
-    def showEvent(self, event):
-        super().showEvent(event)
+    def showEvent(self, a0):
+        super().showEvent(a0)
         try:
             self._update_cursor_position_from_global(QCursor.pos())
             self._hide_system_cursor()
@@ -836,17 +844,17 @@ class ScreenCaptureOverlay(QWidget):
         except Exception:
             pass
 
-    def hideEvent(self, event):
+    def hideEvent(self, a0):
         self._restore_system_cursor()
-        super().hideEvent(event)
+        super().hideEvent(a0)
 
-    def closeEvent(self, event):
+    def closeEvent(self, a0):
         try:
             self.releaseKeyboard()
         except Exception:
             pass
         self._restore_system_cursor()
-        super().closeEvent(event)
+        super().closeEvent(a0)
 
     def _screen_label(self, index: int, screens) -> str:
         if 0 <= int(index) < len(screens):

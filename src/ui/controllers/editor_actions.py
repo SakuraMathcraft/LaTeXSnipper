@@ -48,7 +48,10 @@ class EditorActionsController(QObject):
             self.status.show_action_status(tr("编辑器为空"), level="warning")
             return
         try:
-            QApplication.clipboard().setText(text)
+            clipboard = QApplication.clipboard()
+            if clipboard is None:
+                raise RuntimeError("Qt clipboard is unavailable")
+            clipboard.setText(text)
             self.status.set_action_status(tr("已复制"))
         except Exception:
             try:

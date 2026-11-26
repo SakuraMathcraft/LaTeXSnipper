@@ -12,7 +12,7 @@ import logging
 from pathlib import Path
 
 from PyQt6.QtCore import QObject
-from PyQt6.QtGui import QGuiApplication, QKeySequence
+from PyQt6.QtGui import QDragMoveEvent, QGuiApplication, QKeySequence
 from qfluentwidgets import InfoBar, InfoBarPosition
 
 from localization.manager import translate as tr
@@ -42,7 +42,9 @@ class FileInputController(QObject):
             except Exception:
                 return False
         clipboard = QGuiApplication.clipboard()
-        mime = clipboard.mimeData() if clipboard is not None else None
+        if clipboard is None:
+            return False
+        mime = clipboard.mimeData()
         if mime is None:
             return False
         if mime.hasImage():
@@ -137,22 +139,26 @@ class FileInputController(QObject):
         elif kind == "pdf":
             self.pdf.recognize_file(path)
 
-    def eventFilter(self, obj, event):
+    def eventFilter(self, a0, a1):
         from PyQt6.QtCore import QEvent
 
-        if event.type() == QEvent.Type.KeyPress and self._handle_clipboard_image_paste(
-            event
+        if a1 is None:
+            return False
+        event_type = a1.type()
+        if event_type == QEvent.Type.KeyPress and self._handle_clipboard_image_paste(
+            a1
         ):
-            event.accept()
+            a1.accept()
             return True
-        if event.type() in (
-            QEvent.Type.DragEnter,
-            QEvent.Type.DragMove,
-        ) and self._drag_contains_local_file(event):
-            event.acceptProposedAction()
+        if (
+            event_type in (QEvent.Type.DragEnter, QEvent.Type.DragMove)
+            and isinstance(a1, QDragMoveEvent)
+            and self._drag_contains_local_file(a1)
+        ):
+            a1.acceptProposedAction()
             return True
-        if event.type() == QEvent.Type.Drop and self._local_drop_paths(event):
-            self.dropEvent(event)
+        if event_type == QEvent.Type.Drop and self._local_drop_paths(a1):
+            self.dropEvent(a1)
             return True
         return False
 

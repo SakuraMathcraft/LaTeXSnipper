@@ -15,8 +15,10 @@ class _LineNumberArea(QWidget):
     def sizeHint(self):
         return QSize(self.editor.line_number_area_width(), 0)
 
-    def paintEvent(self, event) -> None:
-        self.editor.paint_line_number_area(event)
+    def paintEvent(self, a0) -> None:
+        if a0 is None:
+            return
+        self.editor.paint_line_number_area(a0)
 
 
 class SourceEditor(QPlainTextEdit):
@@ -32,15 +34,17 @@ class SourceEditor(QPlainTextEdit):
         self._update_line_number_area_width(0)
         self._highlight_current_line()
 
-    def wheelEvent(self, event: QWheelEvent) -> None:
-        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            delta = event.angleDelta().y()
+    def wheelEvent(self, e: QWheelEvent | None) -> None:
+        if e is None:
+            return
+        if e.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            delta = e.angleDelta().y()
             if delta:
                 self.zoomIn(1 if delta > 0 else -1)
-                event.accept()
+                e.accept()
                 self._update_line_number_area_width(0)
                 return
-        super().wheelEvent(event)
+        super().wheelEvent(e)
 
     def line_number_area_width(self) -> int:
         digits = max(2, len(str(max(1, self.blockCount()))))
@@ -61,8 +65,8 @@ class SourceEditor(QPlainTextEdit):
         if rect.contains(viewport.rect()):
             self._update_line_number_area_width(0)
 
-    def resizeEvent(self, event) -> None:
-        super().resizeEvent(event)
+    def resizeEvent(self, e) -> None:
+        super().resizeEvent(e)
         cr = self.contentsRect()
         self._line_number_area.setGeometry(
             QRect(cr.left(), cr.top(), self.line_number_area_width(), cr.height())

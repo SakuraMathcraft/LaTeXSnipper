@@ -132,9 +132,9 @@ class ExternalModelHelpWindow(QDialog):
         for label in self._section_body_labels:
             label.setStyleSheet(f"color: {tokens['muted']}; line-height: 1.35;")
 
-    def event(self, event):
-        result = super().event(event)
-        if event.type() in (
+    def a0(self, a0):
+        result = super().event(a0)
+        if a0.type() in (
             QEvent.Type.StyleChange,
             QEvent.Type.PaletteChange,
             QEvent.Type.ApplicationPaletteChange,
@@ -142,6 +142,6 @@ class ExternalModelHelpWindow(QDialog):
             self._apply_theme_styles()
         return result
 
-    def showEvent(self, event):
-        super().showEvent(event)
+    def showEvent(self, a0):
+        super().showEvent(a0)
         self._apply_theme_styles(force=True)

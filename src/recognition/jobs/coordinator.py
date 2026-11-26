@@ -10,7 +10,7 @@ import time
 from collections import OrderedDict
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from recognition.image_preprocess import optimize_mathcraft_input_image
 from recognition.jobs.contracts import (
@@ -30,6 +30,22 @@ from recognition.jobs.models import (
     utc_now_iso,
 )
 from runtime.exception_diagnostics import format_exception_diagnostics
+
+if TYPE_CHECKING:
+    from typing import Protocol
+
+    from PIL import Image
+
+    class _ModelPredictor(Protocol):
+        def predict_result(
+            self,
+            pil_img: Image.Image,
+            /,
+            model_name: str,
+            *,
+            pdf_text_lines: list | None = None,
+        ) -> dict[str, Any]: ...
+
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
 
@@ -59,7 +75,7 @@ class _ExternalOperation:
 class RecognitionJobCoordinator:
     def __init__(
         self,
-        predictor: Callable[[Any, str], str] | Any,
+        predictor: Callable[[Image.Image, str], str] | _ModelPredictor | None,
         *,
         limits: RecognitionLimits = DEFAULT_LIMITS,
         clock: Callable[[], float] = time.monotonic,
@@ -519,14 +535,17 @@ class RecognitionJobCoordinator:
             return text, None
         image = optimize_mathcraft_input_image(image)
         predictor = self._predictor
-        if callable(predictor) and not hasattr(predictor, "predict_result"):
+        predict_result = getattr(predictor, "predict_result", None)
+        if predict_result is None:
+            if not callable(predictor):
+                raise TypeError("The MathCraft predictor is unavailable")
             text = str(predictor(image, job.mode) or "").strip()
             if not text:
                 code, message = _EMPTY_RESULT_ERRORS[job.mode]
                 raise RecognitionJobError(code, message)
             return text, None
         model_name = _MODE_TO_MODEL[job.mode]
-        result = predictor.predict_result(
+        result = predict_result(
             image,
             model_name=model_name,
             **({"pdf_text_lines": item.pdf_text_lines} if item.pdf_text_lines else {}),

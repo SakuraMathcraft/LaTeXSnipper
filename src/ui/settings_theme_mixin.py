@@ -1,12 +1,18 @@
-from PyQt6.QtCore import QEvent
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from PyQt6.QtGui import QColor, QPalette
 
 from localization.language import normalize_ui_language
 from localization.manager import translate as tr
 
+if TYPE_CHECKING:
+    from ui.settings_context import SettingsView
+
 
 class SettingsThemeMixin:
-    def _is_dark_mode(self) -> bool:
+    def _is_dark_mode(self: SettingsView) -> bool:
         try:
             from qfluentwidgets import isDarkTheme
 
@@ -15,11 +21,11 @@ class SettingsThemeMixin:
             pal = self.palette().window().color()
             return (pal.red() + pal.green() + pal.blue()) / 3.0 < 128
 
-    def _normalize_theme_mode(self, value: str | None) -> str:
+    def _normalize_theme_mode(self: SettingsView, value: str | None) -> str:
         mode = str(value or "auto").strip().lower()
         return mode if mode in self._theme_mode_values else "auto"
 
-    def _init_theme_mode_combo(self):
+    def _init_theme_mode_combo(self: SettingsView):
         mode = "auto"
         try:
             mode = self._normalize_theme_mode(
@@ -35,7 +41,7 @@ class SettingsThemeMixin:
         self.theme_mode_combo.setCurrentIndex(idx)
         self.theme_mode_combo.blockSignals(prev)
 
-    def _on_theme_mode_changed(self, index: int):
+    def _on_theme_mode_changed(self: SettingsView, index: int):
         mode = "auto"
         if index >= 0:
             value = self.theme_mode_combo.itemData(index)
@@ -55,7 +61,7 @@ class SettingsThemeMixin:
             "success",
         )
 
-    def _init_ui_language_combo(self) -> None:
+    def _init_ui_language_combo(self: SettingsView) -> None:
         language = "auto"
         try:
             language = normalize_ui_language(
@@ -71,7 +77,7 @@ class SettingsThemeMixin:
         self.ui_language_combo.setCurrentIndex(index)
         self.ui_language_combo.blockSignals(previous)
 
-    def _on_ui_language_changed(self, index: int) -> None:
+    def _on_ui_language_changed(self: SettingsView, index: int) -> None:
         language = "auto"
         if index >= 0:
             language = normalize_ui_language(self.ui_language_combo.itemData(index))
@@ -83,7 +89,7 @@ class SettingsThemeMixin:
             tr("界面语言已保存"), tr("重新启动 LaTeXSnipper 后生效。"), "info"
         )
 
-    def _theme_tokens(self) -> dict:
+    def _theme_tokens(self: SettingsView) -> dict:
         if self._is_dark_mode():
             return {
                 "text": "#e7ebf0",
@@ -100,7 +106,7 @@ class SettingsThemeMixin:
             "compute_unknown": "#666666",
         }
 
-    def _compute_label_color(self) -> str:
+    def _compute_label_color(self: SettingsView) -> str:
         t = self._theme_tokens()
         if self._compute_mode_state == "gpu":
             return t["compute_gpu"]
@@ -133,7 +139,7 @@ class SettingsThemeMixin:
         )
         button.setPalette(pal)
 
-    def apply_theme_styles(self, force: bool = False):
+    def apply_theme_styles(self: SettingsView, force: bool = False):
         dark = self._is_dark_mode()
         if not force and self._theme_is_dark_cached is dark:
             return
@@ -156,16 +162,3 @@ class SettingsThemeMixin:
             self._style_startup_button(
                 self.automation_api_button, t["text"], t["muted"]
             )
-
-    def event(self, e):
-        result = super().event(e)
-        try:
-            if e.type() in (
-                QEvent.Type.StyleChange,
-                QEvent.Type.PaletteChange,
-                QEvent.Type.ApplicationPaletteChange,
-            ):
-                self.apply_theme_styles()
-        except Exception:
-            pass
-        return result
