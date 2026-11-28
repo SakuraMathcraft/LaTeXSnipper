@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import ctypes
 import json
 import os
@@ -222,8 +223,9 @@ def _query_windows_video_controller() -> tuple[str, int, str]:
         "ConvertTo-Json -Compress",
     )
     for command in commands:
-        payload = _run_powershell_json(command)
-        if payload is None:
+        try:
+            payload = _run_powershell_json(command, timeout=3.0)
+        except (OSError, subprocess.SubprocessError, ValueError):
             continue
         name, adapter_ram_mb, driver = _parse_video_controller_payload(payload)
         if name:
@@ -231,36 +233,28 @@ def _query_windows_video_controller() -> tuple[str, int, str]:
     return "", 0, ""
 
 
-def _run_powershell_json(command: str) -> object | None:
-    try:
-        proc = subprocess.run(
-            [
-                "powershell.exe",
-                "-NoProfile",
-                "-NonInteractive",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-Command",
-                "$OutputEncoding = [Console]::OutputEncoding = "
-                "[System.Text.UTF8Encoding]::new($false); " + command,
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            timeout=3.0,
-        )
-    except Exception:
-        return None
-    if proc.returncode != 0:
-        return None
-    text = proc.stdout.strip()
-    if not text:
-        return None
-    try:
-        return json.loads(text)
-    except Exception:
-        return None
+def _run_powershell_json(command: str, *, timeout: float) -> object:
+    script = (
+        "$OutputEncoding = [Console]::OutputEncoding = "
+        "[System.Text.UTF8Encoding]::new($false); " + command
+    )
+    # Windows PowerShell defines EncodedCommand as base64-encoded UTF-16LE.
+    encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+    proc = subprocess.run(
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-EncodedCommand",
+            encoded,
+        ],
+        check=True,
+        capture_output=True,
+        timeout=timeout,
+    )
+    return json.loads(proc.stdout.decode("utf-8"))
 
 
 def _parse_video_controller_payload(payload: object) -> tuple[str, int, str]:

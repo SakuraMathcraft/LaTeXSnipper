@@ -11,7 +11,7 @@ from PyQt6.QtGui import (
     QPaintEvent,
     QPen,
     QPixmap,
-    QWheelEvent,
+    QTabletEvent,
 )
 from PyQt6.QtWidgets import QSizePolicy, QWidget
 from qfluentwidgets import FluentIcon
@@ -20,11 +20,6 @@ from .stroke_store import StrokeStore
 from .tools import HandwritingTool
 from .types import CanvasExportResult, InkStroke
 
-try:
-    from PyQt6.QtGui import QTabletEvent
-except Exception:  # pragma: no cover
-    QTabletEvent = None
-
 
 class InkCanvas(QWidget):
     contentChanged = pyqtSignal()
@@ -32,7 +27,7 @@ class InkCanvas(QWidget):
     selectionChanged = pyqtSignal(bool)
     panRequested = pyqtSignal(int, int)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_StaticContents, True)
         self.setMouseTracking(True)
@@ -110,18 +105,6 @@ class InkCanvas(QWidget):
     def zoom_out(self) -> bool:
         return self.set_zoom(round(self._zoom - self._zoom_step, 2))
 
-    def wheelEvent(self, a0: QWheelEvent | None) -> None:
-        if a0 is None:
-            return
-        if a0.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            delta = a0.angleDelta().y()
-            if delta:
-                changed = self.zoom_in() if delta > 0 else self.zoom_out()
-                if changed:
-                    a0.accept()
-                    return
-        super().wheelEvent(a0)
-
     def clear_canvas(self) -> bool:
         changed = self.store.clear()
         if changed:
@@ -177,75 +160,67 @@ class InkCanvas(QWidget):
         painter.end()
         return CanvasExportResult(image=image, bounds=padded, is_empty=False)
 
-    def mousePressEvent(self, a0: QMouseEvent | None) -> None:
-        if a0 is None:
-            return
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
         if self._tablet_active:
-            a0.accept()
+            event.accept()
             return
-        if a0.button() == Qt.MouseButton.RightButton:
-            self._start_pan(a0)
+        if event.button() == Qt.MouseButton.RightButton:
+            self._start_pan(event)
             return
-        pos = self._to_scene_point(a0.position())
-        if a0.button() != Qt.MouseButton.LeftButton:
-            return super().mousePressEvent(a0)
+        pos = self._to_scene_point(event.position())
+        if event.button() != Qt.MouseButton.LeftButton:
+            return super().mousePressEvent(event)
         self._begin_interaction(pos, pressure=None)
         self.update()
 
-    def mouseMoveEvent(self, a0: QMouseEvent | None) -> None:
-        if a0 is None:
-            return
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
         if self._tablet_active:
-            a0.accept()
+            event.accept()
             return
         if self._is_panning:
-            self._continue_pan(a0)
+            self._continue_pan(event)
             return
-        pos = self._to_scene_point(a0.position())
+        pos = self._to_scene_point(event.position())
         if not self._is_dragging:
-            return super().mouseMoveEvent(a0)
+            return super().mouseMoveEvent(event)
         self._continue_interaction(pos, pressure=None)
 
-    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:
-        if a0 is None:
-            return
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
         if self._tablet_active:
-            a0.accept()
+            event.accept()
             return
-        if a0.button() == Qt.MouseButton.RightButton and self._is_panning:
+        if event.button() == Qt.MouseButton.RightButton and self._is_panning:
             self._stop_pan()
-            a0.accept()
+            event.accept()
             return
-        if a0.button() != Qt.MouseButton.LeftButton:
-            return super().mouseReleaseEvent(a0)
+        if event.button() != Qt.MouseButton.LeftButton:
+            return super().mouseReleaseEvent(event)
         self._finish_interaction()
         self.update()
 
-    def tabletEvent(self, a0):  # pragma: no cover - hardware-dependent
-        if a0 is None:
-            return
-        if QTabletEvent is None:
-            return super().tabletEvent(a0)
-        pos = self._to_scene_point(a0.position())
-        pressure = max(0.05, float(a0.pressure() or 0.0))
-        self._tablet_active = a0.type() != QTabletEvent.Type.TabletRelease
-        if a0.type() == QTabletEvent.Type.TabletPress:
+    def tabletEvent(  # pyright: ignore[reportIncompatibleMethodOverride]
+        self, event: QTabletEvent
+    ) -> None:  # pragma: no cover - hardware-dependent
+        pos = self._to_scene_point(event.position())
+        pressure = max(0.05, float(event.pressure() or 0.0))
+        self._tablet_active = event.type() != QTabletEvent.Type.TabletRelease
+        if event.type() == QTabletEvent.Type.TabletPress:
             self._begin_interaction(pos, pressure=pressure)
-            a0.accept()
+            event.accept()
             return
-        if a0.type() == QTabletEvent.Type.TabletMove:
+        if event.type() == QTabletEvent.Type.TabletMove:
             if self._is_dragging:
                 self._continue_interaction(pos, pressure=pressure)
-            a0.accept()
+            event.accept()
             return
-        if a0.type() == QTabletEvent.Type.TabletRelease:
+        if event.type() == QTabletEvent.Type.TabletRelease:
             self._finish_interaction()
             self._tablet_active = False
-            a0.accept()
+            event.accept()
             return
-        super().tabletEvent(a0)
+        super().tabletEvent(event)
 
-    def paintEvent(self, a0: QPaintEvent | None) -> None:
+    def paintEvent(self, event: QPaintEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.fillRect(self.rect(), QColor(self._ui_tokens["canvas_bg"]))

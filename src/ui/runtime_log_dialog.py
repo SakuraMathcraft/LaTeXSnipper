@@ -7,7 +7,7 @@ import subprocess
 from pathlib import Path
 
 from PyQt6.QtCore import QEvent, Qt, QTimer
-from PyQt6.QtGui import QIcon, QTextCursor
+from PyQt6.QtGui import QCloseEvent, QIcon, QShowEvent, QTextCursor
 from PyQt6.QtWidgets import (
     QApplication,
     QDialog,
@@ -150,23 +150,19 @@ class RuntimeLogDialog(QDialog):
         except Exception:
             pass
 
-    def closeEvent(self, a0):
-        if a0 is None:
-            return
+    def closeEvent(self, event: QCloseEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
         try:
-            a0.ignore()
+            event.ignore()
             self.hide()
             return
         except Exception:
             pass
-        return super().closeEvent(a0)
+        return super().closeEvent(event)
 
-    def event(self, a0):
-        if a0 is None:
-            return False
-        result = super().event(a0)
+    def event(self, event: QEvent) -> bool:  # pyright: ignore[reportIncompatibleMethodOverride]
+        result = super().event(event)
         try:
-            if a0.type() in (
+            if event.type() in (
                 QEvent.Type.StyleChange,
                 QEvent.Type.PaletteChange,
                 QEvent.Type.ApplicationPaletteChange,
@@ -176,8 +172,8 @@ class RuntimeLogDialog(QDialog):
             pass
         return result
 
-    def showEvent(self, a0):
-        super().showEvent(a0)
+    def showEvent(self, event: QShowEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
+        super().showEvent(event)
         try:
             self._apply_theme_styles(force=True)
         except Exception:

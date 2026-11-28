@@ -455,12 +455,10 @@ class SettingsWindow(
         }
         self.lbl_model_desc.setText(descriptions.get(key, ""))
 
-    def event(self, a0):
-        if a0 is None:
-            return False
-        result = super().event(a0)
+    def event(self, event: QEvent) -> bool:  # pyright: ignore[reportIncompatibleMethodOverride]
+        result = super().event(event)
         try:
-            if a0.type() in (
+            if event.type() in (
                 QEvent.Type.StyleChange,
                 QEvent.Type.PaletteChange,
                 QEvent.Type.ApplicationPaletteChange,

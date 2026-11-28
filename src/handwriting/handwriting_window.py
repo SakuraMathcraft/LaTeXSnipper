@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import time
 from dataclasses import replace
+from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QEvent, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QGuiApplication, QIcon, QWheelEvent
+from PyQt6.QtGui import QCloseEvent, QGuiApplication, QIcon, QShowEvent
 from PyQt6.QtWidgets import (
     QApplication,
     QHBoxLayout,
     QLabel,
-    QScrollArea,
     QSplitter,
     QVBoxLayout,
     QWidget,
@@ -23,29 +23,21 @@ from qfluentwidgets import (
     isDarkTheme,
 )
 
-from editor.source_editor import SourceEditor
 from localization.manager import translate as tr
-from preview.math_preview import get_mathjax_base_url
 from recognition.model_policy import resolve_document_recognition_model
 from runtime.app_paths import resource_path
 from runtime.background_task import BackgroundTask
 
-from .ink_canvas import InkCanvas
-from .latex_preview import (
-    build_handwriting_preview_html,
-    normalize_latex_preview_source,
-)
+from .canvas_panel import HandwritingCanvasPanel
 from .recognizer import HandwritingRecognitionWorker
+from .result_panel import HandwritingResultPanel
 from .tools import HandwritingTool
 
-try:
-    from PyQt6.QtWebEngineCore import QWebEngineSettings
-except Exception:
-    QWebEngineSettings = None
-try:
-    from PyQt6.QtWebEngineWidgets import QWebEngineView as PreviewWebView
-except Exception:
-    PreviewWebView = None
+if TYPE_CHECKING:
+    from backend.external_model.schemas import ExternalModelConfig
+    from recognition.jobs import RecognitionJobCoordinator
+    from ui.controllers.model_runtime import ModelRuntimeController
+    from ui.controllers.tasks import RecognitionTaskController
 
 
 class HandwritingWindow(QWidget):
@@ -54,10 +46,15 @@ class HandwritingWindow(QWidget):
     MINIMUM_SIZE = (1160, 700)
 
     def __init__(
-        self, model_wrapper, *, models, coordinator, tasks, owner=None, parent=None
-    ):
+        self,
+        *,
+        models: ModelRuntimeController,
+        coordinator: RecognitionJobCoordinator,
+        tasks: RecognitionTaskController,
+        owner: QWidget | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
-        self.model = model_wrapper
         self.models = models
         self.coordinator = coordinator
         self.tasks = tasks
@@ -68,17 +65,16 @@ class HandwritingWindow(QWidget):
         self._recognition_task.failed.connect(self._on_recognition_failed)
         self._recognition_task.finished.connect(self._teardown_recognition)
         self._closing = False
-        self._last_result = ""
         self._last_external_output_mode = ""
-        self._theme_is_dark_cached = None
+        self._theme_is_dark_cached: bool | None = None
         self._ui_ready = False
-        self._pending_zoom_anchor = None
-        self._active_zoom_anchor = None
         self._last_busy_notice_ts = 0.0
         self._last_stroke_ts = 0.0
         self._centered_once = False
         self._build_ui()
         self._wire_events()
+        self._canvas_panel.set_tool(HandwritingTool.WRITE)
+        self.apply_theme_styles(force=True)
 
     def _build_ui(self) -> None:
         self.setWindowTitle(tr("手写识别"))
@@ -104,131 +100,25 @@ class HandwritingWindow(QWidget):
         root.setContentsMargins(12, 12, 12, 12)
         root.setSpacing(8)
         title_bar = QHBoxLayout()
-        self.title_label = QLabel(tr("手写识别"))
-        self.title_label.setObjectName("handwritingTitle")
+        title = QLabel(tr("手写识别"))
+        title.setObjectName("handwritingTitle")
         self.mode_hint_label = QLabel(
             tr("当前圈选修正为自由圈选矢量裁剪并保留剩余笔段")
         )
         self.mode_hint_label.setObjectName("handwritingModeHint")
-        title_bar.addWidget(self.title_label)
+        title_bar.addWidget(title)
         title_bar.addWidget(self.mode_hint_label)
         title_bar.addStretch(1)
         root.addLayout(title_bar)
-        toolbar = QHBoxLayout()
-        toolbar.setSpacing(8)
-        self.write_btn = PushButton(FluentIcon.PENCIL_INK, tr("书写"))
-        self.erase_btn = PushButton(FluentIcon.ERASE_TOOL, tr("橡皮"))
-        self.select_btn = PushButton(FluentIcon.CLIPPING_TOOL, tr("圈选修正"))
-        self.clear_btn = PushButton(FluentIcon.DELETE, tr("清空"))
-        self.undo_btn = PushButton(FluentIcon.CANCEL, tr("撤销"))
-        self.redo_btn = PushButton(FluentIcon.SYNC, tr("重做"))
-        for btn in (
-            self.write_btn,
-            self.erase_btn,
-            self.select_btn,
-            self.clear_btn,
-            self.undo_btn,
-            self.redo_btn,
-        ):
-            btn.setFixedHeight(34)
-            toolbar.addWidget(btn)
-        self._tool_button_base_styles = {}
-        for btn in (self.write_btn, self.erase_btn, self.select_btn):
-            self._tool_button_base_styles[btn] = btn.styleSheet()
-        toolbar.addStretch(1)
-        self.splitter = QSplitter()
-        self.splitter.setObjectName("handwritingSplitter")
-        self.splitter.setHandleWidth(14)
-        left = QWidget()
-        left_layout = QVBoxLayout(left)
-        left_layout.setContentsMargins(0, 0, 10, 0)
-        left_layout.setSpacing(6)
-        left_layout.addLayout(toolbar)
-        self.canvas_title = QLabel(tr("手写画布"))
-        self.canvas_title.setObjectName("handwritingSectionTitle")
-        self.canvas_hint = QLabel(tr("支持鼠标与触控笔，可按住鼠标右键拖动画布。"))
-        self.canvas_hint.setObjectName("handwritingHint")
-        left_layout.addWidget(self.canvas_title)
-        left_layout.addWidget(self.canvas_hint)
-        self.canvas = InkCanvas(self)
-        self.canvas.installEventFilter(self)
-        self.canvas_scroll = QScrollArea(self)
-        self.canvas_scroll.setObjectName("handwritingCanvasScroll")
-        self.canvas_scroll.setWidgetResizable(False)
-        self.canvas_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        self.canvas_scroll.setWidget(self.canvas)
-        viewport = self.canvas_scroll.viewport()
-        hbar = self.canvas_scroll.horizontalScrollBar()
-        vbar = self.canvas_scroll.verticalScrollBar()
-        assert viewport is not None and hbar is not None and vbar is not None
-        self._canvas_viewport = viewport
-        self._canvas_hbar = hbar
-        self._canvas_vbar = vbar
-        viewport.installEventFilter(self)
-        left_layout.addWidget(self.canvas_scroll, 1)
-        self.splitter.addWidget(left)
-        right = QWidget()
-        right.setObjectName("handwritingRightPanel")
-        right_layout = QVBoxLayout(right)
-        right_layout.setContentsMargins(12, 0, 0, 0)
-        right_layout.setSpacing(12)
-        self.result_section = QWidget(self)
-        self.result_section.setObjectName("handwritingSubPanel")
-        result_layout = QVBoxLayout(self.result_section)
-        result_layout.setContentsMargins(14, 12, 14, 14)
-        result_layout.setSpacing(10)
-        result_header = QHBoxLayout()
-        result_header.setContentsMargins(0, 0, 0, 0)
-        result_header.setSpacing(8)
-        self.result_title = QLabel(tr("LaTeX 结果"))
-        self.result_title.setObjectName("handwritingSectionTitle")
-        result_header.addWidget(self.result_title)
-        result_header.addStretch(1)
-        result_layout.addLayout(result_header)
-        self.result_editor = SourceEditor(self)
-        self.result_editor.setPlaceholderText(
-            tr("手写识别结果会显示在这里，可直接手动修正。")
-        )
-        self.result_editor.setMinimumHeight(150)
-        result_layout.addWidget(self.result_editor)
-        right_layout.addWidget(self.result_section)
-        self.preview_section = QWidget(self)
-        self.preview_section.setObjectName("handwritingSubPanel")
-        preview_layout = QVBoxLayout(self.preview_section)
-        preview_layout.setContentsMargins(14, 12, 14, 14)
-        preview_layout.setSpacing(10)
-        self.preview_title = QLabel(tr("实时预览"))
-        self.preview_title.setObjectName("handwritingSectionTitle")
-        preview_layout.addWidget(self.preview_title)
-        self.preview_view = None
-        self.preview_fallback = None
-        if PreviewWebView is not None:
-            self.preview_view = PreviewWebView(self)
-            self.preview_view.setObjectName("handwritingPreviewView")
-            if QWebEngineSettings is not None:
-                try:
-                    settings = self.preview_view.settings()
-                    if settings is not None:
-                        settings.setAttribute(
-                            QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls,
-                            True,
-                        )
-                        settings.setAttribute(
-                            QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls,
-                            True,
-                        )
-                except Exception:
-                    pass
-            self.preview_view.setMinimumHeight(280)
-            preview_layout.addWidget(self.preview_view, 1)
-        else:
-            self.preview_fallback = QLabel(tr("WebEngine 不可用，无法显示公式预览。"))
-            self.preview_fallback.setWordWrap(True)
-            preview_layout.addWidget(self.preview_fallback, 1)
-        right_layout.addWidget(self.preview_section, 1)
-        self.splitter.addWidget(right)
-        self.splitter.setSizes([610, 470])
-        root.addWidget(self.splitter, 1)
+        splitter = QSplitter()
+        splitter.setObjectName("handwritingSplitter")
+        splitter.setHandleWidth(14)
+        self._canvas_panel = HandwritingCanvasPanel(self)
+        splitter.addWidget(self._canvas_panel)
+        self._results = HandwritingResultPanel(self)
+        splitter.addWidget(self._results)
+        splitter.setSizes([610, 470])
+        root.addWidget(splitter, 1)
         bottom = QHBoxLayout()
         self.status_label = QLabel(tr("就绪"))
         self.status_label.setObjectName("handwritingStatus")
@@ -243,36 +133,23 @@ class HandwritingWindow(QWidget):
         root.addLayout(bottom)
         self.recognize_timer = QTimer(self)
         self.recognize_timer.setSingleShot(True)
-        self._set_active_tool(HandwritingTool.WRITE)
-        self._refresh_preview_from_text("")
         self.setMinimumSize(*self.MINIMUM_SIZE)
         self.resize(*self.DEFAULT_SIZE)
         self._ui_ready = True
-        self.apply_theme_styles(force=True)
 
     def _wire_events(self) -> None:
-        self.write_btn.clicked.connect(
-            lambda: self._set_active_tool(HandwritingTool.WRITE)
-        )
-        self.erase_btn.clicked.connect(
-            lambda: self._set_active_tool(HandwritingTool.ERASE)
-        )
-        self.select_btn.clicked.connect(
-            lambda: self._set_active_tool(HandwritingTool.SELECT_CORRECT)
-        )
-        self.clear_btn.clicked.connect(self._clear_all)
-        self.undo_btn.clicked.connect(self._undo)
-        self.redo_btn.clicked.connect(self._redo)
+        self._canvas_panel.clear_requested.connect(self._clear_all)
+        self._canvas_panel.status_changed.connect(self.status_label.setText)
+        self._canvas_panel.mode_hint_changed.connect(self.mode_hint_label.setText)
         self.copy_btn.clicked.connect(self._copy_result)
         self.insert_btn.clicked.connect(self._insert_result)
-        self.canvas.contentChanged.connect(self._on_canvas_changed)
-        self.canvas.strokeFinished.connect(self._on_stroke_finished)
-        self.canvas.panRequested.connect(self._pan_canvas_view)
-        self.result_editor.textChanged.connect(self._on_result_editor_changed)
+        self._canvas_panel.canvas.contentChanged.connect(self._on_canvas_changed)
+        self._canvas_panel.canvas.strokeFinished.connect(self._on_stroke_finished)
+        self._results.text_changed.connect(self._refresh_preview)
         self.recognize_timer.timeout.connect(self._run_recognition)
 
-    def showEvent(self, a0) -> None:
-        super().showEvent(a0)
+    def showEvent(self, event: QShowEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
+        super().showEvent(event)
         self._center_on_owner_screen_once()
         if self._ui_ready:
             self.apply_theme_styles(force=True)
@@ -296,92 +173,10 @@ class HandwritingWindow(QWidget):
         except Exception:
             pass
 
-    def changeEvent(self, a0) -> None:
-        super().changeEvent(a0)
+    def changeEvent(self, event: QEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
+        super().changeEvent(event)
         if self._ui_ready:
             self.apply_theme_styles()
-
-    def eventFilter(self, a0, a1):
-        if (
-            self._ui_ready
-            and isinstance(a1, QWheelEvent)
-            and a0 in (self.canvas, self._canvas_viewport)
-            and (a1.type() == QEvent.Type.Wheel)
-            and a1.modifiers() & Qt.KeyboardModifier.ControlModifier
-        ):
-            self._zoom_canvas_at_pointer(a0, a1)
-            a1.accept()
-            return True
-        return super().eventFilter(a0, a1)
-
-    def _zoom_canvas_at_pointer(self, source, event: QWheelEvent) -> bool:
-        delta = event.angleDelta().y()
-        if not delta:
-            return False
-        old_zoom = max(0.01, self.canvas.zoom_factor())
-        viewport = self._canvas_viewport
-        hbar = self._canvas_hbar
-        vbar = self._canvas_vbar
-        local_pos = event.position().toPoint()
-        if source is viewport:
-            viewport_pos = local_pos
-        elif source is self.canvas:
-            viewport_pos = self.canvas.mapTo(viewport, local_pos)
-        else:
-            viewport_pos = viewport.mapFromGlobal(event.globalPosition().toPoint())
-        scene_x = (hbar.value() + viewport_pos.x()) / old_zoom
-        scene_y = (vbar.value() + viewport_pos.y()) / old_zoom
-        changed = self.canvas.zoom_in() if delta > 0 else self.canvas.zoom_out()
-        if not changed:
-            return False
-        new_zoom = max(0.01, self.canvas.zoom_factor())
-        if abs(new_zoom - old_zoom) < 1e-06:
-            return False
-        self._pending_zoom_anchor = (
-            scene_x,
-            scene_y,
-            viewport_pos.x(),
-            viewport_pos.y(),
-            new_zoom,
-        )
-        QTimer.singleShot(0, self._apply_pending_zoom_anchor)
-        return True
-
-    def _apply_pending_zoom_anchor(self) -> None:
-        payload = self._pending_zoom_anchor
-        self._pending_zoom_anchor = None
-        if payload is None:
-            return
-        scene_x, scene_y, viewport_x, viewport_y, zoom = payload
-        if abs(max(0.01, self.canvas.zoom_factor()) - zoom) > 1e-06:
-            return
-        self._active_zoom_anchor = (scene_x, scene_y, viewport_x, viewport_y, zoom)
-        hbar = self._canvas_hbar
-        vbar = self._canvas_vbar
-        target_x = int(round(scene_x * zoom - viewport_x))
-        target_y = int(round(scene_y * zoom - viewport_y))
-        hbar.setValue(max(hbar.minimum(), min(target_x, hbar.maximum())))
-        vbar.setValue(max(vbar.minimum(), min(target_y, vbar.maximum())))
-        QTimer.singleShot(0, self._stabilize_zoom_anchor)
-
-    def _stabilize_zoom_anchor(self) -> None:
-        payload = self._active_zoom_anchor
-        self._active_zoom_anchor = None
-        if payload is None:
-            return
-        scene_x, scene_y, viewport_x, viewport_y, zoom = payload
-        if abs(max(0.01, self.canvas.zoom_factor()) - zoom) > 1e-06:
-            return
-        hbar = self._canvas_hbar
-        vbar = self._canvas_vbar
-        actual_scene_x = (hbar.value() + viewport_x) / zoom
-        actual_scene_y = (vbar.value() + viewport_y) / zoom
-        dx = int(round((scene_x - actual_scene_x) * zoom))
-        dy = int(round((scene_y - actual_scene_y) * zoom))
-        if not dx and (not dy):
-            return
-        hbar.setValue(max(hbar.minimum(), min(hbar.value() - dx, hbar.maximum())))
-        vbar.setValue(max(vbar.minimum(), min(vbar.value() - dy, vbar.maximum())))
 
     def apply_theme_styles(self, force: bool = False) -> None:
         if not self._ui_ready:
@@ -390,7 +185,6 @@ class HandwritingWindow(QWidget):
         if not force and self._theme_is_dark_cached is dark:
             return
         self._theme_is_dark_cached = dark
-        self.canvas.set_dark_mode(dark)
         if dark:
             bg = "#171c24"
             text = "#eef2f7"
@@ -410,65 +204,57 @@ class HandwritingWindow(QWidget):
             subpanel_bg = "#ffffff"
             divider = "rgba(148, 163, 184, 0.22)"
         self.setStyleSheet(
-            f"\n            QWidget#handwritingWindow {{ background: {bg}; }}\n            QLabel#handwritingTitle {{ color: {text}; font-size: 24px; font-weight: 600; padding-right: 10px; }}\n            QLabel#handwritingModeHint {{ color: {subtext}; font-size: 12px; }}\n            QLabel#handwritingSectionTitle {{ color: {text}; font-size: 14px; font-weight: 600; }}\n            QLabel#handwritingHint {{ color: {subtext}; font-size: 12px; }}\n            QLabel#handwritingStatus {{ color: {subtext}; font-size: 12px; padding-top: 4px; }}\n            QPlainTextEdit {{\n                background: {editor_bg};\n                color: {text};\n                border: 1px solid {editor_border};\n                border-radius: 10px;\n                padding: 8px;\n                selection-background-color: {('#2f6fb3' if dark else '#0a84ff')};\n                selection-color: #ffffff;\n            }}\n            QScrollArea#handwritingCanvasScroll {{\n                background: {card_bg};\n                border: 1px solid {editor_border};\n                border-radius: 12px;\n            }}\n            QWidget#handwritingRightPanel {{\n                background: transparent;\n                border: none;\n            }}\n            QWidget#handwritingSubPanel {{\n                background: {subpanel_bg};\n                border: 1px solid {editor_border};\n                border-radius: 14px;\n            }}\n            QSplitter#handwritingSplitter::handle {{\n                background: transparent;\n                width: 14px;\n            }}\n            QSplitter#handwritingSplitter::handle:horizontal {{\n                image: none;\n                border-left: 1px solid {divider};\n                border-right: 1px solid transparent;\n                margin-top: 12px;\n                margin-bottom: 12px;\n            }}\n            "
+            f"""
+            QWidget#handwritingWindow {{ background: {bg}; }}
+            QLabel#handwritingTitle {{ color: {text}; font-size: 24px; font-weight: 600; padding-right: 10px; }}
+            QLabel#handwritingModeHint {{ color: {subtext}; font-size: 12px; }}
+            QLabel#handwritingSectionTitle {{ color: {text}; font-size: 14px; font-weight: 600; }}
+            QLabel#handwritingHint {{ color: {subtext}; font-size: 12px; }}
+            QLabel#handwritingStatus {{ color: {subtext}; font-size: 12px; padding-top: 4px; }}
+            QPlainTextEdit {{
+                background: {editor_bg};
+                color: {text};
+                border: 1px solid {editor_border};
+                border-radius: 10px;
+                padding: 8px;
+                selection-background-color: {("#2f6fb3" if dark else "#0a84ff")};
+                selection-color: #ffffff;
+            }}
+            QScrollArea#handwritingCanvasScroll {{
+                background: {card_bg};
+                border: 1px solid {editor_border};
+                border-radius: 12px;
+            }}
+            QWidget#handwritingRightPanel {{
+                background: transparent;
+                border: none;
+            }}
+            QWidget#handwritingSubPanel {{
+                background: {subpanel_bg};
+                border: 1px solid {editor_border};
+                border-radius: 14px;
+            }}
+            QSplitter#handwritingSplitter::handle {{
+                background: transparent;
+                width: 14px;
+            }}
+            QSplitter#handwritingSplitter::handle:horizontal {{
+                image: none;
+                border-left: 1px solid {divider};
+                border-right: 1px solid transparent;
+                margin-top: 12px;
+                margin-bottom: 12px;
+            }}
+            """
         )
-        self._refresh_preview_from_text(self.result_editor.toPlainText().strip())
-        self._apply_tool_button_styles()
-
-    def _apply_tool_button_styles(self) -> None:
-        dark = bool(self._theme_is_dark_cached)
-        active_bg = "#4da3ff" if dark else "#4f8fe8"
-        active_hover = "#6ab2ff" if dark else "#3f7fda"
-        active_pressed = "#3c93ee" if dark else "#376fc0"
-        active_border = "#9fd0ff" if dark else "#6aa3ef"
-        active_fg = "#ffffff"
-        inactive_bg = "transparent"
-        inactive_hover = "rgba(255,255,255,0.06)" if dark else "rgba(15,23,42,0.04)"
-        inactive_pressed = "rgba(255,255,255,0.1)" if dark else "rgba(15,23,42,0.08)"
-        inactive_border = "#465162" if dark else "#d0d7de"
-        inactive_fg = "#eef2f7" if dark else "#16202a"
-        active_button = getattr(self, "_active_tool_button", None)
-        for btn in (self.write_btn, self.erase_btn, self.select_btn):
-            base_style = self._tool_button_base_styles.get(btn, "")
-            is_active = btn is active_button
-            if is_active:
-                extra = f"\n                PushButton {{\n                    background: {active_bg};\n                    color: {active_fg};\n                    border: 1px solid {active_border};\n                }}\n                PushButton:hover {{\n                    background: {active_hover};\n                    border: 1px solid {active_border};\n                }}\n                PushButton:pressed {{\n                    background: {active_pressed};\n                    border: 1px solid {active_border};\n                }}\n                "
-            else:
-                extra = f"\n                PushButton {{\n                    background: {inactive_bg};\n                    color: {inactive_fg};\n                    border: 1px solid {inactive_border};\n                }}\n                PushButton:hover {{\n                    background: {inactive_hover};\n                }}\n                PushButton:pressed {{\n                    background: {inactive_pressed};\n                }}\n                "
-            btn.setStyleSheet(base_style + "\n" + extra)
-
-    def _set_active_tool(self, tool: HandwritingTool) -> None:
-        self.canvas.set_tool(tool)
-        labels = {
-            HandwritingTool.WRITE: (tr("书写中"), tr("直接书写，停笔后自动识别")),
-            HandwritingTool.ERASE: (
-                tr("橡皮模式"),
-                tr("像素级局部擦除命中的笔迹片段，保留其余部分"),
-            ),
-            HandwritingTool.SELECT_CORRECT: (
-                tr("圈选修正"),
-                tr("自由圈选后只擦除圈内笔段，便于局部重写"),
-            ),
-        }
-        status, hint = labels.get(tool, (tr("就绪"), ""))
-        self.status_label.setText(status)
-        self.mode_hint_label.setText(hint)
-        active_buttons = {
-            HandwritingTool.WRITE: self.write_btn,
-            HandwritingTool.ERASE: self.erase_btn,
-            HandwritingTool.SELECT_CORRECT: self.select_btn,
-        }
-        self._active_tool_button = active_buttons.get(tool)
-        self._apply_tool_button_styles()
+        self._canvas_panel.apply_theme(dark)
+        self._refresh_preview()
 
     def _get_active_model_key(self) -> str:
         return resolve_document_recognition_model(self.models.current_model)
 
-    def external_config(self):
-        return self.models.external_config()
-
-    def _get_handwriting_external_model_config(self):
-        cfg = self.external_config()
+    def _get_handwriting_external_model_config(self) -> ExternalModelConfig | None:
+        cfg = self.models.external_config()
         if cfg is None:
             return None
         try:
@@ -482,7 +268,7 @@ class HandwritingWindow(QWidget):
         return self.models.external_configured()
 
     def _on_canvas_changed(self) -> None:
-        if self.canvas.store.is_empty():
+        if self._canvas_panel.canvas.store.is_empty():
             self.status_label.setText(tr("就绪"))
             return
         self._schedule_recognition()
@@ -500,7 +286,7 @@ class HandwritingWindow(QWidget):
             self._recognize_pending = True
             self.status_label.setText(tr("更新中，等待当前识别完成..."))
             return
-        stroke_count = len(self.canvas.store.strokes)
+        stroke_count = len(self._canvas_panel.canvas.store.strokes)
         since_last = self._ms_since_last_stroke()
         if since_last < 300 and stroke_count > 3:
             delay = 700
@@ -523,7 +309,7 @@ class HandwritingWindow(QWidget):
             self.status_label.setText(tr("主窗口识别中，等待继续..."))
             self._show_busy_notice()
             return
-        export = self.canvas.export_image()
+        export = self._canvas_panel.canvas.export_image()
         if export.is_empty or export.image is None:
             self.status_label.setText(tr("画布为空"))
             self._show_warning(tr("没有可识别内容"), tr("先写入笔迹后再尝试识别。"))
@@ -560,7 +346,7 @@ class HandwritingWindow(QWidget):
         )
         self._recognition_task.start(worker)
 
-    def _teardown_recognition(self, *_args) -> None:
+    def _teardown_recognition(self) -> None:
         if self._closing:
             return
         if self._recognize_pending:
@@ -570,12 +356,7 @@ class HandwritingWindow(QWidget):
     def _on_recognition_finished(self, latex: str) -> None:
         if self._closing:
             return
-        text = self._normalize_result_display_text((latex or "").strip())
-        self._last_result = text
-        self.result_editor.blockSignals(True)
-        self.result_editor.setPlainText(text)
-        self.result_editor.blockSignals(False)
-        self._refresh_preview_from_text(text)
+        self._results.set_result(latex, self._preview_output_mode())
         self.status_label.setText(tr("已更新"))
 
     def _on_recognition_failed(self, error: str) -> None:
@@ -591,48 +372,8 @@ class HandwritingWindow(QWidget):
             ),
         )
 
-    def _on_result_editor_changed(self) -> None:
-        self._refresh_preview_from_text(self.result_editor.toPlainText().strip())
-
-    def _pan_canvas_view(self, dx: int, dy: int) -> None:
-        hbar = self._canvas_hbar
-        vbar = self._canvas_vbar
-        hbar.setValue(max(hbar.minimum(), min(hbar.value() + dx, hbar.maximum())))
-        vbar.setValue(max(vbar.minimum(), min(vbar.value() + dy, vbar.maximum())))
-
-    def _refresh_preview_from_text(self, latex: str) -> None:
-        preview_text = self._normalize_preview_source_text(latex)
-        if self.preview_view is None:
-            if self.preview_fallback is not None:
-                self.preview_fallback.setText(
-                    tr("WebEngine 不可用。\n\n当前内容:\n")
-                    + (preview_text or "<empty>")
-                )
-            return
-        html_text = build_handwriting_preview_html(
-            preview_text, self._preview_output_mode()
-        )
-        base_url = get_mathjax_base_url()
-        try:
-            self.preview_view.setHtml(html_text, base_url)
-        except Exception:
-            pass
-
-    def _normalize_preview_source_text(self, text: str) -> str:
-        content = str(text or "").replace("\r\n", "\n").strip()
-        if not content:
-            return ""
-        if self._preview_output_mode() != "latex":
-            return content
-        return normalize_latex_preview_source(content)
-
-    def _normalize_result_display_text(self, text: str) -> str:
-        content = str(text or "").replace("\r\n", "\n").strip()
-        if not content:
-            return ""
-        if self._preview_output_mode() != "latex":
-            return content
-        return self._normalize_preview_source_text(content)
+    def _refresh_preview(self) -> None:
+        self._results.refresh_preview(self._preview_output_mode())
 
     def _preview_output_mode(self) -> str:
         if self._get_active_model_key() != "external_model":
@@ -645,23 +386,12 @@ class HandwritingWindow(QWidget):
         return cfg.resolved_output_mode()
 
     def _clear_all(self) -> None:
-        self.canvas.clear_canvas()
-        self.result_editor.blockSignals(True)
-        self.result_editor.clear()
-        self.result_editor.blockSignals(False)
-        self._refresh_preview_from_text("")
+        self._canvas_panel.canvas.clear_canvas()
+        self._results.set_result("", self._preview_output_mode())
         self.status_label.setText(tr("已清空"))
 
-    def _undo(self) -> None:
-        if self.canvas.undo():
-            self.status_label.setText(tr("已撤销"))
-
-    def _redo(self) -> None:
-        if self.canvas.redo():
-            self.status_label.setText(tr("已重做"))
-
     def _insert_result(self) -> None:
-        text = self.result_editor.toPlainText().strip()
+        text = self._results.text()
         if not text:
             self.status_label.setText(tr("没有可插入的内容"))
             self._show_warning(
@@ -673,7 +403,7 @@ class HandwritingWindow(QWidget):
         self._show_info(tr("已插入"), tr("结果已写入主窗口，当前手写窗口内容已保留。"))
 
     def _copy_result(self) -> None:
-        text = self.result_editor.toPlainText().strip()
+        text = self._results.text()
         if not text:
             self.status_label.setText(tr("没有可复制的内容"))
             self._show_warning(
@@ -733,11 +463,11 @@ class HandwritingWindow(QWidget):
             parent=self,
         )
 
-    def closeEvent(self, a0) -> None:
+    def closeEvent(self, event: QCloseEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
         self.shutdown()
-        super().closeEvent(a0)
+        super().closeEvent(event)
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         if self._closing:
             return
         self._closing = True

@@ -29,6 +29,7 @@ from argparse import Namespace
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import replace
+from importlib import import_module
 from importlib.metadata import distributions
 from pathlib import Path
 
@@ -82,7 +83,7 @@ def check_interpreter() -> None:
 
 def ensure_build_tools(install: bool) -> None:
     try:
-        import PyInstaller  # noqa: F401
+        import_module("PyInstaller")
     except ImportError as error:
         if not install:
             raise ManifestError(

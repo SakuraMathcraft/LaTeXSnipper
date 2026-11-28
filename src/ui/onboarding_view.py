@@ -1,7 +1,7 @@
 """Native Fluent tour card and main-window spotlight surface."""
 
 from PyQt6.QtCore import QPoint, QRect, QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen
+from PyQt6.QtGui import QColor, QKeyEvent, QPainter, QPainterPath, QPaintEvent, QPen
 from PyQt6.QtWidgets import (
     QApplication,
     QFrame,
@@ -180,7 +180,7 @@ class TourSurface(QWidget):
         self.card.move(x, max(20, y))
         self.update()
 
-    def paintEvent(self, a0):
+    def paintEvent(self, event: QPaintEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         mask = QPainterPath()
@@ -194,13 +194,13 @@ class TourSurface(QWidget):
         for rect in self.target_rects():
             painter.drawRoundedRect(rect, 8, 8)
 
-    def focusNextPrevChild(self, next):
+    def focusNextPrevChild(self, forward: bool) -> bool:  # pyright: ignore[reportIncompatibleMethodOverride]
         current = QApplication.focusWidget() or self.next
         candidate = current
         while True:
             candidate = (
                 candidate.nextInFocusChain()
-                if next
+                if forward
                 else candidate.previousInFocusChain()
             )
             if candidate is None or candidate is current:
@@ -213,15 +213,13 @@ class TourSurface(QWidget):
             ):
                 candidate.setFocus(
                     Qt.FocusReason.TabFocusReason
-                    if next
+                    if forward
                     else Qt.FocusReason.BacktabFocusReason
                 )
                 return True
 
-    def keyPressEvent(self, a0):
-        if a0 is None:
-            return
-        if a0.key() == Qt.Key.Key_Escape:
+    def keyPressEvent(self, event: QKeyEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
+        if event.key() == Qt.Key.Key_Escape:
             self.exitRequested.emit()
         else:
-            super().keyPressEvent(a0)
+            super().keyPressEvent(event)

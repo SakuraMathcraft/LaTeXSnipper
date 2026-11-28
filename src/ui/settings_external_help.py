@@ -1,4 +1,5 @@
 from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtGui import QShowEvent
 from PyQt6.QtWidgets import QDialog, QLabel, QScrollArea, QVBoxLayout, QWidget
 from qfluentwidgets import BodyLabel, FluentIcon, PrimaryPushButton
 
@@ -132,9 +133,9 @@ class ExternalModelHelpWindow(QDialog):
         for label in self._section_body_labels:
             label.setStyleSheet(f"color: {tokens['muted']}; line-height: 1.35;")
 
-    def a0(self, a0):
-        result = super().event(a0)
-        if a0.type() in (
+    def event(self, event: QEvent) -> bool:  # pyright: ignore[reportIncompatibleMethodOverride]
+        result = super().event(event)
+        if event.type() in (
             QEvent.Type.StyleChange,
             QEvent.Type.PaletteChange,
             QEvent.Type.ApplicationPaletteChange,
@@ -142,6 +143,6 @@ class ExternalModelHelpWindow(QDialog):
             self._apply_theme_styles()
         return result
 
-    def showEvent(self, a0):
-        super().showEvent(a0)
+    def showEvent(self, event: QShowEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
+        super().showEvent(event)
         self._apply_theme_styles(force=True)

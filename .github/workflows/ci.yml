@@ -22,21 +22,30 @@ concurrency:
 
 jobs:
   compile-check:
-    name: Compile Check
-    runs-on: windows-2025
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {runner: windows-2025, name: Desktop checks (Windows)}
+          - {runner: ubuntu-22.04, name: Desktop checks (Linux)}
+          - {runner: macos-15, name: Desktop checks (macOS)}
+    env:
+      QT_QPA_PLATFORM: offscreen
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
       - name: Setup Python
+        id: python
         uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-
-      - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: "9.0.x"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            pyproject.toml
 
       - name: Byte-compile source tree
         run: python -m compileall -q src mathcraft_ocr
@@ -48,11 +57,13 @@ jobs:
         run: python scripts/release/desktop_distribution.py sources
 
       - name: Validate translation catalog
-        run: |
-          python scripts/translations/update_translations.py --check
-          python scripts/translations/check_ui_translations.py
+        run: python scripts/translations/update_translations.py --check
+
+      - name: Validate UI translation calls
+        run: python scripts/translations/check_ui_translations.py
 
       - name: Validate Python comment language
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           @'
@@ -94,6 +105,35 @@ jobs:
               raise SystemExit("\n".join(violations))
           '@ | python -
 
-      - name: Build Office plugin managed projects
-        shell: pwsh
-        run: dotnet build Office_plugin\windows\LaTeXSnipper.OfficePlugin.slnx -c Release
+      - uses: ./.github/actions/desktop-system-libraries
+        if: runner.os == 'Linux'
+
+      - name: Install Python checkers
+        if: runner.os == 'Windows'
+        run: python -m pip install "ruff>=0.15,<0.16" "pyright>=1.1.411,<2"
+
+      - name: Validate Python style
+        if: runner.os == 'Windows'
+        run: python -X utf8 -m ruff check .
+
+      - name: Validate Python formatting
+        if: runner.os == 'Windows'
+        run: python -X utf8 -m ruff format --check .
+
+      - name: Install desktop test dependencies
+        run: python -m pip install -r requirements.txt ".[cpu]" pytest
+
+      - name: Check Python types
+        if: runner.os == 'Windows'
+        run: python -X utf8 -m pyright --pythonpath "${{ steps.python.outputs.python-path }}"
+
+      - name: Test desktop code
+        run: python -X utf8 -m pytest -q -ra
+
+      - name: Test native macOS screenshot panel
+        if: runner.os == 'macOS'
+        env:
+          QT_QPA_PLATFORM: cocoa
+        run: >-
+          python -X utf8 -m pytest -q -ra
+          test/test_macos_background_capture.py::test_nonactivating_panel_stays_on_screen_while_app_is_inactive

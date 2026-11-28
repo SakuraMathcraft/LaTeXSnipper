@@ -1,7 +1,14 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QRect, QSize, Qt
-from PyQt6.QtGui import QColor, QFontMetrics, QTextFormat, QWheelEvent
+from PyQt6.QtGui import (
+    QColor,
+    QFontMetrics,
+    QPaintEvent,
+    QResizeEvent,
+    QTextFormat,
+    QWheelEvent,
+)
 from PyQt6.QtWidgets import QPlainTextEdit, QTextEdit, QWidget
 
 from ui.theme_tokens import is_dark_ui
@@ -15,10 +22,9 @@ class _LineNumberArea(QWidget):
     def sizeHint(self):
         return QSize(self.editor.line_number_area_width(), 0)
 
-    def paintEvent(self, a0) -> None:
-        if a0 is None:
-            return
-        self.editor.paint_line_number_area(a0)
+    # Qt supplies a concrete QPaintEvent. SIP models the pointer as nullable.
+    def paintEvent(self, event: QPaintEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
+        self.editor.paint_line_number_area(event)
 
 
 class SourceEditor(QPlainTextEdit):
@@ -34,17 +40,15 @@ class SourceEditor(QPlainTextEdit):
         self._update_line_number_area_width(0)
         self._highlight_current_line()
 
-    def wheelEvent(self, e: QWheelEvent | None) -> None:
-        if e is None:
-            return
-        if e.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            delta = e.angleDelta().y()
+    def wheelEvent(self, event: QWheelEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            delta = event.angleDelta().y()
             if delta:
                 self.zoomIn(1 if delta > 0 else -1)
-                e.accept()
+                event.accept()
                 self._update_line_number_area_width(0)
                 return
-        super().wheelEvent(e)
+        super().wheelEvent(event)
 
     def line_number_area_width(self) -> int:
         digits = max(2, len(str(max(1, self.blockCount()))))
@@ -65,14 +69,14 @@ class SourceEditor(QPlainTextEdit):
         if rect.contains(viewport.rect()):
             self._update_line_number_area_width(0)
 
-    def resizeEvent(self, e) -> None:
-        super().resizeEvent(e)
+    def resizeEvent(self, event: QResizeEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
+        super().resizeEvent(event)
         cr = self.contentsRect()
         self._line_number_area.setGeometry(
             QRect(cr.left(), cr.top(), self.line_number_area_width(), cr.height())
         )
 
-    def paint_line_number_area(self, event) -> None:
+    def paint_line_number_area(self, event: QPaintEvent) -> None:
         from PyQt6.QtGui import QPainter
 
         painter = QPainter(self._line_number_area)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 from contextlib import nullcontext
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -60,7 +61,8 @@ def test_finds_stylesheet_beside_registered_word(registry, office, hive, view):
 
 def test_expands_registered_word_environment_variables(registry, office):
     entries, api = registry
-    entries["machine", 0x100] = (r"%OFFICE_ROOT%\WINWORD.EXE", api.REG_EXPAND_SZ)
+    executable = Path("%OFFICE_ROOT%") / "WINWORD.EXE"
+    entries["machine", 0x100] = (str(executable), api.REG_EXPAND_SZ)
     api.ExpandEnvironmentStrings = lambda value: value.replace(
         "%OFFICE_ROOT%", str(office)
     )

@@ -6,6 +6,11 @@ import logging
 import os
 import uuid
 
+from PyQt6.QtCore import QRect, QUrl
+from PyQt6.QtGui import QGuiApplication, QImage
+
+from capture.geometry import ScreenSnapshot, split_desktop_snapshot
+from localization.manager import translate as tr
 from runtime.app_paths import APP_DESKTOP_ID
 
 logger = logging.getLogger(f"latexsnipper.{__name__}")
@@ -18,11 +23,8 @@ def is_wayland() -> bool:
     )
 
 
-def wayland_screenshot_via_portal():
+def wayland_screenshot_via_portal() -> QImage | None:
     """Capture through org.freedesktop.portal.Screenshot on Wayland."""
-    from PyQt6.QtCore import QUrl
-    from PyQt6.QtGui import QImage
-
     try:
         import dbus  # type: ignore[reportMissingImports]
         from dbus.mainloop.glib import (  # pyright: ignore[reportMissingImports]
@@ -127,3 +129,49 @@ def wayland_screenshot_via_portal():
             os.unlink(path)
         except OSError:
             pass
+
+
+def capture_screen_snapshots(use_portal: bool) -> list[ScreenSnapshot]:
+    """Capture the desktop before the overlay becomes visible."""
+    snapshots: list[ScreenSnapshot] = []
+
+    if use_portal:
+        image = wayland_screenshot_via_portal()
+        if image is not None and not image.isNull():
+            snapshots = split_desktop_snapshot(
+                image, [screen.geometry() for screen in QGuiApplication.screens()]
+            )
+        if not snapshots:
+            raise RuntimeError(
+                tr(
+                    "Wayland 截图未完成，请确认桌面提供 Screenshot Portal 并允许屏幕截图。"
+                )
+            )
+        return snapshots
+
+    for i, screen in enumerate(QGuiApplication.screens()):
+        try:
+            geo = QRect(screen.geometry())
+            if geo.width() <= 0 or geo.height() <= 0:
+                continue
+            pixmap = screen.grabWindow(x=0, y=0, width=geo.width(), height=geo.height())
+            image = pixmap.toImage().copy()
+            if image.isNull():
+                logger.warning("屏幕 %s grabWindow(0) 返回空图像", i)
+                continue
+            snapshots.append(
+                ScreenSnapshot(
+                    geometry=geo,
+                    image=image,
+                    scale_x=float(image.width()) / max(1, int(geo.width())),
+                    scale_y=float(image.height()) / max(1, int(geo.height())),
+                )
+            )
+        except Exception as e:
+            logger.warning("屏幕 %s 截图异常: %s", i, e)
+            continue
+
+    if not snapshots:
+        logger.warning("未能捕获任何屏幕快照，overlay 背景将为纯色遮罩")
+
+    return snapshots

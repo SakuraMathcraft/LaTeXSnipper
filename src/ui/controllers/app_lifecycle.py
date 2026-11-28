@@ -67,17 +67,17 @@ class AppLifecycleController(QObject):
         self._platform_hooks_installed = True
         self._install_macos_application_menu()
 
-    def eventFilter(self, a0, a1):
-        if sys.platform == "darwin" and a1 is not None:
-            if a1.type() == QEvent.Type.Quit:
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # pyright: ignore[reportIncompatibleMethodOverride]
+        if sys.platform == "darwin":
+            if event.type() == QEvent.Type.Quit:
                 self._force_exit = True
                 self.shutdown()
             elif (
-                a1.type() == QEvent.Type.ApplicationActivate
+                event.type() == QEvent.Type.ApplicationActivate
                 and not self.capture.is_capturing()
             ):
                 QTimer.singleShot(0, self._reactivate_from_dock)
-        return super().eventFilter(a0, a1)
+        return super().eventFilter(watched, event)
 
     def _install_macos_application_menu(self):
         if sys.platform != "darwin":

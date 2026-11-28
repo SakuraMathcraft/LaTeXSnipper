@@ -169,6 +169,10 @@ def test_staging_only_downloads_changed_component_and_preserves_live_files(
 ):
     root = tmp_path / "installed"
     installed = distribution()
+    monkeypatch.setattr(
+        "update.component_staging.current_target",
+        lambda: (installed.platform, installed.architecture),
+    )
     for name in ("application", "inference", "models"):
         directory = root / name
         directory.mkdir(parents=True)

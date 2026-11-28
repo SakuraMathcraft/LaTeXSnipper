@@ -5,8 +5,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from PyQt6.QtCore import QPoint, QRect
-from PyQt6.QtGui import QColor, QImage, QPixmap
+from PyQt6.QtCore import QRect
+from PyQt6.QtGui import QImage, QPixmap
 
 
 @dataclass(frozen=True)
@@ -48,38 +48,8 @@ def split_desktop_snapshot(
     return snapshots
 
 
-@dataclass(frozen=True)
-class MagnifierSample:
-    preview: QImage
-    color: QColor
-    global_x: int
-    global_y: int
-
-
 def _rect_to_tuple(rect: QRect) -> tuple[int, int, int, int]:
     return (int(rect.x()), int(rect.y()), int(rect.width()), int(rect.height()))
-
-
-def _place_popup_near_pointer(
-    pointer: QPoint,
-    bounds: QRect,
-    width: int,
-    height: int,
-    margin: int,
-) -> QRect:
-    """Place a popup below-right of the pointer, flipping only at screen edges."""
-    x = int(pointer.x()) + margin
-    y = int(pointer.y()) + margin
-    if x + width - 1 > bounds.right():
-        x = int(pointer.x()) - margin - width
-    if y + height - 1 > bounds.bottom():
-        y = int(pointer.y()) - margin - height
-
-    max_x = bounds.right() - width + 1
-    max_y = bounds.bottom() - height + 1
-    x = bounds.left() if max_x < bounds.left() else max(bounds.left(), min(x, max_x))
-    y = bounds.top() if max_y < bounds.top() else max(bounds.top(), min(y, max_y))
-    return QRect(x, y, width, height)
 
 
 def choose_screen_index(

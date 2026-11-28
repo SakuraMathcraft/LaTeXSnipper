@@ -1,5 +1,6 @@
 """Behavioral coverage for the shared native onboarding flow."""
 
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -156,11 +157,15 @@ def test_shortcut_pause_resume_and_single_instance(host):
     assert not tour.surface.isVisible()
     tour.start()
     assert tour.index == 2
-    host.cfg.set("hotkey", "Ctrl+Shift+K")
+    if sys.platform == "darwin":
+        shortcut, expected_label = "Meta+Shift+K", "Command+Shift+K"
+    else:
+        shortcut = expected_label = "Ctrl+Shift+K"
+    host.cfg.set("hotkey", shortcut)
     host.shortcut_window.close()
     QApplication.processEvents()
     assert tour.surface.isVisible()
-    assert tour.surface.detail.text() == "Ctrl+Shift+K"
+    assert tour.surface.detail.text() == expected_label
 
 
 def test_resize_keeps_card_inside_surface(host):
