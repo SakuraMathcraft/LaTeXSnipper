@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import ctypes
 import json
 import os
@@ -232,7 +233,13 @@ def _query_windows_video_controller() -> tuple[str, int, str]:
 
 
 def _run_powershell_json(command: str) -> object | None:
+    script = (
+        "$OutputEncoding = [Console]::OutputEncoding = "
+        "[System.Text.UTF8Encoding]::new($false); " + command
+    )
     try:
+        # Windows PowerShell defines EncodedCommand as base64-encoded UTF-16LE.
+        encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
         proc = subprocess.run(
             [
                 "powershell.exe",
@@ -240,9 +247,8 @@ def _run_powershell_json(command: str) -> object | None:
                 "-NonInteractive",
                 "-ExecutionPolicy",
                 "Bypass",
-                "-Command",
-                "$OutputEncoding = [Console]::OutputEncoding = "
-                "[System.Text.UTF8Encoding]::new($false); " + command,
+                "-EncodedCommand",
+                encoded,
             ],
             check=False,
             capture_output=True,

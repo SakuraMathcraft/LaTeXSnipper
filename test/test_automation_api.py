@@ -92,7 +92,9 @@ def test_desktop_automation_messages_do_not_expose_runtime_exceptions() -> None:
     assert any("\u4e00" <= char <= "\u9fff" for char in str(raised.value))
 
 
-def test_health_config_upload_query_and_connection_file(tmp_path: Path) -> None:
+def test_health_config_upload_query_and_connection_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     coordinator = RecognitionJobCoordinator(
         lambda image, mode: f"{mode}:{image.size}",
         external_config_provider=lambda: ExternalModelConfig(
@@ -110,6 +112,14 @@ def test_health_config_upload_query_and_connection_file(tmp_path: Path) -> None:
     )
     server.start()
     try:
+
+        def unexpected_hostname_lookup() -> str:
+            raise AssertionError("Loopback authentication should not need DNS")
+
+        monkeypatch.setattr(
+            "integration.automation.server.socket.gethostname",
+            unexpected_hostname_lookup,
+        )
         status, headers, health = _request(server, "GET", "/api/v1/health")
         assert status == 200 and health == {"status": "ok"}
         assert "Access-Control-Allow-Origin" not in headers

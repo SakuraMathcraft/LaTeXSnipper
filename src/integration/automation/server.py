@@ -314,20 +314,22 @@ class AutomationApiServer:
             peer_is_loopback = False
         if self.settings.access_scope == "local" and not peer_is_loopback:
             raise AutomationApiError(403, "forbidden", "仅允许本机设备访问。")
-        local_addresses = {self.settings.host}
-        try:
-            local_addresses.update(
-                str(info[4][0])
-                for info in socket.getaddrinfo(socket.gethostname(), None)
-            )
-        except OSError:
-            pass
         if (
             principal.kind == "local"
             and not peer_is_loopback
-            and peer not in local_addresses
+            and peer != self.settings.host
         ):
-            raise AutomationApiError(403, "forbidden", "本机会话凭据不能用于远程访问。")
+            try:
+                local_addresses = {
+                    str(info[4][0])
+                    for info in socket.getaddrinfo(socket.gethostname(), None)
+                }
+            except OSError:
+                local_addresses = set()
+            if peer not in local_addresses:
+                raise AutomationApiError(
+                    403, "forbidden", "本机会话凭据不能用于远程访问。"
+                )
         return principal
 
     def check_rate_limit(
