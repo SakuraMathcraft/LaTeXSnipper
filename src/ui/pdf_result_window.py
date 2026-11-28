@@ -10,7 +10,7 @@ from collections.abc import Callable
 
 import pyperclip
 from PyQt6.QtCore import QEvent, Qt
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QCloseEvent, QIcon
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QMainWindow,
@@ -115,10 +115,10 @@ class PdfResultWindow(QMainWindow):
             return
         self._theme_is_dark_cached = dark
 
-    def event(self, event):
+    def event(self, event: QEvent) -> bool:  # pyright: ignore[reportIncompatibleMethodOverride]
         result = super().event(event)
         try:
-            if event is not None and event.type() in (
+            if event.type() in (
                 QEvent.Type.StyleChange,
                 QEvent.Type.PaletteChange,
                 QEvent.Type.ApplicationPaletteChange,
@@ -324,7 +324,7 @@ class PdfResultWindow(QMainWindow):
         except Exception:
             return False
 
-    def closeEvent(self, a0):
+    def closeEvent(self, event: QCloseEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
         try:
             doc = self.editor.document()
             if doc is not None:
@@ -333,4 +333,4 @@ class PdfResultWindow(QMainWindow):
             self.editor.blockSignals(True)
         except Exception:
             pass
-        return super().closeEvent(a0)
+        return super().closeEvent(event)

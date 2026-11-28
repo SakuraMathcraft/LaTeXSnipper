@@ -11,8 +11,14 @@ if TYPE_CHECKING:
 import logging
 from pathlib import Path
 
-from PyQt6.QtCore import QObject
-from PyQt6.QtGui import QDragMoveEvent, QGuiApplication, QKeySequence
+from PyQt6.QtCore import QEvent, QObject
+from PyQt6.QtGui import (
+    QDragMoveEvent,
+    QDropEvent,
+    QGuiApplication,
+    QKeyEvent,
+    QKeySequence,
+)
 from qfluentwidgets import InfoBar, InfoBarPosition
 
 from localization.manager import translate as tr
@@ -34,7 +40,7 @@ class FileInputController(QObject):
         self.pdf = pdf
         self.recognition = recognition
 
-    def _handle_clipboard_image_paste(self, event=None) -> bool:
+    def _handle_clipboard_image_paste(self, event: QKeyEvent | None = None) -> bool:
         if event is not None:
             try:
                 if not event.matches(QKeySequence.StandardKey.Paste):
@@ -64,7 +70,7 @@ class FileInputController(QObject):
                 return True
         return False
 
-    def _local_drop_paths(self, event) -> list[Path]:
+    def _local_drop_paths(self, event: QDropEvent) -> list[Path]:
         try:
             mime = event.mimeData()
             if mime is None or not mime.hasUrls():
@@ -79,9 +85,6 @@ class FileInputController(QObject):
             return paths
         except Exception:
             return []
-
-    def _drag_contains_local_file(self, event) -> bool:
-        return bool(self._local_drop_paths(event))
 
     def _show_drop_file_warning(self, content: str) -> None:
         try:
@@ -107,7 +110,7 @@ class FileInputController(QObject):
         except Exception:
             pass
 
-    def dropEvent(self, event):
+    def dropEvent(self, event: QDropEvent) -> None:
         paths = self._local_drop_paths(event)
         if len(paths) != 1:
             if paths:
@@ -139,26 +142,28 @@ class FileInputController(QObject):
         elif kind == "pdf":
             self.pdf.recognize_file(path)
 
-    def eventFilter(self, a0, a1):
-        from PyQt6.QtCore import QEvent
-
-        if a1 is None:
-            return False
-        event_type = a1.type()
-        if event_type == QEvent.Type.KeyPress and self._handle_clipboard_image_paste(
-            a1
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # pyright: ignore[reportIncompatibleMethodOverride]
+        event_type = event.type()
+        if (
+            event_type == QEvent.Type.KeyPress
+            and isinstance(event, QKeyEvent)
+            and self._handle_clipboard_image_paste(event)
         ):
-            a1.accept()
+            event.accept()
             return True
         if (
             event_type in (QEvent.Type.DragEnter, QEvent.Type.DragMove)
-            and isinstance(a1, QDragMoveEvent)
-            and self._drag_contains_local_file(a1)
+            and isinstance(event, QDragMoveEvent)
+            and self._local_drop_paths(event)
         ):
-            a1.acceptProposedAction()
+            event.acceptProposedAction()
             return True
-        if event_type == QEvent.Type.Drop and self._local_drop_paths(a1):
-            self.dropEvent(a1)
+        if (
+            event_type == QEvent.Type.Drop
+            and isinstance(event, QDropEvent)
+            and self._local_drop_paths(event)
+        ):
+            self.dropEvent(event)
             return True
         return False
 

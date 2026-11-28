@@ -6,6 +6,7 @@ import sys
 import threading
 
 from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtGui import QShowEvent
 from PyQt6.QtWidgets import QDialog, QPlainTextEdit, QVBoxLayout
 
 from localization.manager import translate as tr
@@ -95,7 +96,7 @@ class ResourceDiagnosticsDialog(QDialog):
             json.dumps({**self._report, **runtime}, ensure_ascii=False, indent=2)
         )
 
-    def showEvent(self, a0) -> None:
+    def showEvent(self, event: QShowEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
         self._render_report()
         self._inspect_resources()
-        super().showEvent(a0)
+        super().showEvent(event)

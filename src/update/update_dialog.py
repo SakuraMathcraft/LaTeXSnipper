@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QCoreApplication, Qt, QTimer, QUrl
-from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtGui import QCloseEvent, QDesktopServices, QKeyEvent
 from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QMessageBox, QVBoxLayout
 from qfluentwidgets import (
     FluentIcon,
@@ -181,11 +181,9 @@ class ComponentUpdateDialog(QDialog):
         self._lifecycle.prepare_restart()
         QCoreApplication.quit()
 
-    def closeEvent(self, a0) -> None:
-        if a0 is None:
-            return
+    def closeEvent(self, event: QCloseEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
         if self._state == "handoff-ready":
-            a0.accept() if self._exiting_for_install else a0.ignore()
+            event.accept() if self._exiting_for_install else event.ignore()
             return
         if self._state == "downloading":
             answer = exec_close_only_message_box(
@@ -197,20 +195,18 @@ class ComponentUpdateDialog(QDialog):
                 QMessageBox.StandardButton.No,
             )
             if answer != QMessageBox.StandardButton.Yes:
-                a0.ignore()
+                event.ignore()
                 return
         self.controller.close()
         _clear_dialog(self)
-        super().closeEvent(a0)
+        super().closeEvent(event)
 
-    def keyPressEvent(self, a0) -> None:
-        if a0 is None:
-            return
-        if a0.key() == Qt.Key.Key_Escape:
+    def keyPressEvent(self, event: QKeyEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
+        if event.key() == Qt.Key.Key_Escape:
             self.close()
-            a0.accept()
+            event.accept()
         else:
-            super().keyPressEvent(a0)
+            super().keyPressEvent(event)
 
 
 def _clear_dialog(owner) -> None:

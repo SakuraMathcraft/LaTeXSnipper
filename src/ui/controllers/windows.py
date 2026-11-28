@@ -124,7 +124,6 @@ class WindowController(QObject):
             self._warmup_handwriting_model_async(handwriting_model)
             return
         self.handwriting_window = HandwritingWindow(
-            self.models.model,
             models=self.models,
             coordinator=self.coordinator,
             tasks=self.tasks,

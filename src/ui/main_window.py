@@ -5,8 +5,8 @@ from __future__ import annotations
 import sys
 from typing import TYPE_CHECKING, cast
 
-from PyQt6.QtCore import QTimer
-from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import QEvent, QTimer
+from PyQt6.QtGui import QCloseEvent, QIcon, QShowEvent
 from PyQt6.QtWidgets import QMainWindow
 
 from localization.manager import translate as tr
@@ -296,8 +296,8 @@ class MainWindow(QMainWindow):
             0, self.automation_api.apply_automation_api_startup_preference
         )
 
-    def showEvent(self, a0):
-        super().showEvent(a0)
+    def showEvent(self, event: QShowEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
+        super().showEvent(event)
         if not self._startup_centered_once:
             self._startup_centered_once = True
             screen = self.screen()
@@ -306,14 +306,14 @@ class MainWindow(QMainWindow):
                 frame.moveCenter(screen.availableGeometry().center())
                 self.move(frame.topLeft())
 
-    def event(self, event):
+    def event(self, event: QEvent) -> bool:  # pyright: ignore[reportIncompatibleMethodOverride]
         theme = getattr(self, "theme", None)
         if theme is not None:
             theme.handle_event(event)
         return super().event(event)
 
-    def closeEvent(self, a0):
+    def closeEvent(self, event: QCloseEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
         if self.lifecycle is not None:
-            self.lifecycle.closeEvent(a0)
+            self.lifecycle.closeEvent(event)
         else:
-            super().closeEvent(a0)
+            super().closeEvent(event)

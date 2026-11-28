@@ -7,7 +7,7 @@ import threading
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, QUrl, pyqtSignal
-from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtGui import QDesktopServices, QShowEvent
 from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 from qfluentwidgets import FluentIcon, PushButton
 
@@ -119,9 +119,9 @@ class ModelResourcesDialog(QDialog):
                 names.get(model_id) or model_id, resources.root / model_id
             )
 
-    def showEvent(self, a0):
+    def showEvent(self, event: QShowEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
         self._inspect_resources()
-        super().showEvent(a0)
+        super().showEvent(event)
 
     def _open_directory(self):
         if self._directory is not None:

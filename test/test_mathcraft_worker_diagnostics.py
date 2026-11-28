@@ -206,6 +206,8 @@ def _script_worker(monkeypatch, script):
 def test_installed_handshake_uses_owned_runtime_and_checks_versions(
     tmp_path, monkeypatch, platform, matching_version
 ):
+    if platform == "windows" and sys.platform != "win32":
+        monkeypatch.setenv("SYSTEMROOT", str(tmp_path / "Windows"))
     root = tmp_path / "installation"
     if platform == "macos":
         root = tmp_path / "LaTeXSnipper.app/Contents/Resources/desktop"

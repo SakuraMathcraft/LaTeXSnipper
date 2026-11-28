@@ -59,9 +59,8 @@ class HistoryRow(QWidget):
 class _HistoryTextLabel(QLabel):
     on_press: Callable[[QMouseEvent], None]
 
-    def mousePressEvent(self, ev: QMouseEvent | None) -> None:
-        if ev is not None:
-            self.on_press(ev)
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
+        self.on_press(event)
 
 
 def create_history_row(
@@ -127,7 +126,7 @@ def create_history_row(
 
     row_ref = weakref.ref(row)
 
-    def _load_to_editor(event):
+    def _load_to_editor(event: QMouseEvent) -> None:
         if event.button() != Qt.MouseButton.LeftButton:
             return
         r = row_ref()

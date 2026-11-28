@@ -111,21 +111,23 @@ def test_window_shutdown_does_not_wait_for_external_request(
             shutdown = tasks.shutdown
             owner = parent
         else:
-            import handwriting.handwriting_window as handwriting
+            from handwriting import HandwritingWindow, result_panel
+            from handwriting.ink_canvas import InkCanvas
 
-            monkeypatch.setattr(handwriting, "PreviewWebView", None)
-            window = handwriting.HandwritingWindow(
-                None, models=None, coordinator=coordinator, tasks=tasks
+            monkeypatch.setattr(result_panel, "PreviewWebView", None)
+            window = HandwritingWindow(
+                models=SimpleNamespace(
+                    current_model="external_model",
+                    external_configured=lambda: True,
+                    external_config=lambda: config,
+                ),
+                coordinator=coordinator,
+                tasks=tasks,
             )
+            canvas = window.findChild(InkCanvas)
+            assert canvas is not None
             monkeypatch.setattr(
-                window, "_get_active_model_key", lambda: "external_model"
-            )
-            monkeypatch.setattr(window, "_is_external_model_ready", lambda: True)
-            monkeypatch.setattr(
-                window, "_get_handwriting_external_model_config", lambda: config
-            )
-            monkeypatch.setattr(
-                window.canvas,
+                canvas,
                 "export_image",
                 lambda: SimpleNamespace(
                     is_empty=False,

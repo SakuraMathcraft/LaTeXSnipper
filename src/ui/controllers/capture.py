@@ -153,17 +153,17 @@ class CaptureController(QObject):
         finally:
             self._capture_start_pending = False
 
-    def eventFilter(self, a0, a1):
-        if self.file_input.eventFilter(a0, a1):
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # pyright: ignore[reportIncompatibleMethodOverride]
+        if self.file_input.eventFilter(watched, event):
             return True
         overlay = getattr(self, "overlay", None)
         if (
             overlay is not None
-            and a0 is overlay
-            and isinstance(a1, QKeyEvent)
-            and a1.type() == QEvent.Type.KeyPress
+            and watched is overlay
+            and isinstance(event, QKeyEvent)
+            and event.type() == QEvent.Type.KeyPress
         ):
-            if a1.key() == Qt.Key.Key_Escape:
+            if event.key() == Qt.Key.Key_Escape:
                 restore_main_window = self._restore_main_window_on_cancel
                 try:
                     cancel = getattr(overlay, "cancel_capture", None)

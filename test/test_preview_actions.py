@@ -3,18 +3,43 @@
 from types import SimpleNamespace
 
 import pytest
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QCoreApplication, QEvent, Qt
 from PyQt6.QtWidgets import QApplication, QDialog, QListWidget, QPlainTextEdit, QWidget
 
 from runtime.history_store import load_history_store
 from ui.controllers.history import HistoryController
 from ui.controllers.preview import PreviewController
+from ui.edit_formula_dialog import EditFormulaDialog
 from ui.favorites_window import FavoritesWindow
+from ui.settings_external_help import ExternalModelHelpWindow
 
 
 @pytest.fixture(scope="session")
 def application():
     return QApplication.instance() or QApplication([])
+
+
+@pytest.mark.parametrize(
+    "make_dialog",
+    [
+        lambda: EditFormulaDialog("x+1", content_type="mathcraft_text"),
+        ExternalModelHelpWindow,
+    ],
+    ids=["edit-formula", "external-model-help"],
+)
+def test_dialog_refreshes_theme_on_qt_palette_change(
+    application, monkeypatch, make_dialog
+):
+    dialog = make_dialog()
+    refreshes = []
+    monkeypatch.setattr(dialog, "_apply_theme_styles", lambda: refreshes.append(True))
+    try:
+        QCoreApplication.sendEvent(dialog, QEvent(QEvent.Type.ApplicationPaletteChange))
+        assert refreshes == [True]
+    finally:
+        dialog.close()
+        dialog.deleteLater()
+        application.processEvents()
 
 
 @pytest.fixture

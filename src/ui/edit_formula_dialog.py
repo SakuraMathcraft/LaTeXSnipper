@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from PyQt6.QtCore import QEvent, QTimer
+from PyQt6.QtGui import QCloseEvent
 from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QTextEdit, QVBoxLayout
 from qfluentwidgets import BodyLabel
 
@@ -98,10 +99,10 @@ class EditFormulaDialog(QDialog):
             return build_mixed_content_html(text), get_mathjax_base_url()
         return build_math_html(text, center_viewport=True), get_mathjax_base_url()
 
-    def a0(self, a0):
-        result = super().event(a0)
+    def event(self, event: QEvent) -> bool:  # pyright: ignore[reportIncompatibleMethodOverride]
+        result = super().event(event)
         try:
-            if a0.type() in (
+            if event.type() in (
                 QEvent.Type.StyleChange,
                 QEvent.Type.PaletteChange,
                 QEvent.Type.ApplicationPaletteChange,
@@ -132,13 +133,13 @@ class EditFormulaDialog(QDialog):
         except Exception as exc:
             logger.warning("编辑内容预览渲染失败: %s", exc)
 
-    def closeEvent(self, a0):
+    def closeEvent(self, event: QCloseEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
         try:
             if hasattr(self, "_render_timer") and self._render_timer:
                 self._render_timer.stop()
         except Exception:
             pass
-        return super().closeEvent(a0)
+        return super().closeEvent(event)
 
     def value(self) -> str:
         return self.editor.toPlainText().strip()

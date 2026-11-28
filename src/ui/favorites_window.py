@@ -9,7 +9,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from PyQt6.QtCore import QEvent, Qt
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QIcon, QKeyEvent
 from PyQt6.QtWidgets import (
     QDialog,
     QFileDialog,
@@ -116,14 +116,12 @@ class FavoritesWindow(QMainWindow):
         self._esc_shortcut.activated.connect(self.close)
         self.apply_theme_styles(force=True)
 
-    def keyPressEvent(self, a0):
-        if a0 is None:
-            return
-        if a0.key() == Qt.Key.Key_Escape:
+    def keyPressEvent(self, event: QKeyEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
+        if event.key() == Qt.Key.Key_Escape:
             self.close()
-            a0.accept()
+            event.accept()
             return
-        super().keyPressEvent(a0)
+        super().keyPressEvent(event)
 
     def _favorites_list_qss(self) -> str:
         t = preview_theme_tokens()
@@ -149,9 +147,7 @@ class FavoritesWindow(QMainWindow):
         except Exception:
             pass
 
-    def event(self, event):
-        if event is None:
-            return False
+    def event(self, event: QEvent) -> bool:  # pyright: ignore[reportIncompatibleMethodOverride]
         result = super().event(event)
         try:
             if event.type() in (

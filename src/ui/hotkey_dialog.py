@@ -31,14 +31,12 @@ class _HotkeyEdit(QLineEdit):
         super().__init__(dialog)
         self._dialog = dialog
 
-    def keyPressEvent(self, a0: QKeyEvent | None) -> None:
-        if a0 is None:
-            return
-        if a0.key() == Qt.Key.Key_Escape:
+    def keyPressEvent(self, event: QKeyEvent) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
+        if event.key() == Qt.Key.Key_Escape:
             self._dialog.reject()
             return
-        k = a0.key()
-        mods = a0.modifiers()
+        k = event.key()
+        mods = event.modifiers()
         has_shift = bool(mods & Qt.KeyboardModifier.ShiftModifier)
         if sys.platform == "darwin":
             has_command = bool(mods & Qt.KeyboardModifier.MetaModifier)
