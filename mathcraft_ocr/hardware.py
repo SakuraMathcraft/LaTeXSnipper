@@ -224,7 +224,7 @@ def _query_windows_video_controller() -> tuple[str, int, str]:
     )
     for command in commands:
         try:
-            payload = _run_powershell_json(command)
+            payload = _run_powershell_json(command, timeout=3.0)
         except (OSError, subprocess.SubprocessError, ValueError):
             continue
         name, adapter_ram_mb, driver = _parse_video_controller_payload(payload)
@@ -233,7 +233,7 @@ def _query_windows_video_controller() -> tuple[str, int, str]:
     return "", 0, ""
 
 
-def _run_powershell_json(command: str) -> object:
+def _run_powershell_json(command: str, *, timeout: float) -> object:
     script = (
         "$OutputEncoding = [Console]::OutputEncoding = "
         "[System.Text.UTF8Encoding]::new($false); " + command
@@ -252,7 +252,7 @@ def _run_powershell_json(command: str) -> object:
         ],
         check=True,
         capture_output=True,
-        timeout=3.0,
+        timeout=timeout,
     )
     return json.loads(proc.stdout.decode("utf-8"))
 

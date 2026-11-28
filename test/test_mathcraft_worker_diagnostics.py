@@ -25,8 +25,10 @@ UNICODE_TEXT = "中文 − ∑ 𝛼 🙂 café"
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows PowerShell transport")
 def test_powershell_json_preserves_unicode():
+    # Allow for PowerShell startup on hosted runners when testing encoding.
     result = _run_powershell_json(
-        f"[pscustomobject]@{{Name='{UNICODE_TEXT}'}} | ConvertTo-Json -Compress"
+        f"[pscustomobject]@{{Name='{UNICODE_TEXT}'}} | ConvertTo-Json -Compress",
+        timeout=15.0,
     )
     assert result == {"Name": UNICODE_TEXT}
 
