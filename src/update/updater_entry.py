@@ -52,7 +52,6 @@ def wait_for_exit(pid: int, timeout: float = 120, cancel: Path | None = None) ->
             raise TimeoutError("Application did not exit; installation was preserved")
         finally:
             kernel.CloseHandle(handle)
-        return
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if cancel is not None and cancel.exists():
